@@ -1,0 +1,124 @@
+// Data model for the online portfolio (a Seesaw-like class journal).
+// SQLite has no native enums, so "type"/"status"/"role" fields are plain
+// strings with their allowed values documented in comments next to them.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A teacher owns one or more classes and moderates the journal.
+model Teacher {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  classes      Class[]
+  sessions     Session[]
+  activities   Activity[]
+}
+
+// A class groups students together and has a short code students use to log in.
+model Class {
+  id           String        @id @default(cuid())
+  name         String
+  classCode    String        @unique // e.g. "SUN123" — students type this to sign in
+  teacher      Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId    String
+  createdAt    DateTime      @default(now())
+  students     Student[]
+  journalItems JournalItem[]
+  activities   Activity[]
+}
+
+// A student has no password — they pick their name from the class after
+// entering the class code (mirrors how Seesaw handles young children).
+model Student {
+  id           String        @id @default(cuid())
+  name         String
+  avatarColor  String        @default("#4f46e5") // colour of their avatar bubble
+  class        Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId      String
+  createdAt    DateTime      @default(now())
+  journalItems JournalItem[]
+  sessions     Session[]
+  activityAssignments ActivityAssignment[]
+}
+
+// A single piece of work in a student's journal.
+model JournalItem {
+  id          String    @id @default(cuid())
+  type        String // PHOTO | TEXT | DRAWING
+  caption     String? // optional short caption / the child's words
+  textContent String? // body text for TEXT items
+  mediaPath   String? // relative path under /public/uploads for PHOTO / DRAWING items (single / cover image)
+  mediaPathsJson String? // JSON array of paths for multi-page drawings; when set it supersedes mediaPath
+  status      String    @default("PENDING") // PENDING | APPROVED | RETURNED
+  authorRole  String // STUDENT | TEACHER — who created the item
+  teacherNote String? // feedback the teacher leaves when returning work
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  class       Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId     String
+  skills      Skill[]   @relation("JournalItemSkills")
+  createdAt   DateTime  @default(now())
+  approvedAt  DateTime?
+  // When set, this item is a response to an assigned activity.
+  activity    Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  activityId  String?
+}
+
+// An activity is a task a teacher sets: instructions plus an optional template
+// (a background the child works on top of — a drawn canvas and/or PDF pages).
+model Activity {
+  id                String               @id @default(cuid())
+  title             String
+  instructions      String? // what to do; may be read aloud to the child
+  templatePathsJson String? // JSON array of background image paths (canvas / PDF pages)
+  teacher           Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId         String
+  class             Class                @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId           String
+  createdAt         DateTime             @default(now())
+  assignments       ActivityAssignment[]
+  responses         JournalItem[]
+}
+
+// Which students an activity has been assigned to. Whole-class assignment
+// simply creates one row per student in the class.
+model ActivityAssignment {
+  id         String   @id @default(cuid())
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activityId String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId  String
+  createdAt  DateTime @default(now())
+
+  @@unique([activityId, studentId])
+}
+
+// A skill / standard an item can be tagged against, so the journal doubles
+// as assessment evidence. Shared across the whole app.
+model Skill {
+  id    String        @id @default(cuid())
+  name  String        @unique
+  items JournalItem[] @relation("JournalItemSkills")
+}
+
+// A login session. Points at either a teacher or a student.
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  role      String // TEACHER | STUDENT
+  teacher   Teacher? @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String?
+  student   Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
