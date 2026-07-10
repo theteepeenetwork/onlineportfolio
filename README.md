@@ -19,8 +19,9 @@ next (see [Roadmap](#roadmap-whats-next)).
   with its own auto-generated class code and roster.
 - **Student sign-in** with a short class code, then tapping their own name — no
   passwords or emails for children (safe for early years / KS1).
-- A **class roster** you manage: add and remove children, and see the class code
-  to share with them.
+- A **class roster** you manage: add children one at a time **or paste a whole
+  class list at once** (one name per line, straight from a register or
+  spreadsheet), remove children, and see the class code to share with them.
 - Children **add to their journal** with:
   - 📷 a **photo** — taken live with the **device camera** or **uploaded** from a
     file (with an optional caption),
