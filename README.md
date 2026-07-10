@@ -34,8 +34,10 @@ next (see [Roadmap](#roadmap-whats-next)).
     (rectangle, circle, triangle, star, speech bubble) onto the canvas as a
     **movable, resizable object** — pick the **cursor tool** to select, drag to
     move, pull the corner to resize, ✕ to remove. Shapes also have editable
-    **fill and line colours**, and you can **double-tap a shape to add text
-    inside it**. With any drawing tool selected, pen strokes go **on top of**
+    **fill and line colours**, and you can **double-tap a shape to add a label
+    locked inside it** — the label wraps and auto-sizes to fit, and moves and
+    resizes with the shape. With any drawing tool selected, pen strokes go
+    **on top of**
     shapes and pictures, so you can write over anything.
 - **Activities** you set for the class:
   - Build a task with a **title, instructions, and an optional template** — draw
