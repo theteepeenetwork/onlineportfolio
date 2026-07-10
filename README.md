@@ -26,7 +26,10 @@ next (see [Roadmap](#roadmap-whats-next)).
     realistic tools that rise from the bottom edge (pencil, pen, marker,
     eraser) with the selected one lifted, **text boxes**, a **rainbow colour
     slider** + palette, brush sizes, **undo/redo**, and **multiple pages** with
-    a live thumbnail filmstrip. A ＋ button adds a photo or PDF onto the canvas.
+    a live thumbnail filmstrip. A ＋ button adds a photo, PDF, or **shape**
+    (rectangle, circle, triangle, star, speech bubble) onto the canvas as a
+    **movable, resizable object** — tap to select, drag to move, pull the corner
+    to resize, ✕ to remove. Shapes also have editable **fill and line colours**.
 - **Activities** you set for the class:
   - Build a task with a **title, instructions, and an optional template** — draw
     the template on the canvas and/or **upload a PDF or picture** (a worksheet)
@@ -85,6 +88,16 @@ To wipe everything and rebuild the demo class from scratch:
 ```bash
 npm run db:reset
 ```
+
+### Checking it works
+
+Run the automated end-to-end tests (they drive a real browser through the app):
+
+```bash
+npm test
+```
+
+See [TESTING.md](TESTING.md) for details and a manual smoke-test checklist.
 
 ---
 

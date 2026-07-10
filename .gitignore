@@ -49,3 +49,8 @@ next-env.d.ts
 # uploaded media (photos, drawings) — recreated locally; not source
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# Playwright test artifacts
+/test-results
+/playwright-report
+/playwright/.cache

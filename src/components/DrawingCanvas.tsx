@@ -17,7 +17,6 @@ const TOOLS: { key: Tool; label: string; icon: string }[] = [
   { key: "text", label: "Text", icon: "🔤" },
 ];
 
-// The realistic tools that rise from the bottom edge (drawing implements only).
 const SHELF: { key: Tool; label: string }[] = [
   { key: "pencil", label: "Pencil" },
   { key: "pen", label: "Pen" },
@@ -29,6 +28,96 @@ const W = 1000;
 const H = 700;
 const FONT_STACK = "ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif";
 const MAX_HISTORY = 30;
+
+// Movable / resizable things placed on top of the drawing: imported pictures
+// (images / PDF pages) and shapes.
+type ImageObj = {
+  id: string;
+  type: "image";
+  src: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  aspect: number;
+};
+type ShapeKind = "rect" | "ellipse" | "triangle" | "star" | "speech";
+type ShapeObj = {
+  id: string;
+  type: "shape";
+  shape: ShapeKind;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  fill: string; // "none" for outline only
+  stroke: string;
+  strokeWidth: number;
+};
+type Obj = ImageObj | ShapeObj;
+type HistoryEntry = { img: string; objects: Obj[] };
+
+const SHAPES: { kind: ShapeKind; label: string; icon: string }[] = [
+  { kind: "rect", label: "Rectangle", icon: "▭" },
+  { kind: "ellipse", label: "Circle", icon: "⬤" },
+  { kind: "triangle", label: "Triangle", icon: "▲" },
+  { kind: "star", label: "Star", icon: "★" },
+  { kind: "speech", label: "Speech bubble", icon: "💬" },
+];
+
+function roundRectPath(w: number, h: number, r: number) {
+  return `M ${r} 0 H ${w - r} Q ${w} 0 ${w} ${r} V ${h - r} Q ${w} ${h} ${w - r} ${h} H ${r} Q 0 ${h} 0 ${h - r} V ${r} Q 0 0 ${r} 0 Z`;
+}
+function starPath(w: number, h: number) {
+  const cx = w / 2;
+  const cy = h / 2;
+  const spikes = 5;
+  let d = "";
+  for (let i = 0; i < spikes * 2; i++) {
+    const ang = -Math.PI / 2 + (i * Math.PI) / spikes;
+    const rx = (i % 2 === 0 ? 1 : 0.44) * (w / 2);
+    const ry = (i % 2 === 0 ? 1 : 0.44) * (h / 2);
+    d += `${i === 0 ? "M" : "L"} ${cx + Math.cos(ang) * rx} ${cy + Math.sin(ang) * ry} `;
+  }
+  return d + "Z";
+}
+function speechPath(w: number, h: number) {
+  const bh = h * 0.78;
+  const r = Math.min(w, bh) * 0.16;
+  const rb = w * 0.4;
+  const lb = w * 0.22;
+  const tip = w * 0.14;
+  return [
+    `M ${r} 0`,
+    `H ${w - r}`,
+    `Q ${w} 0 ${w} ${r}`,
+    `V ${bh - r}`,
+    `Q ${w} ${bh} ${w - r} ${bh}`,
+    `H ${rb}`,
+    `L ${tip} ${h}`,
+    `L ${lb} ${bh}`,
+    `H ${r}`,
+    `Q 0 ${bh} 0 ${bh - r}`,
+    `V ${r}`,
+    `Q 0 0 ${r} 0`,
+    `Z`,
+  ].join(" ");
+}
+// The SVG/Canvas path for a shape drawn inside a w×h box at the origin.
+function shapePath(shape: ShapeKind, w: number, h: number) {
+  switch (shape) {
+    case "rect":
+      return roundRectPath(w, h, Math.min(w, h) * 0.06);
+    case "ellipse":
+      return `M 0 ${h / 2} A ${w / 2} ${h / 2} 0 1 0 ${w} ${h / 2} A ${w / 2} ${h / 2} 0 1 0 0 ${h / 2} Z`;
+    case "triangle":
+      return `M ${w / 2} 0 L ${w} ${h} L 0 ${h} Z`;
+    case "star":
+      return starPath(w, h);
+    case "speech":
+      return speechPath(w, h);
+  }
+}
 
 function hslToHex(h: number, s: number, l: number) {
   s /= 100;
@@ -51,6 +140,7 @@ export function DrawingCanvas({
   subtitle,
   withCaption = false,
   onClose,
+  onDone,
 }: {
   name: string;
   background?: string[];
@@ -60,13 +150,21 @@ export function DrawingCanvas({
   subtitle?: string;
   withCaption?: boolean;
   onClose?: () => void;
+  onDone?: (pages: string[]) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const hiddenRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Per page: `pagesRef` is the drawing layer (strokes + text + template), and
+  // `objectsRef` is the placed-image layer. `compositeRef` is the two flattened
+  // together — that's what gets submitted.
   const pagesRef = useRef<string[]>([]);
+  const objectsRef = useRef<Obj[][]>([]);
+  const compositeRef = useRef<string[]>([]);
+  const imgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const objIdRef = useRef(0);
   const currentRef = useRef(0);
   const anyDrawnRef = useRef(false);
   const loadingRef = useRef(false);
@@ -75,9 +173,9 @@ export function DrawingCanvas({
   const snapshot = useRef<ImageData | null>(null);
   const points = useRef<{ x: number; y: number }[]>([]);
 
-  // Undo / redo history: a stack of page PNG data URLs per page index.
-  const undoRef = useRef<Record<number, string[]>>({});
-  const redoRef = useRef<Record<number, string[]>>({});
+  // Undo / redo: per page, a stack of { drawing layer, objects } snapshots.
+  const undoRef = useRef<Record<number, HistoryEntry[]>>({});
+  const redoRef = useRef<Record<number, HistoryEntry[]>>({});
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -95,10 +193,19 @@ export function DrawingCanvas({
   const [current, setCurrent] = useState(0);
   const [thumbs, setThumbs] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  // Full-screen-only UI state.
+  // Placed objects on the current page + which one is selected.
+  const [objects, setObjects] = useState<Obj[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (allowImport) import("pdfjs-dist").catch(() => {});
+  }, [allowImport]);
+
   const [fanOpen, setFanOpen] = useState(false);
+  const [shapesOpen, setShapesOpen] = useState(false);
   const [stripOpen, setStripOpen] = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [hueFrac, setHueFrac] = useState(0.62);
@@ -136,19 +243,74 @@ export function DrawingCanvas({
       img.src = src;
     });
   }
+  function cloneObjs(list: Obj[]): Obj[] {
+    return list.map((o) => ({ ...o }));
+  }
   function refreshUndoRedo() {
     setCanUndo((undoRef.current[currentRef.current]?.length ?? 0) > 0);
     setCanRedo((redoRef.current[currentRef.current]?.length ?? 0) > 0);
   }
   function refreshThumbs() {
-    setThumbs([...pagesRef.current]);
+    setThumbs([...compositeRef.current]);
   }
-  // Snapshot the current page before a change, so it can be undone.
+
+  // Flatten the current drawing layer + its placed objects into one PNG.
+  function compositeCurrentPage(): string {
+    const canvas = canvasRef.current;
+    if (!canvas) return "";
+    const objs = objectsRef.current[currentRef.current] ?? [];
+    if (objs.length === 0) return canvas.toDataURL("image/png");
+    const exp = document.createElement("canvas");
+    exp.width = W;
+    exp.height = H;
+    const ec = exp.getContext("2d");
+    if (!ec) return canvas.toDataURL("image/png");
+    ec.drawImage(canvas, 0, 0, W, H);
+    for (const o of objs) {
+      if (o.type === "image") {
+        const img = imgCacheRef.current.get(o.id);
+        if (img && img.complete && img.naturalWidth) ec.drawImage(img, o.x, o.y, o.w, o.h);
+      } else {
+        ec.save();
+        ec.translate(o.x, o.y);
+        const p = new Path2D(shapePath(o.shape, o.w, o.h));
+        if (o.fill && o.fill !== "none") {
+          ec.fillStyle = o.fill;
+          ec.fill(p);
+        }
+        if (o.stroke && o.strokeWidth > 0) {
+          ec.strokeStyle = o.stroke;
+          ec.lineWidth = o.strokeWidth;
+          ec.lineJoin = "round";
+          ec.stroke(p);
+        }
+        ec.restore();
+      }
+    }
+    return exp.toDataURL("image/png");
+  }
+
+  // Save the current page (drawing + composite) and update the hidden field.
+  function syncHidden() {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      pagesRef.current[currentRef.current] = canvas.toDataURL("image/png");
+      compositeRef.current[currentRef.current] = compositeCurrentPage();
+    }
+    if (hiddenRef.current) {
+      hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
+    }
+  }
+
+  // Snapshot the current page (both layers) so the next change can be undone.
   function pushHistory() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const stack = (undoRef.current[currentRef.current] ??= []);
-    stack.push(canvas.toDataURL("image/png"));
+    stack.push({
+      img: canvas.toDataURL("image/png"),
+      objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
+    });
     if (stack.length > MAX_HISTORY) stack.shift();
     redoRef.current[currentRef.current] = [];
     refreshUndoRedo();
@@ -179,18 +341,23 @@ export function DrawingCanvas({
         }
         pagesRef.current = pages;
         anyDrawnRef.current = true;
+        currentRef.current = 0;
         setPageCount(pages.length);
-        loadPage(0);
+        await paintDataUrl(pages[0]);
       } else {
         paintWhite();
         pagesRef.current = [canvas.toDataURL("image/png")];
       }
-      syncHidden();
-      refreshThumbs();
+      objectsRef.current = pagesRef.current.map(() => []);
+      compositeRef.current = [...pagesRef.current];
+      setObjects([]);
+      if (hiddenRef.current) {
+        hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
+      }
+      setThumbs([...compositeRef.current]);
       setReady(true);
     })();
 
-    // Keep the canvas box sized to fit the viewport at 10:7 (full-screen).
     const measure = () => {
       const el = wrapRef.current;
       if (el) {
@@ -220,14 +387,6 @@ export function DrawingCanvas({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function syncHidden() {
-    const canvas = canvasRef.current;
-    if (canvas) pagesRef.current[currentRef.current] = canvas.toDataURL("image/png");
-    if (hiddenRef.current) {
-      hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(pagesRef.current) : "[]";
-    }
-  }
 
   function pos(e: React.PointerEvent) {
     const canvas = canvasRef.current!;
@@ -300,6 +459,7 @@ export function DrawingCanvas({
 
   function start(e: React.PointerEvent) {
     if (loadingRef.current) return;
+    setSelectedId(null);
     if (toolRef.current === "text") {
       e.preventDefault();
       commitText();
@@ -350,32 +510,39 @@ export function DrawingCanvas({
     void paintDataUrl(pagesRef.current[index]);
   }
 
-  function undo() {
-    const stack = undoRef.current[currentRef.current];
-    if (!stack || !stack.length) return;
-    const canvas = canvasRef.current!;
-    (redoRef.current[currentRef.current] ??= []).push(canvas.toDataURL("image/png"));
-    const prev = stack.pop()!;
-    void paintDataUrl(prev).then(() => {
-      pagesRef.current[currentRef.current] = prev;
+  function restore(entry: HistoryEntry) {
+    objectsRef.current[currentRef.current] = entry.objects;
+    setObjects([...entry.objects]);
+    void paintDataUrl(entry.img).then(() => {
+      pagesRef.current[currentRef.current] = entry.img;
       syncHidden();
       refreshThumbs();
       refreshUndoRedo();
     });
   }
 
+  function undo() {
+    const stack = undoRef.current[currentRef.current];
+    if (!stack || !stack.length) return;
+    const canvas = canvasRef.current!;
+    (redoRef.current[currentRef.current] ??= []).push({
+      img: canvas.toDataURL("image/png"),
+      objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
+    });
+    setSelectedId(null);
+    restore(stack.pop()!);
+  }
+
   function redo() {
     const stack = redoRef.current[currentRef.current];
     if (!stack || !stack.length) return;
     const canvas = canvasRef.current!;
-    (undoRef.current[currentRef.current] ??= []).push(canvas.toDataURL("image/png"));
-    const next = stack.pop()!;
-    void paintDataUrl(next).then(() => {
-      pagesRef.current[currentRef.current] = next;
-      syncHidden();
-      refreshThumbs();
-      refreshUndoRedo();
+    (undoRef.current[currentRef.current] ??= []).push({
+      img: canvas.toDataURL("image/png"),
+      objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
     });
+    setSelectedId(null);
+    restore(stack.pop()!);
   }
 
   function goToPage(index: number) {
@@ -384,6 +551,8 @@ export function DrawingCanvas({
     syncHidden();
     currentRef.current = index;
     setCurrent(index);
+    setSelectedId(null);
+    setObjects(objectsRef.current[index] ?? []);
     loadPage(index);
     refreshUndoRedo();
   }
@@ -392,11 +561,16 @@ export function DrawingCanvas({
     commitText();
     syncHidden();
     paintWhite();
-    pagesRef.current.push(canvasRef.current!.toDataURL("image/png"));
+    const blank = canvasRef.current!.toDataURL("image/png");
+    pagesRef.current.push(blank);
+    objectsRef.current.push([]);
+    compositeRef.current.push(blank);
     const index = pagesRef.current.length - 1;
     currentRef.current = index;
     setPageCount(pagesRef.current.length);
     setCurrent(index);
+    setSelectedId(null);
+    setObjects([]);
     loadPage(index);
     refreshThumbs();
     refreshUndoRedo();
@@ -406,12 +580,17 @@ export function DrawingCanvas({
     if (pagesRef.current.length <= 1) return;
     commitText();
     pagesRef.current.splice(currentRef.current, 1);
-    delete undoRef.current[currentRef.current];
-    delete redoRef.current[currentRef.current];
+    objectsRef.current.splice(currentRef.current, 1);
+    compositeRef.current.splice(currentRef.current, 1);
+    // Page indices shift, so drop the (now-misaligned) history.
+    undoRef.current = {};
+    redoRef.current = {};
     const index = Math.max(0, currentRef.current - 1);
     currentRef.current = index;
     setPageCount(pagesRef.current.length);
     setCurrent(index);
+    setSelectedId(null);
+    setObjects(objectsRef.current[index] ?? []);
     loadPage(index);
     syncHidden();
     refreshThumbs();
@@ -422,39 +601,100 @@ export function DrawingCanvas({
     commitText();
     pushHistory();
     paintWhite();
+    objectsRef.current[currentRef.current] = [];
+    setObjects([]);
+    setSelectedId(null);
     anyDrawnRef.current = anyDrawnRef.current || pagesRef.current.length > 1;
     syncHidden();
     refreshThumbs();
   }
 
-  async function addImageAsPage(src: string) {
-    const canvas = canvasRef.current;
-    const c = ctx();
-    if (!canvas || !c) return;
-    commitText();
-    syncHidden();
-    const replaceBlank = pagesRef.current.length === 1 && !anyDrawnRef.current;
-    paintWhite();
+  // Place an imported image / PDF page as a movable object.
+  async function addObject(src: string, onNewPage: boolean) {
+    if (onNewPage) addPage();
+    let img: HTMLImageElement;
     try {
-      const img = await loadImage(src);
-      drawContain(c, img);
+      img = await loadImage(src);
     } catch {
-      /* ignore */
+      return;
     }
-    const dataUrl = canvas.toDataURL("image/png");
-    if (replaceBlank) {
-      pagesRef.current[0] = dataUrl;
-      currentRef.current = 0;
-    } else {
-      pagesRef.current.push(dataUrl);
-      currentRef.current = pagesRef.current.length - 1;
+    pushHistory();
+    const id = `o${objIdRef.current++}`;
+    imgCacheRef.current.set(id, img);
+    const aspect = (img.naturalWidth || 4) / (img.naturalHeight || 3);
+    let w = Math.min(W * 0.7, H * 0.7 * aspect);
+    let h = w / aspect;
+    if (h > H * 0.85) {
+      h = H * 0.85;
+      w = h * aspect;
     }
+    const obj: ImageObj = { id, type: "image", src, x: (W - w) / 2, y: (H - h) / 2, w, h, aspect };
+    const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
+    objectsRef.current[currentRef.current] = list;
+    setObjects(list);
     anyDrawnRef.current = true;
-    setPageCount(pagesRef.current.length);
-    setCurrent(currentRef.current);
+    setSelectedId(id);
     syncHidden();
     refreshThumbs();
-    refreshUndoRedo();
+  }
+
+  // Place a shape as a movable / resizable / recolourable object.
+  function addShape(shape: ShapeKind) {
+    pushHistory();
+    const id = `o${objIdRef.current++}`;
+    const w = 320;
+    const h = shape === "ellipse" || shape === "star" || shape === "speech" ? 280 : 220;
+    const obj: ShapeObj = {
+      id,
+      type: "shape",
+      shape,
+      x: (W - w) / 2,
+      y: (H - h) / 2,
+      w,
+      h,
+      fill: "#93c5fd",
+      stroke: "#1f2430",
+      strokeWidth: 6,
+    };
+    const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
+    objectsRef.current[currentRef.current] = list;
+    setObjects(list);
+    anyDrawnRef.current = true;
+    setSelectedId(id);
+    setShapesOpen(false);
+    setFanOpen(false);
+    syncHidden();
+    refreshThumbs();
+  }
+
+  // Update the style of the selected shape (fill / line colour / width).
+  function styleSelectedShape(patch: Partial<ShapeObj>) {
+    if (!selectedId) return;
+    updateObject(selectedId, patch);
+    commitObjectChange();
+  }
+
+  function updateObject(id: string, patch: Partial<Obj>) {
+    const list = (objectsRef.current[currentRef.current] ?? []).map((o) =>
+      o.id === id ? ({ ...o, ...patch } as Obj) : o,
+    );
+    objectsRef.current[currentRef.current] = list;
+    setObjects(list);
+  }
+
+  function deleteObject(id: string) {
+    pushHistory();
+    const list = (objectsRef.current[currentRef.current] ?? []).filter((o) => o.id !== id);
+    objectsRef.current[currentRef.current] = list;
+    setObjects(list);
+    setSelectedId(null);
+    syncHidden();
+    refreshThumbs();
+  }
+
+  function commitObjectChange() {
+    syncHidden();
+    refreshThumbs();
   }
 
   async function onImportFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -462,6 +702,7 @@ export function DrawingCanvas({
     if (!files.length) return;
     setFanOpen(false);
     setImporting(true);
+    setImportError(null);
     loadingRef.current = true;
     try {
       for (const file of files) {
@@ -481,7 +722,9 @@ export function DrawingCanvas({
             tmp.height = viewport.height;
             const tctx = tmp.getContext("2d")!;
             await page.render({ canvas: tmp, canvasContext: tctx, viewport }).promise;
-            await addImageAsPage(tmp.toDataURL("image/png"));
+            // Each PDF page becomes a movable object; pages after the first get
+            // their own canvas page.
+            await addObject(tmp.toDataURL("image/png"), p > 1);
           }
         } else if (file.type.startsWith("image/")) {
           const url = await new Promise<string>((res) => {
@@ -489,14 +732,23 @@ export function DrawingCanvas({
             r.onload = () => res(String(r.result));
             r.readAsDataURL(file);
           });
-          await addImageAsPage(url);
+          await addObject(url, false);
         }
       }
+    } catch (err) {
+      setImportError(
+        err instanceof Error ? `Couldn't add that file: ${err.message}` : "Couldn't add that file.",
+      );
     } finally {
       loadingRef.current = false;
       setImporting(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+  }
+
+  function currentPages(): string[] {
+    commitText();
+    return anyDrawnRef.current ? [...compositeRef.current] : [];
   }
 
   function pickHue(e: React.PointerEvent<HTMLDivElement>) {
@@ -507,8 +759,41 @@ export function DrawingCanvas({
   }
 
   const scale = displayW / W;
+  const selectedShape = objects.find(
+    (o): o is ShapeObj => o.id === selectedId && o.type === "shape",
+  );
 
-  // Shared bits used by both layouts.
+  // A palette of shapes to drop onto the canvas.
+  const shapesPalette = (
+    <div className="flex flex-wrap gap-1.5 rounded-xl border border-border bg-surface p-2 shadow-lg">
+      {SHAPES.map((s) => (
+        <button
+          key={s.kind}
+          type="button"
+          onClick={() => addShape(s.kind)}
+          title={s.label}
+          aria-label={s.label}
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-xl hover:bg-background"
+        >
+          {s.icon}
+        </button>
+      ))}
+    </div>
+  );
+
+  const objectLayer = (
+    <ObjectLayer
+      objects={objects}
+      scale={scale}
+      selectedId={selectedId}
+      onSelect={setSelectedId}
+      onStart={pushHistory}
+      onChange={updateObject}
+      onEnd={commitObjectChange}
+      onDelete={deleteObject}
+    />
+  );
+
   const hiddenInputs = (
     <>
       <input type="hidden" name={name} ref={hiddenRef} />
@@ -535,45 +820,45 @@ export function DrawingCanvas({
     />
   );
 
-  // ---- Full-screen, child-led layout (1a + ＋ fan) --------------------------
+  const activeTextEl = activeText && (
+    <TextBox
+      data={activeText}
+      scale={scale}
+      onChange={(value) => setActiveText((t) => (t ? { ...t, value } : t))}
+      onMove={(x, y) => setActiveText((t) => (t ? { ...t, x, y } : t))}
+      onDone={commitText}
+    />
+  );
+
+  // ---- Full-screen, child-led layout ---------------------------------------
   if (fullScreen) {
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-[#e9ebf1]">
         {hiddenInputs}
 
         <div ref={wrapRef} className="relative flex-1 overflow-hidden">
-          {/* Centred canvas */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div
               className="relative rounded-2xl shadow-lg ring-1 ring-black/5 overflow-hidden"
               style={{ width: box.w, height: box.h }}
             >
               {canvasEl}
+              {objectLayer}
               {!ready && (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-muted">
                   Loading…
                 </div>
               )}
-              {activeText && (
-                <TextBox
-                  data={activeText}
-                  scale={scale}
-                  onChange={(value) => setActiveText((t) => (t ? { ...t, value } : t))}
-                  onMove={(x, y) => setActiveText((t) => (t ? { ...t, x, y } : t))}
-                  onDone={commitText}
-                />
-              )}
+              {activeTextEl}
             </div>
           </div>
 
-          {/* Top-left icon buttons */}
           <div className="absolute left-3 top-3 flex gap-2">
             <RoundBtn label="Clear page" onClick={clearPage}>🗑️</RoundBtn>
             <RoundBtn label="Undo" onClick={undo} disabled={!canUndo}>↶</RoundBtn>
             <RoundBtn label="Redo" onClick={redo} disabled={!canRedo}>↷</RoundBtn>
           </div>
 
-          {/* Top-centre status + optional title */}
           <div className="pointer-events-none absolute left-1/2 top-3 z-10 w-[60vw] max-w-lg -translate-x-1/2 text-center">
             <span className="rounded-full border-2 border-amber-400 bg-white/90 px-3 py-1 text-sm font-bold text-amber-700">
               ✎ Draft
@@ -582,13 +867,11 @@ export function DrawingCanvas({
             {subtitle && <p className="text-xs text-foreground/60">{subtitle}</p>}
           </div>
 
-          {/* Top-right: close + Done */}
           <div className="absolute right-3 top-3 flex items-center gap-2">
-            {onClose && (
-              <RoundBtn label="Close" onClick={onClose}>✕</RoundBtn>
-            )}
+            {onClose && <RoundBtn label="Close" onClick={onClose}>✕</RoundBtn>}
             <button
-              type="submit"
+              type={onDone ? "button" : "submit"}
+              onClick={onDone ? () => onDone(currentPages()) : undefined}
               title="Done"
               className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-2xl text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-600"
             >
@@ -596,17 +879,17 @@ export function DrawingCanvas({
             </button>
           </div>
 
-          {/* Left: ＋ fan to add media */}
           <div className="absolute left-3 top-1/2 -translate-y-1/2">
             {fanOpen && (
               <div className="mb-2 flex flex-col gap-2">
                 <FanBtn label="Photo / PDF" onClick={() => fileRef.current?.click()}>🖼️</FanBtn>
                 <FanBtn label="Text" onClick={() => { setFanOpen(false); setTool("text"); }}>🔤</FanBtn>
+                <FanBtn label="Shapes" onClick={() => { setShapesOpen((v) => !v); }}>⬟</FanBtn>
               </div>
             )}
             <button
               type="button"
-              onClick={() => setFanOpen((v) => !v)}
+              onClick={() => { setFanOpen((v) => !v); setShapesOpen(false); }}
               className="flex h-14 w-14 items-center justify-center rounded-full bg-brand text-3xl font-light text-white shadow-lg transition-transform hover:scale-105"
               title="Add"
               style={{ transform: fanOpen ? "rotate(45deg)" : "none" }}
@@ -615,7 +898,18 @@ export function DrawingCanvas({
             </button>
           </div>
 
-          {/* Right: rainbow hue slider + palette */}
+          {shapesOpen && (
+            <div className="absolute left-20 top-1/2 -translate-y-1/2">{shapesPalette}</div>
+          )}
+
+          {selectedShape && (
+            <ShapeStyleBar
+              shape={selectedShape}
+              onChange={styleSelectedShape}
+              className="absolute left-1/2 top-16 z-20 -translate-x-1/2"
+            />
+          )}
+
           <div className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
             <div
               onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); pickHue(e); }}
@@ -676,7 +970,6 @@ export function DrawingCanvas({
             )}
           </div>
 
-          {/* Bottom-centre: realistic tool shelf */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-2">
             {SHELF.map((t) => {
               const selected = tool === t.key;
@@ -693,10 +986,9 @@ export function DrawingCanvas({
                 </button>
               );
             })}
-            {/* Text tool as a small pen-in-hand style button */}
             <button
               type="button"
-              onClick={() => { setTool("text"); }}
+              onClick={() => setTool("text")}
               className={`pointer-events-auto mb-3 ml-2 flex h-12 w-12 items-center justify-center rounded-2xl border-2 text-xl shadow ${
                 tool === "text" ? "border-brand bg-brand/10 text-brand" : "border-border bg-white text-muted"
               }`}
@@ -706,18 +998,28 @@ export function DrawingCanvas({
             </button>
           </div>
 
-          {/* Bottom-left: caption */}
-          {withCaption && (
-            <div className="absolute bottom-3 left-3 w-64 max-w-[70vw]">
-              <input
-                name="caption"
-                className="input bg-white/90 shadow"
-                placeholder="💬 Add a caption…"
-              />
+          {(importing || importError) && (
+            <div
+              className={`absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-lg px-3 py-2 text-sm font-semibold shadow-lg ${
+                importError ? "bg-rose-600 text-white" : "bg-white text-foreground"
+              }`}
+            >
+              {importError ?? "Adding your file…"}
             </div>
           )}
 
-          {/* Right: page filmstrip (below Done) */}
+          {selectedId && (
+            <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-muted shadow">
+              Drag to move · pull the corner to resize · ✕ to remove
+            </div>
+          )}
+
+          {withCaption && (
+            <div className="absolute bottom-3 left-3 w-64 max-w-[70vw]">
+              <input name="caption" className="input bg-white/90 shadow" placeholder="💬 Add a caption…" />
+            </div>
+          )}
+
           <div className="absolute right-3 top-20 flex flex-col items-end">
             <button
               type="button"
@@ -733,9 +1035,7 @@ export function DrawingCanvas({
                     key={i}
                     type="button"
                     onClick={() => goToPage(i)}
-                    className={`overflow-hidden rounded-lg border-2 ${
-                      i === current ? "border-brand" : "border-transparent"
-                    }`}
+                    className={`overflow-hidden rounded-lg border-2 ${i === current ? "border-brand" : "border-transparent"}`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={src} alt={`Page ${i + 1}`} className="aspect-[10/7] w-full object-cover" />
@@ -750,11 +1050,7 @@ export function DrawingCanvas({
                   ＋
                 </button>
                 {pageCount > 1 && (
-                  <button
-                    type="button"
-                    onClick={deletePage}
-                    className="text-xs text-muted hover:text-rose-600"
-                  >
+                  <button type="button" onClick={deletePage} className="text-xs text-muted hover:text-rose-600">
                     Delete page
                   </button>
                 )}
@@ -766,7 +1062,7 @@ export function DrawingCanvas({
     );
   }
 
-  // ---- Inline layout (used by the teacher template builder) ----------------
+  // ---- Inline layout (teacher on-behalf drawing) ---------------------------
   return (
     <div>
       {hiddenInputs}
@@ -795,7 +1091,19 @@ export function DrawingCanvas({
             📄 {importing ? "Adding…" : "Add PDF / image"}
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setShapesOpen((v) => !v)}
+          className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold ${
+            shapesOpen ? "border-brand bg-brand/10 text-brand" : "border-border bg-surface text-muted hover:bg-background"
+          }`}
+        >
+          ⬟ Shapes
+        </button>
       </div>
+
+      {shapesOpen && <div className="mb-2">{shapesPalette}</div>}
+      {selectedShape && <ShapeStyleBar shape={selectedShape} onChange={styleSelectedShape} className="mb-2" />}
 
       <div className="mb-2 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5">
@@ -838,21 +1146,20 @@ export function DrawingCanvas({
       {tool === "text" && !activeText && (
         <p className="mb-1 text-sm text-muted">Tap on the canvas to add text.</p>
       )}
+      {selectedId && (
+        <p className="mb-1 text-sm text-muted">Drag to move · pull the corner to resize · ✕ to remove.</p>
+      )}
+      {importError && (
+        <p className="mb-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{importError}</p>
+      )}
 
-      <div className="relative mx-auto" style={{ maxHeight: "70vh", aspectRatio: "10 / 7", width: "100%" }}>
+      <div ref={wrapRef} className="relative mx-auto" style={{ maxHeight: "70vh", aspectRatio: "10 / 7", width: "100%" }}>
         {canvasEl}
+        {objectLayer}
         {!ready && (
           <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/70 text-muted">Loading…</div>
         )}
-        {activeText && (
-          <TextBox
-            data={activeText}
-            scale={scale}
-            onChange={(value) => setActiveText((t) => (t ? { ...t, value } : t))}
-            onMove={(x, y) => setActiveText((t) => (t ? { ...t, x, y } : t))}
-            onDone={commitText}
-          />
-        )}
+        {activeTextEl}
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -860,6 +1167,7 @@ export function DrawingCanvas({
         <span className="text-sm font-semibold text-muted">Page {current + 1} of {pageCount}</span>
         <button type="button" onClick={() => goToPage(current + 1)} disabled={current === pageCount - 1} className="btn-ghost px-3 py-1.5 text-sm">Next ›</button>
         <button type="button" onClick={addPage} className="btn-ghost px-3 py-1.5 text-sm">＋ Add page</button>
+        <button type="button" onClick={() => fileRef.current?.click()} className="btn-ghost px-3 py-1.5 text-sm">📄 Add PDF / image</button>
         {pageCount > 1 && (
           <button type="button" onClick={deletePage} className="px-3 py-1.5 text-sm text-muted hover:text-rose-600">Delete page</button>
         )}
@@ -915,7 +1223,6 @@ function FanBtn({
   );
 }
 
-// A simple illustrated drawing tool. The tip shows the current colour.
 function ToolShape({ kind, color }: { kind: Tool; color: string }) {
   const tip = kind === "eraser" ? "#f4a6c0" : color;
   const bodies: Record<string, string> = {
@@ -927,19 +1234,256 @@ function ToolShape({ kind, color }: { kind: Tool; color: string }) {
   const body = bodies[kind] ?? "#999";
   return (
     <svg width="52" height="150" viewBox="0 0 52 150" aria-hidden>
-      {/* tip */}
       {kind === "eraser" ? (
         <rect x="8" y="2" width="36" height="30" rx="6" fill={tip} />
       ) : (
         <polygon points="26,0 40,34 12,34" fill={tip} />
       )}
-      {/* collar */}
       <rect x="12" y="32" width="28" height="8" rx="3" fill="rgba(0,0,0,.15)" />
-      {/* body */}
       <rect x="12" y="38" width="28" height="108" rx="10" fill={body} />
       <rect x="12" y="38" width="9" height="108" rx="6" fill="rgba(255,255,255,.35)" />
       <rect x="12" y="38" width="28" height="108" rx="10" fill="none" stroke="rgba(0,0,0,.12)" />
     </svg>
+  );
+}
+
+// The layer of movable / resizable image + PDF objects on top of the drawing.
+function ObjectLayer({
+  objects,
+  scale,
+  selectedId,
+  onSelect,
+  onStart,
+  onChange,
+  onEnd,
+  onDelete,
+}: {
+  objects: Obj[];
+  scale: number;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onStart: () => void;
+  onChange: (id: string, patch: Partial<Obj>) => void;
+  onEnd: () => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {objects.map((o) => (
+        <ObjectView
+          key={o.id}
+          o={o}
+          scale={scale}
+          selected={o.id === selectedId}
+          onSelect={onSelect}
+          onStart={onStart}
+          onChange={onChange}
+          onEnd={onEnd}
+          onDelete={onDelete}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ObjectView({
+  o,
+  scale,
+  selected,
+  onSelect,
+  onStart,
+  onChange,
+  onEnd,
+  onDelete,
+}: {
+  o: Obj;
+  scale: number;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  onStart: () => void;
+  onChange: (id: string, patch: Partial<Obj>) => void;
+  onEnd: () => void;
+  onDelete: (id: string) => void;
+}) {
+  const drag = useRef<
+    | { mode: "move"; ax: number; ay: number }
+    | { mode: "resize"; ax: number; ay: number; sw: number; sh: number }
+    | null
+  >(null);
+
+  function capture(e: React.PointerEvent) {
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore — not all pointers can be captured */
+    }
+  }
+  function startMove(e: React.PointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect(o.id);
+    onStart();
+    drag.current = { mode: "move", ax: e.clientX - o.x * scale, ay: e.clientY - o.y * scale };
+    capture(e);
+  }
+  function startResize(e: React.PointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect(o.id);
+    onStart();
+    drag.current = { mode: "resize", ax: e.clientX, ay: e.clientY, sw: o.w, sh: o.h };
+    capture(e);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    const d = drag.current;
+    if (!d) return;
+    if (d.mode === "move") {
+      onChange(o.id, { x: (e.clientX - d.ax) / scale, y: (e.clientY - d.ay) / scale });
+    } else {
+      let w = Math.max(24, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
+      // Images keep their aspect ratio; shapes resize freely.
+      const h =
+        o.type === "image"
+          ? w / o.aspect
+          : Math.max(24, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
+      if (o.type === "image") w = Math.min(w, W);
+      onChange(o.id, { w, h });
+    }
+  }
+  function onPointerUp() {
+    if (drag.current) {
+      drag.current = null;
+      onEnd();
+    }
+  }
+
+  return (
+    <div
+      onPointerDown={startMove}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      className={`pointer-events-auto absolute cursor-move touch-none ${selected ? "ring-2 ring-brand" : ""}`}
+      style={{ left: o.x * scale, top: o.y * scale, width: o.w * scale, height: o.h * scale }}
+    >
+      {o.type === "image" ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={o.src}
+          alt="Added picture"
+          draggable={false}
+          className="pointer-events-none h-full w-full select-none"
+          style={{ objectFit: "fill" }}
+        />
+      ) : (
+        <svg
+          viewBox={`0 0 ${o.w} ${o.h}`}
+          width="100%"
+          height="100%"
+          preserveAspectRatio="none"
+          className="pointer-events-none block h-full w-full overflow-visible"
+        >
+          <path
+            d={shapePath(o.shape, o.w, o.h)}
+            fill={o.fill === "none" ? "none" : o.fill}
+            stroke={o.stroke}
+            strokeWidth={o.strokeWidth}
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+      {selected && (
+        <>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onDelete(o.id)}
+            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs text-white shadow"
+            title="Remove"
+            aria-label="Remove object"
+          >
+            ✕
+          </button>
+          <div
+            onPointerDown={startResize}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
+            title="Resize"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+// A small toolbar for the selected shape's fill and line.
+function ShapeStyleBar({
+  shape,
+  onChange,
+  className,
+}: {
+  shape: ShapeObj;
+  onChange: (patch: Partial<ShapeObj>) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-xl border border-border bg-surface/95 px-3 py-2 text-sm shadow-lg ${className ?? ""}`}
+    >
+      <span className="font-semibold">Fill</span>
+      <label className="relative block h-6 w-6 overflow-hidden rounded-full border-2 border-border">
+        <input
+          type="color"
+          value={shape.fill === "none" ? "#93c5fd" : shape.fill}
+          onChange={(e) => onChange({ fill: e.target.value })}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          aria-label="Fill colour"
+        />
+        <span
+          className="block h-full w-full"
+          style={{
+            background:
+              shape.fill === "none"
+                ? "repeating-linear-gradient(45deg,#eee,#eee 3px,#fff 3px,#fff 6px)"
+                : shape.fill,
+          }}
+        />
+      </label>
+      <button
+        type="button"
+        onClick={() => onChange({ fill: shape.fill === "none" ? "#93c5fd" : "none" })}
+        className="rounded border border-border px-1.5 py-0.5 text-xs font-semibold text-muted"
+      >
+        {shape.fill === "none" ? "Add fill" : "No fill"}
+      </button>
+
+      <span className="ml-1 font-semibold">Line</span>
+      <label className="relative block h-6 w-6 overflow-hidden rounded-full border-2 border-border">
+        <input
+          type="color"
+          value={shape.stroke}
+          onChange={(e) => onChange({ stroke: e.target.value })}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          aria-label="Line colour"
+        />
+        <span className="block h-full w-full" style={{ background: shape.stroke }} />
+      </label>
+      <div className="flex gap-1">
+        {[3, 6, 12].map((sw) => (
+          <button
+            key={sw}
+            type="button"
+            onClick={() => onChange({ strokeWidth: sw })}
+            className={`flex h-7 w-7 items-center justify-center rounded border ${
+              shape.strokeWidth === sw ? "border-brand bg-brand/10" : "border-border"
+            }`}
+            aria-label={`Line width ${sw}`}
+          >
+            <span className="rounded-full bg-foreground" style={{ width: sw + 2, height: sw + 2 }} />
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

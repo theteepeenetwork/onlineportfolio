@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState, useState } from "react";
 import { createActivity } from "@/app/actions/activities";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
@@ -13,6 +14,11 @@ export function ActivityBuilder({ classes }: { classes: ClassInfo[] }) {
   const [classId, setClassId] = useState(classes[0]?.id ?? "");
   const [assignMode, setAssignMode] = useState<"all" | "some">("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // The template is built on the exact same full-screen canvas the children
+  // use. It's opened as an editor; on ✓ Done the pages are handed back here.
+  const [templatePages, setTemplatePages] = useState<string[]>([]);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   const klass = classes.find((c) => c.id === classId) ?? classes[0];
 
@@ -29,6 +35,7 @@ export function ActivityBuilder({ classes }: { classes: ClassInfo[] }) {
     <form action={action} className="space-y-6">
       <input type="hidden" name="classId" value={classId} />
       <input type="hidden" name="assignMode" value={assignMode} />
+      <input type="hidden" name="templatePages" value={JSON.stringify(templatePages)} />
       {assignMode === "some" &&
         [...selected].map((id) => (
           <input key={id} type="hidden" name="studentIds" value={id} />
@@ -60,11 +67,60 @@ export function ActivityBuilder({ classes }: { classes: ClassInfo[] }) {
       <div className="card p-5">
         <h2 className="text-lg font-bold">Template (optional)</h2>
         <p className="mb-3 text-sm text-muted">
-          Draw a template the children work on top of, or add a PDF / picture (for
-          example a worksheet). Leave it blank for a free response.
+          Build a template on the same canvas the children use — draw it, or add a
+          PDF / picture (for example a worksheet). Leave it blank for a free response.
         </p>
-        <DrawingCanvas name="templatePages" allowImport />
+
+        {templatePages.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {templatePages.map((src, i) => (
+              <Image
+                key={i}
+                src={src}
+                alt={`Template page ${i + 1}`}
+                width={160}
+                height={112}
+                unoptimized
+                className="h-24 w-auto rounded-lg border border-border"
+              />
+            ))}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setEditorOpen(true)}
+          className="btn-brand"
+        >
+          {templatePages.length > 0 ? "🎨 Edit template" : "🎨 Build a template"}
+        </button>
+        {templatePages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setTemplatePages([])}
+            className="ml-2 rounded-lg px-3 py-2 text-sm text-muted hover:text-rose-600"
+          >
+            Remove template
+          </button>
+        )}
       </div>
+
+      {/* The full-screen template editor (same canvas the children use) */}
+      {editorOpen && (
+        <DrawingCanvas
+          name="__templateEditor"
+          fullScreen
+          allowImport
+          title="Build the template"
+          subtitle="Draw or add a PDF / picture — the children work on top of this."
+          background={templatePages.length ? templatePages : undefined}
+          onClose={() => setEditorOpen(false)}
+          onDone={(pages) => {
+            setTemplatePages(pages);
+            setEditorOpen(false);
+          }}
+        />
+      )}
 
       {/* Assign to */}
       <div className="card space-y-4 p-5">
