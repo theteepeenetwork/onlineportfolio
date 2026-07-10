@@ -1,0 +1,28 @@
+import { test, expect } from "@playwright/test";
+import { teacherLogin, studentLogin, logout, drawOnCanvas, pageCount } from "./helpers";
+
+// Use Finn, who has no seeded work, so the assertions are unambiguous.
+test("a student's drawing goes through approval into their journal", async ({ page }) => {
+  // Student draws on the full-screen canvas and hands it in.
+  await studentLogin(page, "Finn");
+  await page.goto("/student/new");
+  await page.getByRole("button", { name: /Draw/ }).click();
+  await drawOnCanvas(page);
+  expect(await pageCount(page, "drawingPages")).toBeGreaterThan(0);
+  await page.locator('button[title="Done"]').click();
+  await page.waitForURL((url) => url.pathname === "/student");
+  await expect(page.getByText("Waiting for you")).toBeVisible();
+
+  // Teacher finds Finn's submission in the queue and approves it.
+  await logout(page);
+  await teacherLogin(page);
+  await page.goto("/teacher/queue");
+  const finnCard = page.locator(".card").filter({ hasText: "Finn" });
+  await expect(finnCard).toBeVisible();
+  await finnCard.getByRole("button", { name: /Approve/ }).click();
+
+  // It now shows as published in Finn's journal.
+  await page.goto("/teacher");
+  await page.getByRole("link", { name: /Finn/ }).click();
+  await expect(page.getByText("Published")).toBeVisible();
+});
