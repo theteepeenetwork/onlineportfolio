@@ -54,7 +54,71 @@ type ShapeObj = {
   fill: string; // "none" for outline only
   stroke: string;
   strokeWidth: number;
+  // An optional label locked inside the shape (added by double-tapping it). It
+  // wraps and auto-sizes to fit the shape's current bounds.
+  text?: string;
+  textColor?: string;
 };
+
+// The usable area for a label inside each shape (so text stays within the
+// visible shape, not just its bounding box). Relative to the shape's origin.
+function shapeInnerBox(kind: ShapeKind, w: number, h: number) {
+  switch (kind) {
+    case "rect":
+      return { x: 0.07 * w, y: 0.08 * h, w: 0.86 * w, h: 0.84 * h };
+    case "ellipse":
+      return { x: 0.16 * w, y: 0.18 * h, w: 0.68 * w, h: 0.64 * h };
+    case "triangle":
+      return { x: 0.24 * w, y: 0.46 * h, w: 0.52 * w, h: 0.46 * h };
+    case "star":
+      return { x: 0.31 * w, y: 0.36 * h, w: 0.38 * w, h: 0.34 * h };
+    case "speech":
+      return { x: 0.12 * w, y: 0.12 * h, w: 0.76 * w, h: 0.5 * h };
+  }
+}
+
+// Wrap + auto-size text to fit centred inside a box. Used both to render a
+// shape's label and to draw it into the exported image, so they always match.
+let measureCanvas: HTMLCanvasElement | null = null;
+function fitTextToBox(
+  text: string,
+  boxW: number,
+  boxH: number,
+): { fontPx: number; lines: string[]; lineHeight: number } {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (!words.length) return { fontPx: 24, lines: [], lineHeight: 29 };
+  if (!measureCanvas) measureCanvas = document.createElement("canvas");
+  const mc = measureCanvas.getContext("2d")!;
+  const maxW = Math.max(1, boxW - Math.max(10, boxW * 0.14));
+  const maxH = Math.max(1, boxH - Math.max(10, boxH * 0.14));
+
+  const wrap = (fontPx: number) => {
+    mc.font = `600 ${fontPx}px ${FONT_STACK}`;
+    const lines: string[] = [];
+    let cur = "";
+    for (const word of words) {
+      const test = cur ? `${cur} ${word}` : word;
+      if (!cur || mc.measureText(test).width <= maxW) cur = test;
+      else {
+        lines.push(cur);
+        cur = word;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  };
+
+  for (let fontPx = Math.min(140, Math.floor(maxH)); fontPx >= 8; fontPx -= 2) {
+    const lines = wrap(fontPx);
+    const lineHeight = fontPx * 1.2;
+    mc.font = `600 ${fontPx}px ${FONT_STACK}`;
+    const widest = lines.reduce((m, l) => Math.max(m, mc.measureText(l).width), 0);
+    if (widest <= maxW && lines.length * lineHeight <= maxH) {
+      return { fontPx, lines, lineHeight };
+    }
+  }
+  return { fontPx: 8, lines: wrap(8), lineHeight: 9.6 };
+}
 // A text box is also a placed object, so it can be re-selected, moved, resized
 // and re-edited after it's created.
 type TextObj = {
@@ -301,6 +365,21 @@ export function DrawingCanvas({
           ec.stroke(p);
         }
         ec.restore();
+        // The shape's label, wrapped + centred inside the shape's usable area.
+        if (o.text && o.text.trim()) {
+          const region = shapeInnerBox(o.shape, o.w, o.h);
+          const { fontPx, lines, lineHeight } = fitTextToBox(o.text, region.w, region.h);
+          ec.fillStyle = o.textColor ?? "#1f2430";
+          ec.font = `600 ${fontPx}px ${FONT_STACK}`;
+          ec.textAlign = "center";
+          ec.textBaseline = "middle";
+          const cx = o.x + region.x + region.w / 2;
+          const cy = o.y + region.y + region.h / 2;
+          const startY = cy - ((lines.length - 1) * lineHeight) / 2;
+          lines.forEach((line, i) => ec.fillText(line, cx, startY + i * lineHeight));
+          ec.textAlign = "left";
+          ec.textBaseline = "alphabetic";
+        }
       } else {
         // text
         ec.fillStyle = o.color;
@@ -739,32 +818,6 @@ export function DrawingCanvas({
     commitObjectChange();
   }
 
-  // Add a text box centred inside a shape (double-tap a shape). This is how you
-  // put a label inside a shape.
-  function addTextInShape(shape: ShapeObj) {
-    finishEditing();
-    pushHistory();
-    const id = `o${objIdRef.current++}`;
-    const fontPx = Math.max(20, Math.min(64, shape.h * 0.28));
-    const obj: TextObj = {
-      id,
-      type: "text",
-      text: "",
-      x: shape.x + shape.w * 0.12,
-      y: shape.y + shape.h / 2 - fontPx * 0.6,
-      fontPx,
-      color: "#1f2430",
-    };
-    const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
-    objectsRef.current[currentRef.current] = list;
-    setObjects(list);
-    anyDrawnRef.current = true;
-    setTool("cursor");
-    setSelectedId(id);
-    setEditingId(id);
-    editingRef.current = id;
-  }
-
   function updateObject(id: string, patch: Partial<Obj>) {
     const list = (objectsRef.current[currentRef.current] ?? []).map((o) =>
       o.id === id ? ({ ...o, ...patch } as Obj) : o,
@@ -910,7 +963,6 @@ export function DrawingCanvas({
       onEditText={editTextObject}
       onTextChange={updateText}
       onFinishEditing={finishEditing}
-      onAddTextInShape={addTextInShape}
     />
   );
 
@@ -1402,7 +1454,6 @@ type ObjHandlers = {
   onEditText: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
   onFinishEditing: () => void;
-  onAddTextInShape: (shape: ShapeObj) => void;
 };
 
 // The layer of movable / resizable objects (pictures, shapes, text boxes).
@@ -1440,22 +1491,26 @@ function ObjectView({
   if (o.type === "text") {
     return <TextObjectView o={o} selected={selected} editing={editing} {...h} />;
   }
-  return <MediaObjectView o={o} selected={selected} {...h} />;
+  return <MediaObjectView o={o} selected={selected} editing={editing} {...h} />;
 }
 
-// Pictures and shapes: move + (aspect-locked / free) resize + delete.
+// Pictures and shapes: move + (aspect-locked / free) resize + delete. Shapes can
+// also carry a label (double-tap) that stays locked inside them.
 function MediaObjectView({
   o,
   scale,
   interactive,
   selected,
+  editing,
   onSelect,
   onStart,
   onChange,
   onEnd,
   onDelete,
-  onAddTextInShape,
-}: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean }) {
+  onEditText,
+  onTextChange,
+  onFinishEditing,
+}: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean; editing: boolean }) {
   const drag = useRef<
     | { mode: "move"; ax: number; ay: number }
     | { mode: "resize"; ax: number; ay: number; sw: number; sh: number }
@@ -1508,12 +1563,18 @@ function MediaObjectView({
     }
   }
 
+  const region = o.type === "shape" ? shapeInnerBox(o.shape, o.w, o.h) : null;
+  const label =
+    o.type === "shape" && region && o.text && o.text.trim()
+      ? fitTextToBox(o.text, region.w, region.h)
+      : null;
+
   return (
     <div
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onDoubleClick={o.type === "shape" ? () => onAddTextInShape(o) : undefined}
+      onDoubleClick={o.type === "shape" ? () => onEditText(o.id) : undefined}
       className={`absolute cursor-move touch-none ${
         interactive ? "pointer-events-auto" : "pointer-events-none"
       } ${selected ? "ring-2 ring-brand" : ""}`}
@@ -1545,8 +1606,64 @@ function MediaObjectView({
           />
         </svg>
       )}
-      {selected && (
+
+      {/* A shape's label, locked inside its usable area and auto-fitted. */}
+      {label && region && !editing && (
+        <div
+          className="pointer-events-none absolute flex select-none flex-col items-center justify-center overflow-hidden text-center"
+          style={{
+            left: region.x * scale,
+            top: region.y * scale,
+            width: region.w * scale,
+            height: region.h * scale,
+            color: o.type === "shape" ? o.textColor ?? "#1f2430" : "#1f2430",
+            fontFamily: FONT_STACK,
+            fontWeight: 600,
+            lineHeight: 1.2,
+          }}
+        >
+          {label.lines.map((line, i) => (
+            <div key={i} style={{ fontSize: label.fontPx * scale }}>
+              {line}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Editing the label. */}
+      {o.type === "shape" && editing && (
+        <textarea
+          autoFocus
+          value={o.text ?? ""}
+          onChange={(e) => onTextChange(o.id, e.target.value)}
+          onBlur={onFinishEditing}
+          onPointerDown={(e) => e.stopPropagation()}
+          placeholder="Type…"
+          className="pointer-events-auto absolute inset-1 resize-none rounded border-2 border-brand bg-white/80 text-center outline-none"
+          style={{
+            color: o.textColor ?? "#1f2430",
+            fontFamily: FONT_STACK,
+            fontWeight: 600,
+            fontSize: Math.min(o.h * 0.26, 44) * scale,
+            lineHeight: 1.2,
+          }}
+        />
+      )}
+
+      {selected && !editing && (
         <>
+          {o.type === "shape" && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => onEditText(o.id)}
+              className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-white shadow"
+              title={o.text ? "Edit label" : "Add label"}
+              aria-label="Edit text"
+            >
+              ✎
+            </button>
+          )}
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}

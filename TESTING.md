@@ -57,7 +57,7 @@ the HTML report (`npm run test:report`) shows exactly where it stopped.
 | `tests/e2e/objects.spec.ts` | An imported PDF/image is a **movable, resizable, deletable object** on the canvas (not a locked background) |
 | `tests/e2e/shapes.spec.ts` | A **shape** can be added, recoloured (fill + line), moved, and resized |
 | `tests/e2e/text.spec.ts` | A **text box** can be placed, re-selected, moved, and re-edited |
-| `tests/e2e/layers.spec.ts` | Drawing tools **write over** objects; the **cursor tool** moves them; double-tapping a shape adds **text inside it** |
+| `tests/e2e/layers.spec.ts` | Drawing tools **write over** objects; the **cursor tool** moves them; a shape's **label stays locked inside it** and re-fits when the shape resizes |
 
 The activities test is also the guard for the "PDF template didn't show for the
 child" bug — it fails if the template ever stops loading onto the child's canvas.

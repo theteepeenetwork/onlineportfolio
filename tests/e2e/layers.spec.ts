@@ -47,18 +47,46 @@ test("a drawing tool writes over objects; the cursor tool moves them", async ({ 
   expect((await wrapper.boundingBox())!.x).toBeGreaterThan(before.x + 50);
 });
 
-test("double-tapping a shape adds a text box inside it", async ({ page }) => {
+test("a shape's label is locked inside it, and re-fits when the shape resizes", async ({
+  page,
+}) => {
   await studentLogin(page, "Finn");
   await openDrawing(page);
 
-  const shape = await addRectangle(page);
-  const box = (await shape.locator("xpath=ancestor::div[1]").boundingBox())!;
+  const shape = await addRectangle(page); // cursor tool is active after adding
+  const wrapper = shape.locator("xpath=ancestor::div[1]");
+  const box0 = (await wrapper.boundingBox())!;
 
-  // Double-click the shape (cursor tool is active after adding).
-  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
-  const editor = page.locator('textarea[placeholder="Type…"]');
-  await expect(editor).toBeVisible();
-  await page.keyboard.type("Hi");
-  await page.locator('button[title="Pen"]').click();
-  await expect(page.getByText("Hi", { exact: true })).toBeVisible();
+  // Double-tap the shape to add a label inside it.
+  await page.mouse.dblclick(box0.x + box0.width / 2, box0.y + box0.height / 2);
+  await expect(page.locator('textarea[placeholder="Type…"]')).toBeVisible();
+  await page.keyboard.type("Label");
+  await page.locator('button[aria-label="Select"]').click(); // commit, stay on cursor tool
+
+  const label = page.getByText("Label", { exact: true });
+  await expect(label).toBeVisible();
+  const fontOf = () => label.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const fontBefore = await fontOf();
+
+  // Grow the shape — the label auto-sizes bigger to fit.
+  const handle = page.locator('div[title="Resize"]');
+  const hb = (await handle.boundingBox())!;
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + 220, hb.y + 160, { steps: 6 });
+  await page.mouse.up();
+  expect(await fontOf()).toBeGreaterThan(fontBefore + 2);
+
+  // Move the shape — the label moves with it (it's locked to the shape).
+  const labelBefore = (await label.boundingBox())!;
+  const box1 = (await wrapper.boundingBox())!;
+  await page.mouse.move(box1.x + box1.width / 2, box1.y + box1.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box1.x + box1.width / 2 + 150, box1.y + box1.height / 2 + 90, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  const labelAfter = (await label.boundingBox())!;
+  expect(labelAfter.x).toBeGreaterThan(labelBefore.x + 60);
+  expect(labelAfter.y).toBeGreaterThan(labelBefore.y + 30);
 });
