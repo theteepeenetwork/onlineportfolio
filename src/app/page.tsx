@@ -37,6 +37,13 @@ export default async function Home() {
             <span className="text-sm text-muted">Use your class code</span>
           </Link>
         </div>
+
+        <p className="mt-6 text-sm text-muted">
+          New teacher?{" "}
+          <Link href="/signup/teacher" className="font-semibold text-brand hover:underline">
+            Create an account
+          </Link>
+        </p>
       </div>
     </main>
   );
