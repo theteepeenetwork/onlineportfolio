@@ -8,12 +8,12 @@ import { DrawingCanvas } from "@/components/DrawingCanvas";
 // A child responds to an activity by working on top of its template, on the
 // full-screen canvas.
 export function ActivityResponseForm({
-  activityId,
+  assignmentId,
   title,
   instructions,
   template,
 }: {
-  activityId: string;
+  assignmentId: string;
   title: string;
   instructions?: string;
   template: string[];
@@ -24,7 +24,7 @@ export function ActivityResponseForm({
   return (
     <form action={action}>
       <input type="hidden" name="type" value="DRAWING" />
-      <input type="hidden" name="activityId" value={activityId} />
+      <input type="hidden" name="assignmentId" value={assignmentId} />
 
       <DrawingCanvas
         name="drawingPages"

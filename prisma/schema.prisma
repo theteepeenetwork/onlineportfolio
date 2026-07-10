@@ -20,7 +20,7 @@ model Teacher {
   createdAt    DateTime  @default(now())
   classes      Class[]
   sessions     Session[]
-  activities   Activity[]
+  templates    ActivityTemplate[]
 }
 
 // A class groups students together and has a short code students use to log in.
@@ -33,7 +33,7 @@ model Class {
   createdAt    DateTime      @default(now())
   students     Student[]
   journalItems JournalItem[]
-  activities   Activity[]
+  assignments  Assignment[]
 }
 
 // A student has no password — they pick their name from the class after
@@ -47,7 +47,7 @@ model Student {
   createdAt    DateTime      @default(now())
   journalItems JournalItem[]
   sessions     Session[]
-  activityAssignments ActivityAssignment[]
+  assignments  AssignmentStudent[]
 }
 
 // A single piece of work in a student's journal.
@@ -68,38 +68,55 @@ model JournalItem {
   skills      Skill[]   @relation("JournalItemSkills")
   createdAt   DateTime  @default(now())
   approvedAt  DateTime?
-  // When set, this item is a response to an assigned activity.
-  activity    Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
-  activityId  String?
+  // When set, this item is a response to an assignment (a run of a template).
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  assignmentId String?
 }
 
-// An activity is a task a teacher sets: instructions plus an optional template
-// (a background the child works on top of — a drawn canvas and/or PDF pages).
-model Activity {
-  id                String               @id @default(cuid())
+// A reusable, class-agnostic activity a teacher can run again and again. The
+// unit of organisation in the activity library. (Formerly `Activity`.)
+model ActivityTemplate {
+  id                String       @id @default(cuid())
   title             String
   instructions      String? // what to do; may be read aloud to the child
   templatePathsJson String? // JSON array of background image paths (canvas / PDF pages)
-  teacher           Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  tagsJson          String? // JSON array of teacher-defined tag names (e.g. ["Maths"])
+  archived          Boolean      @default(false) // hidden from the grid; runs are kept
+  teacher           Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId         String
-  class             Class                @relation(fields: [classId], references: [id], onDelete: Cascade)
-  classId           String
-  createdAt         DateTime             @default(now())
-  assignments       ActivityAssignment[]
-  responses         JournalItem[]
+  createdAt         DateTime     @default(now())
+  assignments       Assignment[]
 }
 
-// Which students an activity has been assigned to. Whole-class assignment
-// simply creates one row per student in the class.
-model ActivityAssignment {
-  id         String   @id @default(cuid())
-  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  activityId String
-  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId  String
-  createdAt  DateTime @default(now())
+// One run of a template against a class (whole class or chosen children).
+// Title / instructions / template pages are snapshotted here at assign time so
+// later edits to the template never change what a live run shows.
+model Assignment {
+  id                   String              @id @default(cuid())
+  template             ActivityTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  templateId           String
+  class                Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId              String
+  wholeClass           Boolean             @default(true)
+  status               String              @default("LIVE") // LIVE | CLOSED
+  title                String // snapshot at assign time
+  instructions         String? // snapshot at assign time
+  templateSnapshotJson String? // frozen template pages at assign time
+  createdAt            DateTime            @default(now())
+  students             AssignmentStudent[] // set only when wholeClass = false
+  responses            JournalItem[]
+}
 
-  @@unique([activityId, studentId])
+// A chosen child on a "pick children" run. (Formerly `ActivityAssignment`.)
+model AssignmentStudent {
+  id           String     @id @default(cuid())
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    String
+  createdAt    DateTime   @default(now())
+
+  @@unique([assignmentId, studentId])
 }
 
 // A skill / standard an item can be tagged against, so the journal doubles

@@ -1,76 +1,95 @@
-import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TopBar } from "@/components/TopBar";
 import { teacherNav } from "@/lib/teacherNav";
+import { jsonArray } from "@/lib/activities";
+import { ActivityLibrary, type TemplateSummary, type NeedsAttention } from "./ActivityLibrary";
 
-export default async function ActivitiesPage() {
+export default async function ActivityLibraryPage() {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") return null;
 
-  const [activities, pendingCount] = await Promise.all([
-    db.activity.findMany({
-      where: { teacherId: user.teacher.id },
+  const [templates, classes, pendingCount] = await Promise.all([
+    db.activityTemplate.findMany({
+      where: { teacherId: user.teacher.id, archived: false },
       orderBy: { createdAt: "desc" },
       include: {
-        class: { select: { name: true } },
-        _count: { select: { assignments: true, responses: true } },
+        assignments: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            class: { select: { name: true, _count: { select: { students: true } } } },
+            _count: { select: { students: true } },
+            responses: { select: { studentId: true, status: true } },
+          },
+        },
       },
     }),
-    db.journalItem.count({
-      where: { status: "PENDING", class: { teacherId: user.teacher.id } },
+    db.class.findMany({
+      where: { teacherId: user.teacher.id },
+      orderBy: { createdAt: "asc" },
+      include: { students: { orderBy: { name: "asc" }, select: { id: true, name: true, avatarColor: true } } },
     }),
+    db.journalItem.count({ where: { status: "PENDING", class: { teacherId: user.teacher.id } } }),
   ]);
+
+  const needsAttention: NeedsAttention[] = [];
+  const summaries: TemplateSummary[] = templates.map((t) => {
+    const liveClassNames = [
+      ...new Set(t.assignments.filter((a) => a.status === "LIVE").map((a) => a.class.name)),
+    ];
+    let waiting = 0;
+    const pastRuns = t.assignments.map((a) => {
+      const assigned = a.wholeClass ? a.class._count.students : a._count.students;
+      const turnedIn = new Set(a.responses.map((r) => r.studentId)).size;
+      const wait = a.responses.filter((r) => r.status === "PENDING").length;
+      if (a.status === "LIVE") {
+        waiting += wait;
+        if (wait > 0) {
+          needsAttention.push({ templateId: t.id, title: t.title, className: a.class.name, waiting: wait });
+        }
+      }
+      return {
+        id: a.id,
+        className: a.class.name,
+        wholeClass: a.wholeClass,
+        status: a.status as "LIVE" | "CLOSED",
+        createdAt: a.createdAt.toISOString(),
+        assigned,
+        turnedIn,
+        waiting: wait,
+      };
+    });
+    const closedCount = t.assignments.filter((a) => a.status === "CLOSED").length;
+    return {
+      id: t.id,
+      title: t.title,
+      instructions: t.instructions ?? "",
+      tags: jsonArray(t.tagsJson),
+      thumb: jsonArray(t.templatePathsJson)[0] ?? null,
+      liveClassNames,
+      runCount: closedCount,
+      waiting,
+      neverRun: t.assignments.length === 0,
+      pastRuns,
+    };
+  });
+
+  const allTags = [...new Set(summaries.flatMap((s) => s.tags))].sort();
 
   return (
     <>
       <TopBar
-        title="Activities"
-        subtitle="Set tasks for your class and see everyone's responses in one place."
+        title="Activity library"
+        subtitle="Reusable templates you can assign to any class, again and again."
         links={teacherNav(pendingCount)}
-        right={
-          <Link href="/teacher/activities/new" className="btn-brand px-3 py-1.5 text-sm">
-            ＋ New activity
-          </Link>
-        }
       />
-
-      <main className="mx-auto w-full max-w-3xl flex-1 p-4">
-        {activities.length === 0 ? (
-          <div className="card p-10 text-center">
-            <div className="text-4xl">📝</div>
-            <p className="mt-2 font-semibold">No activities yet</p>
-            <p className="text-sm text-muted">
-              Create one to set a task for your class.
-            </p>
-            <Link href="/teacher/activities/new" className="btn-brand mt-4">
-              ＋ New activity
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {activities.map((a) => (
-              <Link
-                key={a.id}
-                href={`/teacher/activities/${a.id}`}
-                className="card flex items-center gap-4 p-4 transition-transform hover:-translate-y-0.5 hover:shadow-md"
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-lg font-bold">{a.title}</p>
-                  <p className="text-sm text-muted">
-                    {a.class.name} · assigned to {a._count.assignments}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-extrabold text-brand">
-                    {a._count.responses}
-                  </p>
-                  <p className="text-xs text-muted">responses</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+      <main className="mx-auto w-full max-w-5xl flex-1 p-4">
+        <ActivityLibrary
+          templates={summaries}
+          classes={classes}
+          needsAttention={needsAttention}
+          allTags={allTags}
+        />
       </main>
     </>
   );
