@@ -32,8 +32,11 @@ next (see [Roadmap](#roadmap-whats-next)).
     slider** + palette, brush sizes, **undo/redo**, and **multiple pages** with
     a live thumbnail filmstrip. A ＋ button adds a photo, PDF, or **shape**
     (rectangle, circle, triangle, star, speech bubble) onto the canvas as a
-    **movable, resizable object** — tap to select, drag to move, pull the corner
-    to resize, ✕ to remove. Shapes also have editable **fill and line colours**.
+    **movable, resizable object** — pick the **cursor tool** to select, drag to
+    move, pull the corner to resize, ✕ to remove. Shapes also have editable
+    **fill and line colours**, and you can **double-tap a shape to add text
+    inside it**. With any drawing tool selected, pen strokes go **on top of**
+    shapes and pictures, so you can write over anything.
 - **Activities** you set for the class:
   - Build a task with a **title, instructions, and an optional template** — draw
     the template on the canvas and/or **upload a PDF or picture** (a worksheet)
