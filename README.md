@@ -13,7 +13,10 @@ next (see [Roadmap](#roadmap-whats-next)).
 
 ## What it does today
 
-- **Teacher sign-in** with an email and password.
+- **Teacher accounts**: create an account (name, email, password, and an
+  optional first class), then **sign in** with email and password.
+- **Multiple classes**: a teacher can create as many classes as they like, each
+  with its own auto-generated class code and roster.
 - **Student sign-in** with a short class code, then tapping their own name — no
   passwords or emails for children (safe for early years / KS1).
 - A **class roster** you manage: add and remove children, and see the class code

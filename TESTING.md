@@ -51,6 +51,7 @@ the HTML report (`npm run test:report`) shows exactly where it stopped.
 | File | What it checks |
 | --- | --- |
 | `tests/e2e/auth.spec.ts` | Teacher sign-in, wrong-password rejection, student class-code sign-in |
+| `tests/e2e/account.spec.ts` | Teacher **sign-up** (+ first class), duplicate-email rejection, creating **more than one class** |
 | `tests/e2e/journal.spec.ts` | A child draws → it waits in the queue → teacher approves → it's published in the journal |
 | `tests/e2e/activities.spec.ts` | Teacher builds an activity with a **PDF template** → assigns it → a child opens it and **the template is on their canvas** → child responds → teacher sees the response side-by-side |
 | `tests/e2e/objects.spec.ts` | An imported PDF/image is a **movable, resizable, deletable object** on the canvas (not a locked background) |

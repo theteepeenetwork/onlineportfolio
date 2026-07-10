@@ -12,6 +12,12 @@ export default function TeacherLoginPage() {
           <h1 className="text-2xl font-bold">Teacher sign in</h1>
           <p className="mt-1 text-sm text-muted">Welcome back.</p>
           <TeacherLoginForm />
+          <p className="mt-5 text-center text-sm text-muted">
+            New here?{" "}
+            <Link href="/signup/teacher" className="font-semibold text-brand hover:underline">
+              Create an account
+            </Link>
+          </p>
         </div>
       </div>
     </main>

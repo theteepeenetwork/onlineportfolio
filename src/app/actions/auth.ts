@@ -4,6 +4,45 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
+import { uniqueClassCode } from "@/lib/classCode";
+
+// Teacher creates a new account (and optionally their first class).
+export async function teacherSignup(
+  _prev: { error?: string } | undefined,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const className = String(formData.get("className") ?? "").trim();
+
+  if (!name) return { error: "Please enter your name." };
+  if (!email.includes("@") || email.length < 3) {
+    return { error: "Please enter a valid email address." };
+  }
+  if (password.length < 6) {
+    return { error: "Please choose a password of at least 6 characters." };
+  }
+
+  const existing = await db.teacher.findUnique({ where: { email } });
+  if (existing) {
+    return { error: "An account with that email already exists. Try signing in." };
+  }
+
+  const teacher = await db.teacher.create({
+    data: { name, email, passwordHash: await bcrypt.hash(password, 10) },
+  });
+
+  // Create their first class straight away if they named one.
+  if (className) {
+    await db.class.create({
+      data: { name: className, classCode: await uniqueClassCode(), teacherId: teacher.id },
+    });
+  }
+
+  await createSession({ role: "TEACHER", teacherId: teacher.id });
+  redirect("/teacher/class");
+}
 
 // Teacher signs in with email + password.
 export async function teacherLogin(

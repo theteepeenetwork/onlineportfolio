@@ -5,7 +5,9 @@ import { TopBar } from "@/components/TopBar";
 import { Avatar } from "@/components/Avatar";
 import { teacherNav } from "@/lib/teacherNav";
 import { removeStudent } from "@/app/actions/roster";
+import { deleteClass } from "@/app/actions/classes";
 import { AddStudentForm } from "./AddStudentForm";
+import { CreateClassForm } from "./CreateClassForm";
 
 export default async function ClassPage() {
   const user = await getCurrentUser();
@@ -24,23 +26,48 @@ export default async function ClassPage() {
   return (
     <>
       <TopBar
-        title="Your class"
-        subtitle="Add children and share your class code so they can sign in."
+        title="Your classes"
+        subtitle="Create classes, add children, and share each class code so they can sign in."
         links={teacherNav(pendingCount)}
       />
 
       <main className="mx-auto w-full max-w-3xl flex-1 p-4">
+        <section className="card mb-6 p-5">
+          <h2 className="mb-3 text-lg font-bold">Create a class</h2>
+          <CreateClassForm />
+        </section>
+
+        {classes.length === 0 && (
+          <p className="card p-6 text-center text-muted">
+            You don&apos;t have any classes yet. Create your first one above.
+          </p>
+        )}
+
         {classes.map((c) => (
           <section key={c.id} className="card mb-6 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-bold">{c.name}</h2>
-              <div className="rounded-xl bg-brand/10 px-4 py-2 text-center">
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand/70">
-                  Class code
-                </p>
-                <p className="text-2xl font-extrabold tracking-widest text-brand">
-                  {c.classCode}
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-brand/10 px-4 py-2 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand/70">
+                    Class code
+                  </p>
+                  <p className="text-2xl font-extrabold tracking-widest text-brand">
+                    {c.classCode}
+                  </p>
+                </div>
+                {c.students.length === 0 && (
+                  <form action={deleteClass}>
+                    <input type="hidden" name="classId" value={c.id} />
+                    <button
+                      type="submit"
+                      className="rounded-lg px-2 py-1 text-sm text-muted hover:bg-rose-50 hover:text-rose-600"
+                      title="Delete this empty class"
+                    >
+                      Delete
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
 
