@@ -24,7 +24,8 @@ test("text can be placed, re-selected, moved and re-edited", async ({ page }) =>
   await expect(label).toBeVisible();
   await expect(page.locator('textarea[placeholder="Type…"]')).toHaveCount(0);
 
-  // Re-select by tapping it — the edit + remove controls appear.
+  // With the cursor tool, re-select by tapping it — the controls appear.
+  await page.locator('button[aria-label="Select"]').click();
   const before = (await label.boundingBox())!;
   await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2);
   await expect(page.getByRole("button", { name: "Edit text" })).toBeVisible();

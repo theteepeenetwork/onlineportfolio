@@ -8,8 +8,9 @@ const SWATCHES = [
 ];
 const SIZES = [6, 12, 22];
 
-type Tool = "pencil" | "pen" | "highlighter" | "eraser" | "text";
+type Tool = "cursor" | "pencil" | "pen" | "highlighter" | "eraser" | "text";
 const TOOLS: { key: Tool; label: string; icon: string }[] = [
+  { key: "cursor", label: "Select", icon: "🖱️" },
   { key: "pencil", label: "Pencil", icon: "✏️" },
   { key: "pen", label: "Pen", icon: "🖊️" },
   { key: "highlighter", label: "Highlighter", icon: "🖍️" },
@@ -168,10 +169,14 @@ export function DrawingCanvas({
   const hiddenRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Per page: `pagesRef` is the drawing layer (strokes + text + template), and
-  // `objectsRef` is the placed-image layer. `compositeRef` is the two flattened
-  // together — that's what gets submitted.
+  // Layers, per page, bottom to top:
+  //  - `templatesRef[i]` : optional fixed background (e.g. an activity worksheet)
+  //  - `objectsRef[i]`   : movable pictures / shapes / text boxes
+  //  - `pagesRef[i]`     : the (transparent) pen-stroke layer, drawn on top
+  // `compositeRef[i]` is all three flattened — that's what gets submitted.
   const pagesRef = useRef<string[]>([]);
+  const templatesRef = useRef<(string | null)[]>([]);
+  const templateImgRef = useRef<Map<string, HTMLImageElement>>(new Map()); // keyed by URL
   const objectsRef = useRef<Obj[][]>([]);
   const compositeRef = useRef<string[]>([]);
   const imgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -226,6 +231,11 @@ export function DrawingCanvas({
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingRef = useRef<string | null>(editingId);
   editingRef.current = editingId;
+
+  // Deselect when switching to a drawing tool (so its handles don't linger).
+  useEffect(() => {
+    if (tool !== "cursor" && editingRef.current === null) setSelectedId(null);
+  }, [tool]);
   const [displayW, setDisplayW] = useState(1000);
 
   function ctx() {
@@ -234,17 +244,9 @@ export function DrawingCanvas({
   function textFontPx() {
     return Math.max(20, sizeRef.current * 2.6);
   }
-  function paintWhite() {
-    const c = ctx();
-    if (!c) return;
-    c.fillStyle = "#ffffff";
-    c.fillRect(0, 0, W, H);
-  }
-  function drawContain(c: CanvasRenderingContext2D, img: HTMLImageElement) {
-    const scale = Math.min(W / img.width, H / img.height);
-    const w = img.width * scale;
-    const h = img.height * scale;
-    c.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+  // The stroke canvas is transparent so the layers beneath it show through.
+  function clearCanvas() {
+    ctx()?.clearRect(0, 0, W, H);
   }
   function loadImage(src: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
@@ -265,18 +267,21 @@ export function DrawingCanvas({
     setThumbs([...compositeRef.current]);
   }
 
-  // Flatten the current drawing layer + its placed objects into one PNG.
+  // Flatten all layers (white → template → objects → strokes) into one PNG.
   function compositeCurrentPage(): string {
     const canvas = canvasRef.current;
     if (!canvas) return "";
-    const objs = objectsRef.current[currentRef.current] ?? [];
-    if (objs.length === 0) return canvas.toDataURL("image/png");
     const exp = document.createElement("canvas");
     exp.width = W;
     exp.height = H;
     const ec = exp.getContext("2d");
     if (!ec) return canvas.toDataURL("image/png");
-    ec.drawImage(canvas, 0, 0, W, H);
+    ec.fillStyle = "#ffffff";
+    ec.fillRect(0, 0, W, H);
+    const tmplUrl = templatesRef.current[currentRef.current];
+    const tmpl = tmplUrl ? templateImgRef.current.get(tmplUrl) : undefined;
+    if (tmpl && tmpl.complete && tmpl.naturalWidth) ec.drawImage(tmpl, 0, 0, W, H);
+    const objs = objectsRef.current[currentRef.current] ?? [];
     for (const o of objs) {
       if (o.type === "image") {
         const img = imgCacheRef.current.get(o.id);
@@ -305,6 +310,8 @@ export function DrawingCanvas({
         o.text.split("\n").forEach((line, i) => ec.fillText(line, o.x, o.y + i * lineHeight));
       }
     }
+    // Pen strokes go on top of everything.
+    ec.drawImage(canvas, 0, 0, W, H);
     return exp.toDataURL("image/png");
   }
 
@@ -345,29 +352,45 @@ export function DrawingCanvas({
     c.lineJoin = "round";
 
     (async () => {
+      clearCanvas();
+      const blankStroke = canvas.toDataURL("image/png"); // fully transparent
       if (background && background.length) {
-        const pages: string[] = [];
-        for (const url of background) {
-          paintWhite();
-          try {
-            const img = await loadImage(url);
-            drawContain(c, img);
-          } catch {
-            /* leave blank on failure */
-          }
-          pages.push(canvas.toDataURL("image/png"));
-        }
-        pagesRef.current = pages;
-        anyDrawnRef.current = true;
-        currentRef.current = 0;
-        setPageCount(pages.length);
-        await paintDataUrl(pages[0]);
+        templatesRef.current = background.map((u) => u);
+        pagesRef.current = background.map(() => blankStroke);
+        anyDrawnRef.current = true; // a template response always has content
+        // Preload the template images so pages can be composited synchronously.
+        await Promise.all(
+          background.map(async (url) => {
+            try {
+              templateImgRef.current.set(url, await loadImage(url));
+            } catch {
+              /* leave that page's background blank */
+            }
+          }),
+        );
       } else {
-        paintWhite();
-        pagesRef.current = [canvas.toDataURL("image/png")];
+        templatesRef.current = [null];
+        pagesRef.current = [blankStroke];
       }
+      currentRef.current = 0;
       objectsRef.current = pagesRef.current.map(() => []);
-      compositeRef.current = [...pagesRef.current];
+      setPageCount(pagesRef.current.length);
+
+      // Initial composite of each page is just white + its template.
+      compositeRef.current = pagesRef.current.map((_, i) => {
+        const exp = document.createElement("canvas");
+        exp.width = W;
+        exp.height = H;
+        const ec = exp.getContext("2d")!;
+        ec.fillStyle = "#ffffff";
+        ec.fillRect(0, 0, W, H);
+        const url = templatesRef.current[i];
+        const t = url ? templateImgRef.current.get(url) : undefined;
+        if (t && t.complete && t.naturalWidth) ec.drawImage(t, 0, 0, W, H);
+        return exp.toDataURL("image/png");
+      });
+
+      clearCanvas(); // page 0's stroke layer starts blank
       setObjects([]);
       if (hiddenRef.current) {
         hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
@@ -423,7 +446,9 @@ export function DrawingCanvas({
     const s = sizeRef.current;
     switch (toolRef.current) {
       case "eraser":
-        c.strokeStyle = "#ffffff";
+        // Erase strokes back to transparent so the layers below show through.
+        c.globalCompositeOperation = "destination-out";
+        c.strokeStyle = "rgba(0,0,0,1)";
         c.globalAlpha = 1;
         c.lineWidth = s * 3;
         break;
@@ -456,6 +481,7 @@ export function DrawingCanvas({
     else for (let i = 1; i < pts.length; i++) c.lineTo(pts[i].x, pts[i].y);
     c.stroke();
     c.globalAlpha = 1;
+    c.globalCompositeOperation = "source-over";
   }
 
   // Leave text-editing mode. Discards the box if nothing was typed.
@@ -478,6 +504,7 @@ export function DrawingCanvas({
 
   function start(e: React.PointerEvent) {
     if (loadingRef.current) return;
+    if (toolRef.current === "cursor") return; // selecting is handled by objects
     setSelectedId(null);
     if (toolRef.current === "text") {
       e.preventDefault();
@@ -528,7 +555,7 @@ export function DrawingCanvas({
   }
 
   function paintDataUrl(dataUrl: string | undefined) {
-    paintWhite();
+    clearCanvas();
     if (!dataUrl) return Promise.resolve();
     loadingRef.current = true;
     return loadImage(dataUrl)
@@ -595,18 +622,18 @@ export function DrawingCanvas({
   function addPage() {
     finishEditing();
     syncHidden();
-    paintWhite();
-    const blank = canvasRef.current!.toDataURL("image/png");
+    clearCanvas();
+    const blank = canvasRef.current!.toDataURL("image/png"); // transparent strokes
     pagesRef.current.push(blank);
+    templatesRef.current.push(null);
     objectsRef.current.push([]);
-    compositeRef.current.push(blank);
     const index = pagesRef.current.length - 1;
     currentRef.current = index;
+    compositeRef.current[index] = compositeCurrentPage(); // white
     setPageCount(pagesRef.current.length);
     setCurrent(index);
     setSelectedId(null);
     setObjects([]);
-    loadPage(index);
     refreshThumbs();
     refreshUndoRedo();
   }
@@ -615,6 +642,7 @@ export function DrawingCanvas({
     if (pagesRef.current.length <= 1) return;
     finishEditing();
     pagesRef.current.splice(currentRef.current, 1);
+    templatesRef.current.splice(currentRef.current, 1);
     objectsRef.current.splice(currentRef.current, 1);
     compositeRef.current.splice(currentRef.current, 1);
     // Page indices shift, so drop the (now-misaligned) history.
@@ -635,7 +663,7 @@ export function DrawingCanvas({
   function clearPage() {
     finishEditing();
     pushHistory();
-    paintWhite();
+    clearCanvas();
     objectsRef.current[currentRef.current] = [];
     setObjects([]);
     setSelectedId(null);
@@ -669,6 +697,7 @@ export function DrawingCanvas({
     setObjects(list);
     anyDrawnRef.current = true;
     setSelectedId(id);
+    setTool("cursor"); // so it can be positioned straight away
     syncHidden();
     refreshThumbs();
   }
@@ -696,6 +725,7 @@ export function DrawingCanvas({
     setObjects(list);
     anyDrawnRef.current = true;
     setSelectedId(id);
+    setTool("cursor"); // so it can be positioned straight away
     setShapesOpen(false);
     setFanOpen(false);
     syncHidden();
@@ -707,6 +737,32 @@ export function DrawingCanvas({
     if (!selectedId) return;
     updateObject(selectedId, patch);
     commitObjectChange();
+  }
+
+  // Add a text box centred inside a shape (double-tap a shape). This is how you
+  // put a label inside a shape.
+  function addTextInShape(shape: ShapeObj) {
+    finishEditing();
+    pushHistory();
+    const id = `o${objIdRef.current++}`;
+    const fontPx = Math.max(20, Math.min(64, shape.h * 0.28));
+    const obj: TextObj = {
+      id,
+      type: "text",
+      text: "",
+      x: shape.x + shape.w * 0.12,
+      y: shape.y + shape.h / 2 - fontPx * 0.6,
+      fontPx,
+      color: "#1f2430",
+    };
+    const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
+    objectsRef.current[currentRef.current] = list;
+    setObjects(list);
+    anyDrawnRef.current = true;
+    setTool("cursor");
+    setSelectedId(id);
+    setEditingId(id);
+    editingRef.current = id;
   }
 
   function updateObject(id: string, patch: Partial<Obj>) {
@@ -815,6 +871,12 @@ export function DrawingCanvas({
     (o): o is ShapeObj => o.id === selectedId && o.type === "shape",
   );
 
+  // Objects are only draggable/selectable with the cursor tool (or while a text
+  // box is being edited). Otherwise the stroke canvas sits on top so you can
+  // draw over everything.
+  const objectsInteractive = tool === "cursor" || editingId !== null;
+  const currentTemplate = templatesRef.current[current] ?? null;
+
   // A palette of shapes to drop onto the canvas.
   const shapesPalette = (
     <div className="flex flex-wrap gap-1.5 rounded-xl border border-border bg-surface p-2 shadow-lg">
@@ -837,6 +899,7 @@ export function DrawingCanvas({
     <ObjectLayer
       objects={objects}
       scale={scale}
+      interactive={objectsInteractive}
       selectedId={selectedId}
       editingId={editingId}
       onSelect={setSelectedId}
@@ -847,6 +910,7 @@ export function DrawingCanvas({
       onEditText={editTextObject}
       onTextChange={updateText}
       onFinishEditing={finishEditing}
+      onAddTextInShape={addTextInShape}
     />
   );
 
@@ -864,16 +928,38 @@ export function DrawingCanvas({
     </>
   );
 
-  const canvasEl = (
-    <canvas
-      ref={canvasRef}
-      onPointerDown={start}
-      onPointerMove={move}
-      onPointerUp={end}
-      onPointerLeave={end}
-      className="h-full w-full touch-none bg-white"
-      style={{ cursor: tool === "text" ? "text" : "crosshair" }}
-    />
+  // The stacked layers: white + template background, the object layer, and the
+  // transparent pen-stroke canvas on top.
+  const stage = (
+    <>
+      <div
+        className="absolute inset-0 bg-white"
+        onPointerDown={() => {
+          if (objectsInteractive) setSelectedId(null);
+        }}
+      >
+        {currentTemplate && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={currentTemplate}
+            alt=""
+            className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+          />
+        )}
+      </div>
+      {objectLayer}
+      <canvas
+        ref={canvasRef}
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={end}
+        onPointerLeave={end}
+        className={`absolute inset-0 h-full w-full touch-none ${objectsInteractive ? "pointer-events-none" : ""}`}
+        style={{
+          cursor: tool === "cursor" ? "default" : tool === "text" ? "text" : "crosshair",
+        }}
+      />
+    </>
   );
 
   // ---- Full-screen, child-led layout ---------------------------------------
@@ -888,8 +974,7 @@ export function DrawingCanvas({
               className="relative rounded-2xl shadow-lg ring-1 ring-black/5 overflow-hidden"
               style={{ width: box.w, height: box.h }}
             >
-              {canvasEl}
-              {objectLayer}
+              {stage}
               {!ready && (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-muted">
                   Loading…
@@ -924,9 +1009,21 @@ export function DrawingCanvas({
             </button>
           </div>
 
-          <div className="absolute left-3 top-1/2 -translate-y-1/2">
+          <div className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTool("cursor")}
+              title="Select — move & resize things"
+              aria-label="Select"
+              className={`flex h-14 w-14 items-center justify-center rounded-full text-2xl shadow-lg transition-transform hover:scale-105 ${
+                tool === "cursor" ? "bg-brand text-white" : "bg-white text-foreground ring-1 ring-black/5"
+              }`}
+            >
+              🖱️
+            </button>
+
             {fanOpen && (
-              <div className="mb-2 flex flex-col gap-2">
+              <div className="flex flex-col gap-2">
                 <FanBtn label="Photo / PDF" onClick={() => fileRef.current?.click()}>🖼️</FanBtn>
                 <FanBtn label="Text" onClick={() => { setFanOpen(false); setTool("text"); }}>🔤</FanBtn>
                 <FanBtn label="Shapes" onClick={() => { setShapesOpen((v) => !v); }}>⬟</FanBtn>
@@ -1198,9 +1295,12 @@ export function DrawingCanvas({
         <p className="mb-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{importError}</p>
       )}
 
-      <div ref={wrapRef} className="relative mx-auto" style={{ maxHeight: "70vh", aspectRatio: "10 / 7", width: "100%" }}>
-        {canvasEl}
-        {objectLayer}
+      <div
+        ref={wrapRef}
+        className="relative mx-auto overflow-hidden rounded-xl border border-border"
+        style={{ maxHeight: "70vh", aspectRatio: "10 / 7", width: "100%" }}
+      >
+        {stage}
         {!ready && (
           <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/70 text-muted">Loading…</div>
         )}
@@ -1293,6 +1393,7 @@ function ToolShape({ kind, color }: { kind: Tool; color: string }) {
 
 type ObjHandlers = {
   scale: number;
+  interactive: boolean;
   onSelect: (id: string) => void;
   onStart: () => void;
   onChange: (id: string, patch: Partial<Obj>) => void;
@@ -1301,6 +1402,7 @@ type ObjHandlers = {
   onEditText: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
   onFinishEditing: () => void;
+  onAddTextInShape: (shape: ShapeObj) => void;
 };
 
 // The layer of movable / resizable objects (pictures, shapes, text boxes).
@@ -1345,12 +1447,14 @@ function ObjectView({
 function MediaObjectView({
   o,
   scale,
+  interactive,
   selected,
   onSelect,
   onStart,
   onChange,
   onEnd,
   onDelete,
+  onAddTextInShape,
 }: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean }) {
   const drag = useRef<
     | { mode: "move"; ax: number; ay: number }
@@ -1409,7 +1513,10 @@ function MediaObjectView({
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      className={`pointer-events-auto absolute cursor-move touch-none ${selected ? "ring-2 ring-brand" : ""}`}
+      onDoubleClick={o.type === "shape" ? () => onAddTextInShape(o) : undefined}
+      className={`absolute cursor-move touch-none ${
+        interactive ? "pointer-events-auto" : "pointer-events-none"
+      } ${selected ? "ring-2 ring-brand" : ""}`}
       style={{ left: o.x * scale, top: o.y * scale, width: o.w * scale, height: o.h * scale }}
     >
       {o.type === "image" ? (
@@ -1467,6 +1574,7 @@ function MediaObjectView({
 function TextObjectView({
   o,
   scale,
+  interactive,
   selected,
   editing,
   onSelect,
@@ -1540,9 +1648,9 @@ function TextObjectView({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onDoubleClick={() => onEditText(o.id)}
-      className={`pointer-events-auto absolute touch-none ${
-        editing ? "" : "cursor-move"
-      } ${selected ? "ring-2 ring-brand" : ""}`}
+      className={`absolute touch-none ${
+        interactive ? "pointer-events-auto" : "pointer-events-none"
+      } ${editing ? "" : "cursor-move"} ${selected ? "ring-2 ring-brand" : ""}`}
       style={{ left: o.x * scale, top: o.y * scale }}
     >
       {editing ? (
