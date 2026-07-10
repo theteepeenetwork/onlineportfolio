@@ -24,7 +24,8 @@ next (see [Roadmap](#roadmap-whats-next)).
   - ✏️ their **own words** (typed),
   - 🎨 a **drawing** on a **full-screen, child-led canvas** (Seesaw-style):
     realistic tools that rise from the bottom edge (pencil, pen, marker,
-    eraser) with the selected one lifted, **text boxes**, a **rainbow colour
+    eraser) with the selected one lifted, **text boxes** (which can be
+    re-selected, moved and re-edited), a **rainbow colour
     slider** + palette, brush sizes, **undo/redo**, and **multiple pages** with
     a live thumbnail filmstrip. A ＋ button adds a photo, PDF, or **shape**
     (rectangle, circle, triangle, star, speech bubble) onto the canvas as a

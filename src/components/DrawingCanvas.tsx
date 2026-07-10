@@ -54,7 +54,18 @@ type ShapeObj = {
   stroke: string;
   strokeWidth: number;
 };
-type Obj = ImageObj | ShapeObj;
+// A text box is also a placed object, so it can be re-selected, moved, resized
+// and re-edited after it's created.
+type TextObj = {
+  id: string;
+  type: "text";
+  text: string;
+  x: number;
+  y: number;
+  fontPx: number;
+  color: string;
+};
+type Obj = ImageObj | ShapeObj | TextObj;
 type HistoryEntry = { img: string; objects: Obj[] };
 
 const SHAPES: { kind: ShapeKind; label: string; icon: string }[] = [
@@ -211,10 +222,10 @@ export function DrawingCanvas({
   const [hueFrac, setHueFrac] = useState(0.62);
   const [box, setBox] = useState({ w: 700, h: 490 });
 
-  type ActiveText = { x: number; y: number; value: string; color: string; fontPx: number };
-  const [activeText, setActiveText] = useState<ActiveText | null>(null);
-  const activeTextRef = useRef<ActiveText | null>(activeText);
-  activeTextRef.current = activeText;
+  // Which text object (if any) is currently open for typing.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingRef = useRef<string | null>(editingId);
+  editingRef.current = editingId;
   const [displayW, setDisplayW] = useState(1000);
 
   function ctx() {
@@ -270,7 +281,7 @@ export function DrawingCanvas({
       if (o.type === "image") {
         const img = imgCacheRef.current.get(o.id);
         if (img && img.complete && img.naturalWidth) ec.drawImage(img, o.x, o.y, o.w, o.h);
-      } else {
+      } else if (o.type === "shape") {
         ec.save();
         ec.translate(o.x, o.y);
         const p = new Path2D(shapePath(o.shape, o.w, o.h));
@@ -285,6 +296,13 @@ export function DrawingCanvas({
           ec.stroke(p);
         }
         ec.restore();
+      } else {
+        // text
+        ec.fillStyle = o.color;
+        ec.textBaseline = "top";
+        ec.font = `600 ${o.fontPx}px ${FONT_STACK}`;
+        const lineHeight = o.fontPx * 1.2;
+        o.text.split("\n").forEach((line, i) => ec.fillText(line, o.x, o.y + i * lineHeight));
       }
     }
     return exp.toDataURL("image/png");
@@ -378,7 +396,7 @@ export function DrawingCanvas({
     window.addEventListener("resize", measure);
 
     const form = canvas.closest("form");
-    const onSubmit = () => commitText();
+    const onSubmit = () => finishEditing();
     form?.addEventListener("submit", onSubmit, true);
 
     return () => {
@@ -391,9 +409,12 @@ export function DrawingCanvas({
   function pos(e: React.PointerEvent) {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
+    // Guard against a not-yet-laid-out canvas (rect 0) to avoid NaN coords.
+    const rw = rect.width || 1;
+    const rh = rect.height || 1;
     return {
-      x: ((e.clientX - rect.left) / rect.width) * W,
-      y: ((e.clientY - rect.top) / rect.height) * H,
+      x: ((e.clientX - rect.left) / rw) * W,
+      y: ((e.clientY - rect.top) / rh) * H,
     };
   }
 
@@ -437,22 +458,20 @@ export function DrawingCanvas({
     c.globalAlpha = 1;
   }
 
-  function commitText() {
-    const t = activeTextRef.current;
-    if (t && t.value.trim()) {
-      pushHistory();
-      const c = ctx();
-      if (c) {
-        c.fillStyle = t.color;
-        c.textBaseline = "top";
-        c.font = `600 ${t.fontPx}px ${FONT_STACK}`;
-        const lineHeight = t.fontPx * 1.2;
-        t.value.split("\n").forEach((line, i) => c.fillText(line, t.x, t.y + i * lineHeight));
+  // Leave text-editing mode. Discards the box if nothing was typed.
+  function finishEditing() {
+    const id = editingRef.current;
+    if (id) {
+      const list = objectsRef.current[currentRef.current] ?? [];
+      const t = list.find((o) => o.id === id);
+      if (t && t.type === "text" && !t.text.trim()) {
+        objectsRef.current[currentRef.current] = list.filter((o) => o.id !== id);
+        setObjects(objectsRef.current[currentRef.current]);
+        setSelectedId((s) => (s === id ? null : s));
       }
-      anyDrawnRef.current = true;
     }
-    activeTextRef.current = null;
-    setActiveText(null);
+    editingRef.current = null;
+    setEditingId(null);
     syncHidden();
     refreshThumbs();
   }
@@ -462,9 +481,25 @@ export function DrawingCanvas({
     setSelectedId(null);
     if (toolRef.current === "text") {
       e.preventDefault();
-      commitText();
+      finishEditing();
       const p = pos(e);
-      setActiveText({ x: p.x, y: p.y, value: "", color: colorRef.current, fontPx: textFontPx() });
+      pushHistory();
+      const id = `o${objIdRef.current++}`;
+      const obj: TextObj = {
+        id,
+        type: "text",
+        text: "",
+        x: p.x,
+        y: p.y,
+        fontPx: textFontPx(),
+        color: colorRef.current,
+      };
+      const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
+      objectsRef.current[currentRef.current] = list;
+      setObjects(list);
+      setSelectedId(id);
+      setEditingId(id);
+      editingRef.current = id;
       return;
     }
     e.preventDefault();
@@ -547,7 +582,7 @@ export function DrawingCanvas({
 
   function goToPage(index: number) {
     if (index < 0 || index >= pagesRef.current.length || index === currentRef.current) return;
-    commitText();
+    finishEditing();
     syncHidden();
     currentRef.current = index;
     setCurrent(index);
@@ -558,7 +593,7 @@ export function DrawingCanvas({
   }
 
   function addPage() {
-    commitText();
+    finishEditing();
     syncHidden();
     paintWhite();
     const blank = canvasRef.current!.toDataURL("image/png");
@@ -578,7 +613,7 @@ export function DrawingCanvas({
 
   function deletePage() {
     if (pagesRef.current.length <= 1) return;
-    commitText();
+    finishEditing();
     pagesRef.current.splice(currentRef.current, 1);
     objectsRef.current.splice(currentRef.current, 1);
     compositeRef.current.splice(currentRef.current, 1);
@@ -598,7 +633,7 @@ export function DrawingCanvas({
   }
 
   function clearPage() {
-    commitText();
+    finishEditing();
     pushHistory();
     paintWhite();
     objectsRef.current[currentRef.current] = [];
@@ -697,6 +732,23 @@ export function DrawingCanvas({
     refreshThumbs();
   }
 
+  // Update the text of a text object while it's being typed.
+  function updateText(id: string, text: string) {
+    updateObject(id, { text });
+    if (text.trim()) anyDrawnRef.current = true;
+    syncHidden();
+    refreshThumbs();
+  }
+
+  // Re-open a text object for editing.
+  function editTextObject(id: string) {
+    finishEditing();
+    pushHistory();
+    setSelectedId(id);
+    setEditingId(id);
+    editingRef.current = id;
+  }
+
   async function onImportFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
@@ -747,7 +799,7 @@ export function DrawingCanvas({
   }
 
   function currentPages(): string[] {
-    commitText();
+    finishEditing();
     return anyDrawnRef.current ? [...compositeRef.current] : [];
   }
 
@@ -786,11 +838,15 @@ export function DrawingCanvas({
       objects={objects}
       scale={scale}
       selectedId={selectedId}
+      editingId={editingId}
       onSelect={setSelectedId}
       onStart={pushHistory}
       onChange={updateObject}
       onEnd={commitObjectChange}
       onDelete={deleteObject}
+      onEditText={editTextObject}
+      onTextChange={updateText}
+      onFinishEditing={finishEditing}
     />
   );
 
@@ -820,16 +876,6 @@ export function DrawingCanvas({
     />
   );
 
-  const activeTextEl = activeText && (
-    <TextBox
-      data={activeText}
-      scale={scale}
-      onChange={(value) => setActiveText((t) => (t ? { ...t, value } : t))}
-      onMove={(x, y) => setActiveText((t) => (t ? { ...t, x, y } : t))}
-      onDone={commitText}
-    />
-  );
-
   // ---- Full-screen, child-led layout ---------------------------------------
   if (fullScreen) {
     return (
@@ -849,7 +895,6 @@ export function DrawingCanvas({
                   Loading…
                 </div>
               )}
-              {activeTextEl}
             </div>
           </div>
 
@@ -977,7 +1022,7 @@ export function DrawingCanvas({
                 <button
                   key={t.key}
                   type="button"
-                  onClick={() => { commitText(); setTool(t.key); }}
+                  onClick={() => { finishEditing(); setTool(t.key); }}
                   className="pointer-events-auto flex flex-col items-center transition-transform duration-150"
                   style={{ transform: `translateY(${selected ? 34 : 68}px)` }}
                   title={t.label}
@@ -1072,7 +1117,7 @@ export function DrawingCanvas({
           <button
             key={t.key}
             type="button"
-            onClick={() => { if (t.key !== "text") commitText(); setTool(t.key); }}
+            onClick={() => { if (t.key !== "text") finishEditing(); setTool(t.key); }}
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold ${
               tool === t.key ? "border-brand bg-brand/10 text-brand" : "border-border bg-surface text-muted hover:bg-background"
             }`}
@@ -1143,10 +1188,10 @@ export function DrawingCanvas({
         </button>
       </div>
 
-      {tool === "text" && !activeText && (
+      {tool === "text" && !editingId && (
         <p className="mb-1 text-sm text-muted">Tap on the canvas to add text.</p>
       )}
-      {selectedId && (
+      {selectedId && !editingId && (
         <p className="mb-1 text-sm text-muted">Drag to move · pull the corner to resize · ✕ to remove.</p>
       )}
       {importError && (
@@ -1159,7 +1204,6 @@ export function DrawingCanvas({
         {!ready && (
           <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/70 text-muted">Loading…</div>
         )}
-        {activeTextEl}
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1247,25 +1291,28 @@ function ToolShape({ kind, color }: { kind: Tool; color: string }) {
   );
 }
 
-// The layer of movable / resizable image + PDF objects on top of the drawing.
-function ObjectLayer({
-  objects,
-  scale,
-  selectedId,
-  onSelect,
-  onStart,
-  onChange,
-  onEnd,
-  onDelete,
-}: {
-  objects: Obj[];
+type ObjHandlers = {
   scale: number;
-  selectedId: string | null;
   onSelect: (id: string) => void;
   onStart: () => void;
   onChange: (id: string, patch: Partial<Obj>) => void;
   onEnd: () => void;
   onDelete: (id: string) => void;
+  onEditText: (id: string) => void;
+  onTextChange: (id: string, text: string) => void;
+  onFinishEditing: () => void;
+};
+
+// The layer of movable / resizable objects (pictures, shapes, text boxes).
+function ObjectLayer({
+  objects,
+  selectedId,
+  editingId,
+  ...handlers
+}: ObjHandlers & {
+  objects: Obj[];
+  selectedId: string | null;
+  editingId: string | null;
 }) {
   return (
     <div className="pointer-events-none absolute inset-0">
@@ -1273,13 +1320,9 @@ function ObjectLayer({
         <ObjectView
           key={o.id}
           o={o}
-          scale={scale}
           selected={o.id === selectedId}
-          onSelect={onSelect}
-          onStart={onStart}
-          onChange={onChange}
-          onEnd={onEnd}
-          onDelete={onDelete}
+          editing={o.id === editingId}
+          {...handlers}
         />
       ))}
     </div>
@@ -1288,6 +1331,19 @@ function ObjectLayer({
 
 function ObjectView({
   o,
+  selected,
+  editing,
+  ...h
+}: ObjHandlers & { o: Obj; selected: boolean; editing: boolean }) {
+  if (o.type === "text") {
+    return <TextObjectView o={o} selected={selected} editing={editing} {...h} />;
+  }
+  return <MediaObjectView o={o} selected={selected} {...h} />;
+}
+
+// Pictures and shapes: move + (aspect-locked / free) resize + delete.
+function MediaObjectView({
+  o,
   scale,
   selected,
   onSelect,
@@ -1295,16 +1351,7 @@ function ObjectView({
   onChange,
   onEnd,
   onDelete,
-}: {
-  o: Obj;
-  scale: number;
-  selected: boolean;
-  onSelect: (id: string) => void;
-  onStart: () => void;
-  onChange: (id: string, patch: Partial<Obj>) => void;
-  onEnd: () => void;
-  onDelete: (id: string) => void;
-}) {
+}: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean }) {
   const drag = useRef<
     | { mode: "move"; ax: number; ay: number }
     | { mode: "resize"; ax: number; ay: number; sw: number; sh: number }
@@ -1416,6 +1463,142 @@ function ObjectView({
   );
 }
 
+// A text box object: select + move + resize (font size) + re-edit + delete.
+function TextObjectView({
+  o,
+  scale,
+  selected,
+  editing,
+  onSelect,
+  onStart,
+  onChange,
+  onEnd,
+  onDelete,
+  onEditText,
+  onTextChange,
+  onFinishEditing,
+}: ObjHandlers & { o: TextObj; selected: boolean; editing: boolean }) {
+  const drag = useRef<
+    | { mode: "move"; ax: number; ay: number }
+    | { mode: "resize"; ax: number; ay: number; sf: number }
+    | null
+  >(null);
+
+  function capture(e: React.PointerEvent) {
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }
+  function startMove(e: React.PointerEvent) {
+    if (editing) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect(o.id);
+    onStart();
+    drag.current = { mode: "move", ax: e.clientX - o.x * scale, ay: e.clientY - o.y * scale };
+    capture(e);
+  }
+  function startResize(e: React.PointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect(o.id);
+    onStart();
+    drag.current = { mode: "resize", ax: e.clientX, ay: e.clientY, sf: o.fontPx };
+    capture(e);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    const d = drag.current;
+    if (!d) return;
+    if (d.mode === "move") {
+      onChange(o.id, { x: (e.clientX - d.ax) / scale, y: (e.clientY - d.ay) / scale });
+    } else {
+      const delta = (e.clientX - d.ax + (e.clientY - d.ay)) / 2 / scale;
+      onChange(o.id, { fontPx: Math.max(12, Math.min(240, d.sf + delta)) });
+    }
+  }
+  function onPointerUp() {
+    if (drag.current) {
+      drag.current = null;
+      onEnd();
+    }
+  }
+
+  const lines = o.text.split("\n");
+  const fontStyle: React.CSSProperties = {
+    color: o.color,
+    fontSize: o.fontPx * scale,
+    fontWeight: 600,
+    lineHeight: 1.2,
+    fontFamily: FONT_STACK,
+  };
+
+  return (
+    <div
+      onPointerDown={startMove}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onDoubleClick={() => onEditText(o.id)}
+      className={`pointer-events-auto absolute touch-none ${
+        editing ? "" : "cursor-move"
+      } ${selected ? "ring-2 ring-brand" : ""}`}
+      style={{ left: o.x * scale, top: o.y * scale }}
+    >
+      {editing ? (
+        <textarea
+          autoFocus
+          value={o.text}
+          onChange={(e) => onTextChange(o.id, e.target.value)}
+          onBlur={onFinishEditing}
+          onPointerDown={(e) => e.stopPropagation()}
+          rows={Math.max(1, lines.length)}
+          cols={Math.max(6, ...lines.map((l) => l.length + 1))}
+          className="resize-none overflow-hidden rounded border-2 border-brand bg-white/90 px-0.5 outline-none"
+          style={fontStyle}
+          placeholder="Type…"
+        />
+      ) : (
+        <div className="whitespace-pre px-0.5" style={fontStyle}>
+          {o.text || " "}
+        </div>
+      )}
+
+      {selected && !editing && (
+        <>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onEditText(o.id)}
+            className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-white shadow"
+            title="Edit text"
+            aria-label="Edit text"
+          >
+            ✎
+          </button>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onDelete(o.id)}
+            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs text-white shadow"
+            title="Remove"
+            aria-label="Remove object"
+          >
+            ✕
+          </button>
+          <div
+            onPointerDown={startResize}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
+            title="Resize"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 // A small toolbar for the selected shape's fill and line.
 function ShapeStyleBar({
   shape,
@@ -1482,61 +1665,6 @@ function ShapeStyleBar({
             <span className="rounded-full bg-foreground" style={{ width: sw + 2, height: sw + 2 }} />
           </button>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function TextBox({
-  data,
-  scale,
-  onChange,
-  onMove,
-  onDone,
-}: {
-  data: { x: number; y: number; value: string; color: string; fontPx: number };
-  scale: number;
-  onChange: (value: string) => void;
-  onMove: (x: number, y: number) => void;
-  onDone: () => void;
-}) {
-  const drag = useRef<{ dx: number; dy: number } | null>(null);
-  function onHandleDown(e: React.PointerEvent) {
-    e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { dx: e.clientX - data.x * scale, dy: e.clientY - data.y * scale };
-  }
-  function onHandleMove(e: React.PointerEvent) {
-    if (!drag.current) return;
-    onMove((e.clientX - drag.current.dx) / scale, (e.clientY - drag.current.dy) / scale);
-  }
-  function onHandleUp() {
-    drag.current = null;
-  }
-  return (
-    <div className="absolute" style={{ left: data.x * scale, top: data.y * scale, maxWidth: `calc(100% - ${data.x * scale}px)` }}>
-      <div className="flex items-stretch gap-1">
-        <button
-          type="button"
-          onPointerDown={onHandleDown}
-          onPointerMove={onHandleMove}
-          onPointerUp={onHandleUp}
-          className="cursor-move touch-none rounded bg-brand px-1 text-xs text-white"
-          title="Drag to move"
-          aria-label="Drag to move text"
-        >
-          ✥
-        </button>
-        <textarea
-          autoFocus
-          value={data.value}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onDone}
-          rows={1}
-          className="resize-none rounded border border-brand bg-white/90 px-1 leading-tight outline-none"
-          style={{ color: data.color, fontSize: data.fontPx * scale, fontWeight: 600, minWidth: 80 }}
-          placeholder="Type…"
-        />
       </div>
     </div>
   );
