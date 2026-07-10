@@ -1,23 +1,19 @@
-// NOTE: imported images/PDFs are now movable/resizable objects (see
-// objects.spec.ts). They are flattened into the saved template/response image.
 import { test, expect } from "@playwright/test";
 import { teacherLogin, studentLogin, logout, drawOnCanvas } from "./helpers";
 
-// The full activity loop, including the regression that a PDF template must
-// actually appear on the child's canvas when they open the activity.
-test("teacher sets a PDF-template activity, a child responds on it, teacher sees it", async ({
+// The full library flow: create a reusable template, assign it as a run, a child
+// responds on the template, and the teacher sees the run's response.
+test("teacher creates a template, assigns it, a child responds, teacher sees the run", async ({
   page,
 }) => {
-  // --- Teacher builds the activity on the same canvas the children use ---
+  // --- Create a template (title, instructions, tag, PDF template canvas) ---
   await teacherLogin(page);
   await page.goto("/teacher/activities/new");
   await page.fill("#title", "Count worksheet");
   await page.fill("#instructions", "Circle how many apples.");
+  await page.fill("#tags", "Maths");
 
   await page.getByRole("button", { name: /Build a template/ }).click();
-  // Import the worksheet PDF into the full-screen editor and wait until it has
-  // actually been rasterised into the editor's captured pages (a big data URL —
-  // a blank page would be tiny). This avoids clicking Done mid-import.
   await page.locator('input[type="file"]').setInputFiles("tests/fixtures/worksheet.pdf");
   await expect
     .poll(async () => (await page.locator('input[name="__templateEditor"]').inputValue()).length, {
@@ -25,25 +21,26 @@ test("teacher sets a PDF-template activity, a child responds on it, teacher sees
     })
     .toBeGreaterThan(10_000);
   await page.locator('button[title="Done"]').click();
-
-  // Back in the builder, the template preview is shown.
   await expect(page.locator('img[alt^="Template page"]').first()).toBeVisible();
-  await page.getByRole("button", { name: /Save & assign/ }).click();
-  await page.waitForURL((url) => url.pathname === "/teacher/activities");
-  await expect(page.getByText("Count worksheet")).toBeVisible();
 
-  // --- Child opens the activity: the template must be on their canvas ---
+  await page.getByRole("button", { name: /Save to library/ }).click();
+  // Lands on the template detail page.
+  await page.waitForURL((url) => /^\/teacher\/activities\/[^/]+$/.test(url.pathname));
+  await expect(page.getByRole("heading", { name: "Count worksheet" })).toBeVisible();
+  const templatePath = new URL(page.url()).pathname;
+
+  // --- Assign it to the whole class (a new run) ---
+  await page.getByRole("button", { name: /Assign/ }).first().click();
+  await page.getByRole("button", { name: /Assign to whole class/ }).click();
+  await page.waitForURL((url) => url.searchParams.has("run"));
+  await expect(page.getByText(/whole class/).first()).toBeVisible();
+
+  // --- Child opens the run: the template must be on their canvas ---
   await logout(page);
   await studentLogin(page, "Amara");
   await page.goto("/student/activities");
   await page.getByRole("link", { name: /Count worksheet/ }).click();
-
-  // The activity title + instructions are shown over the canvas.
-  await expect(page.getByText("Count worksheet")).toBeVisible();
   await expect(page.getByText("Circle how many apples.")).toBeVisible();
-
-  // The regression check: the template (a large image, not a blank page) must
-  // load into the child's response canvas.
   await expect(page.locator("canvas")).toBeVisible();
   await expect
     .poll(async () => (await page.locator('input[name="drawingPages"]').inputValue()).length, {
@@ -51,16 +48,36 @@ test("teacher sets a PDF-template activity, a child responds on it, teacher sees
     })
     .toBeGreaterThan(10_000);
 
-  // Child draws on the worksheet and hands it in.
   await drawOnCanvas(page);
   await page.locator('button[title="Done"]').click();
   await page.waitForURL((url) => url.pathname === "/student");
 
-  // --- Teacher sees the response in the side-by-side view ---
+  // --- Teacher sees the response on the run ---
   await logout(page);
   await teacherLogin(page);
+  await page.goto(templatePath);
+  await expect(page.getByText(/1 waiting/).first()).toBeVisible();
+  // Amara's tile shows in the response grid as waiting for approval.
+  await expect(page.getByText("Amara")).toBeVisible();
+});
+
+test("the library filters templates by tag and status", async ({ page }) => {
+  await teacherLogin(page);
   await page.goto("/teacher/activities");
-  await page.getByText("Count worksheet").click();
-  await expect(page.getByText(/1 of 6 responded/)).toBeVisible();
-  await expect(page.getByAltText("Amara's response")).toBeVisible();
+
+  // Seed has Count the apples (Maths, live), Minibeast hunt (Science, live),
+  // Draw your family (Writing, never run).
+  await expect(page.getByRole("link", { name: "Count the apples" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
+
+  // Filter to the Writing tag → only the never-run template remains.
+  await page.getByRole("button", { name: "Writing", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Count the apples" })).toHaveCount(0);
+
+  // Back to All, then "Never run" → still just the never-run one.
+  await page.getByRole("button", { name: "All", exact: true }).click();
+  await page.getByRole("button", { name: "Never run", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Minibeast hunt" })).toHaveCount(0);
 });

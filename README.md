@@ -41,15 +41,19 @@ next (see [Roadmap](#roadmap-whats-next)).
     strokes go
     **on top of**
     shapes and pictures, so you can write over anything.
-- **Activities** you set for the class:
-  - Build a task with a **title, instructions, and an optional template** — draw
-    the template on the canvas and/or **upload a PDF or picture** (a worksheet)
-    that children work directly on top of.
-  - **Assign to the whole class or to chosen children.**
-  - Children see their activities, respond on the template, and hand in to your
-    approval queue.
-  - See **everyone's responses side by side** on one screen — the fast
-    "who's got it" formative-assessment view.
+- An **activity library** (library-first):
+  - Build **reusable templates** — a title, instructions, tags, and an optional
+    template you **draw on the canvas** and/or **upload as a PDF or picture** (a
+    worksheet) that children work directly on top of.
+  - **Assign** a template to a class as a **run** — whole class or chosen
+    children — and **reassign** it to another class or next year; each run is
+    independent and past responses are kept forever.
+  - The library shows each template's live status, a **"needs attention"** strip
+    for runs with work waiting, and tag/status filters.
+  - A **template detail** page lists every run with progress, and a per-run
+    **response grid** showing every child at a glance (done / waiting / not yet).
+  - Children see their assigned runs, respond on the template, and hand in to
+    your approval queue.
 - An **approval queue**: every child's submission waits for you. You **approve &
   publish** it (tagging it against skills as you go) or **send it back** with a
   note asking for another go.

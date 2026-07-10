@@ -21,18 +21,24 @@ export default async function StudentHome() {
 
   // How many assigned activities are still to do?
   const assignedIds = (
-    await db.activityAssignment.findMany({
-      where: { studentId: student.id },
-      select: { activityId: true },
+    await db.assignment.findMany({
+      where: {
+        status: "LIVE",
+        OR: [
+          { wholeClass: true, classId: student.classId },
+          { wholeClass: false, students: { some: { studentId: student.id } } },
+        ],
+      },
+      select: { id: true },
     })
-  ).map((a) => a.activityId);
+  ).map((a) => a.id);
   const respondedIds = new Set(
     (
       await db.journalItem.findMany({
-        where: { studentId: student.id, activityId: { not: null } },
-        select: { activityId: true },
+        where: { studentId: student.id, assignmentId: { not: null } },
+        select: { assignmentId: true },
       })
-    ).map((r) => r.activityId),
+    ).map((r) => r.assignmentId),
   );
   const todoCount = assignedIds.filter((id) => !respondedIds.has(id)).length;
 

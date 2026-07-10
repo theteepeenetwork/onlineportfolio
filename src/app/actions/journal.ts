@@ -82,8 +82,8 @@ export async function createJournalItem(
   // Skills tagged against the item (teacher-side only, sent as repeated fields).
   const skillIds = formData.getAll("skillIds").map(String).filter(Boolean);
 
-  // When responding to an activity, the item is linked back to it.
-  const activityId = String(formData.get("activityId") ?? "") || null;
+  // When responding to an assigned activity, link the item back to the run.
+  const assignmentId = String(formData.get("assignmentId") ?? "") || null;
 
   const isTeacher = authorRole === "TEACHER";
   await db.journalItem.create({
@@ -98,7 +98,7 @@ export async function createJournalItem(
       authorRole,
       studentId,
       classId,
-      activityId,
+      assignmentId,
       skills: skillIds.length
         ? { connect: skillIds.map((id) => ({ id })) }
         : undefined,

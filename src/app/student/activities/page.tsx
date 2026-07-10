@@ -9,24 +9,32 @@ export default async function StudentActivities() {
   if (user?.role !== "STUDENT") return null;
   const { student } = user;
 
-  const assignments = await db.activityAssignment.findMany({
-    where: { studentId: student.id },
+  // Live runs assigned to this child: whole-class runs for their class, or
+  // pick-children runs they were chosen for.
+  const assignments = await db.assignment.findMany({
+    where: {
+      status: "LIVE",
+      OR: [
+        { wholeClass: true, classId: student.classId },
+        { wholeClass: false, students: { some: { studentId: student.id } } },
+      ],
+    },
     orderBy: { createdAt: "desc" },
-    include: { activity: { select: { id: true, title: true, instructions: true } } },
+    select: { id: true, title: true, instructions: true },
   });
 
-  // Which activities has this child already responded to?
+  // Which runs has this child already handed in?
   const responded = new Set(
     (
       await db.journalItem.findMany({
-        where: { studentId: student.id, activityId: { not: null } },
-        select: { activityId: true },
+        where: { studentId: student.id, assignmentId: { not: null } },
+        select: { assignmentId: true },
       })
-    ).map((r) => r.activityId),
+    ).map((r) => r.assignmentId),
   );
 
-  const todo = assignments.filter((a) => !responded.has(a.activity.id));
-  const doneList = assignments.filter((a) => responded.has(a.activity.id));
+  const todo = assignments.filter((a) => !responded.has(a.id));
+  const doneList = assignments.filter((a) => responded.has(a.id));
 
   return (
     <>
@@ -66,14 +74,14 @@ export default async function StudentActivities() {
               {todo.map((a) => (
                 <Link
                   key={a.id}
-                  href={`/student/activities/${a.activity.id}`}
+                  href={`/student/activities/${a.id}`}
                   className="card flex items-center gap-3 p-4 transition-transform hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <span className="text-2xl">📝</span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-lg font-bold">{a.activity.title}</p>
-                    {a.activity.instructions && (
-                      <p className="truncate text-sm text-muted">{a.activity.instructions}</p>
+                    <p className="truncate text-lg font-bold">{a.title}</p>
+                    {a.instructions && (
+                      <p className="truncate text-sm text-muted">{a.instructions}</p>
                     )}
                   </div>
                   <span className="btn-green px-3 py-1.5 text-sm">Start</span>
@@ -90,7 +98,7 @@ export default async function StudentActivities() {
               {doneList.map((a) => (
                 <div key={a.id} className="card flex items-center gap-3 p-4 opacity-70">
                   <span className="text-2xl">✅</span>
-                  <p className="flex-1 truncate font-semibold">{a.activity.title}</p>
+                  <p className="flex-1 truncate font-semibold">{a.title}</p>
                   <span className="text-sm text-muted">Handed in</span>
                 </div>
               ))}
