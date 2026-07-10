@@ -60,6 +60,23 @@ type ShapeObj = {
   textColor?: string;
 };
 
+// The usable area for a label inside each shape (so text stays within the
+// visible shape, not just its bounding box). Relative to the shape's origin.
+function shapeInnerBox(kind: ShapeKind, w: number, h: number) {
+  switch (kind) {
+    case "rect":
+      return { x: 0.07 * w, y: 0.08 * h, w: 0.86 * w, h: 0.84 * h };
+    case "ellipse":
+      return { x: 0.16 * w, y: 0.18 * h, w: 0.68 * w, h: 0.64 * h };
+    case "triangle":
+      return { x: 0.24 * w, y: 0.46 * h, w: 0.52 * w, h: 0.46 * h };
+    case "star":
+      return { x: 0.31 * w, y: 0.36 * h, w: 0.38 * w, h: 0.34 * h };
+    case "speech":
+      return { x: 0.12 * w, y: 0.12 * h, w: 0.76 * w, h: 0.5 * h };
+  }
+}
+
 // Wrap + auto-size text to fit centred inside a box. Used both to render a
 // shape's label and to draw it into the exported image, so they always match.
 let measureCanvas: HTMLCanvasElement | null = null;
@@ -348,15 +365,18 @@ export function DrawingCanvas({
           ec.stroke(p);
         }
         ec.restore();
-        // The shape's label, wrapped + centred inside it.
+        // The shape's label, wrapped + centred inside the shape's usable area.
         if (o.text && o.text.trim()) {
-          const { fontPx, lines, lineHeight } = fitTextToBox(o.text, o.w, o.h);
+          const region = shapeInnerBox(o.shape, o.w, o.h);
+          const { fontPx, lines, lineHeight } = fitTextToBox(o.text, region.w, region.h);
           ec.fillStyle = o.textColor ?? "#1f2430";
           ec.font = `600 ${fontPx}px ${FONT_STACK}`;
           ec.textAlign = "center";
           ec.textBaseline = "middle";
-          const startY = o.y + o.h / 2 - ((lines.length - 1) * lineHeight) / 2;
-          lines.forEach((line, i) => ec.fillText(line, o.x + o.w / 2, startY + i * lineHeight));
+          const cx = o.x + region.x + region.w / 2;
+          const cy = o.y + region.y + region.h / 2;
+          const startY = cy - ((lines.length - 1) * lineHeight) / 2;
+          lines.forEach((line, i) => ec.fillText(line, cx, startY + i * lineHeight));
           ec.textAlign = "left";
           ec.textBaseline = "alphabetic";
         }
@@ -1543,8 +1563,11 @@ function MediaObjectView({
     }
   }
 
+  const region = o.type === "shape" ? shapeInnerBox(o.shape, o.w, o.h) : null;
   const label =
-    o.type === "shape" && o.text && o.text.trim() ? fitTextToBox(o.text, o.w, o.h) : null;
+    o.type === "shape" && region && o.text && o.text.trim()
+      ? fitTextToBox(o.text, region.w, region.h)
+      : null;
 
   return (
     <div
@@ -1584,11 +1607,20 @@ function MediaObjectView({
         </svg>
       )}
 
-      {/* A shape's label, locked inside it and auto-fitted. */}
-      {label && !editing && (
+      {/* A shape's label, locked inside its usable area and auto-fitted. */}
+      {label && region && !editing && (
         <div
-          className="pointer-events-none absolute inset-0 flex select-none flex-col items-center justify-center overflow-hidden text-center"
-          style={{ color: o.type === "shape" ? o.textColor ?? "#1f2430" : "#1f2430", fontFamily: FONT_STACK, fontWeight: 600, lineHeight: 1.2 }}
+          className="pointer-events-none absolute flex select-none flex-col items-center justify-center overflow-hidden text-center"
+          style={{
+            left: region.x * scale,
+            top: region.y * scale,
+            width: region.w * scale,
+            height: region.h * scale,
+            color: o.type === "shape" ? o.textColor ?? "#1f2430" : "#1f2430",
+            fontFamily: FONT_STACK,
+            fontWeight: 600,
+            lineHeight: 1.2,
+          }}
         >
           {label.lines.map((line, i) => (
             <div key={i} style={{ fontSize: label.fontPx * scale }}>
