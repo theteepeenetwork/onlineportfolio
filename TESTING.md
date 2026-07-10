@@ -41,6 +41,7 @@ Useful variants:
 ```bash
 npm run test:headed    # watch the browser click through the tests
 npm run test:report    # open the detailed HTML report after a run
+PORT=3100 npm test     # run on a different port if 3000 is busy
 ```
 
 When something fails, Playwright saves a screenshot under `test-results/` and
@@ -51,7 +52,7 @@ the HTML report (`npm run test:report`) shows exactly where it stopped.
 | File | What it checks |
 | --- | --- |
 | `tests/e2e/auth.spec.ts` | Teacher sign-in, wrong-password rejection, student class-code sign-in |
-| `tests/e2e/account.spec.ts` | Teacher **sign-up** (+ first class), duplicate-email rejection, creating **more than one class** |
+| `tests/e2e/account.spec.ts` | Teacher **sign-up** (+ first class), duplicate-email rejection, creating **more than one class**, and **adding several students at once by pasting a list** |
 | `tests/e2e/journal.spec.ts` | A child draws → it waits in the queue → teacher approves → it's published in the journal |
 | `tests/e2e/activities.spec.ts` | Teacher creates a **reusable template** (with a PDF template canvas) → **assigns** it as a run → a child opens the run and **the template is on their canvas** → child responds → teacher sees it on the run. Also: the library **filters** by tag and status |
 | `tests/e2e/objects.spec.ts` | An imported PDF/image is a **movable, resizable, deletable object** on the canvas (not a locked background) |

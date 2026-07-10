@@ -1,5 +1,10 @@
 import { defineConfig } from "@playwright/test";
 
+// The app runs on port 3000 by default, but that port is often taken. Set
+// PORT (e.g. `PORT=3100 npm test`) to run the app and tests on another port.
+const PORT = process.env.PORT ?? "3000";
+const BASE_URL = `http://localhost:${PORT}`;
+
 // End-to-end tests for the Class Journal app. They drive a real browser
 // against the running app and exercise the full teacher + student flows.
 // See TESTING.md for how to run them.
@@ -16,14 +21,14 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: BASE_URL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
   // Start the app if it isn't already running.
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3000",
+    command: `npm run dev -- --port ${PORT}`,
+    url: BASE_URL,
     reuseExistingServer: true,
     timeout: 120_000,
   },

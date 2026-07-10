@@ -10,17 +10,33 @@ const AVATAR_COLORS = [
   "#06b6d4", "#3b82f6", "#6366f1", "#8b5cf6", "#ec4899",
 ];
 
-// Teacher adds a student to one of their classes.
-export async function addStudent(
-  _prev: { error?: string } | undefined,
+// Teacher adds one or several students at once by pasting a list (one name per line,
+// or separated by commas). Blank lines and duplicates within the paste are
+// ignored, so a copy-pasted register just works.
+export async function addStudents(
+  _prev: { error?: string; added?: number } | undefined,
   formData: FormData,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; added?: number }> {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
 
-  const name = String(formData.get("name") ?? "").trim();
+  const raw = String(formData.get("names") ?? "");
   const classId = String(formData.get("classId") ?? "");
-  if (!name) return { error: "Please enter the student's name." };
+
+  // Split on new lines and commas, tidy up, and drop blanks + repeats.
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const part of raw.split(/[\n,]+/)) {
+    const name = part.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+
+  if (names.length === 0) return { error: "Please enter at least one name." };
+  if (names.length > 100) return { error: "That's a lot of names — please add 100 or fewer at a time." };
 
   // Make sure the class really belongs to this teacher.
   const klass = await db.class.findFirst({
@@ -29,15 +45,18 @@ export async function addStudent(
   });
   if (!klass) return { error: "Class not found." };
 
-  const color = AVATAR_COLORS[klass._count.students % AVATAR_COLORS.length];
-
-  await db.student.create({
-    data: { name, classId, avatarColor: color },
+  const start = klass._count.students;
+  await db.student.createMany({
+    data: names.map((name, i) => ({
+      name,
+      classId,
+      avatarColor: AVATAR_COLORS[(start + i) % AVATAR_COLORS.length],
+    })),
   });
 
   revalidatePath("/teacher/class");
   revalidatePath("/teacher");
-  return {};
+  return { added: names.length };
 }
 
 // Teacher removes a student (and all their journal items) from a class.
