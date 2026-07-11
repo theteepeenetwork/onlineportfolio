@@ -50,7 +50,8 @@ test("teacher creates a template, assigns it, a child responds, teacher sees the
 
   await drawOnCanvas(page);
   await page.locator('button[title="Done"]').click();
-  await page.waitForURL((url) => url.pathname === "/student");
+  // Handing in a response shows the "Popped in!" celebration too.
+  await page.waitForURL((url) => url.pathname === "/student/popped");
 
   // --- Teacher sees the response on the run ---
   await logout(page);

@@ -3,14 +3,16 @@
 /* A warm, friendly classroom palette. Kept light-only so colours stay
    predictable for young children and on classroom projectors. */
 :root {
-  --background: #f6f7fb;
-  --surface: #ffffff;
-  --foreground: #1f2430;
-  --muted: #6b7280;
-  --border: #e6e8ef;
-  --brand: #4f46e5;
-  --brand-dark: #4338ca;
-  --accent: #f59e0b;
+  /* Base UI tokens repointed to the Storyjar palette, so every page still using
+     the shared .card/.btn/.input classes (the teacher area) is Storyjar too. */
+  --background: #faf6ee; /* paper */
+  --surface: #fffdf7; /* cream */
+  --foreground: #22304a; /* ink */
+  --muted: #6b7690;
+  --border: #e4dcc8; /* calm kraft border */
+  --brand: #c2476b; /* jam */
+  --brand-dark: #a93a5c;
+  --accent: #f0b441; /* honey */
 
   /* ── Storyjar design tokens ─────────────────────────────────────────────
      The brand palette from the design handoff. Warm paper, hand-inked ink,
@@ -80,6 +82,30 @@ html {
 [data-jar-jiggle="on"] {
   animation: sj-jar-jiggle 4.5s ease-in-out infinite;
 }
+
+/* "Popped in!" celebration — a tile drops into the jar, the jar bumps, twinkles pop. */
+@keyframes sj-tile-drop {
+  0% { transform: translateY(-260px) rotate(-14deg); opacity: 0; }
+  55% { transform: translateY(0) rotate(4deg); opacity: 1; }
+  75% { transform: translateY(-18px) rotate(-2deg); }
+  100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+}
+@keyframes sj-jar-bump {
+  0%, 100% { transform: rotate(0deg); }
+  60% { transform: rotate(-3deg); }
+  80% { transform: rotate(2deg); }
+}
+@keyframes sj-twinkle-pop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+[data-anim="tile"] { animation: sj-tile-drop 0.9s cubic-bezier(.34,1.4,.64,1) both; }
+[data-anim="jar"] { animation: sj-jar-bump 0.9s ease-in-out 0.45s both; transform-origin: 50% 90%; }
+[data-anim="twinkle"] { animation: sj-twinkle-pop 0.5s ease-out 0.9s both; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) {
+  [data-anim] { animation: none !important; opacity: 1 !important; }
+}
 .sj details > summary {
   list-style: none;
   cursor: pointer;
@@ -102,41 +128,84 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
+}
+
+/* Headings default to the Storyjar display face. Screens that set fonts inline
+   (landing, signup, child/queue) are unaffected; this catches the teacher pages
+   that still use plain Tailwind headings. */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
 }
 
 /* Reusable bits of styling used across the app. In Tailwind v4 a custom class
    can't @apply another custom class, so each button variant lists its base
    utilities directly. */
 @layer components {
+  /* Storyjar-ified shared components: cream cards with a 3px ink register + flat
+     pop shadow, jam/glass pill buttons, and paper inputs with an ink border. */
   .card {
-    @apply rounded-2xl border border-border bg-surface shadow-sm;
+    background: var(--cream);
+    border: 3px solid var(--ink);
+    border-radius: 18px;
+    box-shadow: var(--pop-shadow);
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
-      font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+      font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed;
+    border-radius: 999px;
   }
   .btn-brand {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
-      font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-      bg-brand text-white hover:bg-brand-dark;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+      font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed;
+    border-radius: 999px;
+    background: var(--jam);
+    color: var(--paper);
+    box-shadow: 0 4px 0 var(--jam-deep);
+  }
+  .btn-brand:hover {
+    background: var(--jam-dark);
+    color: var(--paper);
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
-      font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-      border border-border bg-surface text-foreground hover:bg-background;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+      font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed;
+    border-radius: 999px;
+    background: var(--cream);
+    color: var(--ink);
+    border: 2px solid var(--ink);
+  }
+  .btn-ghost:hover {
+    background: var(--paper);
   }
   .btn-green {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
-      font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-      bg-emerald-500 text-white hover:bg-emerald-600;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5
+      font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed;
+    border-radius: 999px;
+    background: var(--glass);
+    color: var(--paper);
+    box-shadow: 0 4px 0 #35706a;
+  }
+  .btn-green:hover {
+    background: #3f857d;
   }
   .input {
-    @apply w-full rounded-xl border border-border bg-surface px-4 py-2.5
-      text-foreground outline-none focus:border-brand focus:ring-2 focus:ring-brand/20;
+    @apply w-full px-4 py-2.5 outline-none;
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .input:focus {
+    outline: 3px solid var(--glass);
+    outline-offset: 2px;
   }
   .label {
-    @apply mb-1.5 block text-sm font-semibold text-foreground;
+    @apply mb-1.5 block text-sm font-bold;
+    color: var(--ink);
   }
 }
 

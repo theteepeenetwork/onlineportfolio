@@ -10,6 +10,9 @@ test("a student's drawing goes through approval into their journal", async ({ pa
   await drawOnCanvas(page);
   expect(await pageCount(page, "drawingPages")).toBeGreaterThan(0);
   await page.locator('button[title="Done"]').click();
+  // Celebration, then back to the jar where it now waits.
+  await page.waitForURL((url) => url.pathname === "/student/popped");
+  await page.getByRole("link", { name: /Back to my jar/ }).click();
   await page.waitForURL((url) => url.pathname === "/student");
   await expect(page.getByText(/Waiting for your teacher/)).toBeVisible();
 
