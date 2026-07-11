@@ -23,9 +23,11 @@ async function main() {
   await db.assignmentStudent.deleteMany();
   await db.assignment.deleteMany();
   await db.activityTemplate.deleteMany();
+  await db.parent.deleteMany(); // magic tokens + parent↔child links cascade
   await db.student.deleteMany();
   await db.class.deleteMany();
   await db.teacher.deleteMany();
+  await db.school.deleteMany();
   await db.skill.deleteMany();
 
   // The demo teacher is also the admin of their school, so the /admin space is
@@ -231,9 +233,37 @@ async function main() {
     },
   });
 
+  // An approved moment for Grace (Ladybird) so a parent with two children has
+  // content under both tabs of the sibling switcher.
+  await db.journalItem.create({
+    data: {
+      type: "PHOTO",
+      caption: "My junk-model rocket",
+      mediaPath: housePath,
+      status: "APPROVED",
+      approvedAt: new Date(),
+      authorRole: "STUDENT",
+      studentId: lady[0].id,
+      classId: ladybird.id,
+    },
+  });
+
+  // A parent/carer linked to two children (Amara in Sunflower, Grace in
+  // Ladybird) — demonstrates the read-only family view + sibling switcher.
+  // Signs in with family code FAM123 or a magic link to parent@home.com.
+  await db.parent.create({
+    data: {
+      name: "Priya Shah",
+      email: "parent@home.com",
+      familyCode: "FAM123",
+      children: { connect: [{ id: sun[0].id }, { id: lady[0].id }] },
+    },
+  });
+
   console.log("✅ Seeded demo data (library-first activities).");
   console.log("   Teacher: teacher@school.uk / password");
   console.log("   Class codes: SUN123 (Sunflower), LDB456 (Ladybird)");
+  console.log("   Parent: family code FAM123 / magic link parent@home.com");
 }
 
 main()

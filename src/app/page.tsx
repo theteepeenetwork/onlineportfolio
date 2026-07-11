@@ -386,6 +386,7 @@ export default async function Home() {
             <a href="#safeguarding" style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>Safeguarding</a>
             <a href="#faq" style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>Privacy</a>
             <a href="#faq" style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>Contact</a>
+            <Link href="/family" style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>Family sign in</Link>
             <span style={{ font: "400 15px var(--font-atkinson)", color: "#6B7690" }}>© 2026 Storyjar · storyjar.co.uk · Made in a Year 2 classroom</span>
           </div>
         </div>

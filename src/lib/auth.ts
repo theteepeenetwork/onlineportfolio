@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 
-const COOKIE_NAME = "portfolio_session";
+export const COOKIE_NAME = "portfolio_session";
 const SESSION_DAYS = 30;
 
 // A logged-in teacher, resolved from the session cookie.
@@ -35,7 +35,10 @@ export type CurrentUser = TeacherSession | StudentSession | null;
 
 // Create a session row + set the cookie. Called after a successful login.
 export async function createSession(
-  who: { role: "TEACHER"; teacherId: string } | { role: "STUDENT"; studentId: string },
+  who:
+    | { role: "TEACHER"; teacherId: string }
+    | { role: "STUDENT"; studentId: string }
+    | { role: "PARENT"; parentId: string },
 ) {
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
@@ -47,6 +50,7 @@ export async function createSession(
       expiresAt,
       teacherId: who.role === "TEACHER" ? who.teacherId : null,
       studentId: who.role === "STUDENT" ? who.studentId : null,
+      parentId: who.role === "PARENT" ? who.parentId : null,
     },
   });
 
