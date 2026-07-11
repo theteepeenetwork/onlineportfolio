@@ -14,7 +14,10 @@ datasource db {
 // A teacher owns one or more classes and moderates the journal.
 model Teacher {
   id           String    @id @default(cuid())
-  name         String
+  name         String // the teacher's full name (e.g. "Sam Pearson")
+  title        String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
+  displayStyle String    @default("formal") // "formal" (title + surname) | "first"
+  displayName  String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
   email        String    @unique
   passwordHash String
   schoolName   String? // captured at signup (Storyjar onboarding)

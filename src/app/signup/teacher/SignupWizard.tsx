@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createTeacherAccount } from "@/app/actions/auth";
+import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
 
 const CARD: React.CSSProperties = {
   background: "var(--cream)",
@@ -50,6 +51,21 @@ const PROGRESS_FILLS = ["#C2476B", "#F0B441", "#4E9C94", "#8AB9D6", "#A6C979"];
 
 const COUNTRIES = ["England", "Scotland", "Wales", "Northern Ireland", "Elsewhere"];
 const YEAR_GROUPS = ["Nursery", "Reception", "Year 1", "Year 2", "Mixed / other"];
+const TITLES = ["Mr", "Miss", "Mrs", "Ms", "Mx", ""];
+
+// One of the two "what your class calls you" choice tiles.
+const NAME_TILE = (selected: boolean): React.CSSProperties => ({
+  flex: 1,
+  minWidth: 200,
+  cursor: "pointer",
+  textAlign: "left",
+  font: "700 18px var(--font-fredoka)",
+  padding: "14px 18px",
+  borderRadius: 12,
+  border: "3px solid var(--ink)",
+  background: selected ? "var(--glass-light)" : "var(--cream)",
+  color: "var(--ink)",
+});
 
 function ErrorNote({ error }: { error: string }) {
   if (!error) return null;
@@ -65,7 +81,9 @@ export function SignupWizard() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  const [name, setName] = useState("");
+  const [title, setTitle] = useState("Mr");
+  const [fullName, setFullName] = useState("");
+  const [displayStyle, setDisplayStyle] = useState<DisplayStyle>("formal");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [school, setSchool] = useState("");
@@ -78,9 +96,15 @@ export function SignupWizard() {
   const n = new Set(childrenNames.map((c) => c.toLowerCase())).size;
   const classNamePreview = className.trim() || "Hedgehogs";
 
+  // Live preview of how the class will be greeted, from title + name + style.
+  const { formalName, firstNamePreview, displayName } = deriveTeacherName({ title, fullName, displayStyle });
+  const formalLabel = formalName || "Mr Pearson";
+  const firstLabel = firstNamePreview || "Sam";
+  const greetingName = displayStyle === "first" ? firstLabel : formalLabel;
+
   const validate = (): string => {
     if (step === 1) {
-      if (!name.trim()) return "Pop your name in first.";
+      if (!fullName.trim()) return "Pop your full name in first.";
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "That email doesn’t look quite right — check for typos.";
       if (password.length < 8) return "Your password needs at least 8 characters.";
     }
@@ -114,7 +138,7 @@ export function SignupWizard() {
     setError("");
     try {
       const result = await createTeacherAccount({
-        name, email, password, school, country, yearGroup, className,
+        title, fullName, displayStyle, email, password, school, country, yearGroup, className,
         children: childrenNames,
       });
       if (result?.error) {
@@ -152,10 +176,31 @@ export function SignupWizard() {
           <h1 style={H1}>First, you</h1>
           <p style={LEAD}>Just you — <strong>children never need accounts or emails.</strong></p>
           <div style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 28 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: 16 }}>
+              <div>
+                <label htmlFor="su-title" style={FIELD_LABEL}>Title</label>
+                <select id="su-title" value={title} onChange={(e) => { setTitle(e.target.value); setError(""); }} style={{ ...INPUT, padding: "14px 14px" }}>
+                  {TITLES.map((t) => <option key={t} value={t}>{t === "" ? "Prefer not to say" : t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="su-fullname" style={FIELD_LABEL}>Full name</label>
+                <input id="su-fullname" type="text" value={fullName} onChange={(e) => { setFullName(e.target.value); setError(""); }} placeholder="e.g. Sam Pearson" autoComplete="name" style={INPUT} />
+              </div>
+            </div>
             <div>
-              <label htmlFor="su-name" style={FIELD_LABEL}>Your name</label>
-              <input id="su-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Miss Malik" autoComplete="name" style={INPUT} />
-              <p style={HINT}>As your class will see it.</p>
+              <span style={FIELD_LABEL as React.CSSProperties}>What your class calls you</span>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => { setDisplayStyle("formal"); setError(""); }} aria-pressed={displayStyle === "formal"} style={NAME_TILE(displayStyle === "formal")}>
+                  {formalLabel}
+                  <span style={{ display: "block", font: "400 13px var(--font-atkinson)", color: "var(--ink-soft)", marginTop: 2 }}>Title &amp; surname</span>
+                </button>
+                <button type="button" onClick={() => { setDisplayStyle("first"); setError(""); }} aria-pressed={displayStyle === "first"} style={NAME_TILE(displayStyle === "first")}>
+                  {firstLabel}
+                  <span style={{ display: "block", font: "400 13px var(--font-atkinson)", color: "var(--ink-soft)", marginTop: 2 }}>First name</span>
+                </button>
+              </div>
+              <p style={{ margin: "8px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>Your class will be greeted with <strong>“Hello {greetingName}”</strong>. You can change this later.</p>
             </div>
             <div>
               <label htmlFor="su-email" style={FIELD_LABEL}>School email</label>

@@ -9,7 +9,7 @@ const SESSION_DAYS = 30;
 // A logged-in teacher, resolved from the session cookie.
 export type TeacherSession = {
   role: "TEACHER";
-  teacher: { id: string; name: string; email: string };
+  teacher: { id: string; name: string; displayName: string; email: string };
 };
 
 // A logged-in student, resolved from the session cookie.
@@ -74,6 +74,9 @@ export async function getCurrentUser(): Promise<CurrentUser> {
       teacher: {
         id: session.teacher.id,
         name: session.teacher.name,
+        // Fall back to the first word of the full name for any teacher created
+        // before displayName was captured.
+        displayName: session.teacher.displayName || session.teacher.name.split(" ")[0],
         email: session.teacher.email,
       },
     };
