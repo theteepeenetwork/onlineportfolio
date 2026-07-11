@@ -28,6 +28,12 @@ async function main() {
   await db.teacher.deleteMany();
   await db.skill.deleteMany();
 
+  // The demo teacher is also the admin of their school, so the /admin space is
+  // reachable from the seeded login.
+  const school = await db.school.create({
+    data: { name: "St Bede’s Primary", plan: "Annual plan", seatLimit: 10 },
+  });
+
   const teacher = await db.teacher.create({
     data: {
       name: "Sam Rivera",
@@ -36,7 +42,26 @@ async function main() {
       displayName: "Sam",
       email: "teacher@school.uk",
       passwordHash: await bcrypt.hash("password", 10),
+      role: "ADMIN",
+      status: "ACTIVE",
+      schoolId: school.id,
     },
+  });
+
+  // A few colleagues so the staff table has content: two active teachers (each
+  // owning a class), a teaching assistant, and one invite still pending.
+  const malik = await db.teacher.create({
+    data: { name: "Miss Malik", displayName: "Miss Malik", email: "a.malik@stbedes.sch.uk", passwordHash: await bcrypt.hash("password", 10), role: "TEACHER", status: "ACTIVE", schoolId: school.id },
+  });
+  await db.teacher.create({
+    data: { name: "Sam Doyle", displayName: "Sam", email: "s.doyle@stbedes.sch.uk", passwordHash: await bcrypt.hash("password", 10), role: "TA", status: "ACTIVE", schoolId: school.id },
+  });
+  await db.teacher.create({
+    data: { name: "J. Reed", displayName: "J", email: "j.reed@stbedes.sch.uk", passwordHash: "", role: "TEACHER", status: "INVITED", schoolId: school.id },
+  });
+  // Miss Malik teaches her own class (so admins can see class ownership).
+  await db.class.create({
+    data: { name: "Butterflies", yearGroup: "Reception", classCode: "BTF789", teacherId: malik.id },
   });
 
   const sunflower = await db.class.create({

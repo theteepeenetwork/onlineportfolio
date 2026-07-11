@@ -20,13 +20,29 @@ model Teacher {
   displayName  String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
   email        String    @unique
   passwordHash String
-  schoolName   String? // captured at signup (Storyjar onboarding)
+  schoolName   String? // captured at signup (Storyjar onboarding); free text
   country      String? // England / Scotland / Wales / NI / Elsewhere
+  role         String    @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
+  status       String    @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
+  school       School?   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  schoolId     String?
   createdAt    DateTime  @default(now())
   classes      Class[]
   sessions     Session[]
   templates    ActivityTemplate[]
   folders      Folder[]
+}
+
+// A school groups staff (teachers/TAs/admins) under one roof. Admins manage
+// staff, class assignment and billing — but never see children's work unless
+// they teach the class (that stays scoped to each teacher's own classes).
+model School {
+  id        String    @id @default(cuid())
+  name      String
+  plan      String    @default("Annual plan") // billing plan label
+  seatLimit Int       @default(10)
+  createdAt DateTime  @default(now())
+  staff     Teacher[]
 }
 
 // A teacher-defined folder for organising activity templates in the library.
