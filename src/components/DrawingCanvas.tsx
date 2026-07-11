@@ -9,19 +9,22 @@ const SWATCHES = [
 const SIZES = [6, 12, 22];
 
 type Tool = "cursor" | "pencil" | "pen" | "highlighter" | "eraser" | "text";
+// The four drawing tools map onto four distinct nib shapes + stroke weights:
+// pencil → Pen (thin), pen → Felt tip (thick), highlighter (wide/translucent),
+// eraser. See ToolShape for the drawn nibs and true-weight sample strokes.
 const TOOLS: { key: Tool; label: string; icon: string }[] = [
   { key: "cursor", label: "Select", icon: "🖱️" },
-  { key: "pencil", label: "Pencil", icon: "✏️" },
-  { key: "pen", label: "Pen", icon: "🖊️" },
-  { key: "highlighter", label: "Highlighter", icon: "🖍️" },
-  { key: "eraser", label: "Eraser", icon: "🧽" },
+  { key: "pencil", label: "Pen", icon: "🖊️" },
+  { key: "pen", label: "Felt tip", icon: "🖍️" },
+  { key: "highlighter", label: "Highlighter", icon: "🟡" },
+  { key: "eraser", label: "Eraser", icon: "🧼" },
   { key: "text", label: "Text", icon: "🔤" },
 ];
 
 const SHELF: { key: Tool; label: string }[] = [
-  { key: "pencil", label: "Pencil" },
-  { key: "pen", label: "Pen" },
-  { key: "highlighter", label: "Marker" },
+  { key: "pencil", label: "Pen" },
+  { key: "pen", label: "Felt tip" },
+  { key: "highlighter", label: "Highlighter" },
   { key: "eraser", label: "Eraser" },
 ];
 
@@ -259,7 +262,8 @@ export function DrawingCanvas({
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
-  const [tool, setTool] = useState<Tool>("pen");
+  // Default to Pen (the thin nib), per the design.
+  const [tool, setTool] = useState<Tool>("pencil");
   const [color, setColor] = useState(SWATCHES[0]);
   const [size, setSize] = useState(SIZES[1]);
   const toolRef = useRef(tool);
@@ -532,19 +536,22 @@ export function DrawingCanvas({
         c.lineWidth = s * 3;
         break;
       case "highlighter":
+        // Wide and translucent, like a real highlighter.
         c.strokeStyle = colorRef.current;
-        c.globalAlpha = 0.3;
-        c.lineWidth = s * 3.2;
+        c.globalAlpha = 0.35;
+        c.lineWidth = s * 3.4;
         break;
       case "pencil":
+        // "Pen": a fine, opaque line.
         c.strokeStyle = colorRef.current;
         c.globalAlpha = 1;
-        c.lineWidth = Math.max(1, s * 0.6);
+        c.lineWidth = Math.max(1.5, s * 0.6);
         break;
       default:
+        // "Felt tip": a bold, opaque line — clearly thicker than the Pen.
         c.strokeStyle = colorRef.current;
         c.globalAlpha = 1;
-        c.lineWidth = s;
+        c.lineWidth = s * 1.8;
     }
   }
 
@@ -1419,26 +1426,54 @@ function FanBtn({
   );
 }
 
+// A drawn tool that reads as its real type — a slim Pen, a fatter Felt tip, a
+// chisel Highlighter, or a block Eraser — with a sample stroke at the tip that
+// shows the tool's true weight and opacity (thin / thick / wide-translucent /
+// rubbing-out). The four must never look near-identical: nib shape AND the
+// sample stroke distinguish them.
 function ToolShape({ kind, color }: { kind: Tool; color: string }) {
-  const tip = kind === "eraser" ? "#f4a6c0" : color;
-  const bodies: Record<string, string> = {
-    pencil: "#f2b134",
-    pen: "#3b6fd6",
-    highlighter: "#8bd450",
-    eraser: "#ffffff",
-  };
-  const body = bodies[kind] ?? "#999";
+  const ink = "#22304A";
+  if (kind === "eraser") {
+    return (
+      <svg width="52" height="150" viewBox="0 0 52 150" aria-hidden>
+        {/* dashed "rubbing out" sample */}
+        <line x1="8" y1="9" x2="44" y2="9" stroke="#B9A98C" strokeWidth="4" strokeLinecap="round" strokeDasharray="3 6" />
+        {/* pink block eraser with a blue ferrule */}
+        <rect x="10" y="18" width="32" height="30" rx="6" fill="#E08A9B" stroke={ink} strokeWidth="3" />
+        <rect x="10" y="46" width="32" height="14" rx="4" fill="#8AB9D6" stroke={ink} strokeWidth="3" />
+        <rect x="10" y="60" width="32" height="86" rx="8" fill="#FFFDF7" stroke={ink} strokeWidth="3" />
+      </svg>
+    );
+  }
+  if (kind === "highlighter") {
+    return (
+      <svg width="52" height="150" viewBox="0 0 52 150" aria-hidden>
+        {/* wide, 75%-opacity sample stroke */}
+        <line x1="6" y1="10" x2="46" y2="10" stroke="#F0B441" strokeOpacity="0.75" strokeWidth="16" strokeLinecap="round" />
+        {/* honey chisel marker */}
+        <polygon points="16,20 36,20 32,34 20,34" fill="#F0B441" stroke={ink} strokeWidth="3" strokeLinejoin="round" />
+        <rect x="14" y="34" width="24" height="14" rx="3" fill="#FBEED3" stroke={ink} strokeWidth="3" />
+        <rect x="12" y="48" width="28" height="98" rx="9" fill="#F0B441" stroke={ink} strokeWidth="3" />
+        <rect x="16" y="48" width="7" height="98" rx="4" fill="rgba(255,255,255,.4)" />
+      </svg>
+    );
+  }
+  const felt = kind === "pen"; // "pen" key → Felt tip; "pencil" key → Pen
+  const barrel = felt ? "#C2476B" : "#4E9C94";
   return (
     <svg width="52" height="150" viewBox="0 0 52 150" aria-hidden>
-      {kind === "eraser" ? (
-        <rect x="8" y="2" width="36" height="30" rx="6" fill={tip} />
+      {/* sample stroke: thin for Pen, thick for Felt tip */}
+      <line x1="8" y1="9" x2="44" y2="9" stroke={color} strokeWidth={felt ? 8 : 3} strokeLinecap="round" />
+      {felt ? (
+        // chisel felt tip
+        <polygon points="19,16 33,16 30,30 22,30" fill={ink} stroke={ink} strokeWidth="2" strokeLinejoin="round" />
       ) : (
-        <polygon points="26,0 40,34 12,34" fill={tip} />
+        // fine ink tip
+        <polygon points="26,14 30,30 22,30" fill={ink} />
       )}
-      <rect x="12" y="32" width="28" height="8" rx="3" fill="rgba(0,0,0,.15)" />
-      <rect x="12" y="38" width="28" height="108" rx="10" fill={body} />
-      <rect x="12" y="38" width="9" height="108" rx="6" fill="rgba(255,255,255,.35)" />
-      <rect x="12" y="38" width="28" height="108" rx="10" fill="none" stroke="rgba(0,0,0,.12)" />
+      <rect x={felt ? 13 : 15} y="30" width={felt ? 26 : 22} height="8" rx="3" fill="rgba(0,0,0,.15)" />
+      <rect x={felt ? 13 : 15} y="38" width={felt ? 26 : 22} height="108" rx="10" fill={barrel} stroke={ink} strokeWidth="3" />
+      <rect x={felt ? 17 : 18} y="42" width="7" height="100" rx="4" fill="rgba(255,255,255,.35)" />
     </svg>
   );
 }
