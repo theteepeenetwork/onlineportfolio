@@ -3,15 +3,15 @@ import { db } from "@/lib/db";
 import { TopBar } from "@/components/TopBar";
 import { teacherNav } from "@/lib/teacherNav";
 import { jsonArray } from "@/lib/activities";
-import { ActivityLibrary, type TemplateSummary, type NeedsAttention } from "./ActivityLibrary";
+import { ActivityLibrary, type TemplateSummary, type FolderInfo } from "./ActivityLibrary";
 
 export default async function ActivityLibraryPage() {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") return null;
 
-  const [templates, classes, pendingCount] = await Promise.all([
+  const [templates, classes, folders, pendingCount] = await Promise.all([
     db.activityTemplate.findMany({
-      where: { teacherId: user.teacher.id, archived: false },
+      where: { teacherId: user.teacher.id },
       orderBy: { createdAt: "desc" },
       include: {
         assignments: {
@@ -29,25 +29,21 @@ export default async function ActivityLibraryPage() {
       orderBy: { createdAt: "asc" },
       include: { students: { orderBy: { name: "asc" }, select: { id: true, name: true, avatarColor: true } } },
     }),
+    db.folder.findMany({ where: { teacherId: user.teacher.id }, orderBy: { createdAt: "asc" } }),
     db.journalItem.count({ where: { status: "PENDING", class: { teacherId: user.teacher.id } } }),
   ]);
 
-  const needsAttention: NeedsAttention[] = [];
   const summaries: TemplateSummary[] = templates.map((t) => {
     const liveClassNames = [
       ...new Set(t.assignments.filter((a) => a.status === "LIVE").map((a) => a.class.name)),
     ];
+    const sentClasses = new Set(t.assignments.map((a) => a.class.name)).size;
     let waiting = 0;
     const pastRuns = t.assignments.map((a) => {
       const assigned = a.wholeClass ? a.class._count.students : a._count.students;
       const turnedIn = new Set(a.responses.map((r) => r.studentId)).size;
       const wait = a.responses.filter((r) => r.status === "PENDING").length;
-      if (a.status === "LIVE") {
-        waiting += wait;
-        if (wait > 0) {
-          needsAttention.push({ templateId: t.id, title: t.title, className: a.class.name, waiting: wait });
-        }
-      }
+      if (a.status === "LIVE") waiting += wait;
       return {
         id: a.id,
         className: a.class.name,
@@ -59,37 +55,29 @@ export default async function ActivityLibraryPage() {
         waiting: wait,
       };
     });
-    const closedCount = t.assignments.filter((a) => a.status === "CLOSED").length;
     return {
       id: t.id,
       title: t.title,
       instructions: t.instructions ?? "",
       tags: jsonArray(t.tagsJson),
       thumb: jsonArray(t.templatePathsJson)[0] ?? null,
+      archived: t.archived,
+      folderId: t.folderId,
       liveClassNames,
-      runCount: closedCount,
+      sentClasses,
       waiting,
       neverRun: t.assignments.length === 0,
       pastRuns,
     };
   });
 
-  const allTags = [...new Set(summaries.flatMap((s) => s.tags))].sort();
+  const folderInfos: FolderInfo[] = folders.map((f) => ({ id: f.id, name: f.name, color: f.color }));
 
   return (
     <>
-      <TopBar
-        title="Activity library"
-        subtitle="Reusable templates you can assign to any class, again and again."
-        links={teacherNav(pendingCount)}
-      />
-      <main className="mx-auto w-full max-w-5xl flex-1 p-4">
-        <ActivityLibrary
-          templates={summaries}
-          classes={classes}
-          needsAttention={needsAttention}
-          allTags={allTags}
-        />
+      <TopBar links={teacherNav(pendingCount)} />
+      <main className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)" }}>
+        <ActivityLibrary templates={summaries} classes={classes} folders={folderInfos} />
       </main>
     </>
   );

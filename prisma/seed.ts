@@ -95,6 +95,11 @@ async function main() {
       },
     });
 
+  // --- Library folders (for organising templates) ---
+  const mathsFolder = await db.folder.create({ data: { name: "Maths & number", color: "#8AB9D6", teacherId: teacher.id } });
+  const outdoorsFolder = await db.folder.create({ data: { name: "Autumn term", color: "#F0B441", teacherId: teacher.id } });
+  await db.folder.create({ data: { name: "Phonics & words", color: "#E08A9B", teacherId: teacher.id } });
+
   // --- Template 1: Count the apples (Maths) — a live run with waiting work ---
   const apples = await db.activityTemplate.create({
     data: {
@@ -102,6 +107,7 @@ async function main() {
       instructions: "Circle how many apples you can count.",
       templatePathsJson: JSON.stringify([sunPath]),
       tagsJson: JSON.stringify(["Maths"]),
+      folderId: mathsFolder.id,
       teacherId: teacher.id,
     },
   });
@@ -127,6 +133,7 @@ async function main() {
       instructions: "Draw the minibeasts you found outside.",
       templatePathsJson: JSON.stringify([bugPath, housePath]),
       tagsJson: JSON.stringify(["Science", "Outdoors"]),
+      folderId: outdoorsFolder.id,
       teacherId: teacher.id,
     },
   });

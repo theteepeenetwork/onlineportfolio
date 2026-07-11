@@ -26,6 +26,18 @@ model Teacher {
   classes      Class[]
   sessions     Session[]
   templates    ActivityTemplate[]
+  folders      Folder[]
+}
+
+// A teacher-defined folder for organising activity templates in the library.
+model Folder {
+  id        String             @id @default(cuid())
+  name      String
+  color     String             @default("#C9C2B0") // the sidebar dot colour
+  teacher   Teacher            @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  createdAt DateTime           @default(now())
+  templates ActivityTemplate[]
 }
 
 // A class groups students together and has a short code students use to log in.
@@ -90,6 +102,8 @@ model ActivityTemplate {
   archived          Boolean      @default(false) // hidden from the grid; runs are kept
   teacher           Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId         String
+  folder            Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folderId          String?
   createdAt         DateTime     @default(now())
   assignments       Assignment[]
 }

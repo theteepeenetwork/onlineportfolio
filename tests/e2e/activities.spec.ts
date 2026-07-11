@@ -62,23 +62,39 @@ test("teacher creates a template, assigns it, a child responds, teacher sees the
   await expect(page.getByText("Amara")).toBeVisible();
 });
 
-test("the library filters templates by tag and status", async ({ page }) => {
+test("the folders sidebar filters the activity library", async ({ page }) => {
   await teacherLogin(page);
   await page.goto("/teacher/activities");
 
-  // Seed has Count the apples (Maths, live), Minibeast hunt (Science, live),
-  // Draw your family (Writing, never run).
+  // Seed files "Count the apples" under Maths & number, "Minibeast hunt" under
+  // Autumn term, and leaves "Draw your family" unfiled.
   await expect(page.getByRole("link", { name: "Count the apples" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
 
-  // Filter to the Writing tag → only the never-run template remains.
-  await page.getByRole("button", { name: "Writing", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Count the apples" })).toHaveCount(0);
-
-  // Back to All, then "Never run" → still just the never-run one.
-  await page.getByRole("button", { name: "All", exact: true }).click();
-  await page.getByRole("button", { name: "Never run", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
+  // Pick the Maths & number folder → only its template remains.
+  await page.getByRole("button", { name: /Maths & number/ }).click();
+  await expect(page.getByRole("heading", { name: "Maths & number" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Count the apples" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Draw your family" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Minibeast hunt" })).toHaveCount(0);
+});
+
+test("the 3-dot menu opens above the cards and can move a template into a folder", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities");
+
+  // Open the unfiled template's actions menu (the overlay, not clipped).
+  await page.getByRole("button", { name: "More actions for Draw your family" }).click();
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: /Edit activity/ })).toBeVisible();
+
+  // Move it into "Maths & number".
+  await menu.getByRole("menuitem", { name: /Move to folder/ }).click();
+  await menu.getByRole("menuitem", { name: /Maths & number/ }).click();
+
+  // It now shows under that folder alongside the seeded one.
+  await page.getByRole("button", { name: /Maths & number/ }).first().click();
+  await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Count the apples" })).toBeVisible();
 });
