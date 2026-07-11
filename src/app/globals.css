@@ -11,6 +11,34 @@
   --brand: #4f46e5;
   --brand-dark: #4338ca;
   --accent: #f59e0b;
+
+  /* ── Storyjar design tokens ─────────────────────────────────────────────
+     The brand palette from the design handoff. Warm paper, hand-inked ink,
+     jam-red CTAs, glass-green product colour, honey highlights, kraft jars. */
+  --paper: #faf6ee; /* page background (warm off-white) */
+  --cream: #fffdf7; /* cards / surfaces */
+  --ink: #22304a; /* text, 3px outlines, dark sections */
+  --ink-soft: #43506b; /* body copy */
+  --sj-muted: #6b7690; /* metadata / captions */
+  --glass: #4e9c94; /* approve actions, focus rings, success */
+  --glass-light: #d8ece8; /* jar glass fill, tints, chips */
+  --glass-jar: #eaf4f1; /* fill inside jar SVG */
+  --jam: #c2476b; /* primary CTAs, celebration */
+  --jam-deep: #93304f; /* jam press shadow */
+  --jam-dark: #a93a5c; /* jam hover */
+  --honey: #f0b441; /* highlights, twinkles, waiting */
+  --honey-tint: #fbeed3; /* waiting tint */
+  --honey-ink: #8a5f1e; /* text on honey tint */
+  --kraft: #c9a87c; /* jar lids, labels */
+  --kraft-tag: #f3e3c3; /* tag fill */
+  --kraft-twine: #a8854f; /* twine / dark kraft */
+  --kraft-rim: #b8945f; /* lid rim */
+  --pink: #e08a9b;
+  --blue: #8ab9d6;
+  --green: #a6c979;
+  --calm-border: #e4dcc8; /* teacher-register calm border */
+  --error-tint: #f7e0e6; /* error tint */
+  --pop-shadow: 0 4px 0 rgba(34, 48, 74, 0.15); /* flat offset "pop" */
 }
 
 @theme inline {
@@ -24,10 +52,51 @@
   --color-accent: var(--accent);
   --font-sans: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI",
     Roboto, sans-serif;
+  --font-display: var(--font-fredoka), ui-rounded, system-ui, sans-serif;
+  --font-body: var(--font-atkinson), system-ui, -apple-system, sans-serif;
 }
 
 html {
   color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+/* Hero jar idle jiggle (±2° around −6°), and FAQ accordion chrome. */
+@keyframes sj-jar-jiggle {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  30% {
+    transform: rotate(-3.5deg);
+  }
+  55% {
+    transform: rotate(-7.5deg);
+  }
+  75% {
+    transform: rotate(-5deg);
+  }
+}
+[data-jar-jiggle="on"] {
+  animation: sj-jar-jiggle 4.5s ease-in-out infinite;
+}
+.sj details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.sj details > summary::-webkit-details-marker {
+  display: none;
+}
+.sj details[open] .faq-chevron {
+  transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-jar-jiggle] {
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 body {
@@ -68,5 +137,102 @@ body {
   }
   .label {
     @apply mb-1.5 block text-sm font-semibold text-foreground;
+  }
+}
+
+/* ── Storyjar shared styles ───────────────────────────────────────────────
+   Font helpers, an accessible focus ring, and the handful of components that
+   repeat across the landing page and product screens (jam CTA, outline pill,
+   pop card, kraft tag, status chip, uppercase kicker). One-off bespoke pieces
+   (the jar SVG, section layout, tilts) stay as inline styles for fidelity. */
+.font-display {
+  font-family: var(--font-display);
+}
+.font-body {
+  font-family: var(--font-body);
+}
+
+/* Focus floor: a 3px glass-green outline on every focusable (accessibility). */
+.sj a:focus-visible,
+.sj button:focus-visible,
+.sj input:focus-visible,
+.sj textarea:focus-visible,
+.sj select:focus-visible,
+.sj summary:focus-visible,
+.sj [tabindex]:focus-visible {
+  outline: 3px solid var(--glass);
+  outline-offset: 2px;
+}
+
+/* Jam-red primary CTA with the flat "pop" press shadow. */
+.sj-btn-jam {
+  display: inline-block;
+  font: 700 18px var(--font-body);
+  color: var(--paper);
+  background: var(--jam);
+  text-decoration: none;
+  padding: 16px 30px;
+  border: none;
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--jam-deep);
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease;
+}
+.sj-btn-jam:hover {
+  background: var(--jam-dark);
+  color: var(--paper);
+  transform: translateY(-3px);
+}
+
+/* Outlined pill (ink border), used for secondary actions and "Teacher sign in". */
+.sj-btn-outline {
+  display: inline-block;
+  font: 700 15px var(--font-body);
+  color: var(--ink);
+  text-decoration: none;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 9px 20px;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+.sj-btn-outline:hover {
+  transform: translateY(-2px);
+  color: var(--ink);
+}
+
+/* Cream card with 3px ink register and the pop shadow. */
+.sj-card {
+  background: var(--cream);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  box-shadow: var(--pop-shadow);
+}
+
+/* Kraft "luggage tag" label. */
+.sj-tag {
+  display: inline-block;
+  background: var(--kraft-tag);
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  padding: 4px 14px;
+  font: 600 17px var(--font-display);
+}
+
+/* Uppercase aqua kicker above headings. */
+.sj-kicker {
+  margin: 0 0 12px;
+  display: inline-block;
+  font: 700 14px var(--font-body);
+  color: var(--glass);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sj-btn-jam:hover,
+  .sj-btn-outline:hover {
+    transform: none;
   }
 }
