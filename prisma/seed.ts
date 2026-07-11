@@ -208,6 +208,46 @@ async function main() {
   });
   await response({ studentId: sun[0].id, classId: sunflower.id, assignmentId: closed.id, status: "APPROVED", caption: "A snail", media: bugPath });
 
+  // --- Dated runs with due dates, so the calendar shows due-soon / overdue /
+  //     complete states across the current month. ---
+  const days = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000);
+
+  // Due in 2 days, partly done → "due soon" + partial completion.
+  const dueSoonRun = await db.assignment.create({
+    data: {
+      templateId: apples.id, classId: sunflower.id, wholeClass: true, status: "LIVE",
+      title: apples.title, instructions: apples.instructions, templateSnapshotJson: apples.templatePathsJson,
+      createdAt: days(-2), dueDate: days(2),
+    },
+  });
+  // Ben & Chloe already carry seeded work, so responses here don't disturb the
+  // "clean" children (Dev/Ella/Finn) the canvas specs rely on, nor the demo
+  // parent's children (Amara/Grace).
+  await response({ studentId: sun[1].id, classId: sunflower.id, assignmentId: dueSoonRun.id, status: "APPROVED", caption: "6 apples", media: sunPath });
+  await response({ studentId: sun[2].id, classId: sunflower.id, assignmentId: dueSoonRun.id, status: "PENDING", caption: "lots!", media: sunPath });
+
+  // Due yesterday, still incomplete, LIVE → "overdue".
+  const overdueRun = await db.assignment.create({
+    data: {
+      templateId: minibeast.id, classId: sunflower.id, wholeClass: true, status: "LIVE",
+      title: minibeast.title, instructions: minibeast.instructions, templateSnapshotJson: minibeast.templatePathsJson,
+      createdAt: days(-6), dueDate: days(-1),
+    },
+  });
+  await response({ studentId: sun[1].id, classId: sunflower.id, assignmentId: overdueRun.id, status: "APPROVED", caption: "A beetle", media: bugPath });
+
+  // No due date, everyone's in the jar → "complete", plots on its assigned day.
+  const completeRun = await db.assignment.create({
+    data: {
+      templateId: minibeast.id, classId: ladybird.id, wholeClass: false, status: "LIVE",
+      title: minibeast.title, instructions: minibeast.instructions, templateSnapshotJson: minibeast.templatePathsJson,
+      createdAt: days(-3),
+      students: { create: [{ studentId: lady[1].id }, { studentId: lady[2].id }] },
+    },
+  });
+  await response({ studentId: lady[1].id, classId: ladybird.id, assignmentId: completeRun.id, status: "APPROVED", caption: "A worm", media: bugPath });
+  await response({ studentId: lady[2].id, classId: ladybird.id, assignmentId: completeRun.id, status: "APPROVED", caption: "A ladybird", media: bugPath });
+
   // --- Template 3: Draw your family (Writing) — never run ---
   await db.activityTemplate.create({
     data: {
