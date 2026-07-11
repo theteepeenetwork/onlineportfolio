@@ -2,9 +2,9 @@
 // approval queue with the number of items waiting.
 export function teacherNav(pending: number) {
   return [
+    { href: "/teacher/queue", label: "Queue", badge: pending },
     { href: "/teacher", label: "Journals" },
     { href: "/teacher/activities", label: "Activities" },
-    { href: "/teacher/queue", label: "Approvals", badge: pending },
-    { href: "/teacher/class", label: "Class" },
+    { href: "/teacher/class", label: "My classes" },
   ];
 }
