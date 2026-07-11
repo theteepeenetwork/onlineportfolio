@@ -17,6 +17,14 @@ function writeSvg(name: string, svg: string) {
 }
 
 async function main() {
+  // In production the database lives on a persistent volume, so only seed the
+  // demo data once — on an already-populated database this is a no-op (real
+  // signups/work are never wiped). Set FORCE_SEED=1 to reseed deliberately.
+  if (!process.env.FORCE_SEED && (await db.teacher.count().catch(() => 0)) > 0) {
+    console.log("✅ Database already has data — skipping seed.");
+    return;
+  }
+
   // Start clean so re-seeding is safe (order respects foreign keys).
   await db.session.deleteMany();
   await db.journalItem.deleteMany();

@@ -22,7 +22,10 @@
     "pdfjs-dist": "^6.1.200",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.0",
+    "dotenv": "^17.4.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
@@ -31,12 +34,9 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
-    "prisma": "^6.19.3",
     "tailwindcss": "^4",
-    "tsx": "^4.23.0",
     "typescript": "^5"
   }
 }

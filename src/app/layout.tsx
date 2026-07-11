@@ -19,6 +19,11 @@ const atkinson = Atkinson_Hyperlegible({
   display: "swap",
 });
 
+// Every route reads the session cookie + database per request, so nothing is
+// statically prerendered. Declaring it here keeps the production build from
+// touching the database (the volume-mounted SQLite file only exists at runtime).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Storyjar — every child's story, collected",
   description:
