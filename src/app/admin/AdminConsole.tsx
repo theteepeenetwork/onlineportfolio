@@ -22,14 +22,28 @@ export type StaffRow = {
 
 export type SchoolClass = { id: string; name: string; teacherId: string; teacherName: string; children: number };
 
-type Tab = "overview" | "staff" | "classes" | "safeguarding" | "billing";
+export type AuditEntry = { id: string; atISO: string; actorName: string; action: string; detail: string | null };
+
+type Tab = "overview" | "staff" | "classes" | "safeguarding" | "billing" | "audit";
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "staff", label: "Staff" },
   { id: "classes", label: "Classes" },
   { id: "safeguarding", label: "Safeguarding" },
+  { id: "audit", label: "Audit log" },
   { id: "billing", label: "Billing" },
 ];
+
+// Human labels for audit actions.
+const ACTION_LABEL: Record<string, string> = {
+  MOMENT_APPROVED: "Approved a moment",
+  MOMENT_RETURNED: "Sent a moment back",
+  MOMENT_DELETED: "Deleted a moment",
+  STAFF_INVITED: "Invited staff",
+  STAFF_ROLE_CHANGED: "Changed a role",
+  STAFF_REMOVED: "Removed staff",
+  CLASS_ASSIGNED: "Assigned a class",
+};
 
 const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#4E9C94", "#E8A06A", "#C2476B"];
 function avatarColor(seed: string) {
@@ -78,6 +92,7 @@ export function AdminConsole({
   staff,
   classes,
   childrenCount,
+  audit,
 }: {
   schoolName: string;
   plan: string;
@@ -86,6 +101,7 @@ export function AdminConsole({
   staff: StaffRow[];
   classes: SchoolClass[];
   childrenCount: number;
+  audit: AuditEntry[];
 }) {
   const [tab, setTab] = useState<Tab>("staff");
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -138,7 +154,7 @@ export function AdminConsole({
           <div>
             <p style={{ margin: 0, font: "700 14px var(--font-atkinson)", color: "#6B7690" }}>{schoolName}</p>
             <h1 style={{ margin: "4px 0 0", font: "600 32px var(--font-fredoka)" }}>
-              {tab === "staff" ? "Staff & whole-school" : tab === "overview" ? "School overview" : tab === "classes" ? "Classes" : tab === "safeguarding" ? "Safeguarding" : "Billing & seats"}
+              {tab === "staff" ? "Staff & whole-school" : tab === "overview" ? "School overview" : tab === "classes" ? "Classes" : tab === "safeguarding" ? "Safeguarding" : tab === "audit" ? "Audit log" : "Billing & seats"}
             </h1>
           </div>
           {tab === "staff" && (
@@ -209,6 +225,28 @@ export function AdminConsole({
               <li>Every moment waits in the teacher&apos;s approval queue before it joins a child&apos;s jar.</li>
               <li>Admins manage staff, class assignment and billing, but <strong>never see children&apos;s work unless they teach the class</strong>.</li>
             </ul>
+          </div>
+        )}
+
+        {tab === "audit" && (
+          <div style={{ marginTop: 24 }}>
+            <p style={{ margin: "0 0 14px", font: "400 15px var(--font-atkinson)", color: "#8A93A8" }}>A record of safeguarding-relevant actions across the school — approvals, moments sent back or deleted, and staff/role changes.</p>
+            {audit.length === 0 ? (
+              <div className="sj-card" style={{ ...CARD, padding: "28px 24px", textAlign: "center", color: "#8A93A8" }}>Nothing recorded yet.</div>
+            ) : (
+              <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1.4fr 2.2fr", gap: 12, padding: "12px 20px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "#8A93A8", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <span>When</span><span>Who &amp; what</span><span>Detail</span>
+                </div>
+                {audit.map((e) => (
+                  <div key={e.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.4fr 2.2fr", gap: 12, alignItems: "baseline", padding: "12px 20px", borderBottom: "1px solid #F5F0E6" }}>
+                    <span style={{ font: "400 13px var(--font-atkinson)", color: "#8A93A8" }}>{new Date(e.atISO).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                    <span style={{ font: "400 14px var(--font-atkinson)" }}><strong>{e.actorName}</strong> · {ACTION_LABEL[e.action] ?? e.action}</span>
+                    <span style={{ font: "400 14px var(--font-atkinson)", color: "#43506B" }}>{e.detail ?? "—"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
