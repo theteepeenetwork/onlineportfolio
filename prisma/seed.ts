@@ -31,6 +31,9 @@ async function main() {
   const teacher = await db.teacher.create({
     data: {
       name: "Sam Rivera",
+      title: "",
+      displayStyle: "first",
+      displayName: "Sam",
       email: "teacher@school.uk",
       passwordHash: await bcrypt.hash("password", 10),
     },

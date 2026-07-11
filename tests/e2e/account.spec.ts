@@ -4,10 +4,27 @@ import { teacherLogin } from "./helpers";
 // Walk the 5-step signup wizard through to (but not clicking) the final submit.
 async function fillWizard(
   page: import("@playwright/test").Page,
-  { name, email, className, children }: { name: string; email: string; className: string; children: string },
+  {
+    fullName,
+    title = "Mr",
+    displayStyle = "formal",
+    email,
+    className,
+    children,
+  }: {
+    fullName: string;
+    title?: string;
+    displayStyle?: "formal" | "first";
+    email: string;
+    className: string;
+    children: string;
+  },
 ) {
   await page.goto("/signup/teacher");
-  await page.fill("#su-name", name);
+  await page.selectOption("#su-title", title);
+  await page.fill("#su-fullname", fullName);
+  // Pick how the class addresses the teacher (formal is selected by default).
+  await page.getByRole("button", { name: displayStyle === "first" ? "First name" : "Title & surname" }).click();
   await page.fill("#su-email", email);
   await page.fill("#su-pass", "password123");
   await page.getByRole("button", { name: "Continue" }).click();
@@ -20,7 +37,7 @@ async function fillWizard(
 
 test("a teacher can sign up through the wizard and gets a class code", async ({ page }) => {
   await fillWizard(page, {
-    name: "New Teacher",
+    fullName: "New Teacher",
     email: "newteacher@school.uk",
     className: "Rainbow Class",
     children: "Amara\nBen\nChloe",
@@ -32,9 +49,28 @@ test("a teacher can sign up through the wizard and gets a class code", async ({ 
   await expect(page.getByText("How your children sign in")).toBeVisible();
 });
 
+test("the dashboard greets a formal teacher by title + surname, not just the title", async ({ page }) => {
+  // Regression: the old flow stored a raw name and greeted "Hello Mr". A teacher
+  // who picks the formal style must be greeted "Hello Mr Pearson".
+  await fillWizard(page, {
+    title: "Mr",
+    fullName: "Sam Pearson",
+    displayStyle: "formal",
+    email: "pearson@school.uk",
+    className: "Kestrels",
+    children: "Ada\nBen",
+  });
+  await page.getByRole("button", { name: "Add children" }).click();
+  await expect(page.getByRole("heading", { name: /class code/ })).toBeVisible();
+
+  // Land on the teacher dashboard and check the greeting.
+  await page.goto("/teacher");
+  await expect(page.getByRole("heading", { name: "Hello, Mr Pearson 👋" })).toBeVisible();
+});
+
 test("signing up with an existing email is rejected", async ({ page }) => {
   await fillWizard(page, {
-    name: "Someone",
+    fullName: "Someone",
     email: "teacher@school.uk", // the seeded demo teacher
     className: "Some Class",
     children: "Kit",

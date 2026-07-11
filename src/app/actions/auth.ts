@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
 import { uniqueClassCode } from "@/lib/classCode";
+import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
 
 // Storyjar avatar palette — children get a colour bubble in rotation.
 const AVATAR_PALETTE = [
@@ -17,7 +18,9 @@ export type SignupResult = { error?: string; step?: number };
 // teacher, their first class jar (with a generated class code), and the class
 // list, signs them in, and returns the class code to show on the success step.
 export async function createTeacherAccount(input: {
-  name: string;
+  title: string;
+  fullName: string;
+  displayStyle: DisplayStyle;
   email: string;
   password: string;
   school: string;
@@ -26,14 +29,16 @@ export async function createTeacherAccount(input: {
   className: string;
   children: string[];
 }): Promise<SignupResult> {
-  const name = input.name.trim();
+  const fullName = input.fullName.trim();
+  const title = input.title.trim();
+  const displayStyle: DisplayStyle = input.displayStyle === "first" ? "first" : "formal";
   const email = input.email.trim().toLowerCase();
   const password = input.password;
   const school = input.school.trim();
   const className = input.className.trim();
 
   // Server-side validation, returning the step to send the user back to.
-  if (!name) return { error: "Pop your name in first.", step: 1 };
+  if (!fullName) return { error: "Pop your full name in first.", step: 1 };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
     return { error: "That email doesn’t look quite right — check for typos.", step: 1 };
   if (password.length < 8)
@@ -59,9 +64,13 @@ export async function createTeacherAccount(input: {
   if (existing)
     return { error: "An account with that email already exists. Try signing in.", step: 1 };
 
+  const { displayName } = deriveTeacherName({ title, fullName, displayStyle });
   const teacher = await db.teacher.create({
     data: {
-      name,
+      name: fullName,
+      title,
+      displayStyle,
+      displayName,
       email,
       passwordHash: await bcrypt.hash(password, 10),
       schoolName: school,
