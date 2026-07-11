@@ -18,7 +18,7 @@ test.describe("Sign in", () => {
 
   test("student signs in with the class code and their name", async ({ page }) => {
     await studentLogin(page, "Amara");
-    await expect(page.getByText("Add to my journal")).toBeVisible();
+    await expect(page.getByText("Add to my jar")).toBeVisible();
     await expect(page.getByText("Sunflower Class")).toBeVisible();
   });
 });

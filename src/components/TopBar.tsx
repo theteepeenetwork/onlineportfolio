@@ -1,58 +1,71 @@
-import Link from "next/link";
-import { logout } from "@/app/actions/auth";
+"use client";
 
-// The bar across the top of every signed-in page.
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { logout } from "@/app/actions/auth";
+import { JarLogo } from "@/components/storyjar/JarLogo";
+
+// The Storyjar bar across the top of every signed-in teacher page.
 export function TopBar({
   title,
   subtitle,
   links,
   right,
 }: {
-  title: string;
+  title?: string;
   subtitle?: string;
   links?: { href: string; label: string; badge?: number }[];
   right?: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
   return (
-    <header className="border-b border-border bg-surface">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <Link href="/" className="flex items-center gap-2 font-extrabold">
-          <span className="text-xl">📚</span>
-          <span className="hidden sm:inline">Class Journal</span>
+    <header className="sj" style={{ background: "var(--cream)", borderBottom: "2px solid var(--calm-border)" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20, padding: "14px 24px" }}>
+        <Link href="/teacher" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+          <JarLogo width={22} height={27} />
+          <span style={{ font: "600 19px var(--font-fredoka)", color: "var(--ink)" }}>storyjar</span>
         </Link>
 
         {links && (
-          <nav className="flex items-center gap-1">
-            {links.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="relative rounded-lg px-3 py-1.5 text-sm font-semibold text-muted hover:bg-background hover:text-foreground"
-              >
-                {l.label}
-                {l.badge ? (
-                  <span className="ml-1.5 rounded-full bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-amber-950">
-                    {l.badge}
-                  </span>
-                ) : null}
-              </Link>
-            ))}
+          <nav style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {links.map((l) => {
+              const active = pathname === l.href;
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  style={{
+                    font: "700 15px var(--font-atkinson)",
+                    textDecoration: "none",
+                    borderRadius: 999,
+                    padding: "7px 18px",
+                    color: active ? "var(--paper)" : "var(--ink-soft)",
+                    background: active ? "var(--ink)" : "transparent",
+                  }}
+                >
+                  {l.label}
+                  {l.badge ? (
+                    <span style={{ background: "var(--jam)", color: "var(--paper)", borderRadius: 999, padding: "1px 8px", fontSize: 13, marginLeft: 6 }}>{l.badge}</span>
+                  ) : null}
+                </Link>
+              );
+            })}
           </nav>
         )}
 
-        <div className="ml-auto flex items-center gap-3">
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
           {right}
           <form action={logout}>
-            <button className="btn-ghost px-3 py-1.5 text-sm" type="submit">
-              Sign out
-            </button>
+            <button type="submit" className="sj-btn-outline" style={{ font: "700 14px var(--font-atkinson)", padding: "8px 18px" }}>Sign out</button>
           </form>
         </div>
       </div>
+
       {(title || subtitle) && (
-        <div className="mx-auto max-w-5xl px-4 pb-4 pt-1">
-          <h1 className="text-2xl font-bold">{title}</h1>
-          {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "4px 24px 18px" }}>
+          {title && <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)", color: "var(--ink)" }}>{title}</h1>}
+          {subtitle && <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>{subtitle}</p>}
         </div>
       )}
     </header>

@@ -1,9 +1,28 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Avatar } from "@/components/Avatar";
-import { JournalItemCard } from "@/components/JournalItemCard";
 import { logout } from "@/app/actions/auth";
+
+// Look of a moment by its kind.
+const KIND = {
+  PHOTO: { label: "photo", bg: "#D8ECE8", fallback: "My photo", emoji: "📷" },
+  DRAWING: { label: "drawing", bg: "#FBEED3", fallback: "My drawing", emoji: "🖍" },
+  TEXT: { label: "my words", bg: "#F7E0E6", fallback: "My words", emoji: "⌨" },
+} as const;
+
+function kindOf(type: string) {
+  return KIND[type as keyof typeof KIND] ?? KIND.PHOTO;
+}
+
+function formatDate(d: Date) {
+  return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+}
+
+const ADD_BUTTONS = [
+  { type: "PHOTO", emoji: "📷", label: "Photo", bg: "#D8ECE8" },
+  { type: "DRAWING", emoji: "🖍", label: "Drawing", bg: "#FBEED3" },
+  { type: "TEXT", emoji: "⌨", label: "My words", bg: "#F7E0E6" },
+];
 
 export default async function StudentHome() {
   const user = await getCurrentUser();
@@ -13,9 +32,7 @@ export default async function StudentHome() {
   const items = await db.journalItem.findMany({
     where: { studentId: student.id },
     orderBy: { createdAt: "desc" },
-    include: { skills: { select: { id: true, name: true } } },
   });
-
   const published = items.filter((i) => i.status === "APPROVED");
   const inProgress = items.filter((i) => i.status !== "APPROVED");
 
@@ -43,74 +60,108 @@ export default async function StudentHome() {
   const todoCount = assignedIds.filter((id) => !respondedIds.has(id)).length;
 
   return (
-    <>
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex max-w-2xl items-center gap-3 p-4">
-          <Avatar name={student.name} color={student.avatarColor} size={48} />
-          <div className="flex-1">
-            <p className="text-lg font-bold">{student.name}</p>
-            <p className="text-sm text-muted">{student.className}</p>
-          </div>
+    <div className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}>
+      {/* header */}
+      <header style={{ display: "flex", alignItems: "center", gap: 18, padding: "22px 40px", background: "var(--cream)", borderBottom: "3px solid var(--ink)", flexWrap: "wrap" }}>
+        <span style={{ width: 64, height: 64, borderRadius: "50%", background: student.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 30px var(--font-fredoka)", color: "#FFFDF7", flexShrink: 0 }}>{student.name.charAt(0).toUpperCase()}</span>
+        <div>
+          <p style={{ margin: 0, font: "600 28px var(--font-fredoka)" }}>{student.name}&apos;s jar</p>
+          <p style={{ margin: 0, font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>{student.className}</p>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+          <svg width="46" height="58" viewBox="0 0 100 120" aria-label={`${published.length} moments in the jar`}>
+            <rect x="26" y="4" width="48" height="14" rx="7" fill="#C9A87C" />
+            <path d="M30,20 L70,20 L70,30 C82,36 86,46 86,58 L86,98 Q86,114 70,114 L30,114 Q14,114 14,98 L14,58 C14,46 18,36 30,30 Z" fill="#EAF4F1" stroke="#22304A" strokeWidth="5" strokeLinejoin="round" />
+            {published.length > 0 && <rect x="24" y="92" width="17" height="17" rx="4" fill="#C2476B" transform="rotate(-6 32 100)" />}
+            {published.length > 1 && <rect x="45" y="96" width="17" height="17" rx="4" fill="#F0B441" transform="rotate(5 53 104)" />}
+            {published.length > 2 && <rect x="60" y="90" width="17" height="17" rx="4" fill="#4E9C94" transform="rotate(-4 68 98)" />}
+            {published.length > 3 && <rect x="34" y="74" width="17" height="17" rx="4" fill="#8AB9D6" transform="rotate(4 42 82)" />}
+            {published.length > 4 && <rect x="54" y="72" width="17" height="17" rx="4" fill="#A6C979" transform="rotate(-5 62 80)" />}
+          </svg>
+          <span style={{ font: "600 20px var(--font-fredoka)", color: "var(--glass)" }}>{published.length} {published.length === 1 ? "moment" : "moments"}</span>
           <form action={logout}>
-            <button className="btn-ghost px-3 py-1.5 text-sm" type="submit">
-              Sign out
-            </button>
+            <button type="submit" style={{ minHeight: 56, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>Bye bye 👋</button>
           </form>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-        <Link
-          href="/student/activities"
-          className="card mb-3 flex items-center gap-3 p-4 transition-transform hover:-translate-y-0.5 hover:shadow-md"
-        >
-          <span className="text-2xl">📝</span>
-          <span className="flex-1 font-bold">My activities</span>
+      <div style={{ flex: 1, overflow: "auto", padding: "30px 40px 50px", maxWidth: 1100, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        {/* add to my jar */}
+        <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: "24px 30px", boxShadow: "var(--pop-shadow)" }}>
+          <p style={{ margin: "0 0 16px", font: "600 30px var(--font-fredoka)" }}>Add to my jar</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
+            {ADD_BUTTONS.map((b) => (
+              <Link key={b.type} href={`/student/new?type=${b.type}`} className="sj-addtile" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 88, background: b.bg, border: "3px solid var(--ink)", borderRadius: 16, textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
+                <span style={{ fontSize: 38 }} aria-hidden="true">{b.emoji}</span>
+                <span style={{ font: "600 27px var(--font-fredoka)", color: "var(--ink)" }}>{b.label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* my activities (kept from the app — assigned tasks) */}
+        <Link href="/student/activities" className="sj-addtile" style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 18, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 16, padding: "16px 24px", textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
+          <span style={{ fontSize: 30 }} aria-hidden="true">📋</span>
+          <span style={{ flex: 1, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>My activities</span>
           {todoCount > 0 ? (
-            <span className="rounded-full bg-amber-400 px-2.5 py-0.5 text-sm font-bold text-amber-950">
-              {todoCount} to do
-            </span>
+            <span style={{ background: "#FBEED3", border: "2px solid var(--ink)", borderRadius: 999, padding: "4px 16px", font: "700 15px var(--font-atkinson)", color: "#8A5F1E" }}>{todoCount} to do</span>
           ) : (
-            <span className="text-sm text-muted">All done</span>
+            <span style={{ font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>All done ✓</span>
           )}
         </Link>
 
-        <Link href="/student/new" className="btn-green mb-6 w-full py-5 text-xl">
-          ＋ Add to my journal
-        </Link>
-
-        {inProgress.length > 0 && (
-          <section className="mb-6">
-            <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">
-              Waiting &amp; sent back
-            </h2>
-            <div className="space-y-4">
-              {inProgress.map((item) => (
-                <JournalItemCard key={item.id} item={item} showStatus />
-              ))}
+        {/* waiting strips */}
+        {inProgress.map((item) => {
+          const k = kindOf(item.type);
+          const waiting = item.status === "PENDING";
+          return (
+            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 22, background: "#FBEED3", border: "3px dashed #C9A87C", borderRadius: 16, padding: "16px 24px" }}>
+              <div style={{ width: 64, height: 64, borderRadius: 12, background: "repeating-linear-gradient(45deg, #FFFDF7, #FFFDF7 10px, #F6E4BE 10px, #F6E4BE 20px)", border: "3px solid var(--ink)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }} aria-hidden="true">{k.emoji}</div>
+              <div>
+                <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
+                <p style={{ margin: "2px 0 0", font: "400 17px var(--font-atkinson)", color: "#8A5F1E" }}>
+                  {waiting ? "Waiting for your teacher to see it ⏳" : "Have another go — your teacher sent it back ✏️"}
+                </p>
+              </div>
             </div>
-          </section>
-        )}
+          );
+        })}
 
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted">
-          My journal
-        </h2>
+        {/* timeline */}
+        <p style={{ margin: "34px 0 16px", font: "600 26px var(--font-fredoka)" }}>My moments</p>
         {published.length === 0 ? (
-          <div className="card p-10 text-center text-muted">
-            <div className="text-4xl">🌱</div>
-            <p className="mt-2 font-semibold text-foreground">
-              Your journal is empty
-            </p>
-            <p className="text-sm">Add your first piece of work above!</p>
+          <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: "50px 20px", textAlign: "center", boxShadow: "var(--pop-shadow)" }}>
+            <div style={{ fontSize: 44 }}>🫙</div>
+            <p style={{ margin: "10px 0 0", font: "600 22px var(--font-fredoka)" }}>Your jar is empty</p>
+            <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>Add your first moment above!</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {published.map((item) => (
-              <JournalItemCard key={item.id} item={item} />
-            ))}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 22 }}>
+            {published.map((item) => {
+              const k = kindOf(item.type);
+              return (
+                <div key={item.id} style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, overflow: "hidden", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
+                  <div style={{ height: 190, background: k.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                    {item.mediaPath ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.mediaPath} alt={item.caption || k.fallback} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : item.textContent ? (
+                      <p style={{ margin: 0, padding: "18px 22px", font: "400 18px/1.5 var(--font-atkinson)", color: "var(--ink)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>{item.textContent}</p>
+                    ) : (
+                      <span style={{ fontSize: 64 }} aria-hidden="true">{k.emoji}</span>
+                    )}
+                    <span style={{ position: "absolute", top: 12, right: 12, background: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 13px var(--font-atkinson)" }}>{k.label}</span>
+                  </div>
+                  <div style={{ padding: "14px 18px 18px" }}>
+                    <p style={{ margin: 0, font: "600 21px var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
+                    <p style={{ margin: "4px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>{formatDate(item.createdAt)}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-      </main>
-    </>
+      </div>
+    </div>
   );
 }

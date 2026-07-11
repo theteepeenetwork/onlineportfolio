@@ -11,15 +11,17 @@ test("a student's drawing goes through approval into their journal", async ({ pa
   expect(await pageCount(page, "drawingPages")).toBeGreaterThan(0);
   await page.locator('button[title="Done"]').click();
   await page.waitForURL((url) => url.pathname === "/student");
-  await expect(page.getByText("Waiting for you")).toBeVisible();
+  await expect(page.getByText(/Waiting for your teacher/)).toBeVisible();
 
   // Teacher finds Finn's submission in the queue and approves it.
   await logout(page);
   await teacherLogin(page);
   await page.goto("/teacher/queue");
-  const finnCard = page.locator(".card").filter({ hasText: "Finn" });
+  const finnCard = page.locator('[data-child="Finn"]');
   await expect(finnCard).toBeVisible();
-  await finnCard.getByRole("button", { name: /Approve/ }).click();
+  await finnCard.getByRole("button", { name: /Add to jar/ }).click();
+  // The row leaves the queue once approved.
+  await expect(finnCard).toHaveCount(0);
 
   // It now shows as published in Finn's journal.
   await page.goto("/teacher");
