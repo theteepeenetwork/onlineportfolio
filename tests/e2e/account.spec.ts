@@ -1,25 +1,47 @@
 import { test, expect } from "@playwright/test";
 import { teacherLogin } from "./helpers";
 
-test("a teacher can sign up and gets their first class", async ({ page }) => {
+// Walk the 5-step signup wizard through to (but not clicking) the final submit.
+async function fillWizard(
+  page: import("@playwright/test").Page,
+  { name, email, className, children }: { name: string; email: string; className: string; children: string },
+) {
   await page.goto("/signup/teacher");
-  await page.fill("#name", "New Teacher");
-  await page.fill("#email", "newteacher@school.uk");
-  await page.fill("#password", "password123");
-  await page.fill("#className", "Rainbow Class");
-  await page.getByRole("button", { name: /Create account/ }).click();
+  await page.fill("#su-name", name);
+  await page.fill("#su-email", email);
+  await page.fill("#su-pass", "password123");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.fill("#su-school", "St Bede’s Primary");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.fill("#su-class", className);
+  await page.getByRole("button", { name: "Create class" }).click();
+  await page.fill("#su-children", children);
+}
 
-  await page.waitForURL((url) => url.pathname === "/teacher/class");
-  await expect(page.getByRole("heading", { name: "Rainbow Class" })).toBeVisible();
-  await expect(page.getByText("Class code", { exact: true })).toBeVisible();
+test("a teacher can sign up through the wizard and gets a class code", async ({ page }) => {
+  await fillWizard(page, {
+    name: "New Teacher",
+    email: "newteacher@school.uk",
+    className: "Rainbow Class",
+    children: "Amara\nBen\nChloe",
+  });
+  await page.getByRole("button", { name: "Add children" }).click();
+
+  // Success step: the class name and a generated code, plus the sign-in guide.
+  await expect(page.getByRole("heading", { name: /Rainbow Class.s class code/ })).toBeVisible();
+  await expect(page.getByText("How your children sign in")).toBeVisible();
 });
 
 test("signing up with an existing email is rejected", async ({ page }) => {
-  await page.goto("/signup/teacher");
-  await page.fill("#name", "Someone");
-  await page.fill("#email", "teacher@school.uk"); // the seeded demo teacher
-  await page.fill("#password", "password123");
-  await page.getByRole("button", { name: /Create account/ }).click();
+  await fillWizard(page, {
+    name: "Someone",
+    email: "teacher@school.uk", // the seeded demo teacher
+    className: "Some Class",
+    children: "Kit",
+  });
+  await page.getByRole("button", { name: "Add children" }).click();
+
+  // The server rejects the duplicate and sends us back with a kind error.
   await expect(page.getByText(/already exists/)).toBeVisible();
 });
 
