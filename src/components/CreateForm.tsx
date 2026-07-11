@@ -20,12 +20,14 @@ export function CreateForm({
   mode,
   studentId,
   skills = [],
+  defaultTab = "PHOTO",
 }: {
   mode: "student" | "teacher";
   studentId?: string;
   skills?: Skill[];
+  defaultTab?: Tab;
 }) {
-  const [tab, setTab] = useState<Tab>("PHOTO");
+  const [tab, setTab] = useState<Tab>(defaultTab);
   const [state, action, pending] = useActionState(createJournalItem, {});
 
   // A child's drawing takes over the whole screen; the canvas owns its own

@@ -230,9 +230,28 @@ body {
   text-transform: uppercase;
 }
 
+/* Child "tap your name" cards lift and tilt on hover/press. */
+.sj-namecard {
+  transition: transform 0.12s ease;
+}
+.sj-namecard:hover {
+  transform: translateY(-4px) rotate(-1deg);
+}
+
+/* "Add to my jar" tiles and links lift on hover. */
+.sj-addtile {
+  transition: transform 0.12s ease;
+}
+.sj-addtile:hover {
+  transform: translateY(-3px);
+  color: var(--ink);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sj-btn-jam:hover,
-  .sj-btn-outline:hover {
+  .sj-btn-outline:hover,
+  .sj-namecard:hover,
+  .sj-addtile:hover {
     transform: none;
   }
 }
