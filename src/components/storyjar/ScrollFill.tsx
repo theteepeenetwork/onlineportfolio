@@ -17,8 +17,6 @@ export function ScrollFill() {
     tiles.forEach((t) => {
       t.style.transformBox = "fill-box";
       t.style.transformOrigin = "center";
-      t.style.transition =
-        "transform 0.7s cubic-bezier(.34,1.56,.64,1), opacity 0.35s ease";
     });
 
     const track = document.getElementById("hero-track");
@@ -42,16 +40,28 @@ export function ScrollFill() {
       if (cue) cue.style.opacity = p >= 1 ? "0" : "1";
     };
 
+    // Apply the initial (hidden) state with transitions still OFF, so the tiles
+    // snap straight to hidden on load instead of visibly animating away from
+    // their no-JS visible position. Enable the transition on the next frame,
+    // once that hidden state has painted, so only scroll-driven reveals animate.
+    update();
+    const enable = requestAnimationFrame(() => {
+      tiles.forEach((t) => {
+        t.style.transition =
+          "transform 0.7s cubic-bezier(.34,1.56,.64,1), opacity 0.35s ease";
+      });
+    });
+
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(update);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
-    update();
 
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(enable);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
