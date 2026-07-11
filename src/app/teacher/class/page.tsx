@@ -3,16 +3,8 @@ import { db } from "@/lib/db";
 import { TopBar } from "@/components/TopBar";
 import { teacherNav } from "@/lib/teacherNav";
 import { relativeDay } from "@/lib/relativeDay";
+import { CLASS_TINTS } from "@/lib/classTints";
 import { ClassManager, type ClassCard } from "./ClassManager";
-
-// Per-class tints, cycled by position: kraft/jam, glass, pink (per the handoff).
-const CLASS_TINTS = [
-  { color: "#F3E3C3", jarFill: "#C2476B" },
-  { color: "#D8ECE8", jarFill: "#4E9C94" },
-  { color: "#F7E0E6", jarFill: "#E08A9B" },
-  { color: "#FBEED3", jarFill: "#F0B441" },
-  { color: "#E7DEF3", jarFill: "#B99CD6" },
-];
 
 export default async function ClassPage() {
   const user = await getCurrentUser();

@@ -164,6 +164,7 @@ model Assignment {
   title                String // snapshot at assign time
   instructions         String? // snapshot at assign time
   templateSnapshotJson String? // frozen template pages at assign time
+  dueDate              DateTime? // optional: when the run is expected done; null = no due date (open/historical)
   createdAt            DateTime            @default(now())
   students             AssignmentStudent[] // set only when wholeClass = false
   responses            JournalItem[]

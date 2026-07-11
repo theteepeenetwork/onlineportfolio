@@ -5,6 +5,7 @@ export function teacherNav(pending: number) {
     { href: "/teacher/queue", label: "Queue", badge: pending },
     { href: "/teacher", label: "Journals" },
     { href: "/teacher/activities", label: "Activities" },
+    { href: "/teacher/calendar", label: "Calendar" },
     { href: "/teacher/class", label: "My classes" },
   ];
 }

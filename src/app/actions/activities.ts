@@ -73,6 +73,11 @@ export async function assignTemplate(
   const mode = String(formData.get("mode") ?? "class"); // class | children
   const studentIds = formData.getAll("studentIds").map(String).filter(Boolean);
 
+  // Optional due date (YYYY-MM-DD from a <input type="date">). Anchor to local
+  // noon so the run lands on the intended calendar day regardless of timezone.
+  const dueRaw = String(formData.get("dueDate") ?? "").trim();
+  const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(dueRaw) ? new Date(`${dueRaw}T12:00:00`) : null;
+
   const template = await db.activityTemplate.findFirst({
     where: { id: templateId, teacherId: user.teacher.id },
   });
@@ -103,6 +108,7 @@ export async function assignTemplate(
       title: template.title,
       instructions: template.instructions,
       templateSnapshotJson: template.templatePathsJson,
+      dueDate,
       students: wholeClass ? undefined : { create: chosen.map((studentId) => ({ studentId })) },
     },
   });

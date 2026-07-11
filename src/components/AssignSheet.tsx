@@ -133,6 +133,16 @@ export function AssignSheet({
           </div>
         )}
 
+        {/* Due date (optional) */}
+        <p className="mt-4 mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Due date <span className="normal-case font-normal">(optional)</span></p>
+        <input
+          type="date"
+          name="dueDate"
+          className="input w-full"
+          aria-label="Due date"
+        />
+        <p className="mt-1 text-xs text-muted">Show it on your calendar with a due-soon / overdue nudge. Leave blank for no deadline.</p>
+
         {/* Already ran */}
         {pastRuns.length > 0 && (
           <>
