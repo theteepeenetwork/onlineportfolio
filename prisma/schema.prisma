@@ -17,6 +17,8 @@ model Teacher {
   name         String
   email        String    @unique
   passwordHash String
+  schoolName   String? // captured at signup (Storyjar onboarding)
+  country      String? // England / Scotland / Wales / NI / Elsewhere
   createdAt    DateTime  @default(now())
   classes      Class[]
   sessions     Session[]
@@ -27,6 +29,7 @@ model Teacher {
 model Class {
   id           String        @id @default(cuid())
   name         String
+  yearGroup    String? // e.g. "Year 2" — captured at signup
   classCode    String        @unique // e.g. "SUN123" — students type this to sign in
   teacher      Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId    String

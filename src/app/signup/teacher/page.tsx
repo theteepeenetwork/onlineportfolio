@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { TeacherSignupForm } from "./form";
+import { JarLogo } from "@/components/storyjar/JarLogo";
+import { SignupWizard } from "./SignupWizard";
 
 export default async function TeacherSignupPage() {
   // Already signed in? Go to the dashboard.
@@ -10,23 +11,21 @@ export default async function TeacherSignupPage() {
   if (user?.role === "STUDENT") redirect("/student");
 
   return (
-    <main className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <Link href="/" className="text-sm text-muted hover:text-foreground">
-          ← Back
+    <div
+      className="sj"
+      style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", display: "flex", flexDirection: "column", width: "100%" }}
+    >
+      <nav style={{ display: "flex", alignItems: "center", gap: 12, padding: "22px 48px" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+          <JarLogo width={26} height={32} />
+          <span style={{ font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>storyjar</span>
         </Link>
-        <div className="card mt-3 p-6">
-          <h1 className="text-2xl font-bold">Create a teacher account</h1>
-          <p className="mt-1 text-sm text-muted">Set up your account to get started.</p>
-          <TeacherSignupForm />
-          <p className="mt-5 text-center text-sm text-muted">
-            Already have an account?{" "}
-            <Link href="/login/teacher" className="font-semibold text-brand hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </div>
-    </main>
+        <span style={{ marginLeft: "auto", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Setting up takes about two minutes</span>
+      </nav>
+
+      <main style={{ flex: 1, display: "flex", justifyContent: "center", padding: "24px 24px 80px" }}>
+        <SignupWizard />
+      </main>
+    </div>
   );
 }
