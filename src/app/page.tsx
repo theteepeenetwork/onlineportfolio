@@ -381,13 +381,25 @@ export default async function Home() {
           <h2 style={{ margin: 0, font: "600 44px var(--font-fredoka)", color: "#FAF6EE" }}>Start your class jar today</h2>
           <p style={{ margin: "14px auto 0", font: "400 18px var(--font-atkinson)", color: "#A9B4C9", maxWidth: "30em" }}>Free for one class. Your children can pop their first moment in before home time.</p>
           <Link href="/signup/teacher" className="sj-btn-jam" style={{ marginTop: 30 }}>Start your class jar</Link>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 28, marginTop: 70, paddingTop: 28, borderTop: "1px solid rgba(250,246,238,0.2)", flexWrap: "wrap" }}>
-            <span style={{ font: "600 18px var(--font-fredoka)" }}>storyjar</span>
-            <a href="#safeguarding" style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>Safeguarding</a>
-            <a href="#faq" style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>Privacy</a>
-            <a href="#faq" style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>Contact</a>
-            <Link href="/family" style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>Family sign in</Link>
-            <span style={{ font: "400 15px var(--font-atkinson)", color: "#6B7690" }}>© 2026 Storyjar · storyjar.co.uk · Made in a Year 2 classroom</span>
+          <div style={{ marginTop: 70, paddingTop: 28, borderTop: "1px solid rgba(250,246,238,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "12px 24px", flexWrap: "wrap" }}>
+              <span style={{ font: "600 18px var(--font-fredoka)", marginRight: 6 }}>storyjar</span>
+              {[
+                ["/legal/privacy", "Privacy"],
+                ["/legal/cookies", "Cookies"],
+                ["/legal/safeguarding", "Safeguarding"],
+                ["/legal/terms", "Terms"],
+                ["/legal/acceptable-use", "Acceptable use"],
+                ["/legal/accessibility", "Accessibility"],
+                ["/legal", "All policies"],
+                ["/family", "Family sign in"],
+              ].map(([href, label]) => (
+                <Link key={href} href={href} style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>{label}</Link>
+              ))}
+            </div>
+            <p style={{ margin: "22px 0 0", font: "400 14px var(--font-atkinson)", color: "#6B7690", textAlign: "center" }}>
+              Storyjar is a data processor for schools · Data kept in the UK/EU · © 2026 Storyjar · storyjar.co.uk · Made in a Year 2 classroom
+            </p>
           </div>
         </div>
       </section>

@@ -324,3 +324,40 @@ h4 {
     transform: none;
   }
 }
+
+/* Legal / policy pages — readable long-form prose in the Storyjar register. */
+.legal-prose {
+  font: 400 17px/1.65 var(--font-atkinson);
+  color: var(--ink-soft);
+}
+.legal-prose h2 {
+  margin: 32px 0 10px;
+  font: 600 24px var(--font-fredoka);
+  color: var(--ink);
+}
+.legal-prose h3 {
+  margin: 22px 0 6px;
+  font: 600 19px var(--font-fredoka);
+  color: var(--ink);
+}
+.legal-prose p { margin: 0 0 14px; }
+.legal-prose ul { margin: 0 0 14px; padding-left: 22px; }
+.legal-prose li { margin: 0 0 7px; }
+.legal-prose a { color: var(--jam); }
+.legal-prose strong { color: var(--ink); }
+.legal-prose code {
+  font: 400 14px ui-monospace, monospace;
+  background: var(--cream);
+  border: 1px solid var(--calm-border);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.legal-prose table { border-collapse: collapse; width: 100%; margin: 0 0 16px; }
+.legal-prose th, .legal-prose td {
+  border: 1px solid var(--calm-border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 15px;
+}
+.legal-prose th { background: var(--cream); font-weight: 700; color: var(--ink); }
