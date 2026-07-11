@@ -84,13 +84,15 @@ test("signing up with an existing email is rejected", async ({ page }) => {
 test("a teacher can create more than one class", async ({ page }) => {
   await teacherLogin(page);
   await page.goto("/teacher/class");
-  await expect(page.getByRole("heading", { name: "Sunflower Class" })).toBeVisible();
+  // The seeded classes appear as cards in the grid.
+  await expect(page.getByText("Sunflower Class", { exact: true })).toBeVisible();
 
+  await page.getByRole("button", { name: /New class/ }).click();
   await page.locator("#className").fill("Bluebell Class");
-  await page.getByRole("button", { name: /Create class/ }).click();
+  await page.getByRole("button", { name: /^Create class/ }).click();
 
-  await expect(page.getByRole("heading", { name: "Bluebell Class" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Sunflower Class" })).toBeVisible();
+  await expect(page.getByText("Bluebell Class", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sunflower Class", { exact: true })).toBeVisible();
 });
 
 test("a teacher can add several students at once by pasting a list", async ({ page }) => {
@@ -98,19 +100,23 @@ test("a teacher can add several students at once by pasting a list", async ({ pa
   await page.goto("/teacher/class");
 
   // Add a fresh class so the paste starts from an empty roster.
+  await page.getByRole("button", { name: /New class/ }).click();
   await page.locator("#className").fill("Poppy Class");
-  await page.getByRole("button", { name: /Create class/ }).click();
-  const poppy = page.locator("section", { hasText: "Poppy Class" });
-  await expect(poppy.getByRole("heading", { name: "Poppy Class" })).toBeVisible();
+  await page.getByRole("button", { name: /^Create class/ }).click();
+
+  // Open the new class's roster and reveal the add-child form.
+  await page.getByRole("button", { name: /Poppy Class/ }).click();
+  await expect(page.getByRole("heading", { name: "Poppy Class" })).toBeVisible();
+  await page.getByRole("button", { name: /Add child/ }).click();
 
   // Paste a messy register: commas, a blank line, and a case-only duplicate.
-  await poppy.getByLabel("Add students").fill("Zed\nYara, Xavier\n\nzed");
+  await page.getByLabel(/Add children/).fill("Zed\nYara, Xavier\n\nzed");
   // The button counts the de-duplicated names.
-  await expect(poppy.getByRole("button", { name: "Add 3 students" })).toBeVisible();
-  await poppy.getByRole("button", { name: "Add 3 students" }).click();
+  await expect(page.getByRole("button", { name: "Add 3 children" })).toBeVisible();
+  await page.getByRole("button", { name: "Add 3 children" }).click();
 
   // All three land in the roster; the duplicate "zed" was collapsed to one.
-  await expect(poppy.getByRole("link", { name: "Zed" })).toHaveCount(1);
-  await expect(poppy.getByRole("link", { name: "Yara" })).toBeVisible();
-  await expect(poppy.getByRole("link", { name: "Xavier" })).toBeVisible();
+  await expect(page.getByText("Zed", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("Yara", { exact: true })).toBeVisible();
+  await expect(page.getByText("Xavier", { exact: true })).toBeVisible();
 });
