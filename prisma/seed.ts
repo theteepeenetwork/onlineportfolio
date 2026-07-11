@@ -1,10 +1,15 @@
 import "dotenv/config";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 
 const db = new PrismaClient();
+
+// Media lives in a private directory (not public/) and is served only through
+// the authorising /uploads route. Keep this in step with src/lib/mediaPath.ts.
+const MEDIA_DIR = process.env.MEDIA_DIR || path.join(process.cwd(), ".media");
+mkdirSync(MEDIA_DIR, { recursive: true });
 
 // Cheerful placeholder "drawings" for template pages and demo responses.
 const SUN = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#fff"/><circle cx="200" cy="150" r="55" fill="#f59e0b"/><g stroke="#f59e0b" stroke-width="8" stroke-linecap="round"><line x1="200" y1="55" x2="200" y2="20"/><line x1="200" y1="245" x2="200" y2="280"/><line x1="105" y1="150" x2="70" y2="150"/><line x1="295" y1="150" x2="330" y2="150"/><line x1="132" y1="82" x2="108" y2="58"/><line x1="268" y1="218" x2="292" y2="242"/><line x1="268" y1="82" x2="292" y2="58"/><line x1="132" y1="218" x2="108" y2="242"/></g></svg>`;
@@ -12,7 +17,7 @@ const HOUSE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><re
 const BUG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#fff"/><ellipse cx="200" cy="160" rx="90" ry="70" fill="#ef4444"/><line x1="200" y1="92" x2="200" y2="230" stroke="#1f2430" stroke-width="6"/><circle cx="200" cy="96" r="26" fill="#1f2430"/><circle cx="160" cy="140" r="12" fill="#1f2430"/><circle cx="240" cy="140" r="12" fill="#1f2430"/><circle cx="160" cy="190" r="12" fill="#1f2430"/><circle cx="240" cy="190" r="12" fill="#1f2430"/></svg>`;
 
 function writeSvg(name: string, svg: string) {
-  writeFileSync(path.join(process.cwd(), "public", "uploads", name), svg);
+  writeFileSync(path.join(MEDIA_DIR, name), svg);
   return `/uploads/${name}`;
 }
 
