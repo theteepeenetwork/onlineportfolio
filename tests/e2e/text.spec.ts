@@ -53,6 +53,8 @@ test("text can be placed, re-selected, moved and re-edited", async ({ page }) =>
 
   // Hand it in — the text is flattened into the saved image.
   await page.locator('button[title="Done"]').click();
+  await page.waitForURL((url) => url.pathname === "/student/popped");
+  await page.getByRole("link", { name: /Back to my jar/ }).click();
   await page.waitForURL((url) => url.pathname === "/student");
   await expect(page.getByText(/Waiting for your teacher/)).toBeVisible();
 });

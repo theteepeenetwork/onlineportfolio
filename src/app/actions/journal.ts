@@ -107,7 +107,7 @@ export async function createJournalItem(
 
   if (user.role === "STUDENT") {
     revalidatePath("/student");
-    redirect("/student");
+    redirect("/student/popped");
   } else {
     revalidatePath("/teacher/queue");
     revalidatePath(`/teacher/students/${studentId}`);

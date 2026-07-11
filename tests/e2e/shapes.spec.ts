@@ -46,6 +46,8 @@ test("a child can add a shape, recolour it, move and resize it", async ({ page }
 
   // Hand it in — the shape is flattened into the saved image.
   await page.locator('button[title="Done"]').click();
+  await page.waitForURL((url) => url.pathname === "/student/popped");
+  await page.getByRole("link", { name: /Back to my jar/ }).click();
   await page.waitForURL((url) => url.pathname === "/student");
   await expect(page.getByText(/Waiting for your teacher/)).toBeVisible();
 });
