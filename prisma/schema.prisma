@@ -82,6 +82,32 @@ model Student {
   journalItems JournalItem[]
   sessions     Session[]
   assignments  AssignmentStudent[]
+  parents      Parent[]      @relation("ParentChildren")
+}
+
+// A parent/carer with a read-only family view of their own child(ren)'s jar.
+// They sign in with a teacher-issued family code or an emailed magic link — no
+// password — and can only ever see approved moments for their linked children.
+model Parent {
+  id          String       @id @default(cuid())
+  name        String
+  email       String       @unique
+  familyCode  String       @unique // the code printed on the school's letter
+  createdAt   DateTime     @default(now())
+  children    Student[]    @relation("ParentChildren")
+  sessions    Session[]
+  magicTokens MagicToken[]
+}
+
+// A single-use, expiring token behind a parent "magic link" email.
+model MagicToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  parent    Parent    @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  parentId  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 // A single piece of work in a student's journal.
@@ -163,15 +189,17 @@ model Skill {
   items JournalItem[] @relation("JournalItemSkills")
 }
 
-// A login session. Points at either a teacher or a student.
+// A login session. Points at a teacher, a student, or a parent.
 model Session {
   id        String   @id @default(cuid())
   token     String   @unique
-  role      String // TEACHER | STUDENT
+  role      String // TEACHER | STUDENT | PARENT
   teacher   Teacher? @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId String?
   student   Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId String?
+  parent    Parent?  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  parentId  String?
   createdAt DateTime @default(now())
   expiresAt DateTime
 }
