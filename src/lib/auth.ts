@@ -9,7 +9,14 @@ const SESSION_DAYS = 30;
 // A logged-in teacher, resolved from the session cookie.
 export type TeacherSession = {
   role: "TEACHER";
-  teacher: { id: string; name: string; displayName: string; email: string };
+  teacher: {
+    id: string;
+    name: string;
+    displayName: string;
+    email: string;
+    staffRole: string; // ADMIN | TEACHER | TA — position within the school
+    schoolId: string | null;
+  };
 };
 
 // A logged-in student, resolved from the session cookie.
@@ -78,6 +85,8 @@ export async function getCurrentUser(): Promise<CurrentUser> {
         // before displayName was captured.
         displayName: session.teacher.displayName || session.teacher.name.split(" ")[0],
         email: session.teacher.email,
+        staffRole: session.teacher.role,
+        schoolId: session.teacher.schoolId,
       },
     };
   }

@@ -40,9 +40,16 @@ export default async function TeacherDashboard() {
         subtitle="Choose a child to see their journal, or check what's waiting for you."
         links={teacherNav(pendingCount)}
         right={
-          <Link href="/teacher/activities/new" className="btn-brand px-3 py-1.5 text-sm">
-            ＋ New activity
-          </Link>
+          <>
+            {user.teacher.staffRole === "ADMIN" && (
+              <Link href="/admin" className="btn-ghost px-3 py-1.5 text-sm">
+                School admin →
+              </Link>
+            )}
+            <Link href="/teacher/activities/new" className="btn-brand px-3 py-1.5 text-sm">
+              ＋ New activity
+            </Link>
+          </>
         }
       />
 
