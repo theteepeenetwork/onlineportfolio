@@ -147,6 +147,47 @@ export async function setTemplateArchived(formData: FormData) {
   revalidatePath(`/teacher/activities/${id}`);
 }
 
+// The dot-colour palette new folders cycle through.
+const FOLDER_COLORS = ["#F0B441", "#8AB9D6", "#E08A9B", "#A6C979", "#B99CD6", "#E8A06A", "#4E9C94"];
+
+// Teacher makes a new folder in the activity library.
+export async function createFolder(
+  _prev: { error?: string } | undefined,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser();
+  if (user?.role !== "TEACHER") redirect("/");
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Give the folder a name." };
+
+  const count = await db.folder.count({ where: { teacherId: user.teacher.id } });
+  await db.folder.create({
+    data: { name, color: FOLDER_COLORS[count % FOLDER_COLORS.length], teacherId: user.teacher.id },
+  });
+  revalidatePath("/teacher/activities");
+  return {};
+}
+
+// Move a template into a folder (or out of any folder when folderId is empty).
+export async function moveTemplateToFolder(formData: FormData) {
+  const user = await getCurrentUser();
+  if (user?.role !== "TEACHER") redirect("/");
+  const id = String(formData.get("templateId") ?? "");
+  const folderId = String(formData.get("folderId") ?? "") || null;
+
+  // Guard: the folder (when given) must belong to this teacher.
+  if (folderId) {
+    const folder = await db.folder.findFirst({ where: { id: folderId, teacherId: user.teacher.id } });
+    if (!folder) redirect("/teacher/activities");
+  }
+  await db.activityTemplate.updateMany({
+    where: { id, teacherId: user.teacher.id },
+    data: { folderId },
+  });
+  revalidatePath("/teacher/activities");
+}
+
 // Close a run so no more responses are expected (kept as evidence forever).
 export async function setRunStatus(formData: FormData) {
   const user = await getCurrentUser();

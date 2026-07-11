@@ -1,10 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { AssignSheet } from "@/components/AssignSheet";
-import { duplicateTemplate, setTemplateArchived } from "@/app/actions/activities";
+import {
+  createFolder,
+  duplicateTemplate,
+  moveTemplateToFolder,
+  setTemplateArchived,
+} from "@/app/actions/activities";
 import type { ClassInfo, RunSummary } from "@/lib/activities";
 
 export type TemplateSummary = {
@@ -13,195 +17,199 @@ export type TemplateSummary = {
   instructions: string;
   tags: string[];
   thumb: string | null;
+  archived: boolean;
+  folderId: string | null;
   liveClassNames: string[];
-  runCount: number;
+  sentClasses: number;
   waiting: number;
   neverRun: boolean;
   pastRuns: RunSummary[];
 };
 
-export type NeedsAttention = { templateId: string; title: string; className: string; waiting: number };
+export type FolderInfo = { id: string; name: string; color: string };
 
-function statusChip(t: TemplateSummary) {
-  if (t.liveClassNames.length === 1)
-    return { text: `live · ${t.liveClassNames[0]}`, live: true };
-  if (t.liveClassNames.length > 1)
-    return { text: `live · ${t.liveClassNames.length} classes`, live: true };
-  if (t.runCount > 0) return { text: `${t.runCount} past run${t.runCount === 1 ? "" : "s"}`, live: false };
-  return { text: "never run", live: false };
+const ALL = "all";
+const ARCHIVED = "archived";
+
+// Icon + tint for a card's type tile, derived from whether it carries a
+// worksheet/drawing background.
+function typeMeta(t: TemplateSummary): { icon: string; bg: string; label: string } {
+  if (t.thumb) return { icon: "✏️", bg: "#FBEED3", label: "Drawing / worksheet" };
+  if (t.instructions) return { icon: "💬", bg: "#F7E0E6", label: "Prompt" };
+  return { icon: "🎨", bg: "#E5EED9", label: "Free choice" };
 }
 
 export function ActivityLibrary({
   templates,
   classes,
-  needsAttention,
-  allTags,
+  folders,
 }: {
   templates: TemplateSummary[];
   classes: ClassInfo[];
-  needsAttention: NeedsAttention[];
-  allTags: string[];
+  folders: FolderInfo[];
 }) {
-  const [search, setSearch] = useState("");
-  const [tag, setTag] = useState<string | null>(null);
-  const [status, setStatus] = useState<"all" | "live" | "never">("all");
-  const [assignId, setAssignId] = useState<string | null>(null);
+  const [folder, setFolder] = useState<string>(ALL);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [moveId, setMoveId] = useState<string | null>(null); // which card's "move to folder" submenu is open
+  const [assignId, setAssignId] = useState<string | null>(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
-  const q = search.trim().toLowerCase();
-  const filtered = templates.filter((t) => {
-    if (q && !`${t.title} ${t.instructions}`.toLowerCase().includes(q)) return false;
-    if (tag && !t.tags.includes(tag)) return false;
-    if (status === "live" && t.liveClassNames.length === 0) return false;
-    if (status === "never" && !t.neverRun) return false;
-    return true;
+  const closeMenus = () => {
+    setMenuId(null);
+    setMoveId(null);
+  };
+
+  const countFor = (id: string) => {
+    if (id === ALL) return templates.filter((t) => !t.archived).length;
+    if (id === ARCHIVED) return templates.filter((t) => t.archived).length;
+    return templates.filter((t) => !t.archived && t.folderId === id).length;
+  };
+
+  const sidebar: (FolderInfo & { special?: boolean })[] = [
+    { id: ALL, name: "All activities", color: "#C9C2B0", special: true },
+    ...folders,
+    { id: ARCHIVED, name: "Archived", color: "#B99CD6", special: true },
+  ];
+
+  const shown = templates.filter((t) => {
+    if (folder === ALL) return !t.archived;
+    if (folder === ARCHIVED) return t.archived;
+    return !t.archived && t.folderId === folder;
   });
 
+  const folderName = sidebar.find((f) => f.id === folder)?.name ?? "All activities";
   const assignTemplate = templates.find((t) => t.id === assignId);
 
   return (
-    <>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <input
-          className="input max-w-xs"
-          placeholder="🔍 Search templates…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <Link href="/teacher/activities/new" className="btn-brand ml-auto">
-          ＋ New template
-        </Link>
-      </div>
-
-      {/* Filter chips */}
-      <div className="mb-5 flex flex-wrap items-center gap-2">
-        <Chip active={tag === null && status === "all"} onClick={() => { setTag(null); setStatus("all"); }}>
-          All
-        </Chip>
-        {allTags.map((tg) => (
-          <Chip key={tg} active={tag === tg} onClick={() => setTag(tag === tg ? null : tg)}>
-            {tg}
-          </Chip>
-        ))}
-        <span className="mx-1 h-5 w-px bg-border" />
-        <Chip active={status === "live"} tone="green" onClick={() => setStatus(status === "live" ? "all" : "live")}>
-          Live now
-        </Chip>
-        <Chip active={status === "never"} onClick={() => setStatus(status === "never" ? "all" : "never")}>
-          Never run
-        </Chip>
-      </div>
-
-      {/* Needs attention */}
-      {needsAttention.length > 0 && (
-        <div className="mb-5 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Needs attention</p>
-          {needsAttention.map((n, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5">
-              <span className="text-lg">🐛</span>
-              <span className="font-semibold">
-                {n.title} · {n.className}
-              </span>
-              <span className="text-sm text-amber-800">
-                — {n.waiting} response{n.waiting === 1 ? "" : "s"} waiting
-              </span>
-              <Link href="/teacher/queue" className="btn-brand ml-auto px-3 py-1.5 text-sm">
-                Review ▸
-              </Link>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {templates.length === 0 && (
-        <div className="card p-10 text-center">
-          <div className="text-4xl">📚</div>
-          <p className="mt-2 font-semibold">No templates yet</p>
-          <p className="text-sm text-muted">Create a reusable template to assign to your classes.</p>
-          <Link href="/teacher/activities/new" className="btn-brand mt-4">＋ New template</Link>
-        </div>
-      )}
-
-      {templates.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((t) => {
-            const chip = statusChip(t);
+    // Clicking anywhere outside an open menu closes it (the backdrop-close rule).
+    <div
+      onClick={closeMenus}
+      style={{ display: "grid", gridTemplateColumns: "232px 1fr", maxWidth: 1180, margin: "0 auto", alignItems: "start", padding: "0 24px" }}
+    >
+      {/* ══ folders sidebar ══ */}
+      <aside style={{ padding: "28px 18px 40px", position: "sticky", top: 66 }}>
+        <p style={{ margin: "0 0 10px", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Folders</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {sidebar.map((f) => {
+            const active = folder === f.id;
             return (
-              <div key={t.id} className="card relative flex flex-col overflow-hidden">
-                <Link href={`/teacher/activities/${t.id}`} className="block bg-black/5">
-                  {t.thumb ? (
-                    <Image src={t.thumb} alt="" width={320} height={180} unoptimized className="aspect-[16/9] w-full object-contain" />
-                  ) : (
-                    <div className="flex aspect-[16/9] w-full items-center justify-center text-3xl text-muted">📝</div>
-                  )}
-                </Link>
-                <div className="flex flex-1 flex-col p-4">
-                  <Link href={`/teacher/activities/${t.id}`} className="font-bold hover:text-brand">
-                    {t.title}
-                  </Link>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    {t.tags.map((tg) => (
-                      <span key={tg} className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700">
-                        {tg}
-                      </span>
-                    ))}
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        chip.live ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {chip.live ? "● " : ""}
-                      {chip.text}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex items-center gap-2 pt-1">
-                    <button type="button" onClick={() => setAssignId(t.id)} className="btn-brand flex-1 py-1.5 text-sm">
-                      Assign ▸
-                    </button>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setMenuId(menuId === t.id ? null : t.id)}
-                        className="btn-ghost px-2.5 py-1.5 text-sm"
-                        aria-label="More"
-                      >
-                        ⋯
-                      </button>
-                      {menuId === t.id && (
-                        <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-xl border border-border bg-surface p-1 shadow-lg">
-                          <form action={duplicateTemplate}>
-                            <input type="hidden" name="templateId" value={t.id} />
-                            <button type="submit" className="block w-full rounded-lg px-3 py-1.5 text-left text-sm hover:bg-background">
-                              Duplicate
-                            </button>
-                          </form>
-                          <form action={setTemplateArchived}>
-                            <input type="hidden" name="templateId" value={t.id} />
-                            <input type="hidden" name="archived" value="true" />
-                            <button type="submit" className="block w-full rounded-lg px-3 py-1.5 text-left text-sm text-muted hover:bg-background">
-                              Archive
-                            </button>
-                          </form>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <button
+                key={f.id}
+                onClick={() => { setFolder(f.id); closeMenus(); }}
+                style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer", font: "700 15px var(--font-atkinson)", color: active ? "var(--ink)" : "var(--ink-soft)", background: active ? "#F3E3C3" : "transparent", border: "none", borderRadius: 10, padding: "10px 12px" }}
+              >
+                <span style={{ width: 14, height: 14, borderRadius: 4, background: f.color, border: "2px solid var(--ink)", flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>{f.name}</span>
+                <span style={{ font: "400 13px var(--font-atkinson)", color: "#8A93A8" }}>{countFor(f.id)}</span>
+              </button>
             );
           })}
-
-          {/* New template tile */}
-          <Link
-            href="/teacher/activities/new"
-            className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border text-muted transition-colors hover:border-brand hover:text-brand"
-          >
-            <span className="text-3xl">＋</span>
-            <span className="mt-1 font-semibold">New template</span>
-            <span className="text-xs">draw · upload · blank</span>
-          </Link>
         </div>
-      )}
+        {creatingFolder ? (
+          <NewFolderForm onDone={() => setCreatingFolder(false)} />
+        ) : (
+          <button
+            onClick={() => setCreatingFolder(true)}
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 14, cursor: "pointer", font: "700 14px var(--font-atkinson)", color: "var(--ink-soft)", background: "none", border: "2px dashed #C9C2B0", borderRadius: 10, padding: "10px 12px" }}
+          >
+            ＋ New folder
+          </button>
+        )}
+      </aside>
+
+      {/* ══ activities ══ */}
+      <main style={{ padding: "28px 8px 60px 14px" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
+          <div>
+            <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)" }}>{folderName}</h1>
+            <p style={{ margin: "5px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+              {shown.length === 0 ? "Nothing here yet" : `${shown.length} ${shown.length === 1 ? "activity" : "activities"}`}
+            </p>
+          </div>
+          <Link href="/teacher/activities/new" style={{ marginLeft: "auto", font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}>＋ New activity</Link>
+        </div>
+
+        {shown.length === 0 ? (
+          <div className="sj-card" style={{ padding: "48px 32px", textAlign: "center" }}>
+            <div style={{ fontSize: 40 }} aria-hidden>📚</div>
+            <p style={{ margin: "10px 0 0", font: "600 20px var(--font-fredoka)" }}>Nothing here yet</p>
+            <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Make a reusable activity to assign to your classes.</p>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 18 }}>
+            {shown.map((t) => {
+              const tm = typeMeta(t);
+              const open = menuId === t.id;
+              return (
+                <div
+                  key={t.id}
+                  style={{ position: "relative", zIndex: open ? 20 : 1, background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 3px 0 rgba(34,48,74,0.08)" }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <span style={{ width: 44, height: 44, borderRadius: 12, background: tm.bg, border: "2px solid var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }} aria-hidden>{tm.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0, paddingRight: 34 }}>
+                      <Link href={`/teacher/activities/${t.id}`} style={{ margin: 0, font: "600 19px/1.2 var(--font-fredoka)", color: "var(--ink)", textDecoration: "none" }}>{t.title}</Link>
+                      <p style={{ margin: "4px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{tm.label}</p>
+                    </div>
+
+                    {/* 3-dot button */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setMoveId(null); setMenuId(open ? null : t.id); }}
+                      aria-label={`More actions for ${t.title}`}
+                      aria-expanded={open}
+                      style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 8, border: "none", background: open ? "#F3E3C3" : "#F3EEE2", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}
+                    >
+                      {[0, 1, 2].map((i) => (
+                        <span key={i} style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--ink-soft)" }} />
+                      ))}
+                    </button>
+
+                    {/* dropdown — sits ABOVE the cards (card is overflow-visible; open card z-raised) */}
+                    {open && (
+                      <div
+                        role="menu"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ position: "absolute", top: 50, right: 14, width: 208, background: "var(--cream)", border: "2px solid var(--ink)", borderRadius: 12, padding: 6, boxShadow: "0 12px 30px rgba(34,48,74,0.28)", zIndex: 40 }}
+                      >
+                        {moveId === t.id ? (
+                          <MoveMenu template={t} folders={folders} onBack={() => setMoveId(null)} />
+                        ) : (
+                          <>
+                            <MenuLink href={`/teacher/activities/${t.id}`} icon="✎" label="Edit activity" />
+                            <MenuForm action={duplicateTemplate} templateId={t.id} icon="⧉" label="Duplicate" />
+                            <MenuButton icon="🗂" label="Move to folder…" onClick={() => setMoveId(t.id)} />
+                            <MenuButton icon="➤" label="Send to a class" onClick={() => { setAssignId(t.id); closeMenus(); }} />
+                            {t.archived ? (
+                              <MenuForm action={setTemplateArchived} templateId={t.id} archived="false" icon="♻" label="Restore" />
+                            ) : (
+                              <MenuForm action={setTemplateArchived} templateId={t.id} archived="true" icon="🗑" label="Archive" danger />
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {t.tags.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 14 }}>
+                      {t.tags.map((sk) => (
+                        <span key={sk} style={{ font: "700 12px var(--font-atkinson)", color: "#2E6B64", background: "var(--glass-light)", border: "1px solid #B6D8D2", borderRadius: 999, padding: "4px 10px" }}>{sk}</span>
+                      ))}
+                    </div>
+                  )}
+                  <p style={{ margin: "12px 0 0", paddingTop: 12, borderTop: "1px solid #F0EADD", font: "400 13px var(--font-atkinson)", color: "#8A93A8" }}>
+                    {t.liveClassNames.length > 0
+                      ? `Live in ${t.liveClassNames.length} class${t.liveClassNames.length === 1 ? "" : "es"}${t.waiting > 0 ? ` · ${t.waiting} waiting` : ""}`
+                      : t.sentClasses > 0
+                        ? `Sent to ${t.sentClasses} class${t.sentClasses === 1 ? "" : "es"}`
+                        : "Not sent to a class yet"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
 
       {assignTemplate && (
         <AssignSheet
@@ -211,29 +219,136 @@ export function ActivityLibrary({
           onClose={() => setAssignId(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ── menu building blocks ──
+const MENU_ITEM: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  textAlign: "left",
+  cursor: "pointer",
+  font: "700 15px var(--font-atkinson)",
+  background: "none",
+  border: "none",
+  borderRadius: 8,
+  padding: "9px 12px",
+  color: "var(--ink)",
+  textDecoration: "none",
+};
+
+function MenuIcon({ icon }: { icon: string }) {
+  return <span style={{ width: 20, textAlign: "center" }} aria-hidden>{icon}</span>;
+}
+
+function MenuLink({ href, icon, label }: { href: string; icon: string; label: string }) {
+  return (
+    <Link role="menuitem" href={href} style={MENU_ITEM}>
+      <MenuIcon icon={icon} />
+      {label}
+    </Link>
+  );
+}
+
+function MenuButton({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+  return (
+    <button role="menuitem" onClick={onClick} style={MENU_ITEM}>
+      <MenuIcon icon={icon} />
+      {label}
+    </button>
+  );
+}
+
+function MenuForm({
+  action,
+  templateId,
+  archived,
+  icon,
+  label,
+  danger,
+}: {
+  action: (formData: FormData) => void;
+  templateId: string;
+  archived?: string;
+  icon: string;
+  label: string;
+  danger?: boolean;
+}) {
+  return (
+    <form action={action}>
+      <input type="hidden" name="templateId" value={templateId} />
+      {archived !== undefined && <input type="hidden" name="archived" value={archived} />}
+      <button role="menuitem" type="submit" style={{ ...MENU_ITEM, color: danger ? "var(--jam)" : "var(--ink)" }}>
+        <MenuIcon icon={icon} />
+        {label}
+      </button>
+    </form>
+  );
+}
+
+// The second level of the ⋯ menu: choose a destination folder.
+function MoveMenu({ template, folders, onBack }: { template: TemplateSummary; folders: FolderInfo[]; onBack: () => void }) {
+  return (
+    <>
+      <button onClick={onBack} style={{ ...MENU_ITEM, color: "var(--ink-soft)", font: "700 13px var(--font-atkinson)" }}>← Move to folder</button>
+      <div style={{ height: 1, background: "#F0EADD", margin: "4px 0" }} />
+      {folders.length === 0 && (
+        <p style={{ margin: 0, padding: "9px 12px", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>No folders yet — make one first.</p>
+      )}
+      {folders.map((f) => (
+        <form key={f.id} action={moveTemplateToFolder}>
+          <input type="hidden" name="templateId" value={template.id} />
+          <input type="hidden" name="folderId" value={f.id} />
+          <button role="menuitem" type="submit" style={{ ...MENU_ITEM, opacity: template.folderId === f.id ? 0.5 : 1 }} disabled={template.folderId === f.id}>
+            <span style={{ width: 14, height: 14, borderRadius: 4, background: f.color, border: "2px solid var(--ink)" }} />
+            {f.name}
+          </button>
+        </form>
+      ))}
+      {template.folderId && (
+        <form action={moveTemplateToFolder}>
+          <input type="hidden" name="templateId" value={template.id} />
+          <input type="hidden" name="folderId" value="" />
+          <button role="menuitem" type="submit" style={{ ...MENU_ITEM, color: "var(--ink-soft)" }}>
+            <MenuIcon icon="✕" />
+            Remove from folder
+          </button>
+        </form>
+      )}
     </>
   );
 }
 
-function Chip({
-  children,
-  active,
-  tone,
-  onClick,
-}: {
-  children: React.ReactNode;
-  active: boolean;
-  tone?: "green";
-  onClick: () => void;
-}) {
-  const activeCls = tone === "green" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-brand bg-brand/10 text-brand";
+function NewFolderForm({ onDone }: { onDone: () => void }) {
+  const [state, action, pending] = useActionState(createFolder, {});
+  const ref = useRef<HTMLFormElement>(null);
+  const wasPending = useRef(false);
+
+  useEffect(() => {
+    if (wasPending.current && !pending && !state.error) {
+      ref.current?.reset();
+      onDone();
+    }
+    wasPending.current = pending;
+  }, [pending, state, onDone]);
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-sm font-semibold ${active ? activeCls : "border-border text-muted hover:bg-background"}`}
-    >
-      {children}
-    </button>
+    <form ref={ref} action={action} style={{ marginTop: 14 }}>
+      <input
+        name="name"
+        autoFocus
+        placeholder="Folder name"
+        required
+        style={{ width: "100%", boxSizing: "border-box", font: "400 14px var(--font-atkinson)", padding: "9px 11px", border: "2px solid var(--ink)", borderRadius: 10, background: "var(--paper)", color: "var(--ink)" }}
+      />
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button type="submit" disabled={pending} style={{ flex: 1, font: "700 13px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", border: "none", borderRadius: 999, padding: "8px 0", cursor: "pointer" }}>{pending ? "…" : "Create"}</button>
+        <button type="button" onClick={onDone} style={{ font: "700 13px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "none", cursor: "pointer" }}>Cancel</button>
+      </div>
+      {state.error && <p role="alert" style={{ margin: "6px 0 0", font: "700 13px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</p>}
+    </form>
   );
 }
