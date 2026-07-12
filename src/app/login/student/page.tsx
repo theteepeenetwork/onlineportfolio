@@ -7,12 +7,16 @@ const TWINKLE = "M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2
 
 // Step 1: the child (or teacher) types the class code -> ?code=XXX.
 // Step 2: we show the class's students and they tap their own name.
+// ?preview=1 is set by the teacher's "See what your pupils will see" link; it
+// adds a teacher-only bar with a way back to the dashboard (children never get
+// this param, and the link it shows is auth-guarded anyway).
 export default async function StudentLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ code?: string }>;
+  searchParams: Promise<{ code?: string; preview?: string }>;
 }) {
-  const { code } = await searchParams;
+  const { code, preview } = await searchParams;
+  const isPreview = preview === "1";
   const normalised = code?.trim().toUpperCase();
 
   const klass = normalised
@@ -27,6 +31,12 @@ export default async function StudentLoginPage({
       className="sj"
       style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}
     >
+      {isPreview && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap", background: "var(--honey-tint)", borderBottom: "3px solid var(--ink)", padding: "12px 20px", font: "700 15px var(--font-atkinson)", color: "var(--honey-ink)" }}>
+          <span>👀 Teacher preview — this is exactly what your pupils see.</span>
+          <Link href="/teacher" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--ink)", color: "var(--paper)", textDecoration: "none", padding: "9px 18px", borderRadius: 999, font: "700 14px var(--font-atkinson)" }}>← Back to your dashboard</Link>
+        </div>
+      )}
       {!klass ? (
         /* ── Stage 1: enter code ── */
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px", position: "relative", textAlign: "center" }}>
