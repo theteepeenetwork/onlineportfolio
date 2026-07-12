@@ -1,0 +1,146 @@
+import "dotenv/config";
+import { execSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import bcrypt from "bcryptjs";
+import { PrismaClient } from "@prisma/client";
+
+// ---------------------------------------------------------------------------
+// Test fixtures for the QA battery (tenant isolation and friends).
+//
+// The security battery needs TWO schools so it can prove that a user in School
+// B can never reach School A's pupils, journals or media. The shipping demo
+// seed (prisma/seed.ts) has only one school (St Bede's), so this script:
+//
+//   1. Runs the normal demo seed first (FORCE_SEED) → gives us School A exactly
+//      as the app ships it (teacher@school.uk, class SUN123, parent FAM123).
+//   2. Appends a second, fully-isolated school ("Oakfield Primary") → School B.
+//
+// Everything here is FICTIONAL. This never runs against production data: it is
+// only invoked by the battery's Playwright global-setup and the `db:seed:test`
+// npm script, both of which target the local dev database.
+// ---------------------------------------------------------------------------
+
+const MEDIA_DIR = process.env.MEDIA_DIR || path.join(process.cwd(), ".media");
+
+const OAK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#fff"/><rect x="150" y="120" width="100" height="140" fill="#8b5a2b"/><circle cx="200" cy="110" r="80" fill="#2e7d32"/></svg>`;
+
+function writeSvg(name: string, svg: string) {
+  writeFileSync(path.join(MEDIA_DIR, name), svg);
+  return `/uploads/${name}`;
+}
+
+async function main() {
+  // 1) Base demo seed = School A (St Bede's). Force it so we always start from
+  //    the known clean state, exactly as the functional e2e suite expects.
+  console.log("[seed-test] Seeding School A (demo) …");
+  execSync("npm run db:seed", { stdio: "inherit", env: { ...process.env, FORCE_SEED: "1" } });
+
+  const db = new PrismaClient();
+  mkdirSync(MEDIA_DIR, { recursive: true });
+
+  // 2) School B = Oakfield Primary. A completely separate tenant: its own admin,
+  //    its own teacher, class, pupils, journal items and linked parent. Nothing
+  //    here is linked to School A in any way.
+  console.log("[seed-test] Appending School B (Oakfield) …");
+
+  const oak = await db.school.create({
+    data: { name: "Oakfield Primary", plan: "Annual plan", seatLimit: 10 },
+  });
+
+  const oakAdmin = await db.teacher.create({
+    data: {
+      name: "Rosa Lindqvist",
+      title: "Mrs",
+      displayStyle: "formal",
+      displayName: "Mrs Lindqvist",
+      email: "admin@oakfield.sch.uk",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "ADMIN",
+      status: "ACTIVE",
+      schoolId: oak.id,
+    },
+  });
+
+  const oakTeacher = await db.teacher.create({
+    data: {
+      name: "Tom Okafor",
+      title: "Mr",
+      displayStyle: "formal",
+      displayName: "Mr Okafor",
+      email: "teacher@oakfield.sch.uk",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "TEACHER",
+      status: "ACTIVE",
+      schoolId: oak.id,
+    },
+  });
+
+  const acorn = await db.class.create({
+    data: { name: "Acorn Class", yearGroup: "Year 1", classCode: "OAK111", teacherId: oakTeacher.id },
+  });
+
+  const oakColors = ["#2e7d32", "#1565c0", "#6a1b9a"];
+  const [zara, yusuf, willow] = await Promise.all(
+    ["Zara", "Yusuf", "Willow"].map((name, i) =>
+      db.student.create({ data: { name, classId: acorn.id, avatarColor: oakColors[i % oakColors.length] } }),
+    ),
+  );
+
+  // Two named media files so isolation specs can reference exact paths:
+  //  - seed-oak.svg      → an APPROVED moment (a parent may see it; other tenants may not)
+  //  - seed-oak-pending.svg → a PENDING moment (not even Oakfield's own parent may see it)
+  const oakApproved = writeSvg("seed-oak.svg", OAK_SVG);
+  const oakPending = writeSvg("seed-oak-pending.svg", OAK_SVG);
+
+  await db.journalItem.create({
+    data: {
+      type: "DRAWING",
+      caption: "My oak tree",
+      mediaPath: oakApproved,
+      status: "APPROVED",
+      approvedAt: new Date(),
+      authorRole: "STUDENT",
+      studentId: zara.id,
+      classId: acorn.id,
+    },
+  });
+
+  await db.journalItem.create({
+    data: {
+      type: "DRAWING",
+      caption: "Waiting to be checked",
+      mediaPath: oakPending,
+      status: "PENDING",
+      authorRole: "STUDENT",
+      studentId: yusuf.id,
+      classId: acorn.id,
+    },
+  });
+
+  // A parent linked only to Zara (Oakfield). Signs in with family code OAKFAM1.
+  await db.parent.create({
+    data: {
+      name: "Nadia Rahman",
+      email: "parent@oakfield-family.com",
+      familyCode: "OAKFAM1",
+      children: { connect: [{ id: zara.id }] },
+    },
+  });
+
+  console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
+  console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN123 (Sunflower)  parent FAM123");
+  console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
+  console.log("                         teacher teacher@oakfield.sch.uk / password  class OAK111 (Acorn)  parent OAKFAM1");
+  console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)");
+
+  // Handy for a quick sanity check of the student-impersonation finding (F1).
+  console.log(`  School B pupil ids: Zara=${zara.id} Yusuf=${yusuf.id} Willow=${willow.id}`);
+
+  await db.$disconnect();
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

@@ -73,9 +73,15 @@ Each rule is testable. A change that breaks one does not ship.
 8. **Deny by default.** On any uncertainty about permission, identity or
    ownership, **refuse** and return nothing. An error must never leak another
    user's data (no other-user records in error messages, logs, or responses).
-9. **Deletion is real.** When a school, class, child or moment is deleted, the
-   database rows **and the underlying media files** are removed. Right to erasure
-   (UK GDPR Art. 17) must actually erase.
+9. **Deletion is real, and retention is bounded.** When a school, class, child
+   or moment is deleted, the database rows **and the underlying media files**
+   are removed. Right to erasure (UK GDPR Art. 17) must actually erase. How long
+   each category of data lives — including frozen (lapsed) accounts, backups and
+   audit logs — is defined in [`RETENTION.md`](./RETENTION.md), which is part of
+   this constitution: a change that keeps data longer than that schedule allows,
+   or adds a data category without a retention entry, does not ship. Lapsed
+   payment never causes silent deletion; deletion is always preceded by the
+   warning schedule in `RETENTION.md`.
 
 ### E. Data stays where we promised
 10. **UK/EU only.** All personal data — database, uploaded media, backups, and
@@ -125,7 +131,7 @@ Storyjar must help schools meet, and itself comply with, at least:
 
 | Framework | What it means for us |
 |---|---|
-| **UK GDPR + Data Protection Act 2018** | Lawful basis (the school's), data minimisation, purpose limitation, security (Art. 32), data-subject rights, retention limits, **processor duties (Art. 28)** → a DPA. |
+| **UK GDPR + Data Protection Act 2018** | Lawful basis (the school's), data minimisation, purpose limitation, security (Art. 32), data-subject rights, retention limits (schedule: [`RETENTION.md`](./RETENTION.md)), **processor duties (Art. 28)** → a DPA. |
 | **ICO Age Appropriate Design Code (Children's Code)** | 15 standards: high-privacy **defaults**, data minimisation, no nudge/dark patterns, no profiling of children, transparency in language a child/parent understands, DPIA. |
 | **Keeping Children Safe in Education (KCSIE)** | The product operates in schools' safeguarding regime: teacher moderation, no unsupervised child-to-child contact, clear reporting routes, filtering/monitoring expectations. |
 | **DfE digital & technology standards** (incl. filtering & monitoring, data protection in schools) | Supports schools' duties; secure by design; clear data-handling. |
@@ -152,6 +158,9 @@ media, or third parties **must** answer these in the PR:
 - [ ] New third party / sub-processor? Listed, DPA'd, UK/EU, no profiling?
 - [ ] On error or uncertainty, does it deny and leak nothing?
 - [ ] Does deletion still remove rows **and** files?
+- [ ] Does the change store data longer than the schedule in
+      [`RETENTION.md`](./RETENTION.md) allows, or add a data category with no
+      retention entry? (Must be "no" — update `RETENTION.md` first.)
 - [ ] Security headers / cookie flags / input handling unchanged or improved?
 - [ ] Accessibility floor still met?
 
@@ -188,7 +197,7 @@ Tracked here until closed; each becomes its own change.
 | P1 | No security headers (CSP/HSTS/etc.) | 14 | Planned |
 | P1 | No audit log of safeguarding-relevant actions | 16 | Planned |
 | P2 | No DPIA on file; customer policies are drafts pending professional review | — | Ongoing |
-| P2 | No documented data-retention schedule / automated deletion | 9 | Planned |
+| P2 | Data-retention schedule drafted in [`RETENTION.md`](./RETENTION.md); automated deletion pipeline still to build | 9 | **In progress** |
 | P3 | Demo seed exposes public credentials (fine for demo; gate before real launch) | 1 | Note |
 
 ---
