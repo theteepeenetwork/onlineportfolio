@@ -95,6 +95,48 @@ test("a teacher can create more than one class", async ({ page }) => {
   await expect(page.getByText("Sunflower Class", { exact: true })).toBeVisible();
 });
 
+test("a teacher can edit their profile from Account settings, and the greeting updates", async ({ page }) => {
+  // Sign up a throwaway teacher (isolates the edit from the shared demo account).
+  await fillWizard(page, {
+    title: "Miss",
+    fullName: "Rosa Bell",
+    displayStyle: "first", // greeted "Rosa" at signup
+    email: "rosa.account@school.uk",
+    className: "Daisies",
+    children: "Ada\nBo",
+  });
+  await page.getByRole("button", { name: "Add children" }).click();
+  await expect(page.getByRole("heading", { name: /class code/ })).toBeVisible();
+
+  // Switch the greeting to Title & surname on the Account page and save.
+  await page.goto("/teacher/account");
+  await page.getByRole("button", { name: /Title & surname/ }).click();
+  await page.getByRole("button", { name: /Save changes/ }).click();
+  await expect(page.getByText("Saved ✓")).toBeVisible();
+
+  // The dashboard greeting reflects the new style.
+  await page.goto("/teacher");
+  await expect(page.getByRole("heading", { name: "Hello, Miss Bell 👋" })).toBeVisible();
+});
+
+test("changing password rejects a wrong current password (server-checked)", async ({ page }) => {
+  await fillWizard(page, {
+    fullName: "Pat Vale",
+    email: "pat.account@school.uk",
+    className: "Ferns",
+    children: "Cy",
+  });
+  await page.getByRole("button", { name: "Add children" }).click();
+  await expect(page.getByRole("heading", { name: /class code/ })).toBeVisible();
+
+  await page.goto("/teacher/account");
+  await page.getByPlaceholder("Current password").fill("definitely-wrong");
+  await page.getByPlaceholder(/New password/).fill("brandnew12345");
+  await page.getByPlaceholder("Confirm new password").fill("brandnew12345");
+  await page.getByRole("button", { name: /Update password/ }).click();
+  await expect(page.getByText(/current password isn.t right/i)).toBeVisible();
+});
+
 test("a teacher can add several students at once by pasting a list", async ({ page }) => {
   await teacherLogin(page);
   await page.goto("/teacher/class");

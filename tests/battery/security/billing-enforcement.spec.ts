@@ -61,6 +61,18 @@ test.describe("A8 · Frozen account is blocked from mutations (server-side)", ()
   });
 });
 
+test.describe("A8 · Account management stays available when frozen", () => {
+  test("a frozen teacher can still edit their own profile (not write-gated)", async ({ page }) => {
+    await loginTeacher(page, SCHOOL_C.teacher);
+    await page.goto("/teacher/account");
+    // Editing your own profile is account management — allowed in FROZEN
+    // (RETENTION.md exception). The save must succeed server-side.
+    await page.fill("#acc-name", "Ada Frost");
+    await page.getByRole("button", { name: /Save changes/ }).click();
+    await expect(page.getByText("Saved ✓")).toBeVisible();
+  });
+});
+
 test.describe("A8 · A trial account (full access) can still write", () => {
   test("a trial pupil CAN add a moment (control for the frozen case)", async ({ page }) => {
     await loginStudent(page, SCHOOL_A.classCode, SCHOOL_A.student); // Amara, St Bede's (TRIAL)

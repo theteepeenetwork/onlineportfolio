@@ -127,7 +127,7 @@ export async function assignTemplate(
 export async function duplicateTemplate(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
-  if (!(await requireWritableAccount()).ok) redirect("/teacher/billing?frozen=1");
+  if (!(await requireWritableAccount()).ok) redirect("/teacher/account?frozen=1");
   const id = String(formData.get("templateId") ?? "");
   const t = await db.activityTemplate.findFirst({ where: { id, teacherId: user.teacher.id } });
   if (!t) redirect("/teacher/activities");
@@ -149,7 +149,7 @@ export async function duplicateTemplate(formData: FormData) {
 export async function setTemplateArchived(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
-  if (!(await requireWritableAccount()).ok) redirect("/teacher/billing?frozen=1");
+  if (!(await requireWritableAccount()).ok) redirect("/teacher/account?frozen=1");
   const id = String(formData.get("templateId") ?? "");
   const archived = String(formData.get("archived") ?? "") === "true";
   await db.activityTemplate.updateMany({
@@ -188,7 +188,7 @@ export async function createFolder(
 export async function moveTemplateToFolder(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
-  if (!(await requireWritableAccount()).ok) redirect("/teacher/billing?frozen=1");
+  if (!(await requireWritableAccount()).ok) redirect("/teacher/account?frozen=1");
   const id = String(formData.get("templateId") ?? "");
   const folderId = String(formData.get("folderId") ?? "") || null;
 
@@ -208,7 +208,7 @@ export async function moveTemplateToFolder(formData: FormData) {
 export async function setRunStatus(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
-  if (!(await requireWritableAccount()).ok) redirect("/teacher/billing?frozen=1");
+  if (!(await requireWritableAccount()).ok) redirect("/teacher/account?frozen=1");
   const assignmentId = String(formData.get("assignmentId") ?? "");
   const status = String(formData.get("status") ?? "CLOSED") === "LIVE" ? "LIVE" : "CLOSED";
   const a = await db.assignment.findFirst({

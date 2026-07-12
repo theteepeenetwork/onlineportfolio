@@ -153,7 +153,7 @@ export async function approveItem(formData: FormData) {
 
   // Approval is a mutation — blocked while the account is frozen (read-only).
   const gate = await requireWritableAccount();
-  if (!gate.ok) redirect("/teacher/billing?frozen=1");
+  if (!gate.ok) redirect("/teacher/account?frozen=1");
 
   const id = String(formData.get("itemId") ?? "");
   const skillIds = formData.getAll("skillIds").map(String).filter(Boolean);
@@ -185,7 +185,7 @@ export async function returnItem(formData: FormData) {
 
   // Returning work is a mutation — blocked while the account is frozen.
   const gate = await requireWritableAccount();
-  if (!gate.ok) redirect("/teacher/billing?frozen=1");
+  if (!gate.ok) redirect("/teacher/account?frozen=1");
 
   const id = String(formData.get("itemId") ?? "");
   const note = String(formData.get("teacherNote") ?? "").trim() || null;
