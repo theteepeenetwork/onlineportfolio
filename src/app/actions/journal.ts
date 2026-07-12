@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { savePhoto, saveImageDataUrl, saveImagePages } from "@/lib/media";
+import { savePhoto, saveImageDataUrl, saveImagePages, deleteMediaFiles } from "@/lib/media";
 import { recordAudit } from "@/lib/audit";
 
 // A student (or teacher) adds a new piece of work to a journal.
@@ -122,7 +122,13 @@ export async function createJournalItem(
 async function ownedItem(teacherId: string, id: string) {
   return db.journalItem.findFirst({
     where: { id, class: { teacherId } },
-    select: { id: true, studentId: true, student: { select: { name: true } } },
+    select: {
+      id: true,
+      studentId: true,
+      mediaPath: true,
+      mediaPathsJson: true,
+      student: { select: { name: true } },
+    },
   });
 }
 
@@ -186,7 +192,23 @@ export async function deleteItem(formData: FormData) {
   const item = await ownedItem(user.teacher.id, id);
   if (!item) return;
 
+  // Gather every media file this moment owns before we drop the row, so we can
+  // erase the files too — deletion of a child's work must be real, not just a
+  // row removal (SAFEGUARDING.md rule 9). Mirrors deleteClass in classes.ts.
+  const mediaUrls: Array<string | null> = [item.mediaPath];
+  if (item.mediaPathsJson) {
+    try {
+      const paths = JSON.parse(item.mediaPathsJson);
+      if (Array.isArray(paths)) {
+        for (const p of paths) if (typeof p === "string") mediaUrls.push(p);
+      }
+    } catch {
+      // Malformed JSON — nothing to erase from it.
+    }
+  }
+
   await db.journalItem.delete({ where: { id } });
+  await deleteMediaFiles(mediaUrls);
   await recordAudit({
     action: "MOMENT_DELETED", actorType: "TEACHER", actorId: user.teacher.id, actorName: user.teacher.displayName,
     schoolId: user.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: id, detail: `Deleted ${item.student.name}'s moment`,
