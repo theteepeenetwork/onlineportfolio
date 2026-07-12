@@ -100,7 +100,7 @@ export function ActivityLibrary({
               >
                 <span style={{ width: 14, height: 14, borderRadius: 4, background: f.color, border: "2px solid var(--ink)", flexShrink: 0 }} />
                 <span style={{ flex: 1 }}>{f.name}</span>
-                <span style={{ font: "400 13px var(--font-atkinson)", color: "#8A93A8" }}>{countFor(f.id)}</span>
+                <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>{countFor(f.id)}</span>
               </button>
             );
           })}
@@ -197,7 +197,7 @@ export function ActivityLibrary({
                       ))}
                     </div>
                   )}
-                  <p style={{ margin: "12px 0 0", paddingTop: 12, borderTop: "1px solid #F0EADD", font: "400 13px var(--font-atkinson)", color: "#8A93A8" }}>
+                  <p style={{ margin: "12px 0 0", paddingTop: 12, borderTop: "1px solid #F0EADD", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
                     {t.liveClassNames.length > 0
                       ? `Live in ${t.liveClassNames.length} class${t.liveClassNames.length === 1 ? "" : "es"}${t.waiting > 0 ? ` · ${t.waiting} waiting` : ""}`
                       : t.sentClasses > 0

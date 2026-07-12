@@ -43,18 +43,22 @@ export function FamilySignIn({ expired }: { expired?: boolean }) {
               <input id="pl-email" name="email" type="email" placeholder="you@home.com" required style={INPUT} />
               <button type="submit" disabled={magicPending} style={{ width: "100%", marginTop: 14, font: "700 18px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", border: "none", padding: 15, borderRadius: 999, boxShadow: "0 4px 0 var(--jam-deep)", cursor: "pointer", opacity: magicPending ? 0.7 : 1 }}>{magicPending ? "Sending…" : "Email me a magic link"}</button>
               {magic.error && <p role="alert" style={{ margin: "12px 0 0", font: "700 15px var(--font-atkinson)", color: "var(--jam)", background: "var(--error-tint)", borderRadius: 10, padding: "10px 14px" }}>{magic.error}</p>}
-              {magic.openUrl && (
+              {magic.sent && (
                 <p style={{ margin: "12px 0 0", font: "700 15px var(--font-atkinson)", color: "#2E6B64", background: "var(--glass-light)", borderRadius: 10, padding: "10px 14px" }}>
-                  ✓ Check your inbox — we&apos;ve sent a one-tap link.{" "}
-                  {/* A real navigation (not client routing) so the magic-link route can set the session cookie. */}
-                  <a href={magic.openUrl} style={{ color: "#2E6B64", fontWeight: 700, textDecoration: "underline" }}>Open it now →</a>
+                  {/* Neutral by design: identical for known and unknown emails so
+                      the form never reveals which addresses are registered. */}
+                  ✓ If that email is on file, we&apos;ve sent a one-tap link — check your inbox.{" "}
+                  {magic.openUrl && (
+                    // A real navigation (not client routing) so the magic-link route can set the session cookie.
+                    <a href={magic.openUrl} style={{ color: "#2E6B64", fontWeight: 700, textDecoration: "underline" }}>Open it now →</a>
+                  )}
                 </p>
               )}
             </form>
 
             <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "24px 0" }}>
               <span style={{ flex: 1, height: 2, background: "var(--calm-border)" }} />
-              <span style={{ font: "700 13px var(--font-atkinson)", color: "#8A93A8" }}>OR</span>
+              <span style={{ font: "700 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>OR</span>
               <span style={{ flex: 1, height: 2, background: "var(--calm-border)" }} />
             </div>
 

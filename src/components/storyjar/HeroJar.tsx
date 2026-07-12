@@ -64,7 +64,7 @@ export function HeroJar() {
         </g>
         <g data-scroll-tile="3">
           <g transform="translate(234,350) rotate(-4)">
-            <rect x="0" y="0" width="62" height="62" rx="5" fill="#4E9C94" />
+            <rect x="0" y="0" width="62" height="62" rx="5" fill="#37796f" />
             <path d="M12,42 C18,26 24,26 28,38 C32,50 38,50 42,34 C45,24 50,24 52,32" fill="none" stroke="#EAF4F1" strokeWidth="5" strokeLinecap="round" />
           </g>
         </g>
@@ -89,7 +89,7 @@ export function HeroJar() {
         <g data-scroll-tile="6">
           <g transform="translate(252,282) rotate(4)">
             <rect x="0" y="0" width="56" height="56" rx="5" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
-            <text x="28" y="37" fontFamily="var(--font-fredoka)" fontWeight="600" fontSize="22" fill="#4E9C94" textAnchor="middle">3+4</text>
+            <text x="28" y="37" fontFamily="var(--font-fredoka)" fontWeight="600" fontSize="22" fill="#37796f" textAnchor="middle">3+4</text>
           </g>
         </g>
         <g data-scroll-tile="7">
@@ -97,7 +97,7 @@ export function HeroJar() {
             <rect x="0" y="0" width="58" height="58" rx="5" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
             <path d="M12,44 C12,26 46,26 46,44" fill="none" stroke="#C2476B" strokeWidth="5" strokeLinecap="round" />
             <path d="M20,44 C20,32 38,32 38,44" fill="none" stroke="#F0B441" strokeWidth="5" strokeLinecap="round" />
-            <path d="M27,44 C27,39 31,39 31,44" fill="none" stroke="#4E9C94" strokeWidth="5" strokeLinecap="round" />
+            <path d="M27,44 C27,39 31,39 31,44" fill="none" stroke="#37796f" strokeWidth="5" strokeLinecap="round" />
           </g>
         </g>
         <g data-scroll-tile="8">

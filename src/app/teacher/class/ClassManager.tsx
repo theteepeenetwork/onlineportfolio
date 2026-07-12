@@ -95,6 +95,35 @@ export function ClassManager({ classes }: { classes: ClassCard[] }) {
   const [addingChild, setAddingChild] = useState(false);
   const [settings, setSettings] = useState(false);
 
+  // Interruption resilience (FINDINGS F12): a *reload* shouldn't lose your place.
+  // Restore the open class (and add-child panel) from sessionStorage ONLY when
+  // the page was reloaded — not on normal navigation, so clicking "Classes" in
+  // the nav still lands on the grid as expected. Transient storage (cleared on
+  // tab close) keeps nothing on the device longer than the working session.
+  useEffect(() => {
+    try {
+      const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+      if (nav?.type !== "reload") return;
+      const saved = JSON.parse(sessionStorage.getItem("sj-class-place") || "null");
+      if (saved && classes.some((c) => c.id === saved.openId)) {
+        setOpenId(saved.openId);
+        setAddingChild(!!saved.addingChild);
+      }
+    } catch {
+      /* ignore malformed state / missing API */
+    }
+    // Mount only — restore once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    try {
+      if (openId) sessionStorage.setItem("sj-class-place", JSON.stringify({ openId, addingChild }));
+      else sessionStorage.removeItem("sj-class-place");
+    } catch {
+      /* storage unavailable — non-fatal */
+    }
+  }, [openId, addingChild]);
+
   const open = classes.find((c) => c.id === openId) ?? null;
 
   // If the open class disappears (e.g. deleted), fall back to the grid.
@@ -265,6 +294,14 @@ function SettingsStrip({ klass }: { klass: ClassCard }) {
       <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>
         Class code <strong style={{ letterSpacing: "0.12em" }}>{klass.code}</strong> · settings mode: use <strong>Remove</strong> beside a child to take them off the register.
       </p>
+      {/* Data export (F4) — download the whole class as JSON at any time. */}
+      <a
+        href={`/teacher/export/${klass.id}`}
+        download
+        style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+      >
+        ⭳ Export class data
+      </a>
       <DeleteClassZone klass={klass} />
     </div>
   );
@@ -394,13 +431,38 @@ function AddChildForm({ classId }: { classId: string }) {
   const [state, action, pending] = useActionState(addStudents, {});
   const ref = useRef<HTMLFormElement>(null);
   const [value, setValue] = useState("");
+  const draftKey = `sj-draft-add-${classId}`;
+
+  // Restore any half-typed register after a reload (FINDINGS F12).
+  useEffect(() => {
+    try {
+      const d = sessionStorage.getItem(draftKey);
+      if (d) setValue(d);
+    } catch {
+      /* storage unavailable */
+    }
+  }, [draftKey]);
+  // Keep the draft in sync as they type.
+  useEffect(() => {
+    try {
+      if (value) sessionStorage.setItem(draftKey, value);
+      else sessionStorage.removeItem(draftKey);
+    } catch {
+      /* storage unavailable */
+    }
+  }, [value, draftKey]);
 
   useEffect(() => {
     if (!pending && !state.error && state.added) {
       ref.current?.reset();
       setValue("");
+      try {
+        sessionStorage.removeItem(draftKey);
+      } catch {
+        /* storage unavailable */
+      }
     }
-  }, [pending, state]);
+  }, [pending, state, draftKey]);
 
   const count = new Set(
     value.split(/[\n,]+/).map((n) => n.trim().toLowerCase()).filter(Boolean),

@@ -74,11 +74,11 @@ export default async function StudentHome() {
             <path d="M30,20 L70,20 L70,30 C82,36 86,46 86,58 L86,98 Q86,114 70,114 L30,114 Q14,114 14,98 L14,58 C14,46 18,36 30,30 Z" fill="#EAF4F1" stroke="#22304A" strokeWidth="5" strokeLinejoin="round" />
             {published.length > 0 && <rect x="24" y="92" width="17" height="17" rx="4" fill="#C2476B" transform="rotate(-6 32 100)" />}
             {published.length > 1 && <rect x="45" y="96" width="17" height="17" rx="4" fill="#F0B441" transform="rotate(5 53 104)" />}
-            {published.length > 2 && <rect x="60" y="90" width="17" height="17" rx="4" fill="#4E9C94" transform="rotate(-4 68 98)" />}
+            {published.length > 2 && <rect x="60" y="90" width="17" height="17" rx="4" fill="#37796f" transform="rotate(-4 68 98)" />}
             {published.length > 3 && <rect x="34" y="74" width="17" height="17" rx="4" fill="#8AB9D6" transform="rotate(4 42 82)" />}
             {published.length > 4 && <rect x="54" y="72" width="17" height="17" rx="4" fill="#A6C979" transform="rotate(-5 62 80)" />}
           </svg>
-          <span style={{ font: "600 20px var(--font-fredoka)", color: "var(--glass)" }}>{published.length} {published.length === 1 ? "moment" : "moments"}</span>
+          <span style={{ font: "600 20px var(--font-fredoka)", color: "#37796f" }}>{published.length} {published.length === 1 ? "moment" : "moments"}</span>
           <form action={logout}>
             <button type="submit" style={{ minHeight: 56, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>Bye bye 👋</button>
           </form>

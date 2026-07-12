@@ -2,37 +2,35 @@ import { test, expect } from "@playwright/test";
 import { SCHOOL_A } from "../helpers";
 
 // ===========================================================================
-// FINDINGS F2 (High) & F6 (Low) — no rate limiting; user-enumeration
+// F2 & F6 (FIXED — regression guards) — rate limiting & no enumeration
 //
-// There is no throttling on teacher login, parent family-code sign-in, magic-
-// link requests, or the class-code lookup (F2) — brute force and enumeration
-// are unbounded. And requestMagicLink reveals whether an email is on file (F6).
+// Login, family-code sign-in and magic-link requests are now throttled by a
+// failure-count limiter (src/lib/rateLimit.ts), and requestMagicLink returns a
+// neutral response that never discloses whether an email is on file.
 //
-// These assert the INTENDED behaviour (throttling; non-revealing responses), so
-// they FAIL today. Non-blocking `security-findings` project. Per the agreed
-// plan, rate limiting is logged, not silently added — see FINDINGS.md.
-//
-// Each test is written to be DETERMINISTIC: it waits for every submission's POST
-// to complete and asserts the mechanism actually engaged (a guard), so a pass
-// can only mean the gap is genuinely closed — never a timing fluke.
+// These tests deliberately trip the throttle (many wrong attempts), which sets
+// a real 15-minute block in the shared dev-server process. That would
+// contaminate sibling logins in the gating run, so this spec stays in the
+// REPORT-ONLY `security-findings` project rather than the blocking gate.
 // ===========================================================================
 
 const THROTTLE = /too many|slow down|locked|try again later|rate.?limit/i;
 
 test("teacher login throttles after repeated wrong passwords [F2]", async ({ page }) => {
   await page.goto("/login/teacher");
+  const submit = page.locator('button[type="submit"]');
   let sawNormalRejection = false;
   let throttled = false;
 
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 8; i++) {
     await page.fill("#email", SCHOOL_A.admin.email);
     await page.fill("#password", `wrong-${i}`);
-    await Promise.all([
-      page.waitForResponse((r) => r.request().method() === "POST"),
-      page.click('button[type="submit"]'),
-    ]);
+    await submit.click();
+    // Wait for the action to complete (the button un-disables) — robust and
+    // race-free vs. waiting on the response.
+    await expect(submit).toBeEnabled();
     const body = await page.locator("body").innerText();
-    if (/email and password don'?t match/i.test(body)) sawNormalRejection = true;
+    if (/password don.?t match/i.test(body)) sawNormalRejection = true;
     if (THROTTLE.test(body)) {
       throttled = true;
       break;
@@ -41,7 +39,7 @@ test("teacher login throttles after repeated wrong passwords [F2]", async ({ pag
 
   // Guard: prove the loop actually exercised login (not a silent no-op).
   expect(sawNormalRejection, "login attempts were processed").toBe(true);
-  // SECURE expectation (FAILS today): brute force is eventually throttled.
+  // Now-fixed (F2): brute force is throttled after repeated failures.
   expect(throttled, "expected login to throttle after many failed attempts").toBe(true);
 });
 
@@ -64,8 +62,9 @@ test("magic-link request does not reveal whether an email is on file [F6]", asyn
   // Guard: prove we captured a real response.
   expect(msg.length, "captured a response message").toBeGreaterThan(0);
   // SECURE expectation (FAILS today): the response must not disclose non-existence.
+  // (`.` matches either a straight or curly apostrophe in the app's copy.)
   expect(
-    /couldn'?t find a family|no family|not found/i.test(msg),
+    /find a family|no family|not found/i.test(msg),
     "response discloses that the email is not registered (enumeration)",
   ).toBe(false);
 });
@@ -74,16 +73,15 @@ test("family-code sign-in throttles brute force [F2]", async ({ page }) => {
   await page.goto("/family");
   await page.getByRole("button", { name: /family code from your letter/i }).click();
 
+  const signIn = page.getByRole("button", { name: /^sign in$/i });
   let sawNormalRejection = false;
   let throttled = false;
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 8; i++) {
     await page.getByLabel(/family code from your letter/i).fill(`BAD${i}23`);
-    await Promise.all([
-      page.waitForResponse((r) => r.request().method() === "POST"),
-      page.getByRole("button", { name: /^sign in$/i }).click(),
-    ]);
+    await signIn.click();
+    await expect(signIn).toBeEnabled();
     const body = await page.locator("body").innerText();
-    if (/isn'?t right/i.test(body)) sawNormalRejection = true;
+    if (/isn.?t right/i.test(body)) sawNormalRejection = true;
     if (THROTTLE.test(body)) {
       throttled = true;
       break;

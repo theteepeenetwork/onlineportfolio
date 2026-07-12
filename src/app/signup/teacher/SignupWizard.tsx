@@ -47,7 +47,7 @@ const STEP_TAG = (bg: string, tilt: string): React.CSSProperties => ({
   font: "600 16px var(--font-fredoka)",
 });
 
-const PROGRESS_FILLS = ["#C2476B", "#F0B441", "#4E9C94", "#8AB9D6", "#A6C979"];
+const PROGRESS_FILLS = ["#C2476B", "#F0B441", "#37796f", "#8AB9D6", "#A6C979"];
 
 const COUNTRIES = ["England", "Scotland", "Wales", "Northern Ireland", "Elsewhere"];
 const YEAR_GROUPS = ["Nursery", "Reception", "Year 1", "Year 2", "Mixed / other"];
@@ -293,7 +293,7 @@ export function SignupWizard() {
             <textarea id="su-children" rows={8} value={childrenText} onChange={(e) => setChildrenText(e.target.value)} placeholder={"Poppy\nJesse\nAmara\nOliver\n…"} style={{ ...INPUT, font: "400 18px/1.7 var(--font-atkinson)", resize: "vertical" }} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16, background: "#D8ECE8", borderRadius: 12, padding: "12px 16px" }}>
-            <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="10" fill="#4E9C94" /><path d="M6.5,11 L9.8,14.5 L15.5,7.5" fill="none" stroke="#FFFDF7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="10" fill="#37796f" /><path d="M6.5,11 L9.8,14.5 L15.5,7.5" fill="none" stroke="#FFFDF7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <p style={{ margin: 0, font: "400 15px/1.5 var(--font-atkinson)", color: "var(--ink)" }}>
               <strong>That’s all we need.</strong> No surnames required, no emails, no photos.{" "}
               <span style={{ color: "#2E6B64" }}>{n === 0 ? "" : n === 1 ? "1 child so far." : `${n} children so far.`}</span>

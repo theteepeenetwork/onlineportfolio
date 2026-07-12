@@ -2,22 +2,14 @@ import { test, expect } from "@playwright/test";
 import { SCHOOL_A, SCHOOL_B, studentIdFromLogin } from "../helpers";
 
 // ===========================================================================
-// FINDING F1 (High) — studentLogin trusts a client-supplied studentId
+// F1 (FIXED — regression guard) — studentLogin is bound to the class code
 //
-// src/app/actions/auth.ts:studentLogin() takes `studentId` straight from the
-// posted form and mints a STUDENT session for it, with NO check that the
-// requester actually entered that pupil's class code. The class-code gate is
-// only a page-render step, so a crafted submit can sign in as ANY pupil whose
-// id is known — including a pupil in a DIFFERENT school.
-//
-// This test asserts the INTENDED secure behaviour (a studentId from another
-// class must be refused), so it FAILS while the gap is open. It runs in the
-// non-blocking `security-findings` project. When F1 is fixed, this test goes
-// green — delete the finding from FINDINGS.md at that point.
-//
-// Repro: land on School A's login (SUN123), swap a name-card's hidden studentId
-// for a School B pupil's id, submit. Securely this must NOT sign us in as the
-// School B pupil.
+// studentLogin() now re-checks on the server that the chosen studentId belongs
+// to the class whose code was entered (src/app/actions/auth.ts), so a pupil id
+// alone — especially one from another school — can no longer mint a session.
+// This test guards that fix: it swaps a School-A name-card's hidden studentId
+// for a School-B pupil's id and asserts the cross-class login is refused.
+// (Promoted from the findings project to the blocking security gate.)
 // ===========================================================================
 
 test("a pupil id from another class cannot be used to sign in [F1]", async ({ page }) => {

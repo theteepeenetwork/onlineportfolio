@@ -8,7 +8,7 @@
   --background: #faf6ee; /* paper */
   --surface: #fffdf7; /* cream */
   --foreground: #22304a; /* ink */
-  --muted: #6b7690;
+  --muted: #5b6379; /* darkened to meet WCAG 2.2 AA (F11) */
   --border: #e4dcc8; /* calm kraft border */
   --brand: #c2476b; /* jam */
   --brand-dark: #a93a5c;
@@ -21,11 +21,14 @@
   --cream: #fffdf7; /* cards / surfaces */
   --ink: #22304a; /* text, 3px outlines, dark sections */
   --ink-soft: #43506b; /* body copy */
-  --sj-muted: #6b7690; /* metadata / captions */
-  --glass: #4e9c94; /* approve actions, focus rings, success */
+  --sj-muted: #5b6379; /* metadata / captions — darkened to meet WCAG 2.2 AA (F11) */
+  --glass: #37796f; /* approve actions, focus rings, success — darkened so white
+                       button text meets WCAG 2.2 AA 4.5:1 (F11) */
+  --glass-ink: #2e6b64; /* AA-safe teal for TEXT on light backgrounds (F11) */
   --glass-light: #d8ece8; /* jar glass fill, tints, chips */
   --glass-jar: #eaf4f1; /* fill inside jar SVG */
-  --jam: #c2476b; /* primary CTAs, celebration */
+  --jam: #bd3f63; /* primary CTAs, celebration — nudged darker so white button
+                     text and jam-on-light text meet WCAG 2.2 AA 4.5:1 (F11) */
   --jam-deep: #93304f; /* jam press shadow */
   --jam-dark: #a93a5c; /* jam hover */
   --honey: #f0b441; /* highlights, twinkles, waiting */
@@ -294,7 +297,7 @@ h4 {
   margin: 0 0 12px;
   display: inline-block;
   font: 700 14px var(--font-body);
-  color: var(--glass);
+  color: var(--glass-ink); /* AA contrast for small text (F11) */
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -371,7 +374,9 @@ h4 {
 .legal-prose p { margin: 0 0 14px; }
 .legal-prose ul { margin: 0 0 14px; padding-left: 22px; }
 .legal-prose li { margin: 0 0 7px; }
-.legal-prose a { color: var(--jam); }
+/* Underline so links are distinguishable without relying on colour (WCAG 2.2
+   AA 1.4.1 — fixes link-in-text-block, F11). */
+.legal-prose a { color: var(--jam); text-decoration: underline; }
 .legal-prose strong { color: var(--ink); }
 .legal-prose code {
   font: 400 14px ui-monospace, monospace;

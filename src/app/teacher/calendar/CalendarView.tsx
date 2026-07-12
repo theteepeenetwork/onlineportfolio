@@ -176,7 +176,7 @@ export function CalendarView({
       {/* summary strip */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 18 }}>
         <Stat value={`${summary.runs}`} label="Runs this month" color="var(--ink)" />
-        <Stat value={`${summary.pct}%`} label="Completion" color="var(--glass)" />
+        <Stat value={`${summary.pct}%`} label="Completion" color="#37796f" />
         <Stat value={`${summary.live}`} label="Live now" color="var(--ink)" />
         <Stat value={`${summary.waiting}`} label="Waiting to approve" color="var(--honey-ink)" />
         <Stat value={`${summary.overdue}`} label="Overdue" color={summary.overdue > 0 ? "var(--jam)" : "var(--sj-muted)"} />
@@ -270,7 +270,7 @@ function MonthGrid({
 function DayPill({ run, today }: { run: CalendarRun; today: Date }) {
   const t = classTint(run.classIndex);
   const f = runFlags(run, today);
-  const dot = f.overdue ? "var(--jam)" : f.dueSoon ? "var(--honey)" : f.complete ? "var(--glass)" : "transparent";
+  const dot = f.overdue ? "var(--jam)" : f.dueSoon ? "var(--honey)" : f.complete ? "#37796f" : "transparent";
   return (
     <span title={`${run.title} · ${run.className} · ${run.completed}/${run.assigned} in the jar`}
       style={{ display: "flex", alignItems: "center", gap: 5, background: t.color, border: "1px solid rgba(34,48,74,0.15)", borderRadius: 6, padding: "2px 6px", font: "700 11px var(--font-atkinson)", color: "var(--ink)", minWidth: 0, opacity: run.status === "CLOSED" ? 0.65 : 1 }}>
@@ -373,7 +373,7 @@ function ProgressBar({ completed, waiting, assigned }: { completed: number; wait
   const pctW = assigned ? Math.min(100 - pctC, (waiting / assigned) * 100) : 0;
   return (
     <div style={{ height: 8, borderRadius: 999, background: "var(--calm-border)", overflow: "hidden", display: "flex" }}>
-      <div style={{ width: `${pctC}%`, background: "var(--glass)" }} />
+      <div style={{ width: `${pctC}%`, background: "#37796f" }} />
       <div style={{ width: `${pctW}%`, background: "var(--honey)" }} />
     </div>
   );

@@ -1,0 +1,103 @@
+name: QA battery
+
+# Runs the UX / security / a11y battery on every PR and on pushes to main.
+# BLOCKING gates (must pass to merge): static-security, security, a11y, e2e.
+# REPORT-ONLY (non-blocking, informational): ux, findings, perf.
+# See TEST_PLAN.md and FINDINGS.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: battery-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: "file:./dev.db"
+
+jobs:
+  # ---- Fast static gates (blocking) ----
+  static-security:
+    name: Static security gates (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - name: No unsafe raw queries / dangerouslySetInnerHTML
+        run: node scripts/audit-static.mjs
+      - name: R2 tripwire (media migration guard)
+        run: node scripts/check-r2-tripwire.mjs
+      - name: Production dependency audit (fail on high)
+        run: npm run audit:prod
+      - name: Error-string audit (report-only)
+        run: node scripts/error-string-audit.mjs || true
+
+  # ---- Security battery (blocking) ----
+  security:
+    name: Security tests (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx prisma db push
+      - name: Security project
+        run: npx playwright test -c playwright.battery.config.ts --project=security
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with: { name: security-report, path: playwright-report/battery, retention-days: 14 }
+
+  # ---- Accessibility battery (blocking, WCAG 2.2 AA baseline) ----
+  a11y:
+    name: Accessibility tests (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx prisma db push
+      - name: a11y project (fails on NEW serious/critical AA violations)
+        run: npx playwright test -c playwright.battery.config.ts --project=a11y
+
+  # ---- Functional E2E (blocking) ----
+  e2e:
+    name: Functional E2E (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx prisma db push
+      - run: npm run test:e2e
+
+  # ---- Report-only: UX + findings + perf (never blocks merge) ----
+  report-only:
+    name: UX / findings / perf (report-only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx prisma db push
+      - name: UX project
+        run: npx playwright test -c playwright.battery.config.ts --project=ux
+        continue-on-error: true
+      - name: Security findings (documents open gaps — expected to fail)
+        run: npx playwright test -c playwright.battery.config.ts --project=security-findings
+        continue-on-error: true
+      - name: Lighthouse performance budgets
+        run: npm run test:perf
+        continue-on-error: true

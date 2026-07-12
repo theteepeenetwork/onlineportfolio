@@ -21,7 +21,7 @@ export function JarLogo({
       />
       <rect x="30" y="76" width="16" height="16" rx="3" fill="var(--jam)" transform="rotate(-8 38 84)" />
       <rect x="52" y="82" width="16" height="16" rx="3" fill="var(--honey)" transform="rotate(6 60 90)" />
-      <rect x="42" y="58" width="16" height="16" rx="3" fill="var(--glass)" transform="rotate(-4 50 66)" />
+      <rect x="42" y="58" width="16" height="16" rx="3" fill="#37796f" transform="rotate(-4 50 66)" />
     </svg>
   );
 }

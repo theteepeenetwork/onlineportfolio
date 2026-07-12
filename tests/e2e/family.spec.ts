@@ -45,11 +45,14 @@ test.describe("Parent / family space", () => {
     await expect(page.getByRole("heading", { name: /grown-ups/ })).toBeVisible();
   });
 
-  test("an unknown email is nudged toward the family code", async ({ page }) => {
+  test("an unknown email gets a neutral response (no account enumeration)", async ({ page }) => {
+    // Security (FINDINGS F6): the response must NOT reveal whether an email is on
+    // file — it's identical for known and unknown addresses.
     await page.goto("/family");
     await page.fill("#pl-email", "nobody@nowhere.com");
     await page.getByRole("button", { name: "Email me a magic link" }).click();
-    await expect(page.getByText(/couldn.t find a family with that email/)).toBeVisible();
+    await expect(page.getByText(/if that email is on file/i)).toBeVisible();
+    await expect(page.getByText(/couldn.t find a family/i)).toHaveCount(0);
   });
 
   test("a wrong family code is rejected", async ({ page }) => {

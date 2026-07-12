@@ -46,7 +46,7 @@ const ACTION_LABEL: Record<string, string> = {
   CLASS_DELETED: "Deleted a class",
 };
 
-const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#4E9C94", "#E8A06A", "#C2476B"];
+const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#37796f", "#E8A06A", "#C2476B"];
 function avatarColor(seed: string) {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
@@ -114,7 +114,7 @@ export function AdminConsole({
 
   const stats = [
     { value: `${staff.length}`, label: "Staff", sub: invited > 0 ? `${invited} invite${invited === 1 ? "" : "s"} pending` : "all active", color: "#22304A" },
-    { value: `${classes.length}`, label: "Classes", sub: "across the school", color: "#4E9C94" },
+    { value: `${classes.length}`, label: "Classes", sub: "across the school", color: "#37796f" },
     { value: `${childrenCount}`, label: "Children", sub: "no child logins", color: "#C2476B" },
     { value: `${staff.length} / ${seatLimit}`, label: "Seats used", sub: plan.toLowerCase(), color: "#B07A1E" },
   ];
@@ -153,7 +153,7 @@ export function AdminConsole({
       <main style={{ maxWidth: 1080, margin: "0 auto", padding: "28px 32px 60px" }}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
           <div>
-            <p style={{ margin: 0, font: "700 14px var(--font-atkinson)", color: "#6B7690" }}>{schoolName}</p>
+            <p style={{ margin: 0, font: "700 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{schoolName}</p>
             <h1 style={{ margin: "4px 0 0", font: "600 32px var(--font-fredoka)" }}>
               {tab === "staff" ? "Staff & whole-school" : tab === "overview" ? "School overview" : tab === "classes" ? "Classes" : tab === "safeguarding" ? "Safeguarding" : tab === "audit" ? "Audit log" : "Billing & seats"}
             </h1>
@@ -170,7 +170,7 @@ export function AdminConsole({
               <div key={st.label} style={CARD}>
                 <p style={{ margin: 0, font: "600 30px var(--font-fredoka)", color: st.color }}>{st.value}</p>
                 <p style={{ margin: "2px 0 0", font: "700 14px var(--font-atkinson)", color: "#43506B" }}>{st.label}</p>
-                <p style={{ margin: "2px 0 0", font: "400 13px var(--font-atkinson)", color: "#8A93A8" }}>{st.sub}</p>
+                <p style={{ margin: "2px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>{st.sub}</p>
               </div>
             ))}
           </div>
@@ -187,7 +187,7 @@ export function AdminConsole({
               onToggleMenu={(id) => { setMenuId(menuId === id ? null : id); setSubmenu(null); }}
               onSubmenu={setSubmenu}
             />
-            <p style={{ margin: "14px 2px 0", font: "400 14px var(--font-atkinson)", color: "#8A93A8" }}>
+            <p style={{ margin: "14px 2px 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>
               Each teacher manages their own classes and approval queue. Admins can invite staff, assign classes and manage the school subscription — but never see children&apos;s work unless they teach the class.
             </p>
           </>
@@ -204,10 +204,10 @@ export function AdminConsole({
 
         {tab === "classes" && (
           <div style={{ ...CARD, marginTop: 24, padding: 0, overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 12, padding: "14px 22px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "#8A93A8", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 12, padding: "14px 22px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
               <span>Class</span><span>Teacher</span><span>Children</span>
             </div>
-            {classes.length === 0 && <p style={{ padding: "18px 22px", margin: 0, color: "#8A93A8" }}>No classes yet.</p>}
+            {classes.length === 0 && <p style={{ padding: "18px 22px", margin: 0, color: "var(--sj-muted)" }}>No classes yet.</p>}
             {classes.map((c) => (
               <div key={c.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 12, alignItems: "center", padding: "14px 22px", borderBottom: "1px solid #F5F0E6" }}>
                 <span style={{ font: "700 16px var(--font-atkinson)" }}>{c.name}</span>
@@ -231,17 +231,17 @@ export function AdminConsole({
 
         {tab === "audit" && (
           <div style={{ marginTop: 24 }}>
-            <p style={{ margin: "0 0 14px", font: "400 15px var(--font-atkinson)", color: "#8A93A8" }}>A record of safeguarding-relevant actions across the school — approvals, moments sent back or deleted, and staff/role changes.</p>
+            <p style={{ margin: "0 0 14px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>A record of safeguarding-relevant actions across the school — approvals, moments sent back or deleted, and staff/role changes.</p>
             {audit.length === 0 ? (
-              <div className="sj-card" style={{ ...CARD, padding: "28px 24px", textAlign: "center", color: "#8A93A8" }}>Nothing recorded yet.</div>
+              <div className="sj-card" style={{ ...CARD, padding: "28px 24px", textAlign: "center", color: "var(--sj-muted)" }}>Nothing recorded yet.</div>
             ) : (
               <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1.4fr 2.2fr", gap: 12, padding: "12px 20px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "#8A93A8", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1.4fr 2.2fr", gap: 12, padding: "12px 20px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                   <span>When</span><span>Who &amp; what</span><span>Detail</span>
                 </div>
                 {audit.map((e) => (
                   <div key={e.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.4fr 2.2fr", gap: 12, alignItems: "baseline", padding: "12px 20px", borderBottom: "1px solid #F5F0E6" }}>
-                    <span style={{ font: "400 13px var(--font-atkinson)", color: "#8A93A8" }}>{new Date(e.atISO).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                    <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>{new Date(e.atISO).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                     <span style={{ font: "400 14px var(--font-atkinson)" }}><strong>{e.actorName}</strong> · {ACTION_LABEL[e.action] ?? e.action}</span>
                     <span style={{ font: "400 14px var(--font-atkinson)", color: "#43506B" }}>{e.detail ?? "—"}</span>
                   </div>
@@ -254,7 +254,7 @@ export function AdminConsole({
         {tab === "billing" && (
           <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
             <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Seats &amp; plan</h2>
-            <p style={{ margin: "10px 0 0", font: "600 40px var(--font-fredoka)" }}>{staff.length} <span style={{ font: "400 18px var(--font-atkinson)", color: "#8A93A8" }}>of {seatLimit} seats used</span></p>
+            <p style={{ margin: "10px 0 0", font: "600 40px var(--font-fredoka)" }}>{staff.length} <span style={{ font: "400 18px var(--font-atkinson)", color: "var(--sj-muted)" }}>of {seatLimit} seats used</span></p>
             <p style={{ margin: "4px 0 0", font: "400 15px var(--font-atkinson)", color: "#43506B" }}>{plan}{invited > 0 ? ` · ${invited} invited and not yet active` : ""}.</p>
           </div>
         )}
@@ -281,7 +281,7 @@ function StaffTable({
   const cols = "2.2fr 1.4fr 1.6fr 1fr 44px";
   return (
     <div style={{ marginTop: 30, background: "#FFFDF7", border: "2px solid #E4DCC8", borderRadius: 16, overflow: "visible" }}>
-      <div style={{ display: "grid", gridTemplateColumns: cols, gap: 12, padding: "14px 22px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "#8A93A8", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+      <div style={{ display: "grid", gridTemplateColumns: cols, gap: 12, padding: "14px 22px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
         <span>Name</span><span>Role</span><span>Classes</span><span>Status</span><span />
       </div>
       {staff.map((p) => {
@@ -293,8 +293,8 @@ function StaffTable({
             <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
               <span style={{ width: 40, height: 40, borderRadius: "50%", background: avatarColor(p.id), display: "flex", alignItems: "center", justifyContent: "center", font: "600 16px var(--font-fredoka)", color: "#FFFDF7", flexShrink: 0 }}>{initials(p.name)}</span>
               <div style={{ minWidth: 0 }}>
-                <p style={{ margin: 0, font: "700 16px var(--font-atkinson)" }}>{p.name}{p.isYou && <span style={{ color: "#8A93A8", fontWeight: 400 }}> · you</span>}</p>
-                <p style={{ margin: "1px 0 0", font: "400 13px var(--font-atkinson)", color: "#8A93A8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.email}</p>
+                <p style={{ margin: 0, font: "700 16px var(--font-atkinson)" }}>{p.name}{p.isYou && <span style={{ color: "var(--sj-muted)", fontWeight: 400 }}> · you</span>}</p>
+                <p style={{ margin: "1px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.email}</p>
               </div>
             </div>
             <span style={{ font: "700 13px var(--font-atkinson)", color: rs.color, background: rs.bg, border: `1px solid ${rs.border}`, borderRadius: 999, padding: "5px 12px", justifySelf: "start", whiteSpace: "nowrap" }}>{rs.label}</span>
@@ -308,7 +308,7 @@ function StaffTable({
               )}
             </div>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, font: "700 13px var(--font-atkinson)", color: invited ? "#B07A1E" : "#2E6B64", whiteSpace: "nowrap" }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: invited ? "#F0B441" : "#4E9C94" }} />
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: invited ? "#F0B441" : "#37796f" }} />
               {invited ? "Invited" : "Active"}
             </span>
 
@@ -405,7 +405,7 @@ function ClassesSubmenu({ staff, classes, onBack }: { staff: StaffRow; classes: 
     <>
       <button onClick={onBack} style={{ ...MENU_ITEM, color: "#43506B", font: "700 13px var(--font-atkinson)" }}>← Assign classes</button>
       <div style={{ height: 1, background: "#F0EADD", margin: "4px 0" }} />
-      {classes.length === 0 && <p style={{ margin: 0, padding: "9px 12px", font: "400 13px var(--font-atkinson)", color: "#8A93A8" }}>No classes yet.</p>}
+      {classes.length === 0 && <p style={{ margin: 0, padding: "9px 12px", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>No classes yet.</p>}
       {classes.map((c) => {
         const mine = c.teacherId === staff.id;
         return (

@@ -46,7 +46,7 @@ test("a teacher can sign up through the wizard and gets a class code", async ({ 
 
   // Success step: the class name and a generated code, plus the sign-in guide.
   await expect(page.getByRole("heading", { name: /Rainbow Class.s class code/ })).toBeVisible();
-  await expect(page.getByText("How your children sign in")).toBeVisible();
+  await expect(page.getByText("How your pupils sign in")).toBeVisible();
 });
 
 test("the dashboard greets a formal teacher by title + surname, not just the title", async ({ page }) => {

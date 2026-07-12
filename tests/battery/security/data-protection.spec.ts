@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { SCHOOL_A, SCHOOL_B, loginTeacher, loginParent } from "../helpers";
+import path from "node:path";
+import { existsSync } from "node:fs";
+import { SCHOOL_A, SCHOOL_B, loginTeacher, loginParent, studentIdFromLogin } from "../helpers";
 
 // ===========================================================================
 // A11 — Data protection (DPIA evidence)
@@ -78,4 +80,52 @@ test("removing a pupil deletes the row (cascade works)", async ({ page }) => {
   await removeBtn.click();
 
   await expect(page.getByText("Tempdeletee")).toHaveCount(0);
+});
+
+test("a teacher can export their own class; another tenant cannot (F4)", async ({ page }) => {
+  // School B teacher opens Acorn settings and finds the export link.
+  await loginTeacher(page, SCHOOL_B.teacher);
+  await page.goto("/teacher/class");
+  await page.getByRole("button", { name: /acorn/i }).click();
+  await page.getByRole("button", { name: /class settings/i }).click();
+  const href = await page.getByRole("link", { name: /export class data/i }).getAttribute("href");
+  expect(href).toMatch(/^\/teacher\/export\//);
+
+  // Own class → 200 with the pupils' data.
+  const mine = await page.request.get(href!);
+  expect(mine.status()).toBe(200);
+  expect(mine.headers()["content-disposition"]).toContain("attachment");
+  const body = await mine.json();
+  expect(body.schema).toBe("storyjar-class-export-v1");
+  expect(JSON.stringify(body)).toContain("Zara");
+
+  // Cross-tenant: School A admin must NOT be able to export School B's class.
+  await loginTeacher(page, SCHOOL_A.admin);
+  const theirs = await page.request.get(href!);
+  expect(theirs.status()).toBe(404);
+});
+
+test("deleting a moment erases its media file too (rule 9 — regression guard)", async ({ page }) => {
+  // Guards the PR #28 fix: deleteItem must remove the row AND the file. If a
+  // future change reverts to a row-only delete, this fails. (The pupil-removal
+  // path is still open — see finding F3.)
+  const willowId = await studentIdFromLogin(page, SCHOOL_B.classCode, "Willow");
+  await loginTeacher(page, SCHOOL_B.teacher);
+  await page.goto(`/teacher/students/${willowId}/new`);
+  await page.getByRole("button", { name: /photo/i }).click();
+  await page.locator('input[type="file"][name="photo"]').setInputFiles(
+    path.join(process.cwd(), "tests", "fixtures", "tiny.png"),
+  );
+  await page.getByRole("button", { name: /add to journal/i }).click();
+  await page.waitForURL(/\/teacher\/students\/[^/]+$/);
+
+  const src = await page.locator('img[src^="/uploads/"]').first().getAttribute("src");
+  const file = path.join(process.cwd(), ".media", path.basename(src!));
+  expect(existsSync(file)).toBe(true);
+
+  await page.goto(`/teacher/students/${willowId}`);
+  await page.getByRole("button", { name: /^delete$/i }).first().click();
+  await page.waitForLoadState("networkidle");
+
+  expect(existsSync(file), "media file must be erased when a moment is deleted").toBe(false);
 });

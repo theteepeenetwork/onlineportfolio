@@ -18,7 +18,7 @@ const SECTION_H2: React.CSSProperties = {
 const FEATURE_KICKER: React.CSSProperties = {
   margin: "0 0 12px",
   font: "700 14px var(--font-atkinson)",
-  color: "var(--glass)",
+  color: "var(--glass-ink)", // AA contrast for small text (F11)
   letterSpacing: "0.08em",
   textTransform: "uppercase",
 };
@@ -76,7 +76,7 @@ export default async function Home() {
 
           <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 24, alignItems: "center", padding: "0 56px 40px", maxWidth: 1280, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
             <div>
-              <p style={{ margin: "0 0 18px", display: "inline-block", font: "700 14px var(--font-atkinson)", color: "var(--glass)", letterSpacing: "0.08em", textTransform: "uppercase" }}>A class journal for ages 3–7</p>
+              <p style={{ margin: "0 0 18px", display: "inline-block", font: "700 14px var(--font-atkinson)", color: "#37796f", letterSpacing: "0.08em", textTransform: "uppercase" }}>A class journal for ages 3–7</p>
               <h1 style={{ margin: 0, font: "600 62px/1.05 var(--font-fredoka)", letterSpacing: "-0.015em" }}>
                 Every child&apos;s story,{" "}
                 <span style={{ position: "relative", whiteSpace: "nowrap" }}>
@@ -105,16 +105,18 @@ export default async function Home() {
       </section>
 
       {/* ═══════════ HOW IT WORKS ═══════════ */}
-      <section id="how" style={{ padding: "110px 56px", maxWidth: 1280, margin: "0 auto", boxSizing: "border-box" }}>
+      <section id="how" style={{ padding: "110px 56px", maxWidth: 1280, margin: "0 auto", boxSizing: "border-box", overflowX: "clip" }}>
         <h2 style={SECTION_H2}>How the jar fills up</h2>
         <p style={{ margin: "14px auto 0", font: "400 19px/1.5 var(--font-atkinson)", color: "var(--ink-soft)", textAlign: "center", maxWidth: "34em" }}>Three small steps, over and over, all year. That&apos;s it.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32, marginTop: 56 }}>
+        {/* minmax(0,1fr) lets the cards shrink below their content width on narrow
+            screens (e.g. iPad portrait) so the row never overflows — FINDINGS F13. */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 32, marginTop: 56 }}>
           {/* 1 · Make */}
           <div className="sj-card" style={{ padding: "34px 30px" }}>
             <div style={{ display: "inline-block", background: "#F3E3C3", border: "3px solid #22304A", borderRadius: 8, padding: "4px 14px", transform: "rotate(-2deg)", font: "600 17px var(--font-fredoka)" }}>1 · Make</div>
             <div style={{ display: "flex", gap: 10, margin: "24px 0" }}>
               <div style={{ width: 58, height: 58, borderRadius: 12, background: "#EAF4F1", border: "3px solid #22304A", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="9" width="24" height="16" rx="4" fill="none" stroke="#22304A" strokeWidth="3" /><path d="M10,9 L12,5 L18,5 L20,9" fill="none" stroke="#22304A" strokeWidth="3" strokeLinejoin="round" /><circle cx="15" cy="17" r="4.5" fill="none" stroke="#4E9C94" strokeWidth="3" /></svg>
+                <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="3" y="9" width="24" height="16" rx="4" fill="none" stroke="#22304A" strokeWidth="3" /><path d="M10,9 L12,5 L18,5 L20,9" fill="none" stroke="#22304A" strokeWidth="3" strokeLinejoin="round" /><circle cx="15" cy="17" r="4.5" fill="none" stroke="#37796f" strokeWidth="3" /></svg>
               </div>
               <div style={{ width: 58, height: 58, borderRadius: 12, background: "#FBEED3", border: "3px solid #22304A", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path d="M6,24 L8,17 L21,4 L26,9 L13,22 L6,24 Z" fill="none" stroke="#22304A" strokeWidth="3" strokeLinejoin="round" /><path d="M18,7 L23,12" stroke="#C2476B" strokeWidth="3" strokeLinecap="round" /></svg>
@@ -136,7 +138,7 @@ export default async function Home() {
                   <div style={{ height: 8, width: "70%", background: "#D9D2C2", borderRadius: 4 }} />
                   <div style={{ height: 8, width: "45%", background: "#D9D2C2", borderRadius: 4, marginTop: 6 }} />
                 </div>
-                <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="13" fill="#4E9C94" /><path d="M9,15 L13.5,20 L21,10" fill="none" stroke="#FFFDF7" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="13" fill="#37796f" /><path d="M9,15 L13.5,20 L21,10" fill="none" stroke="#FFFDF7" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </div>
             </div>
             <h3 style={{ margin: 0, font: "600 24px var(--font-fredoka)" }}>You see every moment first</h3>
@@ -147,7 +149,7 @@ export default async function Home() {
             <div style={{ display: "inline-block", background: "#F7E0E6", border: "3px solid #22304A", borderRadius: 8, padding: "4px 14px", transform: "rotate(-1deg)", font: "600 17px var(--font-fredoka)" }}>3 · Treasure</div>
             <div style={{ margin: "24px 0", display: "flex", gap: 8, alignItems: "flex-end" }}>
               <svg width="44" height="60" viewBox="0 0 100 130" aria-hidden="true"><rect x="26" y="4" width="48" height="14" rx="7" fill="#C9A87C" /><path d="M30,20 L70,20 L70,30 C82,36 86,46 86,58 L86,104 Q86,120 70,120 L30,120 Q14,120 14,104 L14,58 C14,46 18,36 30,30 Z" fill="#EAF4F1" stroke="#22304A" strokeWidth="5" strokeLinejoin="round" /><rect x="24" y="92" width="18" height="18" rx="4" fill="#C2476B" transform="rotate(-6 33 101)" /><rect x="46" y="96" width="18" height="18" rx="4" fill="#F0B441" transform="rotate(5 55 105)" /></svg>
-              <svg width="44" height="60" viewBox="0 0 100 130" aria-hidden="true"><rect x="26" y="4" width="48" height="14" rx="7" fill="#C9A87C" /><path d="M30,20 L70,20 L70,30 C82,36 86,46 86,58 L86,104 Q86,120 70,120 L30,120 Q14,120 14,104 L14,58 C14,46 18,36 30,30 Z" fill="#EAF4F1" stroke="#22304A" strokeWidth="5" strokeLinejoin="round" /><rect x="24" y="92" width="18" height="18" rx="4" fill="#4E9C94" transform="rotate(-6 33 101)" /><rect x="46" y="96" width="18" height="18" rx="4" fill="#E08A9B" transform="rotate(5 55 105)" /><rect x="34" y="72" width="18" height="18" rx="4" fill="#F0B441" transform="rotate(-3 43 81)" /></svg>
+              <svg width="44" height="60" viewBox="0 0 100 130" aria-hidden="true"><rect x="26" y="4" width="48" height="14" rx="7" fill="#C9A87C" /><path d="M30,20 L70,20 L70,30 C82,36 86,46 86,58 L86,104 Q86,120 70,120 L30,120 Q14,120 14,104 L14,58 C14,46 18,36 30,30 Z" fill="#EAF4F1" stroke="#22304A" strokeWidth="5" strokeLinejoin="round" /><rect x="24" y="92" width="18" height="18" rx="4" fill="#37796f" transform="rotate(-6 33 101)" /><rect x="46" y="96" width="18" height="18" rx="4" fill="#E08A9B" transform="rotate(5 55 105)" /><rect x="34" y="72" width="18" height="18" rx="4" fill="#F0B441" transform="rotate(-3 43 81)" /></svg>
               <svg width="44" height="60" viewBox="0 0 100 130" aria-hidden="true"><rect x="26" y="4" width="48" height="14" rx="7" fill="#C9A87C" /><path d="M30,20 L70,20 L70,30 C82,36 86,46 86,58 L86,104 Q86,120 70,120 L30,120 Q14,120 14,104 L14,58 C14,46 18,36 30,30 Z" fill="#EAF4F1" stroke="#22304A" strokeWidth="5" strokeLinejoin="round" /><rect x="24" y="92" width="18" height="18" rx="4" fill="#8AB9D6" transform="rotate(-6 33 101)" /><rect x="46" y="96" width="18" height="18" rx="4" fill="#C2476B" transform="rotate(5 55 105)" /><rect x="34" y="72" width="18" height="18" rx="4" fill="#A6C979" transform="rotate(-3 43 81)" /><rect x="44" y="52" width="18" height="18" rx="4" fill="#F0B441" transform="rotate(4 53 61)" /></svg>
             </div>
             <h3 style={{ margin: 0, font: "600 24px var(--font-fredoka)" }}>A year of evidence, child by child</h3>
@@ -171,14 +173,14 @@ export default async function Home() {
                 <path d="M90,150 C120,80 180,80 210,140 C240,200 300,200 330,130" fill="none" stroke="#C2476B" strokeWidth="9" strokeLinecap="round" />
                 <circle cx="400" cy="90" r="34" fill="#F0B441" />
                 <g stroke="#F0B441" strokeWidth="8" strokeLinecap="round"><path d="M400,38 L400,50" /><path d="M400,130 L400,142" /><path d="M348,90 L360,90" /><path d="M440,90 L452,90" /></g>
-                <rect x="80" y="200" width="70" height="52" fill="#4E9C94" rx="6" />
+                <rect x="80" y="200" width="70" height="52" fill="#37796f" rx="6" />
                 <path d="M70,202 L115,168 L162,200" fill="none" stroke="#22304A" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
                 <g transform="translate(180,244)"><rect x="0" y="14" width="26" height="66" rx="8" fill="#C2476B" stroke="#22304A" strokeWidth="4" /><path d="M13,-8 L24,14 L2,14 Z" fill="#F3E3C3" stroke="#22304A" strokeWidth="4" strokeLinejoin="round" /></g>
-                <g transform="translate(226,262)"><rect x="0" y="14" width="26" height="66" rx="8" fill="#4E9C94" stroke="#22304A" strokeWidth="4" /><path d="M13,-8 L24,14 L2,14 Z" fill="#F3E3C3" stroke="#22304A" strokeWidth="4" strokeLinejoin="round" /></g>
+                <g transform="translate(226,262)"><rect x="0" y="14" width="26" height="66" rx="8" fill="#37796f" stroke="#22304A" strokeWidth="4" /><path d="M13,-8 L24,14 L2,14 Z" fill="#F3E3C3" stroke="#22304A" strokeWidth="4" strokeLinejoin="round" /></g>
                 <g transform="translate(272,262)"><rect x="0" y="14" width="26" height="66" rx="8" fill="#F0B441" stroke="#22304A" strokeWidth="4" /><path d="M13,-8 L24,14 L2,14 Z" fill="#F3E3C3" stroke="#22304A" strokeWidth="4" strokeLinejoin="round" /></g>
                 <g transform="translate(318,262)"><rect x="0" y="14" width="26" height="66" rx="8" fill="#8AB9D6" stroke="#22304A" strokeWidth="4" /><path d="M13,-8 L24,14 L2,14 Z" fill="#F3E3C3" stroke="#22304A" strokeWidth="4" strokeLinejoin="round" /></g>
               </svg>
-              <div style={{ position: "absolute", top: 12, right: 12, background: "#4E9C94", color: "#FFFDF7", font: "600 17px var(--font-fredoka)", padding: "8px 20px", borderRadius: 999, border: "3px solid #22304A" }}>Done!</div>
+              <div style={{ position: "absolute", top: 12, right: 12, background: "#37796f", color: "#FFFDF7", font: "600 17px var(--font-fredoka)", padding: "8px 20px", borderRadius: 999, border: "3px solid #22304A" }}>Done!</div>
             </div>
           </div>
         </div>
@@ -192,7 +194,7 @@ export default async function Home() {
           </div>
           <div style={{ order: 1, display: "flex", justifyContent: "center", gap: 20, alignItems: "center" }}>
             <div style={{ width: 210, background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 12, padding: "12px 12px 16px", transform: "rotate(-4deg)", boxShadow: "var(--pop-shadow)" }}>
-              <div style={{ height: 150, borderRadius: 6, background: "repeating-linear-gradient(45deg, #EAF4F1, #EAF4F1 12px, #E0EEE9 12px, #E0EEE9 24px)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ font: "400 12px/1.4 monospace", color: "#4E9C94", textAlign: "center" }}>photo of a<br />junk model</span></div>
+              <div style={{ height: 150, borderRadius: 6, background: "repeating-linear-gradient(45deg, #EAF4F1, #EAF4F1 12px, #E0EEE9 12px, #E0EEE9 24px)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ font: "400 12px/1.4 monospace", color: "#37796f", textAlign: "center" }}>photo of a<br />junk model</span></div>
               <p style={{ margin: "10px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>&ldquo;my rocket has 3 boosters&rdquo;</p>
             </div>
             <div style={{ width: 210, background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 12, padding: "12px 12px 16px", transform: "rotate(3deg)", boxShadow: "var(--pop-shadow)" }}>
@@ -247,7 +249,7 @@ export default async function Home() {
           <div className="sj-card" style={{ order: 1, padding: 20 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <span style={{ font: "600 18px var(--font-fredoka)" }}>Waiting for you · 3</span>
-              <span style={{ font: "700 14px var(--font-atkinson)", color: "#4E9C94" }}>Approve all ✓</span>
+              <span style={{ font: "700 14px var(--font-atkinson)", color: "#2E6B64" }}>Approve all ✓</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#FAF6EE", border: "2px solid #E4DCC8", borderRadius: 12, padding: "10px 12px" }}>
@@ -256,7 +258,7 @@ export default async function Home() {
                   <p style={{ margin: 0, font: "700 15px var(--font-atkinson)" }}>Poppy · drawing</p>
                   <p style={{ margin: 0, font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>Label the parts of a plant</p>
                 </div>
-                <span style={{ width: 34, height: 34, borderRadius: "50%", background: "#4E9C94", display: "flex", alignItems: "center", justifyContent: "center" }}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3,8 L6.5,12 L13,4" fill="none" stroke="#FFFDF7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
+                <span style={{ width: 34, height: 34, borderRadius: "50%", background: "#37796f", display: "flex", alignItems: "center", justifyContent: "center" }}><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3,8 L6.5,12 L13,4" fill="none" stroke="#FFFDF7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
                 <span style={{ width: 34, height: 34, borderRadius: "50%", border: "2px solid #C9C2B0", display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7690", font: "700 15px var(--font-atkinson)" }}>↩</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#FAF6EE", border: "2px solid #E4DCC8", borderRadius: 12, padding: "10px 12px" }}>
@@ -324,7 +326,7 @@ export default async function Home() {
         <div style={{ position: "relative", background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 6, padding: "52px 56px", boxShadow: "0 5px 0 rgba(34,48,74,0.15)" }}>
           <div style={{ position: "absolute", left: "50%", top: -14, transform: "translateX(-50%) rotate(-2deg)", width: 120, height: 28, background: "#E5A0B2", opacity: 0.85 }} />
           <p style={{ margin: 0, font: "400 21px/1.7 var(--font-atkinson)", color: "#22304A" }}>I built Storyjar in my own Year 2 classroom in the North East, because the tools we were given made evidence-gathering feel like admin, and the children&apos;s work deserved better than a folder on a shelf. Every feature here has been tested by the toughest review panel there is: thirty six-year-olds and one very tired teacher on a Thursday afternoon.</p>
-          <p style={{ margin: "26px 0 0", font: "600 22px var(--font-fredoka)", color: "#4E9C94" }}>— A Year 2 teacher in the North East</p>
+          <p style={{ margin: "26px 0 0", font: "600 22px var(--font-fredoka)", color: "#37796f" }}>— A Year 2 teacher in the North East</p>
         </div>
       </section>
 
@@ -339,7 +341,7 @@ export default async function Home() {
             <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>forever, for one class</p>
             <ul style={{ margin: "26px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12, font: "400 17px var(--font-atkinson)", color: "var(--ink-soft)" }}>
               {["One teacher, one class", "Unlimited moments & approvals", "Drawing canvas, photos & words", "Class code sign-in for children"].map((f) => (
-                <li key={f} style={{ display: "flex", gap: 10 }}><span style={{ color: "#4E9C94", fontWeight: 700 }}>✓</span> {f}</li>
+                <li key={f} style={{ display: "flex", gap: 10 }}><span style={{ color: "#2E6B64", fontWeight: 700 }}>✓</span> {f}</li>
               ))}
             </ul>
             <Link href="/signup/teacher" style={{ display: "block", marginTop: 34, textAlign: "center", font: "700 17px var(--font-atkinson)", color: "#22304A", border: "3px solid #22304A", borderRadius: 999, padding: 14, textDecoration: "none" }}>Start your class jar</Link>

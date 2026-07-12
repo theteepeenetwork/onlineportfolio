@@ -87,6 +87,9 @@ export default async function StudentLoginPage({
               {klass.students.map((s) => (
                 <form key={s.id} action={studentLogin}>
                   <input type="hidden" name="studentId" value={s.id} />
+                  {/* The verified class code travels with the choice; the server
+                      re-checks the pupil belongs to this class (SAFEGUARDING 4/8). */}
+                  <input type="hidden" name="code" value={klass.classCode} />
                   <button type="submit" className="sj-namecard" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: "100%", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: "22px 10px", minHeight: 150, boxSizing: "border-box", boxShadow: "0 4px 0 rgba(34,48,74,0.12)", cursor: "pointer" }}>
                     <span aria-hidden="true" style={{ width: 76, height: 76, borderRadius: "50%", background: s.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 34px var(--font-fredoka)", color: "#FFFDF7" }}>{s.name.charAt(0).toUpperCase()}</span>
                     <span style={{ font: "600 24px var(--font-fredoka)", color: "var(--ink)" }}>{s.name}</span>

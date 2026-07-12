@@ -6,10 +6,11 @@ import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
 import { uniqueClassCode } from "@/lib/classCode";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
+import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 
 // Storyjar avatar palette — children get a colour bubble in rotation.
 const AVATAR_PALETTE = [
-  "#E08A9B", "#8AB9D6", "#A6C979", "#C2476B", "#F0B441", "#4E9C94", "#B99CD6", "#E8A06A",
+  "#E08A9B", "#8AB9D6", "#A6C979", "#C2476B", "#F0B441", "#37796f", "#B99CD6", "#E8A06A",
 ];
 
 export type SignupResult = { error?: string; step?: number };
@@ -109,23 +110,42 @@ export async function teacherLogin(
     return { error: "Please enter your email and password." };
   }
 
+  // Throttle brute force per account+source (FINDINGS F2). A correct sign-in
+  // below clears the counter, so honest repeated logins are never blocked.
+  const key = `login:${email}:${await clientIp()}`;
+  if (isRateLimited(key)) {
+    return { error: RATE_LIMITED_MESSAGE };
+  }
+
   const teacher = await db.teacher.findUnique({ where: { email } });
   if (!teacher || !(await bcrypt.compare(password, teacher.passwordHash))) {
+    recordFailure(key);
     return { error: "That email and password don't match." };
   }
 
+  clearFailures(key);
   await createSession({ role: "TEACHER", teacherId: teacher.id });
   redirect("/teacher");
 }
 
 // Student picks their name after their class code has been verified.
 // Used directly as a form action, so it receives just the FormData.
+//
+// The class code IS the access control: a pupil may be signed in only by someone
+// who entered *that pupil's* class code. We therefore re-check on the server that
+// the chosen studentId belongs to the class whose code was submitted — never
+// trust the studentId alone (SAFEGUARDING.md rules 4 & 8). Without this, a
+// crafted post could impersonate any pupil (even one in another school) by id.
 export async function studentLogin(formData: FormData) {
   const studentId = String(formData.get("studentId") ?? "");
-  if (!studentId) redirect("/login/student");
+  const code = String(formData.get("code") ?? "").trim().toUpperCase();
+  if (!studentId || !code) redirect("/login/student");
 
-  const student = await db.student.findUnique({ where: { id: studentId } });
-  if (!student) redirect("/login/student");
+  const student = await db.student.findFirst({
+    where: { id: studentId, class: { classCode: code } },
+  });
+  // Deny by default: the id must belong to the class whose code was entered.
+  if (!student) redirect(`/login/student?code=${encodeURIComponent(code)}`);
 
   await createSession({ role: "STUDENT", studentId: student.id });
   redirect("/student");

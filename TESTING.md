@@ -1,8 +1,30 @@
 # Testing
 
-This project has two layers of testing: **automated end-to-end tests** that
-drive a real browser through the whole app, and a **manual smoke-test
-checklist** for a quick human check before sharing a new version.
+This project has three layers of testing: **automated end-to-end tests** that
+drive a real browser through the whole app, a **QA battery** (security,
+accessibility, UX — see below), and a **manual smoke-test checklist** for a
+quick human check before sharing a new version.
+
+## The QA battery (security · a11y · UX)
+
+Beyond the functional e2e tests, `tests/battery/` holds the standing quality
+battery — the executable form of `SAFEGUARDING.md`. It seeds **two schools** so
+tenant isolation is testable, scans every page with axe-core, and checks
+headers, uploads, sessions, CSRF and more.
+
+```bash
+npm run test:battery     # everything: security + a11y + ux + e2e
+npm run test:security    # tenant isolation, auth, uploads, headers, injection (BLOCKING gate)
+npm run test:a11y        # axe-core WCAG 2.2 AA + keyboard nav (BLOCKING gate)
+npm run test:ux          # core-flow step budgets, interruption, responsive (report-only)
+npm run test:perf        # Lighthouse budgets (report-only)
+npm run test:security:findings   # repro tests for KNOWN gaps — these fail on purpose
+```
+
+Known defects and which test covers each are in [`FINDINGS.md`](./FINDINGS.md);
+the plan and rationale are in [`TEST_PLAN.md`](./TEST_PLAN.md); the moderated
+usability kit is in [`docs/MANUAL_USABILITY_KIT.md`](./docs/MANUAL_USABILITY_KIT.md).
+CI runs it all in `.github/workflows/battery.yml`.
 
 ---
 

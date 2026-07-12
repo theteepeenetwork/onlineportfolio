@@ -9,7 +9,7 @@ const TYPE_LABEL: Record<string, string> = { PHOTO: "Photo", DRAWING: "Drawing",
 const TYPE_ART: Record<string, string> = { PHOTO: "📷", DRAWING: "🖍️", TEXT: "💬" };
 const TILE_BG = ["#FBEED3", "#F7E0E6", "#DEEAF3", "#E5EED9", "#F3E3C3", "#EAF4F1"];
 
-const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#4E9C94"];
+const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#37796f"];
 function avatarColor(seed: string) {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
@@ -110,7 +110,7 @@ function MomentCard({ moment, bg }: { moment: ParentMoment; bg: string }) {
       </div>
       <div style={{ padding: "12px 14px 14px" }}>
         <p style={{ margin: 0, font: "700 15px var(--font-atkinson)" }}>{moment.title}</p>
-        <p style={{ margin: "3px 0 0", font: "400 13px var(--font-atkinson)", color: "#8A93A8" }}>{TYPE_LABEL[moment.type] ?? "Moment"} · {relativeDay(new Date(moment.approvedAt))}</p>
+        <p style={{ margin: "3px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>{TYPE_LABEL[moment.type] ?? "Moment"} · {relativeDay(new Date(moment.approvedAt))}</p>
       </div>
     </div>
   );
@@ -134,7 +134,7 @@ function HeroJar() {
       <path d="M30,20 L70,20 L70,30 C82,36 86,46 86,58 L86,98 Q86,114 70,114 L30,114 Q14,114 14,98 L14,58 C14,46 18,36 30,30 Z" fill="#FFFDF7" stroke="#22304A" strokeWidth="5" strokeLinejoin="round" />
       <rect x="30" y="72" width="15" height="15" rx="3" fill="#C2476B" transform="rotate(-8 37 79)" />
       <rect x="52" y="78" width="15" height="15" rx="3" fill="#F0B441" transform="rotate(6 59 85)" />
-      <rect x="42" y="56" width="15" height="15" rx="3" fill="#4E9C94" transform="rotate(-4 49 63)" />
+      <rect x="42" y="56" width="15" height="15" rx="3" fill="#37796f" transform="rotate(-4 49 63)" />
     </svg>
   );
 }

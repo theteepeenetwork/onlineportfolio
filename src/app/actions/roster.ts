@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { deriveChildNames } from "@/lib/childNames";
+import { deleteMediaFiles } from "@/lib/media";
 
 const AVATAR_COLORS = [
   "#ef4444", "#f97316", "#f59e0b", "#84cc16", "#10b981",
@@ -65,11 +66,31 @@ export async function removeStudent(formData: FormData) {
   if (user?.role !== "TEACHER") redirect("/");
 
   const studentId = String(formData.get("studentId") ?? "");
+  // Fetch the pupil (ownership-scoped) with their media so we can erase the
+  // files too — removing a child must be real erasure, not just row removal
+  // (SAFEGUARDING.md rule 9, UK GDPR Art.17). Mirrors deleteClass/deleteItem.
   const student = await db.student.findFirst({
     where: { id: studentId, class: { teacherId: user.teacher.id } },
+    include: { journalItems: { select: { mediaPath: true, mediaPathsJson: true } } },
   });
   if (student) {
+    const mediaUrls: Array<string | null> = [];
+    for (const item of student.journalItems) {
+      mediaUrls.push(item.mediaPath);
+      if (item.mediaPathsJson) {
+        try {
+          const paths = JSON.parse(item.mediaPathsJson);
+          if (Array.isArray(paths)) {
+            for (const p of paths) if (typeof p === "string") mediaUrls.push(p);
+          }
+        } catch {
+          // Malformed JSON — nothing to erase from it.
+        }
+      }
+    }
+    // Delete the row (cascades the pupil's journal items), then erase the files.
     await db.student.delete({ where: { id: studentId } });
+    await deleteMediaFiles(mediaUrls);
   }
 
   revalidatePath("/teacher/class");

@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
   res.cookies.set(COOKIE_NAME, sessionToken, {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     expires: expiresAt,
   });

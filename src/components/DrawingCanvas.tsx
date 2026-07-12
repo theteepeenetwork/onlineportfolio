@@ -1459,7 +1459,7 @@ function ToolShape({ kind, color }: { kind: Tool; color: string }) {
     );
   }
   const felt = kind === "pen"; // "pen" key → Felt tip; "pencil" key → Pen
-  const barrel = felt ? "#C2476B" : "#4E9C94";
+  const barrel = felt ? "#C2476B" : "#37796f";
   return (
     <svg width="52" height="150" viewBox="0 0 52 150" aria-hidden>
       {/* sample stroke: thin for Pen, thick for Felt tip */}

@@ -1,9 +1,17 @@
-# Storyjar — Test Battery Plan (Phase 1: Audit & Proposal)
+# Storyjar — Test Battery Plan
 
-> Status: **awaiting your review.** Nothing in the battery is implemented yet. This
-> document maps what the app actually is, inventories what testing exists, and
-> proposes the battery adapted to the real code. Provisional defects found while
-> reading are listed at the end — they are **candidates**, not yet reproduced.
+> **Status: implemented (Phases 2 & 3 built and passing).** This began as the
+> Phase 1 audit/proposal; the battery below is now built under `tests/battery/`,
+> wired into npm scripts and CI (`.github/workflows/battery.yml`), with defects
+> logged in [`FINDINGS.md`](./FINDINGS.md). The §5 "provisional findings" have
+> been reproduced (or reclassified) and now live in FINDINGS.md — read that for
+> the authoritative, current list.
+>
+> **Re-baseline note:** while building, the branch advanced (PRs #28, #29
+> merged): `RETENTION.md` was added, SAFEGUARDING rule 9 tightened, and the
+> **`deleteItem` media-erasure gap was fixed upstream**. Findings were
+> re-checked against that HEAD — F3 is now narrowed to `removeStudent`, and a
+> regression guard protects the `deleteItem` fix. Decisions in §6 stand.
 
 ---
 
@@ -147,6 +155,12 @@ Proposal: a **dedicated `prisma/seed-test.ts`** (fictional data only) that adds 
 - **F8 · Info · `.env` and root `dev.db` are git-tracked.** `.env` holds only the SQLite path (no secret, by design). Root `dev.db` is tracked (only `/prisma/dev.db` is git-ignored) — fine for fictional seed data, risky as a pattern if real data ever lands there. *Documented, not a functional test.*
 
 ---
+
+> **Update:** after the battery was built, all logged findings (F1–F14) were
+> **fixed** (with the app owner's go-ahead) and are now covered by passing tests
+> — see [`FINDINGS.md`](./FINDINGS.md). F1/F3 repro tests were promoted into the
+> blocking security gate; F11 contrast is substantially reduced with a small
+> tracked baseline remaining for the design owner.
 
 ## 6. Decisions (resolved 2026-07-12)
 

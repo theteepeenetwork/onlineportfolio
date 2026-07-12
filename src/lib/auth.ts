@@ -58,6 +58,9 @@ export async function createSession(
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
+    // In production the site is HTTPS-only; set Secure explicitly so the session
+    // cookie can never ride an http request (SAFEGUARDING.md rule 13).
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     expires: expiresAt,
   });

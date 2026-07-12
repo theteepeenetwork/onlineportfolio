@@ -133,8 +133,8 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
         <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)" }}>Waiting for you</h1>
         <span style={{ font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>{live.length} moment{live.length === 1 ? "" : "s"}</span>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={toggleAll} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 20px", cursor: "pointer", whiteSpace: "nowrap" }}>{allSelected ? "Unselect all" : "Select all"}</button>
-          <button onClick={approveSelected} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--glass)", border: "none", borderRadius: 999, padding: "12px 24px", cursor: "pointer", boxShadow: "0 3px 0 #35706A", whiteSpace: "nowrap", opacity: busy ? 0.7 : 1 }}>✓ Add {selCount} to their jars</button>
+          <button onClick={toggleAll} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 20px", minHeight: 44, cursor: "pointer", whiteSpace: "nowrap" }}>{allSelected ? "Unselect all" : "Select all"}</button>
+          <button onClick={approveSelected} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "#37796f", border: "none", borderRadius: 999, padding: "12px 24px", minHeight: 44, cursor: "pointer", boxShadow: "0 3px 0 #35706A", whiteSpace: "nowrap", opacity: busy ? 0.7 : 1 }}>✓ Add {selCount} to their jars</button>
         </div>
       </div>
 
@@ -145,9 +145,9 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
           const sel = selected.has(it.id);
           const chosen = skillSel[it.id] ?? new Set<string>();
           return (
-            <div key={it.id} data-child={it.child} style={{ background: "var(--cream)", border: `2px solid ${sel ? "var(--glass)" : "var(--calm-border)"}`, borderRadius: 14, padding: "16px 20px" }}>
+            <div key={it.id} data-child={it.child} style={{ background: "var(--cream)", border: `2px solid ${sel ? "#37796f" : "var(--calm-border)"}`, borderRadius: 14, padding: "16px 20px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                <input type="checkbox" checked={sel} onChange={() => toggleSel(it.id)} aria-label={`Select ${it.child}`} style={{ width: 20, height: 20, accentColor: "var(--glass)", cursor: "pointer", flexShrink: 0 }} />
+                <input type="checkbox" checked={sel} onChange={() => toggleSel(it.id)} aria-label={`Select ${it.child}`} style={{ width: 20, height: 20, accentColor: "#37796f", cursor: "pointer", flexShrink: 0 }} />
                 <div style={{ width: 84, height: 64, borderRadius: 10, background: k.bg, border: "2px solid var(--calm-border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0, overflow: "hidden" }}>
                   {it.mediaPath ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -167,14 +167,14 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                     {skills.map((sk) => {
                       const on = chosen.has(sk.id);
                       return (
-                        <button key={sk.id} onClick={() => toggleSkill(it.id, sk.id)} style={{ font: "700 13px var(--font-atkinson)", color: on ? "#2E6B64" : "var(--sj-muted)", background: on ? "var(--glass-light)" : "var(--cream)", border: `2px solid ${on ? "var(--glass)" : "var(--calm-border)"}`, borderRadius: 999, padding: "5px 12px", cursor: "pointer" }}>{sk.name}</button>
+                        <button key={sk.id} onClick={() => toggleSkill(it.id, sk.id)} style={{ font: "700 13px var(--font-atkinson)", color: on ? "#2E6B64" : "var(--sj-muted)", background: on ? "var(--glass-light)" : "var(--cream)", border: `2px solid ${on ? "#37796f" : "var(--calm-border)"}`, borderRadius: 999, padding: "5px 12px", cursor: "pointer" }}>{sk.name}</button>
                       );
                     })}
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                  <button onClick={() => approve(it)} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--glass)", border: "none", borderRadius: 999, padding: "10px 20px", cursor: "pointer", boxShadow: "0 3px 0 #35706A", whiteSpace: "nowrap" }}>✓ Add to jar</button>
-                  <button onClick={() => { setNoteOpen(noteOpen === it.id ? null : it.id); setNoteText(""); }} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 18px", cursor: "pointer", whiteSpace: "nowrap" }}>↩ Send back</button>
+                  <button onClick={() => approve(it)} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "#37796f", border: "none", borderRadius: 999, padding: "10px 20px", minHeight: 44, cursor: "pointer", boxShadow: "0 3px 0 #35706A", whiteSpace: "nowrap" }}>✓ Add to jar</button>
+                  <button onClick={() => { setNoteOpen(noteOpen === it.id ? null : it.id); setNoteText(""); }} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 18px", minHeight: 44, cursor: "pointer", whiteSpace: "nowrap" }}>↩ Send back</button>
                 </div>
               </div>
 

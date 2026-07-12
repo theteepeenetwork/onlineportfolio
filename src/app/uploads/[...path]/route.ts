@@ -51,6 +51,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
         // Never store a child's image in a shared/CDN cache.
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
+        // Defence in depth (FINDINGS F5): if a served file is ever an SVG,
+        // sandbox it and forbid any script/resource loads so it can't execute
+        // when opened directly. Uploads already reject SVG; this closes the gap
+        // for any legacy/placeholder SVG the route might still serve.
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
       },
     });
   } catch {

@@ -154,7 +154,7 @@ export async function setTemplateArchived(formData: FormData) {
 }
 
 // The dot-colour palette new folders cycle through.
-const FOLDER_COLORS = ["#F0B441", "#8AB9D6", "#E08A9B", "#A6C979", "#B99CD6", "#E8A06A", "#4E9C94"];
+const FOLDER_COLORS = ["#F0B441", "#8AB9D6", "#E08A9B", "#A6C979", "#B99CD6", "#E8A06A", "#37796f"];
 
 // Teacher makes a new folder in the activity library.
 export async function createFolder(
