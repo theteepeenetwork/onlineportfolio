@@ -8,6 +8,7 @@ import { Avatar } from "@/components/Avatar";
 import { teacherNav } from "@/lib/teacherNav";
 import { Icon } from "@/components/icons/Icon";
 import { jsonArray, type RunSummary } from "@/lib/activities";
+import { ClearMarkedDraft } from "@/components/ClearMarkedDraft";
 import { TemplateActions } from "./TemplateActions";
 
 function fmtDate(d: Date) {
@@ -84,6 +85,7 @@ export default async function TemplateDetail({
 
   return (
     <>
+      <ClearMarkedDraft />
       <TopBar title="" links={teacherNav(pendingCount)} />
       <main className="mx-auto w-full max-w-4xl flex-1 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">
