@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/icons/Icon";
+import { ClearMarkedDraft } from "@/components/ClearMarkedDraft";
 
 const TWINKLE = "M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z";
 
@@ -9,6 +10,7 @@ const TWINKLE = "M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2
 export default function PoppedInPage() {
   return (
     <div className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "40px 20px" }}>
+      <ClearMarkedDraft />
       <div data-anim="jar" style={{ position: "relative" }}>
         <svg width="300" height="380" viewBox="0 0 380 480" style={{ overflow: "visible" }} aria-label="Your moment dropping into your jar">
           <g data-anim="tile">

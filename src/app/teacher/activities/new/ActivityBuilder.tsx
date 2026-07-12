@@ -1,14 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { createTemplate } from "@/app/actions/activities";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
 import type { QuizPayload } from "@/lib/quiz";
+import { markDraftForClear } from "@/lib/draftStore";
 
 // Build a reusable template: title, instructions, tags, and an optional
 // template canvas. Assigning it to a class is a separate step (the assign sheet).
-export function ActivityBuilder() {
+export function ActivityBuilder({ teacherId }: { teacherId: string }) {
   const [state, action, pending] = useActionState(createTemplate, {});
 
   // The template is built on the exact same full-screen canvas the children
@@ -17,8 +18,18 @@ export function ActivityBuilder() {
   const [quiz, setQuiz] = useState<QuizPayload>({ questions: [] });
   const [editorOpen, setEditorOpen] = useState(false);
 
+  // Refs to the uncontrolled fields so the autosave draft captures/restores them.
+  const titleRef = useRef<HTMLInputElement>(null);
+  const instructionsRef = useRef<HTMLTextAreaElement>(null);
+  const tagsRef = useRef<HTMLInputElement>(null);
+  const draftKey = `tmpl-new:${teacherId}`;
+
   return (
-    <form action={action} className="space-y-6">
+    <form
+      action={action}
+      className="space-y-6"
+      onSubmit={() => markDraftForClear(draftKey)} // saving redirects on success → clear the draft there
+    >
       <input type="hidden" name="templatePages" value={JSON.stringify(templatePages)} />
       <input type="hidden" name="quizPayload" value={JSON.stringify(quiz)} />
 
@@ -28,13 +39,14 @@ export function ActivityBuilder() {
           <label className="label" htmlFor="title">
             Template title
           </label>
-          <input id="title" name="title" className="input" placeholder="e.g. Make 10 — part-whole model" required />
+          <input ref={titleRef} id="title" name="title" className="input" placeholder="e.g. Make 10 — part-whole model" required />
         </div>
         <div>
           <label className="label" htmlFor="instructions">
             Instructions (optional)
           </label>
           <textarea
+            ref={instructionsRef}
             id="instructions"
             name="instructions"
             rows={3}
@@ -46,7 +58,7 @@ export function ActivityBuilder() {
           <label className="label" htmlFor="tags">
             Tags (optional)
           </label>
-          <input id="tags" name="tags" className="input" placeholder="Maths, Number  — comma separated" />
+          <input ref={tagsRef} id="tags" name="tags" className="input" placeholder="Maths, Number  — comma separated" />
           <p className="mt-1 text-xs text-muted">Used to filter your library.</p>
         </div>
       </div>
@@ -102,6 +114,18 @@ export function ActivityBuilder() {
           title="Build the template"
           subtitle="Draw or add a PDF / picture, and add quiz questions with ❓ Quiz."
           background={templatePages.length ? templatePages : undefined}
+          draftKey={draftKey}
+          ownerId={teacherId}
+          getExtraDraftFields={() => ({
+            title: titleRef.current?.value ?? "",
+            instructions: instructionsRef.current?.value ?? "",
+            tags: tagsRef.current?.value ?? "",
+          })}
+          onRestoreFields={(f) => {
+            if (titleRef.current && typeof f.title === "string") titleRef.current.value = f.title;
+            if (instructionsRef.current && typeof f.instructions === "string") instructionsRef.current.value = f.instructions;
+            if (tagsRef.current && typeof f.tags === "string") tagsRef.current.value = f.tags;
+          }}
           onClose={() => setEditorOpen(false)}
           onDone={(pages, q) => {
             setTemplatePages(pages);

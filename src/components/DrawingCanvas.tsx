@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Icon, type IconName } from "./icons/Icon";
 import {
   MIN_OPTIONS,
   MAX_OPTIONS,
@@ -8,7 +9,16 @@ import {
   type QuizPayload,
   type QuizQuestion,
 } from "@/lib/quiz";
-import { Icon, type IconName } from "./icons/Icon";
+import {
+  loadDraft,
+  patchDraft,
+  deleteDraft,
+  purgeExpired,
+  markDraftForClear,
+  RETENTION_MS,
+  type DraftCanvasV1,
+  type DraftSurface,
+} from "@/lib/draftStore";
 
 // Deep-clone the questions we get from props so our editing never mutates the
 // caller's object. Quiz questions live in their own layer (quizRef) and are
@@ -238,6 +248,10 @@ export function DrawingCanvas({
   onDone,
   quizMode,
   initialQuiz,
+  draftKey,
+  ownerId,
+  getExtraDraftFields,
+  onRestoreFields,
 }: {
   name: string;
   background?: string[];
@@ -253,6 +267,13 @@ export function DrawingCanvas({
   // undefined = no quiz (existing callers unaffected).
   quizMode?: "author" | "answer";
   initialQuiz?: QuizPayload;
+  // Local-first autosave. Drafting is entirely gated on `draftKey` + `ownerId`
+  // (undefined = no drafting, existing callers unaffected). The wrapper's
+  // uncontrolled fields (title/tags/…) ride along via get/onRestore.
+  draftKey?: string;
+  ownerId?: string;
+  getExtraDraftFields?: () => Record<string, string>;
+  onRestoreFields?: (fields: Record<string, string>) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -274,6 +295,14 @@ export function DrawingCanvas({
   const currentRef = useRef(0);
   const anyDrawnRef = useRef(false);
   const loadingRef = useRef(false);
+
+  // Local-first autosave state.
+  const draftingEnabled = Boolean(draftKey && ownerId);
+  const draftSurface: DraftSurface = draftKey?.startsWith("tmpl-") ? "template-new" : "activity-response";
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const captionRef = useRef<HTMLInputElement>(null);
+  const [draftPrompt, setDraftPrompt] = useState<DraftCanvasV1 | null>(null);
+  const draftFieldsRef = useRef<Record<string, string> | null>(null); // fields from a pending restore
 
   const drawing = useRef(false);
   const snapshot = useRef<ImageData | null>(null);
@@ -451,6 +480,140 @@ export function DrawingCanvas({
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
     }
+    // Autosave a local draft off the same choke point (debounced). Skipped while
+    // seeding/hydrating so restore doesn't immediately re-save itself.
+    if (draftingEnabled && !loadingRef.current) schedulePersist();
+  }
+
+  // ---- Local-first autosave -------------------------------------------------
+  function schedulePersist() {
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => {
+      persistTimer.current = null;
+      void doPersist();
+    }, 1000);
+  }
+
+  function collectFields(): Record<string, string> {
+    const fields = { ...(getExtraDraftFields?.() ?? {}) };
+    if (withCaption && captionRef.current) fields.caption = captionRef.current.value;
+    return fields;
+  }
+
+  async function doPersist() {
+    if (!draftKey || !ownerId) return;
+    await patchDraft(draftKey, ownerId, draftSurface, {
+      canvas: serializeCanvas(),
+      fields: collectFields(),
+    });
+  }
+
+  function flushPersist() {
+    if (persistTimer.current) {
+      clearTimeout(persistTimer.current);
+      persistTimer.current = null;
+    }
+    void doPersist();
+  }
+
+  // The JSON-serialisable editable state (NOT the composite — recomputed on
+  // restore). Read straight off the refs, which syncHidden() has just flushed.
+  function serializeCanvas(): DraftCanvasV1 {
+    return {
+      v: 1,
+      pages: [...pagesRef.current],
+      templates: [...templatesRef.current],
+      objects: objectsRef.current.map((pg) => pg.map((o) => ({ ...o }))),
+      current: currentRef.current,
+      anyDrawn: anyDrawnRef.current,
+      nextObjId: objIdRef.current,
+    };
+  }
+
+  // Rebuild the full editable session from a stored draft. Rebuilds the image
+  // caches from the stored `src`/urls and restores objIdRef BEFORE recomputing
+  // composites (reusing compositeCurrentPage so the flatten path never drifts).
+  async function hydrateFromDraft(canvas: DraftCanvasV1) {
+    loadingRef.current = true;
+    const c = ctx();
+    templatesRef.current = [...canvas.templates];
+    pagesRef.current = [...canvas.pages];
+    objectsRef.current = (canvas.objects as Obj[][]).map((pg) => pg.map((o) => ({ ...o })));
+    anyDrawnRef.current = canvas.anyDrawn;
+
+    // Next object id: never collide with a restored `o<n>` id.
+    let maxId = canvas.nextObjId - 1;
+    for (const pg of objectsRef.current) {
+      for (const o of pg) {
+        const m = /^o(\d+)$/.exec(o.id);
+        if (m) maxId = Math.max(maxId, Number(m[1]));
+      }
+    }
+    objIdRef.current = maxId + 1;
+
+    // Rebuild non-serialisable caches from the stored strings.
+    const templateUrls = [...new Set(templatesRef.current.filter((u): u is string => !!u))];
+    await Promise.all(
+      templateUrls.map(async (url) => {
+        if (templateImgRef.current.has(url)) return;
+        try {
+          templateImgRef.current.set(url, await loadImage(url));
+        } catch {
+          /* leave that page's background blank */
+        }
+      }),
+    );
+    await Promise.all(
+      objectsRef.current.flat().map(async (o) => {
+        if (o.type !== "image" || imgCacheRef.current.has(o.id)) return;
+        try {
+          imgCacheRef.current.set(o.id, await loadImage(o.src));
+        } catch {
+          /* image will simply not render */
+        }
+      }),
+    );
+    const strokeImgs = await Promise.all(
+      pagesRef.current.map(async (p) => {
+        try {
+          return p ? await loadImage(p) : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    // Recompute each page's composite by painting its stroke layer onto the live
+    // canvas and reusing compositeCurrentPage() verbatim.
+    compositeRef.current = [];
+    for (let i = 0; i < pagesRef.current.length; i++) {
+      currentRef.current = i;
+      if (c) {
+        c.clearRect(0, 0, W, H);
+        const si = strokeImgs[i];
+        if (si) c.drawImage(si, 0, 0, W, H);
+      }
+      compositeRef.current[i] = compositeCurrentPage();
+    }
+
+    // Land on the saved page.
+    currentRef.current = Math.min(Math.max(0, canvas.current), pagesRef.current.length - 1);
+    if (c) {
+      c.clearRect(0, 0, W, H);
+      const si = strokeImgs[currentRef.current];
+      if (si) c.drawImage(si, 0, 0, W, H);
+    }
+    undoRef.current = {};
+    redoRef.current = {};
+    setPageCount(pagesRef.current.length);
+    setCurrent(currentRef.current);
+    setObjects(objectsRef.current[currentRef.current] ?? []);
+    setThumbs([...compositeRef.current]);
+    refreshUndoRedo();
+    if (hiddenRef.current) {
+      hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
+    }
+    loadingRef.current = false;
   }
 
   // Snapshot the current page (both layers) so the next change can be undone.
@@ -545,15 +708,78 @@ export function DrawingCanvas({
     window.addEventListener("resize", measure);
 
     const form = canvas.closest("form");
-    const onSubmit = () => finishEditing();
+    const onSubmit = () => {
+      finishEditing();
+      // Submitting IS the success path (a failed action re-renders in place, no
+      // redirect). Mark the draft so the destination page clears it.
+      if (draftingEnabled && draftKey) markDraftForClear(draftKey);
+    };
     form?.addEventListener("submit", onSubmit, true);
+
+    // Flush the pending autosave when the tab is hidden or navigated away —
+    // best-effort (async IDB writes aren't guaranteed to finish on unload; the
+    // ~1s debounced save is the reliable recovery point).
+    const onHide = () => {
+      if (draftingEnabled && document.visibilityState === "hidden") flushPersist();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onHide);
 
     return () => {
       window.removeEventListener("resize", measure);
       form?.removeEventListener("submit", onSubmit, true);
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onHide);
+      if (persistTimer.current) clearTimeout(persistTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Restore-on-mount: once the canvas is ready, offer any saved draft. Gated so
+  // it only fires when the draft likely represents lost work: a child response
+  // always (their strokes sit on top of the template background), or a fresh
+  // template build (no background). An in-session re-open of the teacher editor
+  // (background already set) is not prompted, so "Start fresh" can't nuke work
+  // the teacher is actively continuing.
+  useEffect(() => {
+    if (!ready || !draftingEnabled || !draftKey || !ownerId) return;
+    const canPrompt = draftSurface === "activity-response" || !background || background.length === 0;
+    if (!canPrompt) return;
+    let cancelled = false;
+    (async () => {
+      await purgeExpired(RETENTION_MS);
+      const rec = await loadDraft(draftKey, ownerId);
+      if (!cancelled && rec?.canvas) {
+        draftFieldsRef.current = rec.fields ?? {};
+        setDraftPrompt(rec.canvas);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  async function restoreDraft() {
+    const canvas = draftPrompt;
+    setDraftPrompt(null);
+    if (!canvas) return;
+    await hydrateFromDraft(canvas);
+    const f = draftFieldsRef.current;
+    if (f) {
+      onRestoreFields?.(f);
+      if (withCaption && captionRef.current && typeof f.caption === "string") {
+        captionRef.current.value = f.caption;
+      }
+    }
+    draftFieldsRef.current = null;
+  }
+
+  function discardDraft() {
+    setDraftPrompt(null);
+    draftFieldsRef.current = null;
+    if (draftKey) void deleteDraft(draftKey);
+  }
 
   function pos(e: React.PointerEvent) {
     const canvas = canvasRef.current!;
@@ -1220,6 +1446,9 @@ export function DrawingCanvas({
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-[#e9ebf1]">
         {hiddenInputs}
+        {draftPrompt && (
+          <RestorePrompt onRestore={restoreDraft} onDiscard={discardDraft} />
+        )}
 
         <div ref={wrapRef} className="relative flex-1 overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center">
@@ -1438,7 +1667,7 @@ export function DrawingCanvas({
 
           {withCaption && (
             <div className="absolute bottom-3 left-3 w-64 max-w-[70vw]">
-              <input name="caption" className="input bg-white/90 shadow" placeholder="💬 Add a caption…" />
+              <input ref={captionRef} name="caption" className="input bg-white/90 shadow" placeholder="💬 Add a caption…" />
             </div>
           )}
 
@@ -2510,6 +2739,64 @@ function QuizPanel({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// "Restore your unsaved work?" — shown on mount when a local draft exists.
+// Keyboard-reachable, focus-trapped, ≥64px child touch targets.
+function RestorePrompt({ onRestore, onDiscard }: { onRestore: () => void; onDiscard: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  }, []);
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      onDiscard();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const btns = ref.current?.querySelectorAll<HTMLButtonElement>("button");
+    if (!btns || btns.length === 0) return;
+    const first = btns[0];
+    const last = btns[btns.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="draft-restore-title"
+      onKeyDown={onKeyDown}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+    >
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <h2 id="draft-restore-title" className="text-xl font-bold text-foreground">
+          Restore your unsaved work?
+        </h2>
+        <p className="mt-2 text-sm text-muted">
+          We kept what you were doing on this device. Carry on where you left off?
+        </p>
+        <div className="mt-5 flex flex-col gap-2">
+          <button type="button" onClick={onRestore} className="btn-brand min-h-[64px] w-full text-lg">
+            Restore my work
+          </button>
+          <button
+            type="button"
+            onClick={onDiscard}
+            className="min-h-[64px] w-full rounded-xl border-2 border-border text-base font-semibold text-muted hover:bg-background"
+          >
+            Start fresh
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
