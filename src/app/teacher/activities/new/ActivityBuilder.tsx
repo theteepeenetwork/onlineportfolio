@@ -28,7 +28,7 @@ export function ActivityBuilder({ teacherId }: { teacherId: string }) {
     <form
       action={action}
       className="space-y-6"
-      onSubmit={() => markDraftForClear(draftKey)} // saving redirects on success → clear the draft there
+      onSubmit={() => markDraftForClear(draftKey, "TEMPLATE_NEW", "tmpl-new")} // saving redirects on success → clear local + server draft there
     >
       <input type="hidden" name="templatePages" value={JSON.stringify(templatePages)} />
       <input type="hidden" name="quizPayload" value={JSON.stringify(quiz)} />

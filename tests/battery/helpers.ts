@@ -24,7 +24,35 @@ export const SCHOOL_B = {
   pendingMedia: "/uploads/seed-oak-pending.svg", // PENDING (Yusuf)
   quizOptionMedia: "/uploads/seed-oak-quiz.svg", // a quiz answer picture (teacher-authored)
   quizPrompt: "Which picture shows the Oakfield oak leaf?", // distinctive text on School B's quiz
+  childDraftMedia: "/uploads/seed-oak-draft.svg", // Zara's in-progress response draft — Zara ONLY
+  teacherDraftMedia: "/uploads/seed-oak-tmpl-draft.svg", // Okafor's template draft — Okafor ONLY
 } as const;
+
+// POST a same-origin JSON body from within the page (so the session cookie
+// rides along) and return the HTTP status. The page must already be on our
+// origin. Used to exercise POST endpoints (e.g. /api/drafts) in isolation specs.
+export async function postStatus(page: Page, url: string, body: unknown): Promise<number> {
+  return page.evaluate(
+    async ({ u, b }) => {
+      const r = await fetch(u, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(b),
+      });
+      return r.status;
+    },
+    { u: url, b: body },
+  );
+}
+
+// Read a real assignment id the honest way — from a student's activities list.
+export async function firstAssignmentId(page: Page, code: string, name: string): Promise<string> {
+  await loginStudent(page, code, name);
+  await page.goto("/student/activities");
+  const href = await page.locator('a[href^="/student/activities/"]').first().getAttribute("href");
+  return href?.split("/").pop() ?? "";
+}
 
 // School C = Larchwood Primary — a FROZEN (lapsed) account. Read-only: the
 // teacher can view/download but every write is blocked server-side.
