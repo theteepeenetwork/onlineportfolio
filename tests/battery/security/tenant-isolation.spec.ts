@@ -71,6 +71,45 @@ test.describe("A1 · Media route is scoped across tenants (/uploads)", () => {
   });
 });
 
+test.describe("A1 · Quiz option pictures are scoped like template media", () => {
+  // A quiz answer-option picture is teacher-authored content living in
+  // quizJson / quizSnapshotJson. It must be reachable by its own teacher and by
+  // the pupils set the quiz, but by no other tenant and by NO parent (rule 7).
+  const B_QUIZ = SCHOOL_B.quizOptionMedia;
+
+  test("School B teacher can load their quiz option picture", async ({ page }) => {
+    await loginTeacher(page, SCHOOL_B.teacher);
+    expect(await fetchStatus(page, B_QUIZ)).toBe(200);
+  });
+
+  test("A School B pupil set the quiz can load the option picture", async ({ page }) => {
+    await loginStudent(page, SCHOOL_B.classCode, SCHOOL_B.student); // Zara, in Acorn (wholeClass run)
+    expect(await fetchStatus(page, B_QUIZ)).toBe(200);
+  });
+
+  test("School A teacher and admin CANNOT load School B's quiz option picture", async ({ page }) => {
+    await loginTeacher(page, SCHOOL_A.otherTeacher);
+    expect(await fetchStatus(page, B_QUIZ)).toBe(404);
+    await loginTeacher(page, SCHOOL_A.admin);
+    expect(await fetchStatus(page, B_QUIZ)).toBe(404);
+  });
+
+  test("No parent can load a quiz option picture (teacher content)", async ({ page }) => {
+    // Even Zara's OWN parent — quiz option pictures are teacher/assessment content.
+    await loginParent(page, SCHOOL_B.parentFamilyCode);
+    expect(await fetchStatus(page, B_QUIZ)).toBe(404);
+    await clearSession(page);
+    await loginParent(page, SCHOOL_A.parentFamilyCode);
+    expect(await fetchStatus(page, B_QUIZ)).toBe(404);
+  });
+
+  test("anonymous cannot load a quiz option picture", async ({ page }) => {
+    await page.goto("/");
+    await clearSession(page);
+    expect(await fetchStatus(page, B_QUIZ)).toBe(404);
+  });
+});
+
 test.describe("A1 · Student-journal IDOR across tenants", () => {
   test("School B teacher gets 404 for a School A pupil's journal", async ({ page }) => {
     // Obtain a real School A pupil id the honest way (its login name-card).

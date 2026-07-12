@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useActionState, useState } from "react";
 import { createTemplate } from "@/app/actions/activities";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
+import type { QuizPayload } from "@/lib/quiz";
 
 // Build a reusable template: title, instructions, tags, and an optional
 // template canvas. Assigning it to a class is a separate step (the assign sheet).
@@ -13,11 +14,13 @@ export function ActivityBuilder() {
   // The template is built on the exact same full-screen canvas the children
   // use. It's opened as an editor; on ✓ Done the pages are handed back here.
   const [templatePages, setTemplatePages] = useState<string[]>([]);
+  const [quiz, setQuiz] = useState<QuizPayload>({ questions: [] });
   const [editorOpen, setEditorOpen] = useState(false);
 
   return (
     <form action={action} className="space-y-6">
       <input type="hidden" name="templatePages" value={JSON.stringify(templatePages)} />
+      <input type="hidden" name="quizPayload" value={JSON.stringify(quiz)} />
 
       {/* Title + instructions + tags */}
       <div className="card space-y-4 p-5">
@@ -54,7 +57,15 @@ export function ActivityBuilder() {
         <p className="mb-3 text-sm text-muted">
           Build a template on the same canvas the children use — draw it, or add a
           PDF / picture (for example a worksheet). Leave it blank for a free response.
+          Use <span className="font-semibold">❓ Quiz</span> in the ＋ menu to add
+          multiple-choice questions across the pages.
         </p>
+
+        {quiz.questions.length > 0 && (
+          <p className="mb-3 inline-block rounded-full bg-brand/10 px-3 py-1 text-sm font-semibold text-brand">
+            ❓ {quiz.questions.length} quiz question{quiz.questions.length === 1 ? "" : "s"}
+          </p>
+        )}
 
         {templatePages.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
@@ -65,10 +76,17 @@ export function ActivityBuilder() {
         )}
 
         <button type="button" onClick={() => setEditorOpen(true)} className="btn-brand">
-          {templatePages.length > 0 ? "🎨 Edit template" : "🎨 Build a template"}
+          {templatePages.length > 0 || quiz.questions.length > 0 ? "🎨 Edit template & quiz" : "🎨 Build a template or quiz"}
         </button>
-        {templatePages.length > 0 && (
-          <button type="button" onClick={() => setTemplatePages([])} className="ml-2 rounded-lg px-3 py-2 text-sm text-muted hover:text-rose-600">
+        {(templatePages.length > 0 || quiz.questions.length > 0) && (
+          <button
+            type="button"
+            onClick={() => {
+              setTemplatePages([]);
+              setQuiz({ questions: [] });
+            }}
+            className="ml-2 rounded-lg px-3 py-2 text-sm text-muted hover:text-rose-600"
+          >
             Remove template
           </button>
         )}
@@ -79,12 +97,15 @@ export function ActivityBuilder() {
           name="__templateEditor"
           fullScreen
           allowImport
+          quizMode="author"
+          initialQuiz={quiz}
           title="Build the template"
-          subtitle="Draw or add a PDF / picture — the children work on top of this."
+          subtitle="Draw or add a PDF / picture, and add quiz questions with ❓ Quiz."
           background={templatePages.length ? templatePages : undefined}
           onClose={() => setEditorOpen(false)}
-          onDone={(pages) => {
+          onDone={(pages, q) => {
             setTemplatePages(pages);
+            setQuiz(q ?? { questions: [] });
             setEditorOpen(false);
           }}
         />

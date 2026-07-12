@@ -1,6 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  MIN_OPTIONS,
+  MAX_OPTIONS,
+  type QuizOption,
+  type QuizPayload,
+  type QuizQuestion,
+} from "@/lib/quiz";
+
+// Deep-clone the questions we get from props so our editing never mutates the
+// caller's object. Quiz questions live in their own layer (quizRef) and are
+// NEVER flattened into the page PNG — that invariant is what keeps a child's
+// drawing free of the question boxes and the compositing tests untouched.
+function cloneQuestions(qs: QuizQuestion[]): QuizQuestion[] {
+  return qs.map((q) => ({ ...q, options: q.options.map((o) => ({ ...o })) }));
+}
 
 const SWATCHES = [
   "#1f2430", "#ef4444", "#f97316", "#f59e0b", "#10b981",
@@ -220,6 +235,8 @@ export function DrawingCanvas({
   withCaption = false,
   onClose,
   onDone,
+  quizMode,
+  initialQuiz,
 }: {
   name: string;
   background?: string[];
@@ -229,7 +246,12 @@ export function DrawingCanvas({
   subtitle?: string;
   withCaption?: boolean;
   onClose?: () => void;
-  onDone?: (pages: string[]) => void;
+  onDone?: (pages: string[], quiz?: QuizPayload) => void;
+  // "author" = teacher building a quiz (place/edit question boxes);
+  // "answer" = child answering it (tap options, silent capture).
+  // undefined = no quiz (existing callers unaffected).
+  quizMode?: "author" | "answer";
+  initialQuiz?: QuizPayload;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -283,6 +305,26 @@ export function DrawingCanvas({
   // Placed objects on the current page + which one is selected.
   const [objects, setObjects] = useState<Obj[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // ---- Quiz layer (structured, NEVER composited into the page PNG) ----------
+  // `quizRef` is the source of truth (a flat list carrying each question's
+  // pageIndex, so a quiz can span non-consecutive pages); `quizQuestions`
+  // mirrors it for rendering. Panel visibility + selection are component-level
+  // (not per-page) so the quiz toolbox stays put as the teacher changes pages.
+  const isQuizAuthor = quizMode === "author";
+  const isQuizAnswer = quizMode === "answer";
+  const quizRef = useRef<QuizQuestion[]>(cloneQuestions(initialQuiz?.questions ?? []));
+  const quizSeqRef = useRef<number>(initialQuiz?.questions?.length ?? 0);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(quizRef.current);
+  const [quizPanelOpen, setQuizPanelOpen] = useState(false);
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+  // Answer mode: the child's current selection per question, mirrored into the
+  // hidden `quizAnswers` input the response form submits.
+  const answersRef = useRef<Map<string, string>>(new Map());
+  const quizAnswersRef = useRef<HTMLInputElement>(null);
+  const pendingOptionRef = useRef<{ qid: string; oid: string } | null>(null);
+  const quizFileRef = useRef<HTMLInputElement>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (allowImport) import("pdfjs-dist").catch(() => {});
@@ -919,6 +961,126 @@ export function DrawingCanvas({
     return anyDrawnRef.current ? [...compositeRef.current] : [];
   }
 
+  // ---- Quiz operations ------------------------------------------------------
+  // All mutate quizRef (the source of truth) then mirror to state. Quiz data is
+  // deliberately kept out of syncHidden()/compositeCurrentPage()/pushHistory().
+  function commitQuiz() {
+    setQuizQuestions([...quizRef.current]);
+  }
+
+  // Drop a new question box in the middle of the CURRENT page. Marking a quiz
+  // present forces the page composites to be saved (currentPages), so blank
+  // pages a question sits on are preserved and line up at answer time.
+  function addQuestion() {
+    const qid = `q${quizSeqRef.current++}`;
+    const options: QuizOption[] = [{ id: "opt0" }, { id: "opt1" }];
+    const q: QuizQuestion = {
+      id: qid,
+      pageIndex: currentRef.current,
+      x: (W - 380) / 2,
+      y: (H - 300) / 2,
+      w: 380,
+      h: 300,
+      prompt: "",
+      options,
+      correctOptionId: "opt0",
+    };
+    quizRef.current = [...quizRef.current, q];
+    anyDrawnRef.current = true;
+    setSelectedQuestionId(qid);
+    setQuizPanelOpen(true);
+    commitQuiz();
+    syncHidden();
+    refreshThumbs();
+  }
+
+  function updateQuestion(id: string, patch: Partial<QuizQuestion>) {
+    quizRef.current = quizRef.current.map((q) => (q.id === id ? { ...q, ...patch } : q));
+    commitQuiz();
+  }
+
+  function deleteQuestion(id: string) {
+    quizRef.current = quizRef.current.filter((q) => q.id !== id);
+    if (selectedQuestionId === id) setSelectedQuestionId(null);
+    commitQuiz();
+  }
+
+  function addOption(qid: string) {
+    quizRef.current = quizRef.current.map((q) => {
+      if (q.id !== qid || q.options.length >= MAX_OPTIONS) return q;
+      const used = new Set(q.options.map((o) => o.id));
+      let n = q.options.length;
+      let oid = `opt${n}`;
+      while (used.has(oid)) oid = `opt${++n}`;
+      return { ...q, options: [...q.options, { id: oid }] };
+    });
+    commitQuiz();
+  }
+
+  function removeOption(qid: string, oid: string) {
+    quizRef.current = quizRef.current.map((q) => {
+      if (q.id !== qid || q.options.length <= MIN_OPTIONS) return q;
+      const options = q.options.filter((o) => o.id !== oid);
+      // Keep a valid correct answer if we removed the marked one.
+      const correctOptionId = options.some((o) => o.id === q.correctOptionId)
+        ? q.correctOptionId
+        : options[0].id;
+      return { ...q, options, correctOptionId };
+    });
+    commitQuiz();
+  }
+
+  function setOptionField(qid: string, oid: string, patch: Partial<QuizOption>) {
+    quizRef.current = quizRef.current.map((q) =>
+      q.id !== qid
+        ? q
+        : { ...q, options: q.options.map((o) => (o.id === oid ? { ...o, ...patch } : o)) },
+    );
+    commitQuiz();
+  }
+
+  function setCorrectOption(qid: string, oid: string) {
+    updateQuestion(qid, { correctOptionId: oid });
+  }
+
+  // Open the file picker to set a picture on a specific option.
+  function pickOptionImage(qid: string, oid: string) {
+    pendingOptionRef.current = { qid, oid };
+    quizFileRef.current?.click();
+  }
+
+  async function onQuizImageFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const target = pendingOptionRef.current;
+    pendingOptionRef.current = null;
+    if (quizFileRef.current) quizFileRef.current.value = "";
+    if (!file || !target || !file.type.startsWith("image/")) return;
+    const url = await new Promise<string>((res) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result));
+      r.readAsDataURL(file);
+    });
+    // Transient data URL; createTemplate rewrites it to a private /uploads path.
+    setOptionField(target.qid, target.oid, { imagePath: url });
+  }
+
+  // ---- Answer mode ----------------------------------------------------------
+  function syncAnswers() {
+    if (!quizAnswersRef.current) return;
+    const arr = quizRef.current.map((q) => ({
+      questionId: q.id,
+      selectedOptionId: answersRef.current.get(q.id) ?? null,
+    }));
+    quizAnswersRef.current.value = JSON.stringify(arr);
+  }
+
+  // A child taps an answer. Record it silently — no right/wrong is ever shown.
+  function selectAnswer(qid: string, oid: string) {
+    answersRef.current.set(qid, oid);
+    setAnswers(Object.fromEntries(answersRef.current));
+    syncAnswers();
+  }
+
   function pickHue(e: React.PointerEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     const frac = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
@@ -973,6 +1135,24 @@ export function DrawingCanvas({
     />
   );
 
+  // The quiz question boxes on the current page. Rendered ABOVE the stroke
+  // canvas so a child can always tap an answer; the container is
+  // pointer-events-none so the rest of the canvas stays drawable.
+  const quizLayer = quizMode ? (
+    <QuizLayer
+      questions={quizQuestions.filter((q) => q.pageIndex === current)}
+      scale={scale}
+      mode={quizMode}
+      interactive={isQuizAuthor ? objectsInteractive : true}
+      selectedId={selectedQuestionId}
+      answers={answers}
+      onSelect={setSelectedQuestionId}
+      onMove={updateQuestion}
+      onDelete={deleteQuestion}
+      onAnswer={selectAnswer}
+    />
+  ) : null;
+
   const hiddenInputs = (
     <>
       <input type="hidden" name={name} ref={hiddenRef} />
@@ -984,6 +1164,18 @@ export function DrawingCanvas({
         onChange={onImportFiles}
         className="hidden"
       />
+      {isQuizAnswer && <input type="hidden" name="quizAnswers" ref={quizAnswersRef} />}
+      {/* Only mounted while the quiz panel is open (the only place option images
+          are picked), so it never collides with the import file input above. */}
+      {isQuizAuthor && quizPanelOpen && (
+        <input
+          ref={quizFileRef}
+          type="file"
+          accept="image/*"
+          onChange={onQuizImageFile}
+          className="hidden"
+        />
+      )}
     </>
   );
 
@@ -1018,6 +1210,7 @@ export function DrawingCanvas({
           cursor: tool === "cursor" ? "default" : tool === "text" ? "text" : "crosshair",
         }}
       />
+      {quizLayer}
     </>
   );
 
@@ -1060,7 +1253,7 @@ export function DrawingCanvas({
             {onClose && <RoundBtn label="Close" onClick={onClose}>✕</RoundBtn>}
             <button
               type={onDone ? "button" : "submit"}
-              onClick={onDone ? () => onDone(currentPages()) : undefined}
+              onClick={onDone ? () => onDone(currentPages(), isQuizAuthor ? { questions: quizRef.current } : undefined) : undefined}
               title="Done"
               className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-2xl text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-600"
             >
@@ -1086,6 +1279,9 @@ export function DrawingCanvas({
                 <FanBtn label="Photo / PDF" onClick={() => fileRef.current?.click()}>🖼️</FanBtn>
                 <FanBtn label="Text" onClick={() => { setFanOpen(false); setTool("text"); }}>🔤</FanBtn>
                 <FanBtn label="Shapes" onClick={() => { setShapesOpen((v) => !v); }}>⬟</FanBtn>
+                {isQuizAuthor && (
+                  <FanBtn label="Quiz" onClick={() => { setFanOpen(false); setShapesOpen(false); setTool("cursor"); setQuizPanelOpen(true); }}>❓</FanBtn>
+                )}
               </div>
             )}
             <button
@@ -1108,6 +1304,30 @@ export function DrawingCanvas({
               shape={selectedShape}
               onChange={styleSelectedShape}
               className="absolute left-1/2 top-16 z-20 -translate-x-1/2"
+            />
+          )}
+
+          {isQuizAuthor && quizPanelOpen && (
+            <QuizPanel
+              questions={quizQuestions}
+              currentPage={current}
+              pageCount={pageCount}
+              selectedId={selectedQuestionId}
+              onClose={() => setQuizPanelOpen(false)}
+              onAddQuestion={addQuestion}
+              onSelectQuestion={(id) => {
+                const q = quizRef.current.find((x) => x.id === id);
+                if (q && q.pageIndex !== currentRef.current) goToPage(q.pageIndex);
+                setSelectedQuestionId(id);
+              }}
+              onUpdatePrompt={(id, prompt) => updateQuestion(id, { prompt })}
+              onDeleteQuestion={deleteQuestion}
+              onAddOption={addOption}
+              onRemoveOption={removeOption}
+              onOptionText={(qid, oid, text) => setOptionField(qid, oid, { text })}
+              onOptionImage={pickOptionImage}
+              onClearOptionImage={(qid, oid) => setOptionField(qid, oid, { imagePath: undefined })}
+              onSetCorrect={setCorrectOption}
             />
           )}
 
@@ -1926,6 +2146,369 @@ function ShapeStyleBar({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ===========================================================================
+// Quiz layer — floating multiple-choice question boxes. Rendered above the
+// stroke canvas and kept entirely separate from the flattened page image.
+// ===========================================================================
+
+function QuizLayer({
+  questions,
+  scale,
+  mode,
+  interactive,
+  selectedId,
+  answers,
+  onSelect,
+  onMove,
+  onDelete,
+  onAnswer,
+}: {
+  questions: QuizQuestion[];
+  scale: number;
+  mode: "author" | "answer";
+  interactive: boolean;
+  selectedId: string | null;
+  answers: Record<string, string>;
+  onSelect: (id: string) => void;
+  onMove: (id: string, patch: Partial<QuizQuestion>) => void;
+  onDelete: (id: string) => void;
+  onAnswer: (qid: string, oid: string) => void;
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {questions.map((q) => (
+        <QuizBoxView
+          key={q.id}
+          q={q}
+          scale={scale}
+          mode={mode}
+          interactive={interactive}
+          selected={q.id === selectedId}
+          selectedOption={answers[q.id] ?? null}
+          onSelect={onSelect}
+          onMove={onMove}
+          onDelete={onDelete}
+          onAnswer={onAnswer}
+        />
+      ))}
+    </div>
+  );
+}
+
+function QuizBoxView({
+  q,
+  scale,
+  mode,
+  interactive,
+  selected,
+  selectedOption,
+  onSelect,
+  onMove,
+  onDelete,
+  onAnswer,
+}: {
+  q: QuizQuestion;
+  scale: number;
+  mode: "author" | "answer";
+  interactive: boolean;
+  selected: boolean;
+  selectedOption: string | null;
+  onSelect: (id: string) => void;
+  onMove: (id: string, patch: Partial<QuizQuestion>) => void;
+  onDelete: (id: string) => void;
+  onAnswer: (qid: string, oid: string) => void;
+}) {
+  const author = mode === "author";
+  const drag = useRef<{ mode: "move" | "resize"; ax: number; ay: number; sw: number; sh: number } | null>(null);
+
+  function capture(e: React.PointerEvent) {
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }
+  function startMove(e: React.PointerEvent) {
+    if (!author || !interactive) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect(q.id);
+    drag.current = { mode: "move", ax: e.clientX - q.x * scale, ay: e.clientY - q.y * scale, sw: q.w, sh: q.h };
+    capture(e);
+  }
+  function startResize(e: React.PointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect(q.id);
+    drag.current = { mode: "resize", ax: e.clientX, ay: e.clientY, sw: q.w, sh: q.h };
+    capture(e);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    const d = drag.current;
+    if (!d) return;
+    if (d.mode === "move") {
+      onMove(q.id, {
+        x: Math.max(0, Math.min(W - q.w, (e.clientX - d.ax) / scale)),
+        y: Math.max(0, Math.min(H - q.h, (e.clientY - d.ay) / scale)),
+      });
+    } else {
+      const w = Math.max(220, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
+      const h = Math.max(160, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
+      onMove(q.id, { w, h });
+    }
+  }
+  function onPointerUp() {
+    drag.current = null;
+  }
+
+  const twoCol = q.options.length > 2;
+
+  return (
+    <div
+      onPointerDown={author ? startMove : undefined}
+      onPointerMove={author ? onPointerMove : undefined}
+      onPointerUp={author ? onPointerUp : undefined}
+      className={`absolute rounded-2xl ${
+        author ? (interactive ? "pointer-events-auto cursor-move" : "pointer-events-none") : "pointer-events-auto"
+      } ${selected ? "ring-2 ring-brand" : ""}`}
+      style={{ left: q.x * scale, top: q.y * scale, width: q.w * scale, height: q.h * scale }}
+    >
+      <div className="flex h-full w-full flex-col gap-2 overflow-hidden rounded-2xl border-2 border-brand/60 bg-white/95 p-3 shadow-lg">
+        <p className="text-center font-bold leading-tight text-foreground" style={{ fontSize: Math.max(15, 24 * scale) }}>
+          {q.prompt || (author ? "Add your question in the Quiz panel →" : "")}
+        </p>
+        <div
+          className="grid min-h-0 flex-1 gap-2"
+          style={{ gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr" }}
+        >
+          {q.options.map((o) => {
+            const chosen = !author && selectedOption === o.id;
+            const isCorrect = author && q.correctOptionId === o.id;
+            return (
+              <button
+                key={o.id}
+                type="button"
+                disabled={author}
+                aria-label={o.text || "Picture answer"}
+                aria-pressed={chosen}
+                onClick={author ? undefined : () => onAnswer(q.id, o.id)}
+                className={`flex min-h-[64px] items-center justify-center gap-2 rounded-xl border-2 p-2 text-center transition-colors ${
+                  chosen ? "border-brand bg-brand/15" : "border-border bg-white"
+                } ${author ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
+              >
+                {o.imagePath && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={o.imagePath} alt="" className="max-h-16 w-auto shrink-0 object-contain" />
+                )}
+                {o.text && <span className="font-semibold text-foreground">{o.text}</span>}
+                {isCorrect && (
+                  <span className="text-emerald-600" title="Correct answer">
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {author && selected && interactive && (
+        <>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onDelete(q.id)}
+            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs text-white shadow"
+            title="Remove question"
+            aria-label="Remove question"
+          >
+            ✕
+          </button>
+          <div
+            onPointerDown={startResize}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
+            title="Resize"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+// The persistent quiz authoring panel. Stays mounted regardless of the current
+// page, so a quiz can be built across non-consecutive pages without losing the
+// toolbox. Lists every question (with its page), and edits the selected one.
+function QuizPanel({
+  questions,
+  currentPage,
+  pageCount,
+  selectedId,
+  onClose,
+  onAddQuestion,
+  onSelectQuestion,
+  onUpdatePrompt,
+  onDeleteQuestion,
+  onAddOption,
+  onRemoveOption,
+  onOptionText,
+  onOptionImage,
+  onClearOptionImage,
+  onSetCorrect,
+}: {
+  questions: QuizQuestion[];
+  currentPage: number;
+  pageCount: number;
+  selectedId: string | null;
+  onClose: () => void;
+  onAddQuestion: () => void;
+  onSelectQuestion: (id: string) => void;
+  onUpdatePrompt: (id: string, prompt: string) => void;
+  onDeleteQuestion: (id: string) => void;
+  onAddOption: (qid: string) => void;
+  onRemoveOption: (qid: string, oid: string) => void;
+  onOptionText: (qid: string, oid: string, text: string) => void;
+  onOptionImage: (qid: string, oid: string) => void;
+  onClearOptionImage: (qid: string, oid: string) => void;
+  onSetCorrect: (qid: string, oid: string) => void;
+}) {
+  const selected = questions.find((q) => q.id === selectedId) ?? null;
+  return (
+    <div className="absolute bottom-3 left-20 top-24 z-20 flex w-72 max-w-[80vw] flex-col rounded-2xl border border-border bg-surface/95 p-3 shadow-xl">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold text-foreground">❓ Quiz</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close quiz panel"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-muted hover:bg-background"
+        >
+          ✕
+        </button>
+      </div>
+      <p className="mt-0.5 text-xs text-muted">
+        Questions can be on any page. You&apos;re on page {currentPage + 1} of {pageCount}.
+      </p>
+      <button
+        type="button"
+        onClick={onAddQuestion}
+        className="mt-2 rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white shadow hover:brightness-105"
+      >
+        ＋ Add question on this page
+      </button>
+
+      <div className="mt-2 min-h-[3rem] max-h-40 overflow-y-auto">
+        {questions.length === 0 ? (
+          <p className="px-1 text-xs text-muted">No questions yet. Add one to get started.</p>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {questions.map((q, i) => (
+              <li key={q.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectQuestion(q.id)}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm ${
+                    q.id === selectedId ? "bg-brand/10 ring-1 ring-brand" : "hover:bg-background"
+                  }`}
+                >
+                  <span className="rounded bg-background px-1.5 text-xs font-semibold text-muted">
+                    P{q.pageIndex + 1}
+                  </span>
+                  <span className="flex-1 truncate text-foreground">{q.prompt || `Question ${i + 1}`}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {selected && (
+        <div className="mt-2 flex-1 overflow-y-auto border-t border-border pt-2">
+          <label className="text-xs font-semibold text-muted" htmlFor="quiz-prompt">
+            Question
+          </label>
+          <input
+            id="quiz-prompt"
+            value={selected.prompt}
+            onChange={(e) => onUpdatePrompt(selected.id, e.target.value)}
+            placeholder="What do you want to ask?"
+            className="input mt-1 w-full text-sm"
+          />
+
+          <p className="mt-2 text-xs font-semibold text-muted">Answers — tap the circle to mark the correct one</p>
+          <div className="mt-1 flex flex-col gap-1.5">
+            {selected.options.map((o) => (
+              <div key={o.id} className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onSetCorrect(selected.id, o.id)}
+                  title="Mark as the correct answer"
+                  aria-label={`Mark "${o.text || "this answer"}" as correct`}
+                  aria-pressed={selected.correctOptionId === o.id}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs ${
+                    selected.correctOptionId === o.id
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : "border-border text-transparent"
+                  }`}
+                >
+                  ✓
+                </button>
+                <input
+                  value={o.text ?? ""}
+                  onChange={(e) => onOptionText(selected.id, o.id, e.target.value)}
+                  placeholder="Answer"
+                  aria-label="Answer text"
+                  className="input flex-1 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => (o.imagePath ? onClearOptionImage(selected.id, o.id) : onOptionImage(selected.id, o.id))}
+                  title={o.imagePath ? "Remove picture" : "Add a picture"}
+                  aria-label={o.imagePath ? "Remove answer picture" : "Add answer picture"}
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-sm ${
+                    o.imagePath ? "border-brand bg-brand/10" : "border-border"
+                  }`}
+                >
+                  {o.imagePath ? "🖼️" : "＋🖼️"}
+                </button>
+                {selected.options.length > MIN_OPTIONS && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveOption(selected.id, o.id)}
+                    aria-label="Remove answer"
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:text-rose-600"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {selected.options.length < MAX_OPTIONS && (
+            <button
+              type="button"
+              onClick={() => onAddOption(selected.id)}
+              className="mt-1.5 text-xs font-semibold text-brand"
+            >
+              ＋ Add answer
+            </button>
+          )}
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => onDeleteQuestion(selected.id)}
+              className="text-xs font-semibold text-rose-600 hover:underline"
+            >
+              Delete this question
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

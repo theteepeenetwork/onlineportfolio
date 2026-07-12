@@ -134,6 +134,59 @@ async function main() {
     },
   });
 
+  // A quiz template + a run of it, so isolation specs can prove:
+  //  - the quiz OPTION PICTURE (seed-oak-quiz.svg) is teacher-authored content:
+  //    Oakfield's teacher and its assigned pupils may load it; no other tenant,
+  //    and no parent, ever can.
+  //  - a School B child's quiz ANSWER is PENDING child content scoped to School B.
+  const oakQuizImg = writeSvg("seed-oak-quiz.svg", OAK_SVG);
+  const oakQuiz = JSON.stringify({
+    questions: [
+      {
+        id: "q0",
+        pageIndex: 0,
+        x: 300,
+        y: 250,
+        w: 400,
+        h: 200,
+        prompt: "Which picture shows the Oakfield oak leaf?", // distinctive marker for leak tests
+        options: [
+          { id: "opt0", text: "The oak leaf", imagePath: oakQuizImg },
+          { id: "opt1", text: "Not this one" },
+        ],
+        correctOptionId: "opt0",
+      },
+    ],
+  });
+  const oakQuizTemplate = await db.activityTemplate.create({
+    data: { title: "Oak leaf quiz", quizJson: oakQuiz, teacherId: oakTeacher.id },
+  });
+  const oakQuizRun = await db.assignment.create({
+    data: {
+      templateId: oakQuizTemplate.id,
+      classId: acorn.id,
+      wholeClass: true,
+      status: "LIVE",
+      title: oakQuizTemplate.title,
+      quizSnapshotJson: oakQuiz,
+    },
+  });
+  // Zara's quiz answer — a PENDING response carrying her selections + score.
+  await db.journalItem.create({
+    data: {
+      type: "DRAWING",
+      caption: "Zara's quiz answer",
+      status: "PENDING",
+      authorRole: "STUDENT",
+      studentId: zara.id,
+      classId: acorn.id,
+      assignmentId: oakQuizRun.id,
+      quizAnswersJson: JSON.stringify([{ questionId: "q0", selectedOptionId: "opt0" }]),
+      quizScore: 1,
+      quizTotal: 1,
+    },
+  });
+
   // 3) School C = Larchwood Primary — a FROZEN (lapsed) account. Its trial ended
   //    with no subscription, so it is read-only: the battery uses it to prove
   //    that requireWritableAccount() blocks EVERY mutation server-side while
@@ -192,7 +245,7 @@ async function main() {
   console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN123 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
   console.log("                         teacher teacher@oakfield.sch.uk / password  class OAK111 (Acorn)  parent OAKFAM1");
-  console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)");
+  console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)  /uploads/seed-oak-quiz.svg (quiz option)");
   console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class LRCH22 (Willow)  read-only");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).

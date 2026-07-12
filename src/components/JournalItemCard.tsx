@@ -13,6 +13,8 @@ export type JournalItemView = {
   teacherNote: string | null;
   createdAt: Date;
   skills: { id: string; name: string }[];
+  quizScore?: number | null;
+  quizTotal?: number | null;
 };
 
 // All image paths for an item: the multi-page list if present, else the single
@@ -50,9 +52,12 @@ function formatDate(d: Date) {
 export function JournalItemCard({
   item,
   showStatus = false,
+  showQuizScore = false,
 }: {
   item: JournalItemView;
   showStatus?: boolean;
+  // Teacher-only: the child never sees their quiz score (silent capture).
+  showQuizScore?: boolean;
 }) {
   return (
     <article className="card overflow-hidden">
@@ -66,7 +71,14 @@ export function JournalItemCard({
             </span>
           )}
         </span>
-        {showStatus && <StatusBadge status={item.status} />}
+        <span className="flex items-center gap-1.5">
+          {showQuizScore && item.quizTotal != null && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+              ❓ Quiz {item.quizScore}/{item.quizTotal}
+            </span>
+          )}
+          {showStatus && <StatusBadge status={item.status} />}
+        </span>
       </div>
 
       {(() => {

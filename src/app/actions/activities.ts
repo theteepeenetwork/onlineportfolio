@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { saveImagePages } from "@/lib/media";
+import { saveImagePages, saveImageDataUrl } from "@/lib/media";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
+import { parseQuizPayload } from "@/lib/quiz";
 
 function parsePages(raw: string): string[] {
   try {
@@ -14,6 +15,23 @@ function parsePages(raw: string): string[] {
   } catch {
     return [];
   }
+}
+
+// Validate the quiz payload from the editor and persist any freshly-authored
+// option images (data URLs → private /uploads paths, like template pages).
+// Returns the JSON to store, or null when there are no questions. Throws a
+// teacher-friendly Error on invalid input (surfaced by the caller).
+async function persistQuizPayload(raw: string): Promise<string | null> {
+  const quiz = parseQuizPayload(raw);
+  if (quiz.questions.length === 0) return null;
+  for (const q of quiz.questions) {
+    for (const o of q.options) {
+      if (o.imagePath && o.imagePath.startsWith("data:image")) {
+        o.imagePath = await saveImageDataUrl(o.imagePath);
+      }
+    }
+  }
+  return JSON.stringify(quiz);
 }
 
 function parseTags(raw: string): string[] {
@@ -41,9 +59,11 @@ export async function createTemplate(
   if (!title) return { error: "Please give the template a title." };
 
   let templatePathsJson: string | null = null;
+  let quizJson: string | null = null;
   try {
     const pages = parsePages(String(formData.get("templatePages") ?? ""));
     if (pages.length) templatePathsJson = JSON.stringify(await saveImagePages(pages));
+    quizJson = await persistQuizPayload(String(formData.get("quizPayload") ?? ""));
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Couldn't save the template." };
   }
@@ -53,6 +73,7 @@ export async function createTemplate(
       title,
       instructions,
       templatePathsJson,
+      quizJson,
       tagsJson: tags.length ? JSON.stringify(tags) : null,
       teacherId: user.teacher.id,
     },
@@ -113,6 +134,7 @@ export async function assignTemplate(
       title: template.title,
       instructions: template.instructions,
       templateSnapshotJson: template.templatePathsJson,
+      quizSnapshotJson: template.quizJson,
       dueDate,
       students: wholeClass ? undefined : { create: chosen.map((studentId) => ({ studentId })) },
     },
@@ -137,6 +159,7 @@ export async function duplicateTemplate(formData: FormData) {
       title: `${t.title} (copy)`,
       instructions: t.instructions,
       templatePathsJson: t.templatePathsJson,
+      quizJson: t.quizJson,
       tagsJson: t.tagsJson,
       teacherId: user.teacher.id,
     },
