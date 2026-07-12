@@ -204,3 +204,21 @@ model Session {
   createdAt DateTime @default(now())
   expiresAt DateTime
 }
+
+// An append-only record of safeguarding-relevant actions (approvals, returns,
+// deletions, staff/role changes) for accountability — SAFEGUARDING.md rule 16.
+// Kept deliberately lightweight: actor, action, subject, time and a short note.
+model AuditLog {
+  id          String   @id @default(cuid())
+  at          DateTime @default(now())
+  schoolId    String? // for school-scoped viewing (from the actor's school)
+  actorType   String // TEACHER | ADMIN | SYSTEM
+  actorId     String?
+  actorName   String?
+  action      String // e.g. MOMENT_APPROVED | MOMENT_RETURNED | STAFF_ROLE_CHANGED
+  subjectType String? // e.g. JOURNAL_ITEM | STUDENT | TEACHER | CLASS
+  subjectId   String?
+  detail      String? // short human-readable summary
+
+  @@index([schoolId, at])
+}

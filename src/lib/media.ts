@@ -1,11 +1,13 @@
 import "server-only";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
+import { MEDIA_DIR } from "@/lib/mediaPath";
 
-// Where uploaded photos and drawings live. Files here are served statically
-// by Next.js at /uploads/<filename>.
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+// Where uploaded photos and drawings live: a PRIVATE directory (not under
+// public/). They are served only through the authorising /uploads/[...] route,
+// never statically. Returned paths keep the /uploads/<file> URL shape.
+const UPLOAD_DIR = MEDIA_DIR;
 
 const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -21,6 +23,7 @@ async function writeBytes(bytes: Buffer, ext: string): Promise<string> {
   if (bytes.length > MAX_BYTES) {
     throw new Error("That file is too big (max 15 MB).");
   }
+  await mkdir(UPLOAD_DIR, { recursive: true });
   const name = `${randomBytes(12).toString("hex")}.${ext}`;
   await writeFile(path.join(UPLOAD_DIR, name), bytes);
   return `/uploads/${name}`;

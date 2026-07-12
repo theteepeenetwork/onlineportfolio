@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { AdminConsole, type StaffRow, type SchoolClass } from "./AdminConsole";
+import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
 // else is bounced back to their own teacher view. Nothing here exposes any
@@ -44,6 +44,20 @@ export default async function AdminPage() {
 
   const childrenCount = classes.reduce((a, c) => a + c.children, 0);
 
+  // Recent safeguarding-relevant actions for this school (accountability).
+  const auditRows = await db.auditLog.findMany({
+    where: { schoolId: school.id },
+    orderBy: { at: "desc" },
+    take: 100,
+  });
+  const audit: AuditEntry[] = auditRows.map((a) => ({
+    id: a.id,
+    atISO: a.at.toISOString(),
+    actorName: a.actorName ?? a.actorType,
+    action: a.action,
+    detail: a.detail,
+  }));
+
   return (
     <AdminConsole
       schoolName={school.name}
@@ -53,6 +67,7 @@ export default async function AdminPage() {
       staff={staff}
       classes={classes}
       childrenCount={childrenCount}
+      audit={audit}
     />
   );
 }

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { savePhoto, saveImageDataUrl, saveImagePages } from "@/lib/media";
+import { recordAudit } from "@/lib/audit";
 
 // A student (or teacher) adds a new piece of work to a journal.
 // Student-created items always start life in the approval queue (PENDING);
@@ -115,6 +116,16 @@ export async function createJournalItem(
   }
 }
 
+// Find a journal item the current teacher is allowed to moderate — i.e. one in
+// a class they teach. Returns null (deny) otherwise, so a teacher can never act
+// on another class's item by guessing its id (SAFEGUARDING.md rules 4 & 8).
+async function ownedItem(teacherId: string, id: string) {
+  return db.journalItem.findFirst({
+    where: { id, class: { teacherId } },
+    select: { id: true, studentId: true, student: { select: { name: true } } },
+  });
+}
+
 // Teacher approves a pending item, optionally tagging skills as they go.
 export async function approveItem(formData: FormData) {
   const user = await getCurrentUser();
@@ -123,6 +134,9 @@ export async function approveItem(formData: FormData) {
   const id = String(formData.get("itemId") ?? "");
   const skillIds = formData.getAll("skillIds").map(String).filter(Boolean);
 
+  const item = await ownedItem(user.teacher.id, id);
+  if (!item) return; // not this teacher's class — do nothing
+
   await db.journalItem.update({
     where: { id },
     data: {
@@ -130,6 +144,10 @@ export async function approveItem(formData: FormData) {
       approvedAt: new Date(),
       skills: skillIds.length ? { set: skillIds.map((sid) => ({ id: sid })) } : undefined,
     },
+  });
+  await recordAudit({
+    action: "MOMENT_APPROVED", actorType: "TEACHER", actorId: user.teacher.id, actorName: user.teacher.displayName,
+    schoolId: user.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: id, detail: `Approved ${item.student.name}'s moment`,
   });
 
   revalidatePath("/teacher/queue");
@@ -144,9 +162,16 @@ export async function returnItem(formData: FormData) {
   const id = String(formData.get("itemId") ?? "");
   const note = String(formData.get("teacherNote") ?? "").trim() || null;
 
+  const item = await ownedItem(user.teacher.id, id);
+  if (!item) return;
+
   await db.journalItem.update({
     where: { id },
     data: { status: "RETURNED", teacherNote: note },
+  });
+  await recordAudit({
+    action: "MOMENT_RETURNED", actorType: "TEACHER", actorId: user.teacher.id, actorName: user.teacher.displayName,
+    schoolId: user.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: id, detail: `Sent ${item.student.name}'s moment back`,
   });
 
   revalidatePath("/teacher/queue");
@@ -158,7 +183,14 @@ export async function deleteItem(formData: FormData) {
   if (user?.role !== "TEACHER") redirect("/");
 
   const id = String(formData.get("itemId") ?? "");
+  const item = await ownedItem(user.teacher.id, id);
+  if (!item) return;
+
   await db.journalItem.delete({ where: { id } });
+  await recordAudit({
+    action: "MOMENT_DELETED", actorType: "TEACHER", actorId: user.teacher.id, actorName: user.teacher.displayName,
+    schoolId: user.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: id, detail: `Deleted ${item.student.name}'s moment`,
+  });
 
   revalidatePath("/teacher/queue");
   revalidatePath("/teacher");
