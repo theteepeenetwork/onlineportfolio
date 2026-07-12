@@ -148,23 +148,36 @@ export async function clearAllDrafts(): Promise<void> {
 // redirect only happens on success (a failed action re-renders in place).
 const CLEAR_FLAG = "sj-draft-clear";
 
-export function markDraftForClear(key: string): void {
+// Mark the finished draft for clearing on the destination page. Carries the
+// local key AND the server (surface, contextKey) so the same handoff clears both
+// the local IndexedDB copy and the cross-device server copy on success.
+export function markDraftForClear(key: string, surface?: string, contextKey?: string): void {
   try {
-    sessionStorage.setItem(CLEAR_FLAG, key);
+    sessionStorage.setItem(CLEAR_FLAG, JSON.stringify({ key, surface, contextKey }));
   } catch {
     /* storage unavailable — the 30-day purge is the backstop */
   }
 }
 
-export async function clearMarkedDraft(): Promise<void> {
-  let key: string | null = null;
+// Deletes the marked LOCAL draft and returns the server (surface, contextKey) so
+// the caller can discard the server copy too. Returns null if nothing marked.
+export async function clearMarkedDraft(): Promise<{ surface?: string; contextKey?: string } | null> {
+  let raw: string | null = null;
   try {
-    key = sessionStorage.getItem(CLEAR_FLAG);
-    if (key) sessionStorage.removeItem(CLEAR_FLAG);
+    raw = sessionStorage.getItem(CLEAR_FLAG);
+    if (raw) sessionStorage.removeItem(CLEAR_FLAG);
   } catch {
-    return;
+    return null;
   }
-  if (key) await deleteDraft(key);
+  if (!raw) return null;
+  let info: { key?: string; surface?: string; contextKey?: string };
+  try {
+    info = JSON.parse(raw) as typeof info;
+  } catch {
+    info = { key: raw }; // tolerate a legacy plain-string flag
+  }
+  if (info.key) await deleteDraft(info.key);
+  return { surface: info.surface, contextKey: info.contextKey };
 }
 
 // Lazy retention (no cron): drop any draft older than maxAgeMs. Called

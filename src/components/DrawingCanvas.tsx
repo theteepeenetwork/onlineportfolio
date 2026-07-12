@@ -19,6 +19,7 @@ import {
   type DraftCanvasV1,
   type DraftSurface,
 } from "@/lib/draftStore";
+import { serverSaveDraft, serverLoadDraft, serverDiscardDraft } from "@/lib/draftSync";
 
 // Deep-clone the questions we get from props so our editing never mutates the
 // caller's object. Quiz questions live in their own layer (quizRef) and are
@@ -299,9 +300,15 @@ export function DrawingCanvas({
   // Local-first autosave state.
   const draftingEnabled = Boolean(draftKey && ownerId);
   const draftSurface: DraftSurface = draftKey?.startsWith("tmpl-") ? "template-new" : "activity-response";
+  // Server (cross-device) mapping. Teacher: TEMPLATE_NEW / "tmpl-new".
+  // Child: ACTIVITY_RESPONSE / assignmentId (the middle segment of `resp:<a>:<s>`).
+  const serverSurface = draftSurface === "template-new" ? "TEMPLATE_NEW" : "ACTIVITY_RESPONSE";
+  const serverContext = draftSurface === "template-new" ? "tmpl-new" : (draftKey?.split(":")[1] ?? "");
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionRef = useRef<HTMLInputElement>(null);
   const [draftPrompt, setDraftPrompt] = useState<DraftCanvasV1 | null>(null);
+  const [draftSource, setDraftSource] = useState<"local" | "server">("local");
   const draftFieldsRef = useRef<Record<string, string> | null>(null); // fields from a pending restore
 
   const drawing = useRef(false);
@@ -482,7 +489,10 @@ export function DrawingCanvas({
     }
     // Autosave a local draft off the same choke point (debounced). Skipped while
     // seeding/hydrating so restore doesn't immediately re-save itself.
-    if (draftingEnabled && !loadingRef.current) schedulePersist();
+    if (draftingEnabled && !loadingRef.current) {
+      schedulePersist();
+      scheduleServerSync();
+    }
   }
 
   // ---- Local-first autosave -------------------------------------------------
@@ -492,6 +502,47 @@ export function DrawingCanvas({
       persistTimer.current = null;
       void doPersist();
     }, 1000);
+  }
+
+  // ---- Cross-device server sync (Stage 2) -----------------------------------
+  // Much longer debounce than the local save: pushing multi-MB composites to the
+  // server every second would be wasteful. Local (IndexedDB) is the fast,
+  // offline-resilient copy; the server copy is for resuming on another device.
+  function scheduleServerSync() {
+    if (serverTimer.current) clearTimeout(serverTimer.current);
+    serverTimer.current = setTimeout(() => {
+      serverTimer.current = null;
+      void doServerSync();
+    }, 25000);
+  }
+
+  async function doServerSync() {
+    if (!draftingEnabled) return;
+    const pages = anyDrawnRef.current ? compositeRef.current : [];
+    await serverSaveDraft(serverSurface, serverContext, pages, collectFields());
+  }
+
+  function flushServerSync() {
+    if (serverTimer.current) {
+      clearTimeout(serverTimer.current);
+      serverTimer.current = null;
+      void doServerSync(); // best-effort; may not complete if the tab is closing
+    }
+  }
+
+  // Build a canvas draft from server composite pages (the owner's /uploads
+  // paths): each composite becomes a page background with a blank stroke layer.
+  // Composite fidelity — enough to resume on another device via hydrateFromDraft.
+  function serverPagesToCanvas(pages: string[]): DraftCanvasV1 {
+    return {
+      v: 1,
+      pages: pages.map(() => ""),
+      templates: [...pages],
+      objects: pages.map(() => []),
+      current: 0,
+      anyDrawn: true,
+      nextObjId: 0,
+    };
   }
 
   function collectFields(): Record<string, string> {
@@ -711,16 +762,20 @@ export function DrawingCanvas({
     const onSubmit = () => {
       finishEditing();
       // Submitting IS the success path (a failed action re-renders in place, no
-      // redirect). Mark the draft so the destination page clears it.
-      if (draftingEnabled && draftKey) markDraftForClear(draftKey);
+      // redirect). Mark the draft so the destination page clears local + server.
+      if (draftingEnabled && draftKey) markDraftForClear(draftKey, serverSurface, serverContext);
     };
     form?.addEventListener("submit", onSubmit, true);
 
     // Flush the pending autosave when the tab is hidden or navigated away —
     // best-effort (async IDB writes aren't guaranteed to finish on unload; the
-    // ~1s debounced save is the reliable recovery point).
+    // ~1s local save is the reliable recovery point, and the server copy is at
+    // most ~25s behind).
     const onHide = () => {
-      if (draftingEnabled && document.visibilityState === "hidden") flushPersist();
+      if (draftingEnabled && document.visibilityState === "hidden") {
+        flushPersist();
+        flushServerSync();
+      }
     };
     document.addEventListener("visibilitychange", onHide);
     window.addEventListener("pagehide", onHide);
@@ -731,6 +786,7 @@ export function DrawingCanvas({
       document.removeEventListener("visibilitychange", onHide);
       window.removeEventListener("pagehide", onHide);
       if (persistTimer.current) clearTimeout(persistTimer.current);
+      if (serverTimer.current) clearTimeout(serverTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -748,10 +804,24 @@ export function DrawingCanvas({
     let cancelled = false;
     (async () => {
       await purgeExpired(RETENTION_MS);
-      const rec = await loadDraft(draftKey, ownerId);
-      if (!cancelled && rec?.canvas) {
-        draftFieldsRef.current = rec.fields ?? {};
-        setDraftPrompt(rec.canvas);
+      // Reconcile the local (full-fidelity, offline) copy with the server
+      // (cross-device) copy and offer whichever is newer.
+      const [local, server] = await Promise.all([
+        loadDraft(draftKey, ownerId),
+        serverLoadDraft(serverSurface, serverContext),
+      ]);
+      if (cancelled) return;
+      const localAt = local?.canvas ? local.updatedAt : 0;
+      const serverAt = server && server.pages.length ? server.updatedAt : 0;
+      if (server && serverAt > localAt) {
+        // Work happened on another device.
+        draftFieldsRef.current = server.fields ?? {};
+        setDraftSource("server");
+        setDraftPrompt(serverPagesToCanvas(server.pages));
+      } else if (local?.canvas) {
+        draftFieldsRef.current = local.fields ?? {};
+        setDraftSource("local");
+        setDraftPrompt(local.canvas);
       }
     })();
     return () => {
@@ -773,12 +843,15 @@ export function DrawingCanvas({
       }
     }
     draftFieldsRef.current = null;
+    // Push the restored session back so the local + server copies converge.
+    if (draftingEnabled) flushServerSync();
   }
 
   function discardDraft() {
     setDraftPrompt(null);
     draftFieldsRef.current = null;
     if (draftKey) void deleteDraft(draftKey);
+    if (draftingEnabled) void serverDiscardDraft(serverSurface, serverContext);
   }
 
   function pos(e: React.PointerEvent) {
@@ -1447,7 +1520,7 @@ export function DrawingCanvas({
       <div className="fixed inset-0 z-40 flex flex-col bg-[#e9ebf1]">
         {hiddenInputs}
         {draftPrompt && (
-          <RestorePrompt onRestore={restoreDraft} onDiscard={discardDraft} />
+          <RestorePrompt source={draftSource} onRestore={restoreDraft} onDiscard={discardDraft} />
         )}
 
         <div ref={wrapRef} className="relative flex-1 overflow-hidden">
@@ -2743,9 +2816,18 @@ function QuizPanel({
   );
 }
 
-// "Restore your unsaved work?" — shown on mount when a local draft exists.
-// Keyboard-reachable, focus-trapped, ≥64px child touch targets.
-function RestorePrompt({ onRestore, onDiscard }: { onRestore: () => void; onDiscard: () => void }) {
+// "Restore your unsaved work?" — shown on mount when a draft exists (local, or a
+// newer one synced from another device). Keyboard-reachable, focus-trapped,
+// ≥64px child touch targets.
+function RestorePrompt({
+  source,
+  onRestore,
+  onDiscard,
+}: {
+  source: "local" | "server";
+  onRestore: () => void;
+  onDiscard: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
@@ -2779,10 +2861,12 @@ function RestorePrompt({ onRestore, onDiscard }: { onRestore: () => void; onDisc
     >
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
         <h2 id="draft-restore-title" className="text-xl font-bold text-foreground">
-          Restore your unsaved work?
+          {source === "server" ? "Restore your work from another device?" : "Restore your unsaved work?"}
         </h2>
         <p className="mt-2 text-sm text-muted">
-          We kept what you were doing on this device. Carry on where you left off?
+          {source === "server"
+            ? "We found more recent work saved to your account. Carry on where you left off?"
+            : "We kept what you were doing on this device. Carry on where you left off?"}
         </p>
         <div className="mt-5 flex flex-col gap-2">
           <button type="button" onClick={onRestore} className="btn-brand min-h-[64px] w-full text-lg">

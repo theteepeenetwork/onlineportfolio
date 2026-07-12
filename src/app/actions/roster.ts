@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { deriveChildNames } from "@/lib/childNames";
 import { deleteMediaFiles } from "@/lib/media";
+import { gatherDraftPaths } from "@/lib/drafts";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 
 const AVATAR_COLORS = [
@@ -78,7 +79,10 @@ export async function removeStudent(formData: FormData) {
   // (SAFEGUARDING.md rule 9, UK GDPR Art.17). Mirrors deleteClass/deleteItem.
   const student = await db.student.findFirst({
     where: { id: studentId, class: { teacherId: user.teacher.id } },
-    include: { journalItems: { select: { mediaPath: true, mediaPathsJson: true } } },
+    include: {
+      journalItems: { select: { mediaPath: true, mediaPathsJson: true } },
+      drafts: { select: { pagesJson: true } }, // in-progress response drafts
+    },
   });
   if (student) {
     const mediaUrls: Array<string | null> = [];
@@ -95,7 +99,8 @@ export async function removeStudent(formData: FormData) {
         }
       }
     }
-    // Delete the row (cascades the pupil's journal items), then erase the files.
+    mediaUrls.push(...gatherDraftPaths(student.drafts));
+    // Delete the row (cascades the pupil's journal items + drafts), then erase files.
     await db.student.delete({ where: { id: studentId } });
     await deleteMediaFiles(mediaUrls);
   }

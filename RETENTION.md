@@ -35,6 +35,7 @@
 | Children's quiz answers + scores | **Not a separate category** — stored as fields on the journal item (`quizAnswersJson`, `quizScore`, `quizTotal`); no separate files | Deleted with their journal item (rows removed by the same cascade/erasure paths) |
 | Teacher-authored activity media — template background pages **and** quiz answer-option pictures (`quizJson` / `quizSnapshotJson`) | Template/assignment exists | Deleted with the template/account like other teacher-authored template media; served only via the authorising `/uploads` route, never to parents |
 | Child records (first name, class link) | As above | Deleted with the class/school, or on school instruction |
+| In-progress drafts — the template builder + a child's activity response (server copy for cross-device resume; composite pages stored as media, owner-scoped) | Last edited within **30 days** | Deleted (rows **and** media files) — lazily purged on access (no cron); erased immediately on submit/publish/discard and on class/student/school deletion. A child's draft is never visible to anyone but that child. |
 | Rejected/returned moments | — | Deleted within **30 days** of rejection |
 | Parent accounts + parent↔child links | Linked child exists | Deleted when last linked child is deleted, or on request |
 | Magic tokens | Until used or expired | Expired tokens purged within **7 days** |
