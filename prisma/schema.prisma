@@ -31,6 +31,7 @@ model Teacher {
   sessions     Session[]
   templates    ActivityTemplate[]
   folders      Folder[]
+  drafts       Draft[] // in-progress template drafts (cross-device autosave)
   // An individually-subscribing teacher's own subscription (null when the
   // teacher is covered by a school plan instead — see Subscription).
   subscription Subscription?
@@ -111,6 +112,7 @@ model Class {
   students     Student[]
   journalItems JournalItem[]
   assignments  Assignment[]
+  drafts       Draft[]
 }
 
 // A student has no password — they pick their name from the class after
@@ -126,6 +128,7 @@ model Student {
   sessions     Session[]
   assignments  AssignmentStudent[]
   parents      Parent[]      @relation("ParentChildren")
+  drafts       Draft[] // in-progress activity-response drafts (cross-device autosave)
 }
 
 // A parent/carer with a read-only family view of their own child(ren)'s jar.
@@ -216,6 +219,45 @@ model Assignment {
   createdAt            DateTime            @default(now())
   students             AssignmentStudent[] // set only when wholeClass = false
   responses            JournalItem[]
+  drafts               Draft[]
+}
+
+// An in-progress, unsubmitted draft synced to the account for cross-device
+// resume (local-first autosave, Stage 2). Exactly one owner is set: a teacher
+// (a new-template draft) OR a student (an activity-response draft). Composite
+// pages are stored as MEDIA FILES (like real pages) and only their /uploads
+// paths live in pagesJson — never multi-MB data URLs in a column.
+//
+// SAFEGUARDING: a child's draft is their private unfinished work. It is owner-
+// scoped, never visible to parents/other children/other tenants, and never to a
+// teacher (a teacher only sees the work once it's submitted as a JournalItem).
+// Deletion is real (rows + media files), on submit/publish, on 30-day lazy
+// expiry, and on owner cascade. See RETENTION.md.
+model Draft {
+  id         String   @id @default(cuid())
+  surface    String // TEMPLATE_NEW | ACTIVITY_RESPONSE
+  contextKey String // "tmpl-new" for a teacher, or the assignmentId for a response
+  ownerKey   String // "t:<teacherId>" or "s:<studentId>" — the non-null uniqueness discriminator (nullable FKs alone can't dedupe in SQLite, where NULLs are distinct)
+  pagesJson  String? // JSON array of /uploads paths (composite pages saved as media)
+  fieldsJson String? // JSON of the wrapper's fields (title/instructions/tags OR caption)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  expiresAt  DateTime // now + retention; lazily purged (no cron)
+
+  // Owner + context so cascade deletion and scoping are trivial. All Cascade so
+  // a draft dies with its owner (teacher/student/class/assignment).
+  teacher      Teacher?    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId    String?
+  student      Student?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    String?
+  class        Class?      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId      String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String?
+
+  // One draft per (owner, context).
+  @@unique([surface, contextKey, ownerKey])
+  @@index([expiresAt])
 }
 
 // A chosen child on a "pick children" run. (Formerly `ActivityAssignment`.)

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { uniqueClassCode } from "@/lib/classCode";
 import { deleteMediaFiles } from "@/lib/media";
+import { gatherDraftPaths } from "@/lib/drafts";
 import { recordAudit } from "@/lib/audit";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 
@@ -56,6 +57,7 @@ export async function deleteClass(formData: FormData) {
     where: { id: classId, teacherId: user.teacher.id },
     include: {
       journalItems: { select: { mediaPath: true, mediaPathsJson: true } },
+      drafts: { select: { pagesJson: true } }, // in-progress response drafts for this class
       _count: { select: { students: true, journalItems: true } },
     },
   });
@@ -81,6 +83,8 @@ export async function deleteClass(formData: FormData) {
       }
     }
   }
+  // Draft pages (cross-device autosave) are media files too — erase them.
+  mediaUrls.push(...gatherDraftPaths(klass.drafts));
 
   // Delete the rows (cascades to students, moments, assignments, responses and
   // their sessions), then erase the files so the right to erasure is real.

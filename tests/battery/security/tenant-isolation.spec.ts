@@ -8,7 +8,13 @@ import {
   studentIdFromLogin,
   clearSession,
   fetchStatus,
+  postStatus,
+  firstAssignmentId,
 } from "../helpers";
+
+// A 1×1 transparent PNG — a valid data:image for a draft-save request body.
+const TINY_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==";
 
 // ===========================================================================
 // A1 — Access control / tenant isolation (HIGHEST PRIORITY)
@@ -107,6 +113,58 @@ test.describe("A1 · Quiz option pictures are scoped like template media", () =>
     await page.goto("/");
     await clearSession(page);
     expect(await fetchStatus(page, B_QUIZ)).toBe(404);
+  });
+});
+
+test.describe("A1 · Cross-device drafts are owner-only", () => {
+  // A CHILD's in-progress draft is their private unfinished work — visible to
+  // that child ONLY, never to their teacher, a parent, or another tenant.
+  const CHILD_DRAFT = SCHOOL_B.childDraftMedia;
+  const TEACHER_DRAFT = SCHOOL_B.teacherDraftMedia;
+
+  test("a child can load their own draft page; their own teacher cannot", async ({ page }) => {
+    await loginStudent(page, SCHOOL_B.classCode, SCHOOL_B.student); // Zara owns it
+    expect(await fetchStatus(page, CHILD_DRAFT)).toBe(200);
+    // Even Oakfield's own teacher can't see a pupil's UNSUBMITTED draft.
+    await loginTeacher(page, SCHOOL_B.teacher);
+    expect(await fetchStatus(page, CHILD_DRAFT)).toBe(404);
+  });
+
+  test("no parent, no other tenant, and no anonymous user can load a child draft", async ({ page }) => {
+    await loginParent(page, SCHOOL_B.parentFamilyCode); // Zara's own parent
+    expect(await fetchStatus(page, CHILD_DRAFT)).toBe(404);
+    await loginTeacher(page, SCHOOL_A.otherTeacher);
+    expect(await fetchStatus(page, CHILD_DRAFT)).toBe(404);
+    await loginTeacher(page, SCHOOL_A.admin);
+    expect(await fetchStatus(page, CHILD_DRAFT)).toBe(404);
+    await page.goto("/");
+    await clearSession(page);
+    expect(await fetchStatus(page, CHILD_DRAFT)).toBe(404);
+  });
+
+  test("a teacher's template draft is theirs only", async ({ page }) => {
+    await loginTeacher(page, SCHOOL_B.teacher);
+    expect(await fetchStatus(page, TEACHER_DRAFT)).toBe(200);
+    await loginTeacher(page, SCHOOL_A.otherTeacher);
+    expect(await fetchStatus(page, TEACHER_DRAFT)).toBe(404);
+    await loginStudent(page, SCHOOL_B.classCode, SCHOOL_B.student);
+    expect(await fetchStatus(page, TEACHER_DRAFT)).toBe(404);
+  });
+
+  test("a child cannot save a draft against another school's activity (POST IDOR)", async ({ page }) => {
+    // Grab a real School A assignment id the honest way.
+    const schoolAAssignment = await firstAssignmentId(page, SCHOOL_A.classCode, SCHOOL_A.student);
+    expect(schoolAAssignment).toBeTruthy();
+    // Now as a School B pupil, try to save a response draft for it → rejected.
+    await loginStudent(page, SCHOOL_B.classCode, SCHOOL_B.student);
+    await page.goto("/student");
+    const status = await postStatus(page, "/api/drafts", {
+      surface: "ACTIVITY_RESPONSE",
+      contextKey: schoolAAssignment,
+      pages: [TINY_PNG],
+      fields: {},
+    });
+    expect(status).toBe(400); // resolveScope denies: the run doesn't target this child
   });
 });
 

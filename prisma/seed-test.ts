@@ -187,6 +187,36 @@ async function main() {
     },
   });
 
+  // Cross-device DRAFT fixtures (Stage 2), so isolation specs can prove a draft
+  // page is owner-only:
+  //  - a CHILD's response draft (Zara) — visible to Zara ONLY (not her teacher,
+  //    not a parent, not another tenant).
+  //  - a TEACHER's template draft (Okafor) — visible to Okafor only.
+  const oakChildDraftImg = writeSvg("seed-oak-draft.svg", OAK_SVG);
+  await db.draft.create({
+    data: {
+      surface: "ACTIVITY_RESPONSE",
+      contextKey: oakQuizRun.id,
+      ownerKey: `s:${zara.id}`,
+      pagesJson: JSON.stringify([oakChildDraftImg]),
+      expiresAt: new Date(Date.now() + 30 * DAY),
+      studentId: zara.id,
+      classId: acorn.id,
+      assignmentId: oakQuizRun.id,
+    },
+  });
+  const oakTeacherDraftImg = writeSvg("seed-oak-tmpl-draft.svg", OAK_SVG);
+  await db.draft.create({
+    data: {
+      surface: "TEMPLATE_NEW",
+      contextKey: "tmpl-new",
+      ownerKey: `t:${oakTeacher.id}`,
+      pagesJson: JSON.stringify([oakTeacherDraftImg]),
+      expiresAt: new Date(Date.now() + 30 * DAY),
+      teacherId: oakTeacher.id,
+    },
+  });
+
   // 3) School C = Larchwood Primary — a FROZEN (lapsed) account. Its trial ended
   //    with no subscription, so it is read-only: the battery uses it to prove
   //    that requireWritableAccount() blocks EVERY mutation server-side while

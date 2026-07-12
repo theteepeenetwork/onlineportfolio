@@ -83,7 +83,22 @@ async function canAccess(urlPath: string): Promise<boolean> {
     return false;
   }
 
-  // 2) Otherwise it may be a teacher-authored activity background (template pages
+  // 2) A cross-device DRAFT page (Stage 2). Owner-only: a child's unsubmitted
+  //    draft is their private unfinished work — visible to that child only,
+  //    never to a parent, another child, another tenant, or even their teacher.
+  if (user) {
+    const draft = await db.draft.findFirst({
+      where: { pagesJson: { contains: urlPath } },
+      select: { teacherId: true, studentId: true },
+    });
+    if (draft) {
+      if (user.role === "TEACHER") return draft.teacherId === user.teacher.id;
+      if (user.role === "STUDENT") return draft.studentId === user.student.id;
+      return false;
+    }
+  }
+
+  // 3) Otherwise it may be a teacher-authored activity background (template pages
   //    or a frozen assignment snapshot) OR a quiz answer-option picture (which
   //    lives in quizJson / quizSnapshotJson, not the page list). Both are
   //    teacher-authored content — parents never see either.
