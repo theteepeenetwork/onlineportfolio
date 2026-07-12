@@ -4,14 +4,15 @@ import { useActionState, useState } from "react";
 import { createJournalItem } from "@/app/actions/journal";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { PhotoCapture } from "./PhotoCapture";
+import { Icon, type IconName } from "./icons/Icon";
 
 type Tab = "PHOTO" | "TEXT" | "DRAWING";
 type Skill = { id: string; name: string };
 
-const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: "PHOTO", label: "Photo", icon: "📷" },
-  { key: "TEXT", label: "Write", icon: "✏️" },
-  { key: "DRAWING", label: "Draw", icon: "🎨" },
+const TABS: { key: Tab; label: string; icon: IconName }[] = [
+  { key: "PHOTO", label: "Photo", icon: "camera" },
+  { key: "TEXT", label: "Write", icon: "write" },
+  { key: "DRAWING", label: "Draw", icon: "draw" },
 ];
 
 // The creation canvas. A child (or teacher, on a child's behalf) picks a way
@@ -54,7 +55,7 @@ export function CreateForm({
                 : "border-border bg-surface text-muted hover:bg-background"
             }`}
           >
-            <span className="text-2xl">{t.icon}</span>
+            <Icon name={t.icon} size={28} decorative />
             {t.label}
           </button>
         ))}

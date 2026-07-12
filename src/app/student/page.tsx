@@ -2,13 +2,14 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logout } from "@/app/actions/auth";
+import { Icon, type IconName } from "@/components/icons/Icon";
 
 // Look of a moment by its kind.
 const KIND = {
-  PHOTO: { label: "photo", bg: "#D8ECE8", fallback: "My photo", emoji: "📷" },
-  DRAWING: { label: "drawing", bg: "#FBEED3", fallback: "My drawing", emoji: "🖍" },
-  TEXT: { label: "my words", bg: "#F7E0E6", fallback: "My words", emoji: "⌨" },
-} as const;
+  PHOTO: { label: "photo", bg: "#D8ECE8", fallback: "My photo", icon: "camera" },
+  DRAWING: { label: "drawing", bg: "#FBEED3", fallback: "My drawing", icon: "draw" },
+  TEXT: { label: "my words", bg: "#F7E0E6", fallback: "My words", icon: "write" },
+} as const satisfies Record<string, { label: string; bg: string; fallback: string; icon: IconName }>;
 
 function kindOf(type: string) {
   return KIND[type as keyof typeof KIND] ?? KIND.PHOTO;
@@ -18,10 +19,10 @@ function formatDate(d: Date) {
   return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 }
 
-const ADD_BUTTONS = [
-  { type: "PHOTO", emoji: "📷", label: "Photo", bg: "#D8ECE8" },
-  { type: "DRAWING", emoji: "🖍", label: "Drawing", bg: "#FBEED3" },
-  { type: "TEXT", emoji: "⌨", label: "My words", bg: "#F7E0E6" },
+const ADD_BUTTONS: { type: string; icon: IconName; label: string; bg: string }[] = [
+  { type: "PHOTO", icon: "camera", label: "Photo", bg: "#D8ECE8" },
+  { type: "DRAWING", icon: "draw", label: "Drawing", bg: "#FBEED3" },
+  { type: "TEXT", icon: "write", label: "My words", bg: "#F7E0E6" },
 ];
 
 export default async function StudentHome() {
@@ -92,7 +93,7 @@ export default async function StudentHome() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
             {ADD_BUTTONS.map((b) => (
               <Link key={b.type} href={`/student/new?type=${b.type}`} className="sj-addtile" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 88, background: b.bg, border: "3px solid var(--ink)", borderRadius: 16, textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
-                <span style={{ fontSize: 38 }} aria-hidden="true">{b.emoji}</span>
+                <Icon name={b.icon} size={40} decorative />
                 <span style={{ font: "600 27px var(--font-fredoka)", color: "var(--ink)" }}>{b.label}</span>
               </Link>
             ))}
@@ -101,7 +102,7 @@ export default async function StudentHome() {
 
         {/* my activities (kept from the app — assigned tasks) */}
         <Link href="/student/activities" className="sj-addtile" style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 18, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 16, padding: "16px 24px", textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
-          <span style={{ fontSize: 30 }} aria-hidden="true">📋</span>
+          <Icon name="add-file" size={30} decorative />
           <span style={{ flex: 1, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>My activities</span>
           {todoCount > 0 ? (
             <span style={{ background: "#FBEED3", border: "2px solid var(--ink)", borderRadius: 999, padding: "4px 16px", font: "700 15px var(--font-atkinson)", color: "#8A5F1E" }}>{todoCount} to do</span>
@@ -116,7 +117,7 @@ export default async function StudentHome() {
           const waiting = item.status === "PENDING";
           return (
             <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 22, background: "#FBEED3", border: "3px dashed #C9A87C", borderRadius: 16, padding: "16px 24px" }}>
-              <div style={{ width: 64, height: 64, borderRadius: 12, background: "repeating-linear-gradient(45deg, #FFFDF7, #FFFDF7 10px, #F6E4BE 10px, #F6E4BE 20px)", border: "3px solid var(--ink)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }} aria-hidden="true">{k.emoji}</div>
+              <div style={{ width: 64, height: 64, borderRadius: 12, background: "repeating-linear-gradient(45deg, #FFFDF7, #FFFDF7 10px, #F6E4BE 10px, #F6E4BE 20px)", border: "3px solid var(--ink)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }} aria-hidden="true"><Icon name={k.icon} size={30} decorative /></div>
               <div>
                 <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
                 <p style={{ margin: "2px 0 0", font: "400 17px var(--font-atkinson)", color: "#8A5F1E" }}>
@@ -131,7 +132,7 @@ export default async function StudentHome() {
         <p style={{ margin: "34px 0 16px", font: "600 26px var(--font-fredoka)" }}>My moments</p>
         {published.length === 0 ? (
           <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: "50px 20px", textAlign: "center", boxShadow: "var(--pop-shadow)" }}>
-            <div style={{ fontSize: 44 }}>🫙</div>
+            <Icon name="jar" size={52} decorative />
             <p style={{ margin: "10px 0 0", font: "600 22px var(--font-fredoka)" }}>Your jar is empty</p>
             <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>Add your first moment above!</p>
           </div>
@@ -148,7 +149,7 @@ export default async function StudentHome() {
                     ) : item.textContent ? (
                       <p style={{ margin: 0, padding: "18px 22px", font: "400 18px/1.5 var(--font-atkinson)", color: "var(--ink)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>{item.textContent}</p>
                     ) : (
-                      <span style={{ fontSize: 64 }} aria-hidden="true">{k.emoji}</span>
+                      <Icon name={k.icon} size={64} decorative />
                     )}
                     <span style={{ position: "absolute", top: 12, right: 12, background: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 13px var(--font-atkinson)" }}>{k.label}</span>
                   </div>

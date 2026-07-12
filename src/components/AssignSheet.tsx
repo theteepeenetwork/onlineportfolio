@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useActionState, useState } from "react";
 import { assignTemplate } from "@/app/actions/activities";
 import { Avatar } from "@/components/Avatar";
+import { Icon } from "@/components/icons/Icon";
 import type { ClassInfo, RunSummary } from "@/lib/activities";
 
 function fmtDate(iso: string) {
@@ -67,7 +68,7 @@ export function AssignSheet({
           {template.thumb ? (
             <Image src={template.thumb} alt="" width={64} height={45} unoptimized className="h-11 w-16 rounded-md border border-border object-cover" />
           ) : (
-            <div className="flex h-11 w-16 items-center justify-center rounded-md border border-border text-lg">📝</div>
+            <div className="flex h-11 w-16 items-center justify-center rounded-md border border-border"><Icon name="add-file" size={22} decorative /></div>
           )}
           <span className="text-sm font-semibold text-muted">Blank response canvas or your template</span>
         </div>
@@ -95,20 +96,20 @@ export function AssignSheet({
           <button
             type="button"
             onClick={() => setMode("class")}
-            className={`rounded-xl border-2 px-4 py-2 text-sm font-semibold ${
+            className={`inline-flex items-center gap-2 rounded-xl border-2 px-4 py-2 text-sm font-semibold ${
               mode === "class" ? "border-brand bg-brand/10 text-brand" : "border-border text-muted"
             }`}
           >
-            👥 Whole class
+            <Icon name="class" size={18} decorative /> Whole class
           </button>
           <button
             type="button"
             onClick={() => setMode("children")}
-            className={`rounded-xl border-2 px-4 py-2 text-sm font-semibold ${
+            className={`inline-flex items-center gap-2 rounded-xl border-2 px-4 py-2 text-sm font-semibold ${
               mode === "children" ? "border-brand bg-brand/10 text-brand" : "border-border text-muted"
             }`}
           >
-            🙋 Pick children
+            <Icon name="search" size={18} decorative /> Pick children
           </button>
         </div>
 

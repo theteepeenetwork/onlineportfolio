@@ -9,6 +9,7 @@ import {
   resendInvite,
   setStaffRole,
 } from "@/app/actions/admin";
+import { Icon, type IconName } from "@/components/icons/Icon";
 
 export type StaffRow = {
   id: string;
@@ -329,10 +330,10 @@ function StaffTable({
                     <ClassesSubmenu staff={p} classes={classes} onBack={() => onSubmenu(null)} />
                   ) : (
                     <>
-                      <MenuButton icon="✎" label="Edit role" onClick={() => onSubmenu("role")} />
-                      <MenuButton icon="🏫" label="Assign classes" onClick={() => onSubmenu("classes")} />
-                      {invited && <MenuForm action={resendInvite} staffId={p.id} icon="✉" label="Resend invite" />}
-                      {!p.isYou && <MenuForm action={removeStaff} staffId={p.id} icon="🗑" label="Remove from school" danger />}
+                      <MenuButton icon="edit" label="Edit role" onClick={() => onSubmenu("role")} />
+                      <MenuButton icon="class" label="Assign classes" onClick={() => onSubmenu("classes")} />
+                      {invited && <MenuForm action={resendInvite} staffId={p.id} icon="share" label="Resend invite" />}
+                      {!p.isYou && <MenuForm action={removeStaff} staffId={p.id} icon="delete" label="Remove from school" danger />}
                     </>
                   )}
                 </div>
@@ -360,21 +361,21 @@ const MENU_ITEM: React.CSSProperties = {
   color: "#22304A",
 };
 
-function MenuButton({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+function MenuButton({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
   return (
     <button role="menuitem" onClick={onClick} style={MENU_ITEM}>
-      <span style={{ width: 18, textAlign: "center" }} aria-hidden>{icon}</span>
+      <Icon name={icon} size={18} decorative />
       {label}
     </button>
   );
 }
 
-function MenuForm({ action, staffId, icon, label, danger }: { action: (fd: FormData) => void; staffId: string; icon: string; label: string; danger?: boolean }) {
+function MenuForm({ action, staffId, icon, label, danger }: { action: (fd: FormData) => void; staffId: string; icon: IconName; label: string; danger?: boolean }) {
   return (
     <form action={action}>
       <input type="hidden" name="staffId" value={staffId} />
       <button role="menuitem" type="submit" style={{ ...MENU_ITEM, color: danger ? "#C2476B" : "#22304A" }}>
-        <span style={{ width: 18, textAlign: "center" }} aria-hidden>{icon}</span>
+        <Icon name={icon} size={18} decorative />
         {label}
       </button>
     </form>

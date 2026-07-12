@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClass, deleteClass } from "@/app/actions/classes";
 import { addStudents, removeStudent } from "@/app/actions/roster";
+import { Icon } from "@/components/icons/Icon";
 
 export type RosterChild = {
   id: string;
@@ -237,11 +238,11 @@ function RosterView({
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Link
             href={`/signup/teacher/welcome?class=${klass.id}`}
-            style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+            style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}
           >
-            🖨 Printable code
+            <Icon name="print" size={18} decorative /> Printable code
           </Link>
-          <button onClick={onToggleSettings} style={OUTLINE_BTN} aria-pressed={settings}>⚙ Class settings</button>
+          <button onClick={onToggleSettings} style={{ ...OUTLINE_BTN, display: "inline-flex", alignItems: "center", gap: 8 }} aria-pressed={settings}><Icon name="settings" size={18} decorative /> Class settings</button>
           <button onClick={onToggleAdd} style={{ ...JAM_BTN, padding: "11px 20px", fontSize: 14 }} aria-pressed={addingChild}>＋ Add child</button>
         </div>
       </div>
@@ -298,9 +299,9 @@ function SettingsStrip({ klass }: { klass: ClassCard }) {
       <a
         href={`/teacher/export/${klass.id}`}
         download
-        style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+        style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}
       >
-        ⭳ Export class data
+        <Icon name="download" size={18} decorative /> Export class data
       </a>
       <DeleteClassZone klass={klass} />
     </div>
@@ -336,7 +337,7 @@ function DeleteClassZone({ klass }: { klass: ClassCard }) {
 
   return (
     <div style={{ marginLeft: "auto" }}>
-      <button onClick={() => setOpen(true)} style={DANGER_OUTLINE_BTN}>🗑 Delete this class…</button>
+      <button onClick={() => setOpen(true)} style={{ ...DANGER_OUTLINE_BTN, display: "inline-flex", alignItems: "center", gap: 8 }}><Icon name="delete" size={18} decorative /> Delete this class…</button>
 
       {open && (
         <div

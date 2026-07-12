@@ -27,13 +27,13 @@ type Tool = "cursor" | "pencil" | "pen" | "highlighter" | "eraser" | "text";
 // The four drawing tools map onto four distinct nib shapes + stroke weights:
 // pencil → Pen (thin), pen → Felt tip (thick), highlighter (wide/translucent),
 // eraser. See ToolShape for the drawn nibs and true-weight sample strokes.
-const TOOLS: { key: Tool; label: string; icon: string }[] = [
-  { key: "cursor", label: "Select", icon: "🖱️" },
-  { key: "pencil", label: "Pen", icon: "🖊️" },
-  { key: "pen", label: "Felt tip", icon: "🖍️" },
-  { key: "highlighter", label: "Highlighter", icon: "🟡" },
-  { key: "eraser", label: "Eraser", icon: "🧼" },
-  { key: "text", label: "Text", icon: "🔤" },
+const TOOLS: { key: Tool; label: string; icon?: IconName }[] = [
+  { key: "cursor", label: "Select" },
+  { key: "pencil", label: "Pen", icon: "pen" },
+  { key: "pen", label: "Felt tip", icon: "felt-tip" },
+  { key: "highlighter", label: "Highlighter", icon: "highlighter" },
+  { key: "eraser", label: "Eraser", icon: "eraser" },
+  { key: "text", label: "Text", icon: "text" },
 ];
 
 const SHELF: { key: Tool; label: string }[] = [
@@ -1236,21 +1236,21 @@ export function DrawingCanvas({
           </div>
 
           <div className="absolute left-3 top-3 flex gap-2">
-            <RoundBtn label="Clear page" onClick={clearPage}>🗑️</RoundBtn>
-            <RoundBtn label="Undo" onClick={undo} disabled={!canUndo}>↶</RoundBtn>
-            <RoundBtn label="Redo" onClick={redo} disabled={!canRedo}>↷</RoundBtn>
+            <RoundBtn label="Clear page" onClick={clearPage}><Icon name="delete" size={20} decorative /></RoundBtn>
+            <RoundBtn label="Undo" onClick={undo} disabled={!canUndo}><Icon name="undo" size={20} decorative /></RoundBtn>
+            <RoundBtn label="Redo" onClick={redo} disabled={!canRedo}><Icon name="redo" size={20} decorative /></RoundBtn>
           </div>
 
           <div className="pointer-events-none absolute left-1/2 top-3 z-10 w-[60vw] max-w-lg -translate-x-1/2 text-center">
-            <span className="rounded-full border-2 border-amber-400 bg-white/90 px-3 py-1 text-sm font-bold text-amber-700">
-              ✎ Draft
+            <span className="inline-flex items-center gap-1 rounded-full border-2 border-amber-400 bg-white/90 px-3 py-1 text-sm font-bold text-amber-700">
+              <Icon name="edit" size={14} decorative /> Draft
             </span>
             {title && <p className="mt-1 text-sm font-bold text-foreground/80">{title}</p>}
             {subtitle && <p className="text-xs text-foreground/60">{subtitle}</p>}
           </div>
 
           <div className="absolute right-3 top-3 flex items-center gap-2">
-            {onClose && <RoundBtn label="Close" onClick={onClose}>✕</RoundBtn>}
+            {onClose && <RoundBtn label="Close" onClick={onClose}><Icon name="close" size={20} decorative /></RoundBtn>}
             <button
               type={onDone ? "button" : "submit"}
               onClick={onDone ? () => onDone(currentPages(), isQuizAuthor ? { questions: quizRef.current } : undefined) : undefined}
@@ -1410,12 +1410,12 @@ export function DrawingCanvas({
             <button
               type="button"
               onClick={() => setTool("text")}
-              className={`pointer-events-auto mb-3 ml-2 flex h-12 w-12 items-center justify-center rounded-2xl border-2 text-xl shadow ${
+              className={`pointer-events-auto mb-3 ml-2 flex h-12 w-12 items-center justify-center rounded-2xl border-2 shadow ${
                 tool === "text" ? "border-brand bg-brand/10 text-brand" : "border-border bg-white text-muted"
               }`}
               title="Text"
             >
-              🔤
+              <Icon name="text" size={22} decorative />
             </button>
           </div>
 
@@ -1498,7 +1498,7 @@ export function DrawingCanvas({
               tool === t.key ? "border-brand bg-brand/10 text-brand" : "border-border bg-surface text-muted hover:bg-background"
             }`}
           >
-            <span aria-hidden>{t.icon}</span>
+            {t.icon && <Icon name={t.icon} size={18} decorative />}
             {t.label}
           </button>
         ))}
@@ -1509,7 +1509,7 @@ export function DrawingCanvas({
             disabled={importing}
             className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-muted hover:bg-background"
           >
-            📄 {importing ? "Adding…" : "Add PDF / image"}
+            <Icon name="add-file" size={16} decorative /> {importing ? "Adding…" : "Add PDF / image"}
           </button>
         )}
         <button
@@ -1519,7 +1519,7 @@ export function DrawingCanvas({
             shapesOpen ? "border-brand bg-brand/10 text-brand" : "border-border bg-surface text-muted hover:bg-background"
           }`}
         >
-          ⬟ Shapes
+          <Icon name="shapes" size={16} decorative /> Shapes
         </button>
       </div>
 
@@ -1590,7 +1590,7 @@ export function DrawingCanvas({
         <span className="text-sm font-semibold text-muted">Page {current + 1} of {pageCount}</span>
         <button type="button" onClick={() => goToPage(current + 1)} disabled={current === pageCount - 1} className="btn-ghost px-3 py-1.5 text-sm">Next ›</button>
         <button type="button" onClick={addPage} className="btn-ghost px-3 py-1.5 text-sm">＋ Add page</button>
-        <button type="button" onClick={() => fileRef.current?.click()} className="btn-ghost px-3 py-1.5 text-sm">📄 Add PDF / image</button>
+        <button type="button" onClick={() => fileRef.current?.click()} className="btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"><Icon name="add-file" size={16} decorative /> Add PDF / image</button>
         {pageCount > 1 && (
           <button type="button" onClick={deletePage} className="px-3 py-1.5 text-sm text-muted hover:text-rose-600">Delete page</button>
         )}
@@ -1912,22 +1912,22 @@ function MediaObjectView({
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => onEditText(o.id)}
-              className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-white shadow"
+              className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white shadow"
               title={o.text ? "Edit label" : "Add label"}
               aria-label="Edit text"
             >
-              ✎
+              <Icon name="edit" size={13} decorative />
             </button>
           )}
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onDelete(o.id)}
-            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs text-white shadow"
+            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white shadow"
             title="Remove"
             aria-label="Remove object"
           >
-            ✕
+            <Icon name="close" size={13} decorative />
           </button>
           <div
             onPointerDown={startResize}
@@ -2050,21 +2050,21 @@ function TextObjectView({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onEditText(o.id)}
-            className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-white shadow"
+            className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white shadow"
             title="Edit text"
             aria-label="Edit text"
           >
-            ✎
+            <Icon name="edit" size={13} decorative />
           </button>
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onDelete(o.id)}
-            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs text-white shadow"
+            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white shadow"
             title="Remove"
             aria-label="Remove object"
           >
-            ✕
+            <Icon name="close" size={13} decorative />
           </button>
           <div
             onPointerDown={startResize}

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Icon } from "@/components/icons/Icon";
 import { JarLogo } from "@/components/storyjar/JarLogo";
 import { PrintButton } from "./PrintButton";
 
@@ -114,7 +115,7 @@ export default async function SignupWelcomePage({
               <span style={{ font: "600 26px var(--font-fredoka)", color: "var(--jam)" }}>→</span>
               <div style={{ textAlign: "center" }}>
                 <div style={{ display: "flex", gap: 8, justifyContent: "center", background: "var(--paper)", border: "3px solid var(--ink)", borderRadius: 12, padding: "12px 10px", fontSize: 24 }}>
-                  <span aria-hidden="true">📷</span><span aria-hidden="true">🖍</span><span aria-hidden="true">⌨</span>
+                  <Icon name="camera" size={24} decorative /><Icon name="draw" size={24} decorative /><Icon name="write" size={24} decorative />
                 </div>
                 <p style={{ margin: "10px 0 0", font: "700 15px var(--font-atkinson)" }}>3 · Make something!</p>
               </div>

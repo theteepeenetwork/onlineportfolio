@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Icon } from "@/components/icons/Icon";
 
 const TWINKLE = "M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z";
 
@@ -32,7 +33,7 @@ export default function PoppedInPage() {
       </div>
       <h1 style={{ margin: "10px 0 0", font: "600 54px var(--font-fredoka)", color: "#37796f" }}>Popped in!</h1>
       <p style={{ margin: "12px 0 0", font: "400 26px var(--font-atkinson)", color: "var(--ink-soft)" }}>Your teacher will see it soon.</p>
-      <Link href="/student" style={{ marginTop: 34, minHeight: 72, display: "inline-flex", alignItems: "center", font: "600 26px var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "3px solid var(--ink)", borderRadius: 999, padding: "14px 48px", textDecoration: "none", boxShadow: "0 5px 0 var(--jam-deep)" }}>Back to my jar 🫙</Link>
+      <Link href="/student" style={{ marginTop: 34, minHeight: 72, display: "inline-flex", alignItems: "center", font: "600 26px var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "3px solid var(--ink)", borderRadius: 999, padding: "14px 48px", textDecoration: "none", boxShadow: "0 5px 0 var(--jam-deep)", gap: 12 }}>Back to my jar <Icon name="jar" size={30} decorative /></Link>
     </div>
   );
 }

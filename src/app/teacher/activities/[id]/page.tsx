@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { TopBar } from "@/components/TopBar";
 import { Avatar } from "@/components/Avatar";
 import { teacherNav } from "@/lib/teacherNav";
+import { Icon } from "@/components/icons/Icon";
 import { jsonArray, type RunSummary } from "@/lib/activities";
 import { TemplateActions } from "./TemplateActions";
 
@@ -101,7 +102,7 @@ export default async function TemplateDetail({
               ))}
             </div>
           ) : (
-            <div className="flex h-20 w-28 items-center justify-center rounded-lg border border-border text-2xl">📝</div>
+            <div className="flex h-20 w-28 items-center justify-center rounded-lg border border-border"><Icon name="add-file" size={26} decorative /></div>
           )}
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold">{template.title}</h1>
