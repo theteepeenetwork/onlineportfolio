@@ -330,6 +330,19 @@ h4 {
   font: 400 17px/1.65 var(--font-atkinson);
   color: var(--ink-soft);
 }
+
+/* Print: keep the classroom hand-out (class name, code, QR, how-to) and drop
+   on-screen chrome — the top nav, the Print button, and the post-signup CTAs. */
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: flex !important; }
+  .sj { background: #fff !important; min-height: 0 !important; }
+  * {
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
 .legal-prose h2 {
   margin: 32px 0 10px;
   font: 600 24px var(--font-fredoka);
