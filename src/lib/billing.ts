@@ -146,7 +146,7 @@ export async function requireWritableAccount(): Promise<
 
 export type AccountState = {
   status: AccountStatus | "NONE";
-  kind: Subscription["kind"] | null;
+  kind: "INDIVIDUAL" | "SCHOOL" | null;
   trialDaysLeft: number | null; // whole days remaining while on trial
   frozenAt: Date | null;
   currentPeriodEnd: Date | null;
@@ -166,7 +166,7 @@ export async function accountStateForTeacher(teacher: TeacherContext): Promise<A
       : null;
   return {
     status,
-    kind: sub.kind,
+    kind: sub.kind === "SCHOOL" ? "SCHOOL" : "INDIVIDUAL",
     trialDaysLeft,
     frozenAt: sub.frozenAt,
     currentPeriodEnd: sub.currentPeriodEnd,
