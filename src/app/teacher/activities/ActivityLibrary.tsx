@@ -176,7 +176,8 @@ export function ActivityLibrary({
                           <MoveMenu template={t} folders={folders} onBack={() => setMoveId(null)} />
                         ) : (
                           <>
-                            <MenuLink href={`/teacher/activities/${t.id}`} icon="edit" label="Edit activity" />
+                            <MenuLink href={`/teacher/activities/${t.id}/edit`} icon="edit" label="Edit activity" />
+                            <MenuLink href={`/teacher/activities/${t.id}/preview`} icon="search" label="View as a pupil" />
                             <MenuForm action={duplicateTemplate} templateId={t.id} icon="add-file" label="Duplicate" />
                             <MenuButton icon="next" label="Move to folder…" onClick={() => setMoveId(t.id)} />
                             <MenuButton icon="share" label="Send to a class" onClick={() => { setAssignId(t.id); closeMenus(); }} />

@@ -13,7 +13,7 @@ test.describe("School admin", () => {
     await expect(page.getByText("Miss Malik")).toBeVisible();
     await expect(page.getByText("Invited")).toBeVisible();
     // The access-rule policy is stated on the page.
-    await expect(page.getByText(/never see children.s work unless they teach the class/)).toBeVisible();
+    await expect(page.getByText(/never see pupils. work unless they teach the class/)).toBeVisible();
   });
 
   test("an admin can invite a member of staff", async ({ page }) => {
@@ -63,7 +63,7 @@ test.describe("School admin", () => {
     await page.fill("#su-class", "Owls");
     await page.getByRole("button", { name: "Create class" }).click();
     await page.fill("#su-children", "Ada");
-    await page.getByRole("button", { name: "Add children" }).click();
+    await page.getByRole("button", { name: "Add pupils" }).click();
     await expect(page.getByRole("heading", { name: /class code/ })).toBeVisible();
 
     // This teacher has no admin school → /admin bounces to their teacher view.

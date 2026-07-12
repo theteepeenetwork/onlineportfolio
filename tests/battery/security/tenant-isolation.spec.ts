@@ -188,6 +188,37 @@ test.describe("A1 · Student-journal IDOR across tenants", () => {
   });
 });
 
+test.describe("A1 · Activity edit / preview are scoped across tenants", () => {
+  // Grab a real School A template id the honest way: its own teacher's library
+  // links each card to /teacher/activities/<id>.
+  async function schoolATemplateId(page: import("@playwright/test").Page): Promise<string> {
+    await loginTeacher(page, SCHOOL_A.admin);
+    await page.goto("/teacher/activities");
+    const href = await page
+      .locator('a[href^="/teacher/activities/"]')
+      .first()
+      .getAttribute("href");
+    const id = href?.split("/").pop();
+    expect(id).toBeTruthy();
+    await clearSession(page);
+    return id!;
+  }
+
+  test("School B teacher gets 404 editing a School A template", async ({ page }) => {
+    const id = await schoolATemplateId(page);
+    await loginTeacher(page, SCHOOL_B.teacher);
+    const res = await page.goto(`/teacher/activities/${id}/edit`);
+    expect(res?.status()).toBe(404);
+  });
+
+  test("School B teacher gets 404 previewing a School A template", async ({ page }) => {
+    const id = await schoolATemplateId(page);
+    await loginTeacher(page, SCHOOL_B.teacher);
+    const res = await page.goto(`/teacher/activities/${id}/preview`);
+    expect(res?.status()).toBe(404);
+  });
+});
+
 test.describe("A1 · Admin console is school-scoped", () => {
   test("School B admin sees only Oakfield staff, never St Bede's", async ({ page }) => {
     await loginTeacher(page, SCHOOL_B.admin);

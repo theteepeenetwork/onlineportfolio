@@ -46,7 +46,7 @@ export function ProfileForm({
     <form action={action} style={box} aria-labelledby="profile-heading">
       <h2 id="profile-heading" style={{ margin: 0, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>Your details</h2>
       <p style={{ margin: "6px 0 18px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-        How you appear in Storyjar. Children never have accounts — this is just you.
+        How you appear in Storyjar. Pupils never have accounts — this is just you.
       </p>
 
       <div style={{ display: "grid", gap: 18 }}>

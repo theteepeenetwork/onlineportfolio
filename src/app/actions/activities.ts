@@ -83,6 +83,72 @@ export async function createTemplate(
   redirect(`/teacher/activities/${template.id}`);
 }
 
+// Teacher edits an existing template (reopened in the same builder / canvas).
+// Unlike the original snapshot-at-assign design, edits here are pushed onto the
+// template's LIVE runs too, so a class working on it right now sees the change.
+// CLOSED runs are left untouched — they're kept as an accurate record of what
+// was actually set at the time.
+export async function updateTemplate(
+  _prev: { error?: string } | undefined,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const user = await getCurrentUser();
+  if (user?.role !== "TEACHER") redirect("/");
+  const gate = await requireWritableAccount();
+  if (!gate.ok) return { error: FROZEN_TEACHER_MESSAGE };
+
+  const templateId = String(formData.get("templateId") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const instructions = String(formData.get("instructions") ?? "").trim() || null;
+  const tags = parseTags(String(formData.get("tags") ?? ""));
+  if (!title) return { error: "Please give the template a title." };
+
+  // Must be one of this teacher's templates (tenant scoping).
+  const existing = await db.activityTemplate.findFirst({
+    where: { id: templateId, teacherId: user.teacher.id },
+    select: { id: true },
+  });
+  if (!existing) return { error: "Template not found." };
+
+  let templatePathsJson: string | null = null;
+  let quizJson: string | null = null;
+  try {
+    // The builder re-composites every page, so pages come back as fresh data
+    // URLs even when unchanged; save them like a new template would.
+    const pages = parsePages(String(formData.get("templatePages") ?? ""));
+    if (pages.length) templatePathsJson = JSON.stringify(await saveImagePages(pages));
+    quizJson = await persistQuizPayload(String(formData.get("quizPayload") ?? ""));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Couldn't save the template." };
+  }
+
+  await db.activityTemplate.update({
+    where: { id: existing.id },
+    data: {
+      title,
+      instructions,
+      templatePathsJson,
+      quizJson,
+      tagsJson: tags.length ? JSON.stringify(tags) : null,
+    },
+  });
+
+  // Push the edit onto any LIVE runs so already-assigned classes see it now.
+  await db.assignment.updateMany({
+    where: { templateId: existing.id, status: "LIVE" },
+    data: {
+      title,
+      instructions,
+      templateSnapshotJson: templatePathsJson,
+      quizSnapshotJson: quizJson,
+    },
+  });
+
+  revalidatePath("/teacher/activities");
+  revalidatePath(`/teacher/activities/${existing.id}`);
+  redirect(`/teacher/activities/${existing.id}`);
+}
+
 // Assign a template to a class (whole class or chosen children). Each call is a
 // new independent run and snapshots the template so future edits don't change it.
 export async function assignTemplate(
@@ -121,7 +187,7 @@ export async function assignTemplate(
     const inClass = new Set(klass.students.map((s) => s.id));
     chosen = studentIds.filter((id) => inClass.has(id));
     if (chosen.length === 0) {
-      return { error: "Please choose at least one child, or assign to the whole class." };
+      return { error: "Please choose at least one pupil, or assign to the whole class." };
     }
   }
 

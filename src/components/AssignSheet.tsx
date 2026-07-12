@@ -35,8 +35,8 @@ export function AssignSheet({
     mode === "class"
       ? "Assign to whole class"
       : selected.size === 0
-        ? "Pick children to assign"
-        : `Assign to ${selected.size} ${selected.size === 1 ? "child" : "children"}`;
+        ? "Pick pupils to assign"
+        : `Assign to ${selected.size} ${selected.size === 1 ? "pupil" : "pupils"}`;
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -109,7 +109,7 @@ export function AssignSheet({
               mode === "children" ? "border-brand bg-brand/10 text-brand" : "border-border text-muted"
             }`}
           >
-            <Icon name="search" size={18} decorative /> Pick children
+            <Icon name="search" size={18} decorative /> Pick pupils
           </button>
         </div>
 
@@ -130,7 +130,7 @@ export function AssignSheet({
                 </button>
               );
             })}
-            {klass?.students.length === 0 && <p className="text-sm text-muted">This class has no children yet.</p>}
+            {klass?.students.length === 0 && <p className="text-sm text-muted">This class has no pupils yet.</p>}
           </div>
         )}
 

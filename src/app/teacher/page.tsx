@@ -37,7 +37,7 @@ export default async function TeacherDashboard() {
     <>
       <TopBar
         title={`Hello, ${user.teacher.displayName} 👋`}
-        subtitle="Choose a child to see their journal, or check what's waiting for you."
+        subtitle="Choose a pupil to see their journal, or check what's waiting for you."
         links={teacherNav(pendingCount)}
         right={
           <>

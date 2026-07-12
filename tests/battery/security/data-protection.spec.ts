@@ -63,9 +63,9 @@ test("removing a pupil deletes the row (cascade works)", async ({ page }) => {
   await page.getByRole("button", { name: /acorn/i }).click();
 
   // Add a throwaway pupil, confirm present.
-  await page.getByRole("button", { name: /add child/i }).click();
+  await page.getByRole("button", { name: /add pupil/i }).click();
   await page.locator('textarea[name="names"]').fill("Tempdeletee");
-  await page.getByRole("button", { name: /add child/i }).last().click();
+  await page.getByRole("button", { name: /add pupil/i }).last().click();
   await expect(page.getByText("Tempdeletee")).toBeVisible();
 
   // Enter settings mode and remove them. Target the roster row that both shows

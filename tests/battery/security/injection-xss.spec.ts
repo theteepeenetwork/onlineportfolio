@@ -25,11 +25,11 @@ test("an XSS payload in a pupil name is escaped, not executed", async ({ page })
   await loginTeacher(page, SCHOOL_B.teacher);
   await page.goto("/teacher/class");
 
-  // Open Acorn class → Add child → paste the payload as a name.
+  // Open Acorn class → Add pupil → paste the payload as a name.
   await page.getByRole("button", { name: /acorn/i }).click();
-  await page.getByRole("button", { name: /add child/i }).click();
+  await page.getByRole("button", { name: /add pupil/i }).click();
   await page.locator('textarea[name="names"]').fill(PAYLOAD);
-  await page.getByRole("button", { name: /add child/i }).last().click();
+  await page.getByRole("button", { name: /add pupil/i }).last().click();
 
   // The name should now appear on the roster as literal text. The surname is
   // dropped (first-names-only), so the rendered token is the escaped tag text.

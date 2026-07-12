@@ -174,7 +174,7 @@ export function SignupWizard() {
         <div style={CARD}>
           <div style={STEP_TAG("#F3E3C3", "-2deg")}>Your account</div>
           <h1 style={H1}>First, you</h1>
-          <p style={LEAD}>Just you — <strong>children never need accounts or emails.</strong></p>
+          <p style={LEAD}>Just you — <strong>pupils never need accounts or emails.</strong></p>
           <div style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 28 }}>
             <div style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: 16 }}>
               <div>
@@ -285,7 +285,7 @@ export function SignupWizard() {
       {/* ── Step 4: add children ── */}
       {step === 4 && (
         <div style={CARD}>
-          <div style={STEP_TAG("#FBEED3", "1deg")}>Your children</div>
+          <div style={STEP_TAG("#FBEED3", "1deg")}>Your pupils</div>
           <h1 style={H1}>Add your class list</h1>
           <p style={LEAD}>First names only, one per line — type them or paste straight from your register.</p>
           <div style={{ marginTop: 24 }}>
@@ -296,13 +296,13 @@ export function SignupWizard() {
             <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="10" fill="#37796f" /><path d="M6.5,11 L9.8,14.5 L15.5,7.5" fill="none" stroke="#FFFDF7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <p style={{ margin: 0, font: "400 15px/1.5 var(--font-atkinson)", color: "var(--ink)" }}>
               <strong>That’s all we need.</strong> No surnames required, no emails, no photos.{" "}
-              <span style={{ color: "#2E6B64" }}>{n === 0 ? "" : n === 1 ? "1 child so far." : `${n} children so far.`}</span>
+              <span style={{ color: "#2E6B64" }}>{n === 0 ? "" : n === 1 ? "1 pupil so far." : `${n} pupils so far.`}</span>
             </p>
           </div>
           <ErrorNote error={error} />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 30 }}>
             <button onClick={goBack} style={BACK} disabled={pending}>← Back</button>
-            <button onClick={goNext} style={{ ...PRIMARY, opacity: pending ? 0.7 : 1 }} disabled={pending}>{pending ? "Creating your jar…" : "Add children"}</button>
+            <button onClick={goNext} style={{ ...PRIMARY, opacity: pending ? 0.7 : 1 }} disabled={pending}>{pending ? "Creating your jar…" : "Add pupils"}</button>
           </div>
         </div>
       )}

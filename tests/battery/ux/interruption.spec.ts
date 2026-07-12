@@ -19,7 +19,7 @@ test("a half-typed pupil name survives a reload without crashing the flow", asyn
   await loginTeacher(page, SCHOOL_B.teacher);
   await page.goto("/teacher/class");
   await page.getByRole("button", { name: /acorn/i }).click();
-  await page.getByRole("button", { name: /add child/i }).click();
+  await page.getByRole("button", { name: /add pupil/i }).click();
   await page.locator('textarea[name="names"]').fill("Half-typed name");
 
   // Simulate an interruption: reload the page.
