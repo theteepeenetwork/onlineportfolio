@@ -44,6 +44,20 @@ const nextConfig: NextConfig = {
   // the page load forever when opened via a nice hostname rather than the raw IP.
   allowedDevOrigins: ["seesaw.home"],
 
+  experimental: {
+    serverActions: {
+      // Server Actions cap the request body at 1MB by default. This app submits
+      // rasterised canvas pages (drawings, imported PDF/worksheet pages, photos)
+      // through Server Actions — createTemplate (multi-page templates) and
+      // createJournalItem (a child's multi-page response). Each page is a
+      // 1000×700 PNG (up to ~1MB for photographic content), so a multi-page
+      // PDF/template quickly exceeds 1MB and the save fails with a 413. Raise the
+      // limit to cover a generous multi-page template; the endpoints are
+      // authenticated (teacher/pupil), so the DDoS surface stays bounded.
+      bodySizeLimit: "16mb",
+    },
+  },
+
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
