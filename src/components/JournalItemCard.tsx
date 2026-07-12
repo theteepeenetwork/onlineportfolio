@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { StatusBadge } from "./StatusBadge";
+import { Icon, type IconName } from "./icons/Icon";
 
 export type JournalItemView = {
   id: string;
@@ -29,10 +30,10 @@ function mediaPaths(item: JournalItemView): string[] {
   return item.mediaPath ? [item.mediaPath] : [];
 }
 
-const TYPE_ICON: Record<string, string> = {
-  PHOTO: "📷",
-  TEXT: "✏️",
-  DRAWING: "🎨",
+const TYPE_ICON: Record<string, IconName> = {
+  PHOTO: "camera",
+  TEXT: "write",
+  DRAWING: "draw",
 };
 
 function formatDate(d: Date) {
@@ -58,7 +59,7 @@ export function JournalItemCard({
     <article className="card overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-4 pt-3 text-sm text-muted">
         <span className="flex items-center gap-1.5">
-          <span aria-hidden>{TYPE_ICON[item.type] ?? "📌"}</span>
+          <Icon name={TYPE_ICON[item.type] ?? "jar"} size={16} decorative />
           <span>{formatDate(item.createdAt)}</span>
           {item.authorRole === "TEACHER" && (
             <span className="rounded bg-brand/10 px-1.5 py-0.5 text-xs font-semibold text-brand">

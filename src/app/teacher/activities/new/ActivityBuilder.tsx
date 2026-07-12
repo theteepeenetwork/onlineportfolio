@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useActionState, useState } from "react";
 import { createTemplate } from "@/app/actions/activities";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
+import { Icon } from "@/components/icons/Icon";
 
 // Build a reusable template: title, instructions, tags, and an optional
 // template canvas. Assigning it to a class is a separate step (the assign sheet).
@@ -64,8 +65,9 @@ export function ActivityBuilder() {
           </div>
         )}
 
-        <button type="button" onClick={() => setEditorOpen(true)} className="btn-brand">
-          {templatePages.length > 0 ? "🎨 Edit template" : "🎨 Build a template"}
+        <button type="button" onClick={() => setEditorOpen(true)} className="btn-brand inline-flex items-center gap-2">
+          <Icon name="draw" size={18} decorative />
+          {templatePages.length > 0 ? "Edit template" : "Build a template"}
         </button>
         {templatePages.length > 0 && (
           <button type="button" onClick={() => setTemplatePages([])} className="ml-2 rounded-lg px-3 py-2 text-sm text-muted hover:text-rose-600">

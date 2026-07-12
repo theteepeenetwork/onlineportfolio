@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { JarLogo } from "@/components/storyjar/JarLogo";
 import { HeroJar } from "@/components/storyjar/HeroJar";
 import { ScrollFill } from "@/components/storyjar/ScrollFill";
+import { Icon } from "@/components/icons/Icon";
 
 const NAV_LINK: React.CSSProperties = {
   font: "700 15px var(--font-atkinson)",
@@ -213,7 +214,7 @@ export default async function Home() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 14, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
-              <span style={{ fontSize: 26 }} aria-hidden="true">🖍</span>
+              <Icon name="draw" size={28} decorative />
               <div style={{ flex: 1 }}>
                 <p style={{ margin: 0, font: "600 18px var(--font-fredoka)" }}>Label the parts of a plant</p>
                 <p style={{ margin: "2px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>Science · worksheet template</p>
@@ -221,7 +222,7 @@ export default async function Home() {
               <span style={{ background: "#D8ECE8", borderRadius: 999, padding: "5px 14px", font: "700 13px var(--font-atkinson)", color: "#2E6B64" }}>Class 2M · live</span>
             </div>
             <div style={{ background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 14, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
-              <span style={{ fontSize: 26 }} aria-hidden="true">📷</span>
+              <Icon name="camera" size={28} decorative />
               <div style={{ flex: 1 }}>
                 <p style={{ margin: 0, font: "600 18px var(--font-fredoka)" }}>Show me your best pattern</p>
                 <p style={{ margin: "2px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>Maths · photo response</p>
@@ -229,7 +230,7 @@ export default async function Home() {
               <span style={{ background: "#FBEED3", borderRadius: 999, padding: "5px 14px", font: "700 13px var(--font-atkinson)", color: "#8A5F1E" }}>4 waiting</span>
             </div>
             <div style={{ background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 14, padding: "16px 20px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 4px 0 rgba(34,48,74,0.12)", opacity: 0.75 }}>
-              <span style={{ fontSize: 26 }} aria-hidden="true">⌨</span>
+              <Icon name="write" size={28} decorative />
               <div style={{ flex: 1 }}>
                 <p style={{ margin: 0, font: "600 18px var(--font-fredoka)" }}>News from my weekend</p>
                 <p style={{ margin: "2px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>Writing · reused from last year</p>

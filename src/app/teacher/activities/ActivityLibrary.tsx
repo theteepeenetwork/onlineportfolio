@@ -10,6 +10,7 @@ import {
   setTemplateArchived,
 } from "@/app/actions/activities";
 import type { ClassInfo, RunSummary } from "@/lib/activities";
+import { Icon, type IconName } from "@/components/icons/Icon";
 
 export type TemplateSummary = {
   id: string;
@@ -33,10 +34,10 @@ const ARCHIVED = "archived";
 
 // Icon + tint for a card's type tile, derived from whether it carries a
 // worksheet/drawing background.
-function typeMeta(t: TemplateSummary): { icon: string; bg: string; label: string } {
-  if (t.thumb) return { icon: "✏️", bg: "#FBEED3", label: "Drawing / worksheet" };
-  if (t.instructions) return { icon: "💬", bg: "#F7E0E6", label: "Prompt" };
-  return { icon: "🎨", bg: "#E5EED9", label: "Free choice" };
+function typeMeta(t: TemplateSummary): { icon: IconName; bg: string; label: string } {
+  if (t.thumb) return { icon: "draw", bg: "#FBEED3", label: "Drawing / worksheet" };
+  if (t.instructions) return { icon: "write", bg: "#F7E0E6", label: "Prompt" };
+  return { icon: "palette", bg: "#E5EED9", label: "Free choice" };
 }
 
 export function ActivityLibrary({
@@ -131,7 +132,7 @@ export function ActivityLibrary({
 
         {shown.length === 0 ? (
           <div className="sj-card" style={{ padding: "48px 32px", textAlign: "center" }}>
-            <div style={{ fontSize: 40 }} aria-hidden>📚</div>
+            <Icon name="add-file" size={44} decorative />
             <p style={{ margin: "10px 0 0", font: "600 20px var(--font-fredoka)" }}>Nothing here yet</p>
             <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Make a reusable activity to assign to your classes.</p>
           </div>
@@ -146,7 +147,7 @@ export function ActivityLibrary({
                   style={{ position: "relative", zIndex: open ? 20 : 1, background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 3px 0 rgba(34,48,74,0.08)" }}
                 >
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <span style={{ width: 44, height: 44, borderRadius: 12, background: tm.bg, border: "2px solid var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }} aria-hidden>{tm.icon}</span>
+                    <span style={{ width: 44, height: 44, borderRadius: 12, background: tm.bg, border: "2px solid var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} aria-hidden><Icon name={tm.icon} size={24} decorative /></span>
                     <div style={{ flex: 1, minWidth: 0, paddingRight: 34 }}>
                       <Link href={`/teacher/activities/${t.id}`} style={{ margin: 0, font: "600 19px/1.2 var(--font-fredoka)", color: "var(--ink)", textDecoration: "none" }}>{t.title}</Link>
                       <p style={{ margin: "4px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{tm.label}</p>
@@ -175,14 +176,14 @@ export function ActivityLibrary({
                           <MoveMenu template={t} folders={folders} onBack={() => setMoveId(null)} />
                         ) : (
                           <>
-                            <MenuLink href={`/teacher/activities/${t.id}`} icon="✎" label="Edit activity" />
-                            <MenuForm action={duplicateTemplate} templateId={t.id} icon="⧉" label="Duplicate" />
-                            <MenuButton icon="🗂" label="Move to folder…" onClick={() => setMoveId(t.id)} />
-                            <MenuButton icon="➤" label="Send to a class" onClick={() => { setAssignId(t.id); closeMenus(); }} />
+                            <MenuLink href={`/teacher/activities/${t.id}`} icon="edit" label="Edit activity" />
+                            <MenuForm action={duplicateTemplate} templateId={t.id} icon="add-file" label="Duplicate" />
+                            <MenuButton icon="next" label="Move to folder…" onClick={() => setMoveId(t.id)} />
+                            <MenuButton icon="share" label="Send to a class" onClick={() => { setAssignId(t.id); closeMenus(); }} />
                             {t.archived ? (
-                              <MenuForm action={setTemplateArchived} templateId={t.id} archived="false" icon="♻" label="Restore" />
+                              <MenuForm action={setTemplateArchived} templateId={t.id} archived="false" icon="undo" label="Restore" />
                             ) : (
-                              <MenuForm action={setTemplateArchived} templateId={t.id} archived="true" icon="🗑" label="Archive" danger />
+                              <MenuForm action={setTemplateArchived} templateId={t.id} archived="true" icon="delete" label="Archive" danger />
                             )}
                           </>
                         )}
@@ -240,11 +241,11 @@ const MENU_ITEM: React.CSSProperties = {
   textDecoration: "none",
 };
 
-function MenuIcon({ icon }: { icon: string }) {
-  return <span style={{ width: 20, textAlign: "center" }} aria-hidden>{icon}</span>;
+function MenuIcon({ icon }: { icon: IconName }) {
+  return <Icon name={icon} size={18} decorative />;
 }
 
-function MenuLink({ href, icon, label }: { href: string; icon: string; label: string }) {
+function MenuLink({ href, icon, label }: { href: string; icon: IconName; label: string }) {
   return (
     <Link role="menuitem" href={href} style={MENU_ITEM}>
       <MenuIcon icon={icon} />
@@ -253,7 +254,7 @@ function MenuLink({ href, icon, label }: { href: string; icon: string; label: st
   );
 }
 
-function MenuButton({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+function MenuButton({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
   return (
     <button role="menuitem" onClick={onClick} style={MENU_ITEM}>
       <MenuIcon icon={icon} />
@@ -273,7 +274,7 @@ function MenuForm({
   action: (formData: FormData) => void;
   templateId: string;
   archived?: string;
-  icon: string;
+  icon: IconName;
   label: string;
   danger?: boolean;
 }) {
@@ -313,7 +314,7 @@ function MoveMenu({ template, folders, onBack }: { template: TemplateSummary; fo
           <input type="hidden" name="templateId" value={template.id} />
           <input type="hidden" name="folderId" value="" />
           <button role="menuitem" type="submit" style={{ ...MENU_ITEM, color: "var(--ink-soft)" }}>
-            <MenuIcon icon="✕" />
+            <MenuIcon icon="close" />
             Remove from folder
           </button>
         </form>

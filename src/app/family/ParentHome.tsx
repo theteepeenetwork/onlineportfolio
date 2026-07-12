@@ -4,9 +4,10 @@ import { useState } from "react";
 import { parentLogout } from "@/app/actions/family";
 import { relativeDay } from "@/lib/relativeDay";
 import type { ParentChild, ParentMoment, ParentSession } from "@/lib/parentAuth";
+import { Icon, type IconName } from "@/components/icons/Icon";
 
 const TYPE_LABEL: Record<string, string> = { PHOTO: "Photo", DRAWING: "Drawing", TEXT: "Their words" };
-const TYPE_ART: Record<string, string> = { PHOTO: "📷", DRAWING: "🖍️", TEXT: "💬" };
+const TYPE_ART: Record<string, IconName> = { PHOTO: "camera", DRAWING: "draw", TEXT: "write" };
 const TILE_BG = ["#FBEED3", "#F7E0E6", "#DEEAF3", "#E5EED9", "#F3E3C3", "#EAF4F1"];
 
 const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#37796f"];
@@ -76,7 +77,7 @@ function ChildView({ child }: { child: ParentChild }) {
 
       {child.moments.length === 0 ? (
         <div className="sj-card" style={{ padding: "40px 28px", textAlign: "center", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 16 }}>
-          <div style={{ fontSize: 40 }} aria-hidden>🫙</div>
+          <Icon name="jar" size={44} decorative />
           <p style={{ margin: "10px 0 0", font: "600 18px var(--font-fredoka)" }}>The jar is waiting for its first moment</p>
           <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>When {child.name}&apos;s teacher approves something, it&apos;ll appear here.</p>
         </div>
@@ -105,7 +106,7 @@ function MomentCard({ moment, bg }: { moment: ParentMoment; bg: string }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={src} alt={`${moment.title}`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
         ) : (
-          <span style={{ fontSize: 52 }} aria-hidden>{moment.type === "TEXT" ? "💬" : TYPE_ART[moment.type] ?? "🫙"}</span>
+          <Icon name={TYPE_ART[moment.type] ?? "jar"} size={52} decorative />
         )}
       </div>
       <div style={{ padding: "12px 14px 14px" }}>

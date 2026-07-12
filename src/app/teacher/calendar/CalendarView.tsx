@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { classTint } from "@/lib/classTints";
+import { Icon } from "@/components/icons/Icon";
 
 export type CalendarRun = {
   id: string;
@@ -288,7 +289,7 @@ function DayPanel({ date, runs, today, onClose }: { date: Date; runs: CalendarRu
       <div onClick={(e) => e.stopPropagation()} className="sj-card" style={{ width: "100%", maxWidth: 560, padding: "22px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h2 style={{ margin: 0, font: "600 24px var(--font-fredoka)" }}>{fmtLongDay(date)}</h2>
-          <button onClick={onClose} aria-label="Close" style={{ marginLeft: "auto", ...navBtn }}>✕</button>
+          <button onClick={onClose} aria-label="Close" style={{ marginLeft: "auto", ...navBtn, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={18} decorative /></button>
         </div>
         {runs.length === 0 ? (
           <p style={{ margin: "16px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Nothing assigned or due on this day.</p>

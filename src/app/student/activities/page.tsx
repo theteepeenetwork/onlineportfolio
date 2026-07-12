@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Avatar } from "@/components/Avatar";
 import { logout } from "@/app/actions/auth";
+import { Icon } from "@/components/icons/Icon";
 
 export default async function StudentActivities() {
   const user = await getCurrentUser();
@@ -77,7 +78,7 @@ export default async function StudentActivities() {
                   href={`/student/activities/${a.id}`}
                   className="card flex items-center gap-3 p-4 transition-transform hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <span className="text-2xl">📝</span>
+                  <Icon name="add-file" size={26} decorative />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-bold">{a.title}</p>
                     {a.instructions && (
@@ -97,7 +98,7 @@ export default async function StudentActivities() {
             <div className="space-y-2">
               {doneList.map((a) => (
                 <div key={a.id} className="card flex items-center gap-3 p-4 opacity-70">
-                  <span className="text-2xl">✅</span>
+                  <Icon name="done" size={26} decorative />
                   <p className="flex-1 truncate font-semibold">{a.title}</p>
                   <span className="text-sm text-muted">Handed in</span>
                 </div>

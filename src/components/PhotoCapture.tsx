@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "./icons/Icon";
 
 // Lets a child add a photo either by taking one with the device camera (live)
 // or by uploading a file. A captured photo is stored as a data URL in a hidden
@@ -106,8 +107,8 @@ export function PhotoCapture() {
             style={{ aspectRatio: "4 / 3" }}
           />
           <div className="flex gap-2">
-            <button type="button" onClick={capture} className="btn-green flex-1">
-              📸 Take photo
+            <button type="button" onClick={capture} className="btn-green flex flex-1 items-center justify-center gap-2">
+              <Icon name="camera" size={20} decorative /> Take photo
             </button>
             <button
               type="button"
@@ -140,14 +141,14 @@ export function PhotoCapture() {
             onClick={openCamera}
             className="btn-ghost flex flex-col items-center gap-1 py-8 text-muted"
           >
-            <span className="text-3xl">📷</span>
+            <Icon name="camera" size={32} decorative />
             Use camera
           </button>
           <label
             htmlFor="photo-file"
             className="btn-ghost flex cursor-pointer flex-col items-center gap-1 py-8 text-muted"
           >
-            <span className="text-3xl">🖼️</span>
+            <Icon name="add-picture" size={32} decorative />
             Upload a photo
           </label>
         </div>

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { approveItem, returnItem } from "@/app/actions/journal";
 import { JarLogo } from "@/components/storyjar/JarLogo";
+import { Icon, type IconName } from "@/components/icons/Icon";
 
 type Skill = { id: string; name: string };
 type Item = {
@@ -16,10 +17,10 @@ type Item = {
   when: string;
 };
 
-const KIND: Record<string, { label: string; bg: string; emoji: string }> = {
-  PHOTO: { label: "photo", bg: "#DEEAF3", emoji: "📷" },
-  DRAWING: { label: "drawing", bg: "#FBEED3", emoji: "🖍" },
-  TEXT: { label: "their words", bg: "#F7E0E6", emoji: "⌨" },
+const KIND: Record<string, { label: string; bg: string; icon: IconName }> = {
+  PHOTO: { label: "photo", bg: "#DEEAF3", icon: "camera" },
+  DRAWING: { label: "drawing", bg: "#FBEED3", icon: "draw" },
+  TEXT: { label: "their words", bg: "#F7E0E6", icon: "write" },
 };
 const kindOf = (t: string) => KIND[t] ?? KIND.PHOTO;
 
@@ -153,9 +154,9 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={it.mediaPath} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : it.text ? (
-                    <span style={{ fontSize: 26 }} aria-hidden="true">⌨</span>
+                    <Icon name="write" size={28} decorative />
                   ) : (
-                    <span aria-hidden="true">{k.emoji}</span>
+                    <Icon name={k.icon} size={30} decorative />
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 160 }}>
