@@ -84,26 +84,37 @@ async function canAccess(urlPath: string): Promise<boolean> {
   }
 
   // 2) Otherwise it may be a teacher-authored activity background (template pages
-  //    or a frozen assignment snapshot). Parents never see these.
+  //    or a frozen assignment snapshot) OR a quiz answer-option picture (which
+  //    lives in quizJson / quizSnapshotJson, not the page list). Both are
+  //    teacher-authored content — parents never see either.
   if (user?.role === "TEACHER") {
     const owned = await db.activityTemplate.findFirst({
-      where: { teacherId: user.teacher.id, templatePathsJson: { contains: urlPath } },
+      where: {
+        teacherId: user.teacher.id,
+        OR: [{ templatePathsJson: { contains: urlPath } }, { quizJson: { contains: urlPath } }],
+      },
       select: { id: true },
     });
     if (owned) return true;
     const assigned = await db.assignment.findFirst({
-      where: { template: { teacherId: user.teacher.id }, templateSnapshotJson: { contains: urlPath } },
+      where: {
+        template: { teacherId: user.teacher.id },
+        OR: [{ templateSnapshotJson: { contains: urlPath } }, { quizSnapshotJson: { contains: urlPath } }],
+      },
       select: { id: true },
     });
     return !!assigned;
   }
   if (user?.role === "STUDENT") {
-    // A child may load the background of an activity they have been set.
+    // A child may load the background AND the quiz option pictures of an activity
+    // they have been set.
     const assigned = await db.assignment.findFirst({
       where: {
-        templateSnapshotJson: { contains: urlPath },
         class: { students: { some: { id: user.student.id } } },
-        OR: [{ wholeClass: true }, { students: { some: { studentId: user.student.id } } }],
+        AND: [
+          { OR: [{ templateSnapshotJson: { contains: urlPath } }, { quizSnapshotJson: { contains: urlPath } }] },
+          { OR: [{ wholeClass: true }, { students: { some: { studentId: user.student.id } } }] },
+        ],
       },
       select: { id: true },
     });

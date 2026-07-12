@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { savePhoto, saveImageDataUrl, saveImagePages, deleteMediaFiles } from "@/lib/media";
 import { recordAudit } from "@/lib/audit";
+import { readQuiz, readAnswers, sanitizeAnswers, scoreQuiz } from "@/lib/quiz";
 import {
   requireWritableAccount,
   requireWritableAccountForClass,
@@ -100,6 +101,36 @@ export async function createJournalItem(
   // When responding to an assigned activity, link the item back to the run.
   const assignmentId = String(formData.get("assignmentId") ?? "") || null;
 
+  // Quiz answers (if this run carries a quiz) are captured on this same item and
+  // scored server-side. Never trust the assignmentId from the form: re-resolve
+  // the run scoped to THIS child, so a crafted id from another school can't
+  // attach a response or pull another class's quiz (SAFEGUARDING rules 4 & 8).
+  let quizAnswersJson: string | null = null;
+  let quizScore: number | null = null;
+  let quizTotal: number | null = null;
+  if (assignmentId) {
+    const assignment = await db.assignment.findFirst({
+      where: {
+        id: assignmentId,
+        OR: [
+          { wholeClass: true, classId },
+          { wholeClass: false, students: { some: { studentId } } },
+        ],
+      },
+      select: { id: true, quizSnapshotJson: true },
+    });
+    if (!assignment) return { error: "That activity isn't available." };
+
+    const quiz = readQuiz(assignment.quizSnapshotJson);
+    if (quiz.questions.length) {
+      const answers = sanitizeAnswers(quiz, readAnswers(String(formData.get("quizAnswers") ?? "")));
+      const { score, total } = scoreQuiz(quiz, answers);
+      quizAnswersJson = JSON.stringify(answers);
+      quizScore = score;
+      quizTotal = total;
+    }
+  }
+
   const isTeacher = authorRole === "TEACHER";
   await db.journalItem.create({
     data: {
@@ -108,6 +139,9 @@ export async function createJournalItem(
       textContent,
       mediaPath,
       mediaPathsJson,
+      quizAnswersJson,
+      quizScore,
+      quizTotal,
       status: isTeacher ? "APPROVED" : "PENDING",
       approvedAt: isTeacher ? new Date() : null,
       authorRole,
