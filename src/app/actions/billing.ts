@@ -115,8 +115,8 @@ export async function startCheckout(
       // from the Stripe dashboard config — we don't pin payment_method_types.
       allow_promotion_codes: true,
       billing_address_collection: "auto",
-      success_url: `${base}/teacher/billing?checkout=success`,
-      cancel_url: `${base}/teacher/billing?checkout=cancelled`,
+      success_url: `${base}/teacher/account?checkout=success`,
+      cancel_url: `${base}/teacher/account?checkout=cancelled`,
       subscription_data: {
         metadata: { storyjar_subscription_id: sub.id, storyjar_kind: sub.kind },
       },
@@ -188,7 +188,7 @@ export async function openCustomerPortal(
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: sub.stripeCustomerId,
-      return_url: `${base}/teacher/billing`,
+      return_url: `${base}/teacher/account`,
     });
     url = session.url;
   } catch (e) {

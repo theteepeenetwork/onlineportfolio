@@ -17,7 +17,7 @@ export function FrozenBanner() {
       }}
     >
       Your plan has paused, so the class jar is <strong>read-only</strong> — you can still view and download work.{" "}
-      <Link href="/teacher/billing" style={{ color: "var(--paper, #fff)", textDecoration: "underline", fontWeight: 800 }}>
+      <Link href="/teacher/account" style={{ color: "var(--paper, #fff)", textDecoration: "underline", fontWeight: 800 }}>
         Renew your plan →
       </Link>
     </div>
