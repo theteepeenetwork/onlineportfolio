@@ -8,6 +8,7 @@ import {
   type QuizPayload,
   type QuizQuestion,
 } from "@/lib/quiz";
+import { Icon, type IconName } from "./icons/Icon";
 
 // Deep-clone the questions we get from props so our editing never mutates the
 // caller's object. Quiz questions live in their own layer (quizRef) and are
