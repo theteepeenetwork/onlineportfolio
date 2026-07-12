@@ -122,7 +122,7 @@ export default async function SignupWelcomePage({
           </div>
 
           <div className="no-print" style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
-            <Link href="/teacher/activities/new" style={{ font: "700 17px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", padding: "15px 30px", borderRadius: 999, boxShadow: "0 4px 0 var(--jam-deep)" }}>Create your first activity</Link>
+            <Link href="/teacher/activities" style={{ font: "700 17px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", padding: "15px 30px", borderRadius: 999, boxShadow: "0 4px 0 var(--jam-deep)" }}>Create your first activity</Link>
             <a href={`/login/student?code=${code}&preview=1`} target="_blank" rel="noopener noreferrer" style={{ font: "700 17px var(--font-atkinson)", color: "var(--ink)", textDecoration: "none", padding: "15px 24px" }}>See what your pupils will see ↗</a>
           </div>
         </div>
