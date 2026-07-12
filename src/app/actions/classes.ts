@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { uniqueClassCode } from "@/lib/classCode";
 import { deleteMediaFiles } from "@/lib/media";
 import { recordAudit } from "@/lib/audit";
+import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 
 // Teacher creates a new class. A teacher can have as many as they like.
 export async function createClass(
@@ -15,6 +16,10 @@ export async function createClass(
 ): Promise<{ error?: string }> {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
+
+  // Creating a class is a mutation — blocked while the account is frozen.
+  const gate = await requireWritableAccount();
+  if (!gate.ok) return { error: FROZEN_TEACHER_MESSAGE };
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Please give your class a name." };
@@ -37,6 +42,8 @@ export async function createClass(
 //     here on the server (never trust the client-side gate);
 //   - erases the media files, not just the database rows;
 //   - is recorded in the audit log.
+// Deliberately NOT write-gated: deletion stays available in a frozen account
+// (RETENTION.md right-to-erasure exception).
 export async function deleteClass(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");

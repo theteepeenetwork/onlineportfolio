@@ -30,10 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — ignore secret-bearing ones, but keep the committed .env
+# env files — ignore secret-bearing ones, but keep the committed .env and the
+# secret-free .env.example template
 # (it only holds the local SQLite path, no secrets) so the app runs after clone.
 .env*
 !.env
+!.env.example
 
 # vercel
 .vercel

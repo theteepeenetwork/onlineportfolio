@@ -24,6 +24,16 @@ export const SCHOOL_B = {
   pendingMedia: "/uploads/seed-oak-pending.svg", // PENDING (Yusuf)
 } as const;
 
+// School C = Larchwood Primary — a FROZEN (lapsed) account. Read-only: the
+// teacher can view/download but every write is blocked server-side.
+export const SCHOOL_C = {
+  name: "Larchwood Primary",
+  teacher: { email: "teacher@larchwood.sch.uk", password: "password" }, // ADMIN, frozen
+  classCode: "LRCH22",
+  student: "Pip",
+  approvedMedia: "/uploads/seed-larch.svg", // APPROVED before the freeze
+} as const;
+
 // Sign in as a teacher/admin by email + password, landing on their dashboard.
 export async function loginTeacher(page: Page, who: { email: string; password: string }) {
   await page.goto("/login/teacher");

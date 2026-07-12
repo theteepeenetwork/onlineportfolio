@@ -6,6 +6,12 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { savePhoto, saveImageDataUrl, saveImagePages, deleteMediaFiles } from "@/lib/media";
 import { recordAudit } from "@/lib/audit";
+import {
+  requireWritableAccount,
+  requireWritableAccountForClass,
+  FROZEN_TEACHER_MESSAGE,
+  FROZEN_STUDENT_MESSAGE,
+} from "@/lib/billing";
 
 // A student (or teacher) adds a new piece of work to a journal.
 // Student-created items always start life in the approval queue (PENDING);
@@ -36,6 +42,14 @@ export async function createJournalItem(
     const student = await db.student.findUnique({ where: { id: studentId } });
     if (!student) return { error: "Please choose a student." };
     classId = student.classId;
+  }
+
+  // Write gate: adding work is blocked while the governing account is frozen
+  // (read-only). Enforced on the server for both pupils and teachers — the
+  // class's teacher's subscription governs (SAFEGUARDING rules 4, 8).
+  const gate = await requireWritableAccountForClass(classId);
+  if (!gate.ok) {
+    return { error: user.role === "STUDENT" ? FROZEN_STUDENT_MESSAGE : FROZEN_TEACHER_MESSAGE };
   }
 
   // Build the type-specific content.
@@ -137,6 +151,10 @@ export async function approveItem(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
 
+  // Approval is a mutation — blocked while the account is frozen (read-only).
+  const gate = await requireWritableAccount();
+  if (!gate.ok) redirect("/teacher/billing?frozen=1");
+
   const id = String(formData.get("itemId") ?? "");
   const skillIds = formData.getAll("skillIds").map(String).filter(Boolean);
 
@@ -165,6 +183,10 @@ export async function returnItem(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
 
+  // Returning work is a mutation — blocked while the account is frozen.
+  const gate = await requireWritableAccount();
+  if (!gate.ok) redirect("/teacher/billing?frozen=1");
+
   const id = String(formData.get("itemId") ?? "");
   const note = String(formData.get("teacherNote") ?? "").trim() || null;
 
@@ -183,7 +205,9 @@ export async function returnItem(formData: FormData) {
   revalidatePath("/teacher/queue");
 }
 
-// Delete an item (teacher only).
+// Delete an item (teacher only). Deliberately NOT write-gated: deletion (right
+// to erasure) stays available even in a frozen account (RETENTION.md: FROZEN
+// blocks mutations "except account management, data export, and deletion").
 export async function deleteItem(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");

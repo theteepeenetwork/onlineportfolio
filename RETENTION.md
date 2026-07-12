@@ -39,7 +39,7 @@
 | Sessions | Until expiry/logout | Purged within **7 days** of expiry |
 | Teacher/staff accounts | Account exists | Deleted on school instruction or account closure; personal data minimised to name + email throughout |
 | Audit logs (approvals, deletions, exports, access) | **2 years** rolling | Deleted; a minimal deletion record (what was deleted, when, on whose instruction — no child data) is kept **6 years** for accountability |
-| Billing records (invoices, payment status — no card data held by Storyjar) | **6 years** | Deleted (HMRC/accounting requirement) |
+| Billing records — subscription state, Stripe customer/subscription IDs, invoices, payment status (**no card data** held by Storyjar; adult billing data only) | **6 years** | Deleted (HMRC/accounting requirement) |
 | Backups | **35-day** rolling cycle | Deletions propagate out of all backups within one cycle; backups are UK/EU-hosted only |
 
 ## The frozen-account lifecycle

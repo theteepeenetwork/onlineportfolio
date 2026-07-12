@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { saveImagePages } from "@/lib/media";
+import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 
 function parsePages(raw: string): string[] {
   try {
@@ -31,6 +32,8 @@ export async function createTemplate(
 ): Promise<{ error?: string }> {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
+  const gate = await requireWritableAccount();
+  if (!gate.ok) return { error: FROZEN_TEACHER_MESSAGE };
 
   const title = String(formData.get("title") ?? "").trim();
   const instructions = String(formData.get("instructions") ?? "").trim() || null;
@@ -67,6 +70,8 @@ export async function assignTemplate(
 ): Promise<{ error?: string }> {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
+  const gate = await requireWritableAccount();
+  if (!gate.ok) return { error: FROZEN_TEACHER_MESSAGE };
 
   const templateId = String(formData.get("templateId") ?? "");
   const classId = String(formData.get("classId") ?? "");
@@ -122,6 +127,7 @@ export async function assignTemplate(
 export async function duplicateTemplate(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
+  if (!(await requireWritableAccount()).ok) redirect("/teacher/billing?frozen=1");
   const id = String(formData.get("templateId") ?? "");
   const t = await db.activityTemplate.findFirst({ where: { id, teacherId: user.teacher.id } });
   if (!t) redirect("/teacher/activities");
@@ -143,6 +149,7 @@ export async function duplicateTemplate(formData: FormData) {
 export async function setTemplateArchived(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
+  if (!(await requireWritableAccount()).ok) redirect("/teacher/billing?frozen=1");
   const id = String(formData.get("templateId") ?? "");
   const archived = String(formData.get("archived") ?? "") === "true";
   await db.activityTemplate.updateMany({
@@ -163,6 +170,8 @@ export async function createFolder(
 ): Promise<{ error?: string }> {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
+  const gate = await requireWritableAccount();
+  if (!gate.ok) return { error: FROZEN_TEACHER_MESSAGE };
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Give the folder a name." };
@@ -179,6 +188,7 @@ export async function createFolder(
 export async function moveTemplateToFolder(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
+  if (!(await requireWritableAccount()).ok) redirect("/teacher/billing?frozen=1");
   const id = String(formData.get("templateId") ?? "");
   const folderId = String(formData.get("folderId") ?? "") || null;
 
@@ -198,6 +208,7 @@ export async function moveTemplateToFolder(formData: FormData) {
 export async function setRunStatus(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
+  if (!(await requireWritableAccount()).ok) redirect("/teacher/billing?frozen=1");
   const assignmentId = String(formData.get("assignmentId") ?? "");
   const status = String(formData.get("status") ?? "CLOSED") === "LIVE" ? "LIVE" : "CLOSED";
   const a = await db.assignment.findFirst({

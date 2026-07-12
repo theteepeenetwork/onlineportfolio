@@ -31,18 +31,61 @@ model Teacher {
   sessions     Session[]
   templates    ActivityTemplate[]
   folders      Folder[]
+  // An individually-subscribing teacher's own subscription (null when the
+  // teacher is covered by a school plan instead — see Subscription).
+  subscription Subscription?
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
 // staff, class assignment and billing — but never see children's work unless
 // they teach the class (that stays scoped to each teacher's own classes).
 model School {
-  id        String    @id @default(cuid())
-  name      String
-  plan      String    @default("Annual plan") // billing plan label
-  seatLimit Int       @default(10)
-  createdAt DateTime  @default(now())
-  staff     Teacher[]
+  id           String        @id @default(cuid())
+  name         String
+  seatLimit    Int           @default(10) // paid seats on the school plan
+  createdAt    DateTime      @default(now())
+  staff        Teacher[]
+  // The school's billing subscription (school plan). Null until one is created;
+  // the plan label shown in the admin console is derived from this, not stored.
+  subscription Subscription?
+}
+
+// A billing subscription that governs WRITE access for an account. An account is
+// either one teacher (kind = INDIVIDUAL) or a whole school (kind = SCHOOL).
+//
+// Safeguarding notes:
+//  - We store only Stripe identifiers here — never card/PAN data (rule 12).
+//  - No child data ever lives on this record (hard constraint): a customer is
+//    only ever a teacher's name/email or a school name, held in Stripe.
+//  - `status` is the enforcement point read by requireWritableAccount(); FROZEN
+//    means read-only. `frozenAt` starts the 12-month deletion clock in
+//    RETENTION.md. Subscription rows are billing records (6-year retention).
+model Subscription {
+  id                   String    @id @default(cuid())
+  kind                 String // INDIVIDUAL | SCHOOL
+  status               String    @default("TRIAL") // TRIAL | ACTIVE | PAST_DUE | FROZEN
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  trialEndsAt          DateTime // 42-day "free half term" from signup; tracked locally, not via Stripe trials
+  frozenAt             DateTime? // when the account went read-only (starts the 12-month clock)
+  seatLimit            Int? // school plan: paid seat count (Stripe quantity); mirrors School.seatLimit
+  currentPeriodEnd     DateTime? // end of the current paid period, synced from Stripe
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Exactly one of these is set (INDIVIDUAL → teacher, SCHOOL → school).
+  teacher   Teacher? @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String?  @unique
+  school    School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId  String?  @unique
+}
+
+// Processed Stripe webhook event ids, so at-least-once redelivery is handled
+// exactly once (idempotency). No personal data — just the event id and type.
+model BillingEvent {
+  id         String   @id // the Stripe event id (evt_...)
+  type       String
+  receivedAt DateTime @default(now())
 }
 
 // A teacher-defined folder for organising activity templates in the library.

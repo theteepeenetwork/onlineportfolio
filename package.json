@@ -10,12 +10,12 @@
     "postinstall": "prisma generate",
     "setup": "prisma db push && tsx prisma/seed.ts",
     "db:seed": "tsx prisma/seed.ts",
+    "billing:freeze": "node scripts/freeze-expired.mjs",
     "db:seed:test": "FORCE_SEED=1 tsx prisma/seed-test.ts",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report",
-
     "test:e2e": "playwright test",
     "test:security": "node scripts/audit-static.mjs && node scripts/check-r2-tripwire.mjs && npm run audit:prod && playwright test -c playwright.battery.config.ts --project=security",
     "test:security:findings": "playwright test -c playwright.battery.config.ts --project=security-findings",
@@ -37,6 +37,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
+    "stripe": "^22.3.1",
     "tsx": "^4.23.0"
   },
   "devDependencies": {

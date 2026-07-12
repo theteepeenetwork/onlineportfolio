@@ -139,6 +139,76 @@ Key places in the code:
 
 ---
 
+## Billing (Stripe)
+
+Storyjar charges for subscriptions through **Stripe**. Card details never touch
+our servers: buying happens on Stripe's hosted **Checkout**, plan changes on the
+Stripe **Customer Portal**, and we store only Stripe IDs. Apple Pay and Google
+Pay appear automatically in Checkout (enable them in the Stripe dashboard) — no
+extra code and no Stripe.js on any page. **No child data is ever sent to Stripe.**
+
+Plans (GBP, VAT-inclusive):
+
+- **Individual** — £3.99/month or £40/year (a teacher pays personally).
+- **School** — £40 per teacher/year, seat-based; card or invoice/PO (BACS).
+- **Trial** — every account gets 42 days free from signup (no card), tracked
+  locally; a Stripe subscription is created only at first payment.
+
+Account states (`Subscription.status`): `TRIAL`, `ACTIVE`, `PAST_DUE` all have
+full access; `FROZEN` is read-only (view/download/export only). The single
+server-side gate `requireWritableAccount()` (`src/lib/billing.ts`) enforces this
+on every mutating action.
+
+### One-time Stripe setup (test mode)
+
+1. Set `STRIPE_SECRET_KEY` in `.env` (see `.env.example`).
+
+2. Create the three prices with the [Stripe CLI](https://stripe.com/docs/stripe-cli)
+   and copy each returned `price_…` id into `.env`:
+
+   ```bash
+   # Individual — £3.99 / month  → STRIPE_PRICE_INDIVIDUAL_MONTHLY
+   stripe prices create --currency=gbp --unit-amount=399 \
+     -d "recurring[interval]=month" \
+     -d "product_data[name]=Storyjar Individual (monthly)"
+
+   # Individual — £40 / year  → STRIPE_PRICE_INDIVIDUAL_ANNUAL
+   stripe prices create --currency=gbp --unit-amount=4000 \
+     -d "recurring[interval]=year" \
+     -d "product_data[name]=Storyjar Individual (annual)"
+
+   # School — £40 / seat / year (quantity = seats)  → STRIPE_PRICE_SCHOOL_SEAT_ANNUAL
+   stripe prices create --currency=gbp --unit-amount=4000 \
+     -d "recurring[interval]=year" \
+     -d "product_data[name]=Storyjar School seat (annual)"
+   ```
+
+3. Forward webhooks to the dev server and copy the printed `whsec_…` into
+   `STRIPE_WEBHOOK_SECRET`:
+
+   ```bash
+   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   ```
+
+4. Drive state transitions with test events:
+
+   ```bash
+   stripe trigger checkout.session.completed
+   stripe trigger invoice.payment_failed
+   stripe trigger customer.subscription.deleted
+   ```
+
+5. **Apple Pay:** register the production domain in the Stripe dashboard
+   (Payment methods → Apple Pay), then put the association file contents in
+   `STRIPE_APPLE_PAY_DOMAIN_ASSOCIATION`. It is served at
+   `/.well-known/apple-developer-merchantid-domain-association`.
+
+The daily **trial-expiry freeze** job (`npm run billing:freeze`) freezes accounts
+whose trial lapsed without a subscription; the same freeze also happens lazily on
+the next request.
+
+---
+
 ## Roadmap: what's next
 
 The next milestones, in a sensible order to build them:

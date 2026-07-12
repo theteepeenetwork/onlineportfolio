@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { deriveChildNames } from "@/lib/childNames";
 import { deleteMediaFiles } from "@/lib/media";
+import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 
 const AVATAR_COLORS = [
   "#ef4444", "#f97316", "#f59e0b", "#84cc16", "#10b981",
@@ -23,6 +24,10 @@ export async function addStudents(
 ): Promise<{ error?: string; added?: number }> {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
+
+  // Adding children is a mutation — blocked while the account is frozen.
+  const gate = await requireWritableAccount();
+  if (!gate.ok) return { error: FROZEN_TEACHER_MESSAGE };
 
   const raw = String(formData.get("names") ?? "");
   const classId = String(formData.get("classId") ?? "");
@@ -61,6 +66,8 @@ export async function addStudents(
 }
 
 // Teacher removes a student (and all their journal items) from a class.
+// Deliberately NOT write-gated: deletion stays available in a frozen account
+// (RETENTION.md right-to-erasure exception).
 export async function removeStudent(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");

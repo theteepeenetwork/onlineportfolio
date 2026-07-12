@@ -7,5 +7,6 @@ export function teacherNav(pending: number) {
     { href: "/teacher/activities", label: "Activities" },
     { href: "/teacher/calendar", label: "Calendar" },
     { href: "/teacher/class", label: "My classes" },
+    { href: "/teacher/billing", label: "Billing" },
   ];
 }

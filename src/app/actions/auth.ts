@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
+import { trialEndFromNow } from "@/lib/billing";
 import { uniqueClassCode } from "@/lib/classCode";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
 import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
@@ -77,6 +78,14 @@ export async function createTeacherAccount(input: {
       schoolName: school,
       country: input.country,
     },
+  });
+
+  // Every new account starts on the 42-day free trial with full access. This is
+  // an INDIVIDUAL subscription tracked locally (no card, no Stripe trial); the
+  // Stripe subscription is created only at first payment. Without this row the
+  // write gate would (correctly) deny by default, so it must exist from signup.
+  await db.subscription.create({
+    data: { kind: "INDIVIDUAL", status: "TRIAL", trialEndsAt: trialEndFromNow(), teacherId: teacher.id },
   });
 
   const code = await uniqueClassCode();

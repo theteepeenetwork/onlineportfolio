@@ -44,8 +44,14 @@ async function main() {
   //    here is linked to School A in any way.
   console.log("[seed-test] Appending School B (Oakfield) …");
 
+  const DAY = 24 * 60 * 60 * 1000;
+
   const oak = await db.school.create({
-    data: { name: "Oakfield Primary", plan: "Annual plan", seatLimit: 10 },
+    data: { name: "Oakfield Primary", seatLimit: 10 },
+  });
+  // Oakfield is on the free trial (full access) — mirrors School A.
+  await db.subscription.create({
+    data: { kind: "SCHOOL", status: "TRIAL", trialEndsAt: new Date(Date.now() + 42 * DAY), seatLimit: oak.seatLimit, schoolId: oak.id },
   });
 
   const oakAdmin = await db.teacher.create({
@@ -128,11 +134,66 @@ async function main() {
     },
   });
 
+  // 3) School C = Larchwood Primary — a FROZEN (lapsed) account. Its trial ended
+  //    with no subscription, so it is read-only: the battery uses it to prove
+  //    that requireWritableAccount() blocks EVERY mutation server-side while
+  //    viewing/downloading stay open (RETENTION.md frozen state). Its existing
+  //    moment lets us assert the frozen teacher can still read/download work.
+  console.log("[seed-test] Appending School C (Larchwood, FROZEN) …");
+  const larch = await db.school.create({
+    data: { name: "Larchwood Primary", seatLimit: 10 },
+  });
+  await db.subscription.create({
+    data: {
+      kind: "SCHOOL",
+      status: "FROZEN",
+      trialEndsAt: new Date(Date.now() - 10 * DAY), // trial lapsed 10 days ago
+      frozenAt: new Date(Date.now() - 3 * DAY), // read-only for 3 days (12-month clock running)
+      seatLimit: larch.seatLimit,
+      schoolId: larch.id,
+    },
+  });
+  const larchTeacher = await db.teacher.create({
+    data: {
+      name: "Ada Frost",
+      title: "Ms",
+      displayStyle: "formal",
+      displayName: "Ms Frost",
+      email: "teacher@larchwood.sch.uk",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "ADMIN", // admin so billing/account management stays reachable while frozen
+      status: "ACTIVE",
+      schoolId: larch.id,
+    },
+  });
+  const larchClass = await db.class.create({
+    data: { name: "Willow Class", yearGroup: "Year 2", classCode: "LRCH22", teacherId: larchTeacher.id },
+  });
+  const [pip] = await Promise.all(
+    ["Pip", "Robin", "Sage"].map((name, i) =>
+      db.student.create({ data: { name, classId: larchClass.id, avatarColor: oakColors[i % oakColors.length] } }),
+    ),
+  );
+  const larchApproved = writeSvg("seed-larch.svg", OAK_SVG);
+  await db.journalItem.create({
+    data: {
+      type: "DRAWING",
+      caption: "Before the freeze",
+      mediaPath: larchApproved,
+      status: "APPROVED",
+      approvedAt: new Date(Date.now() - 20 * DAY),
+      authorRole: "STUDENT",
+      studentId: pip.id,
+      classId: larchClass.id,
+    },
+  });
+
   console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
   console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN123 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
   console.log("                         teacher teacher@oakfield.sch.uk / password  class OAK111 (Acorn)  parent OAKFAM1");
   console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)");
+  console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class LRCH22 (Willow)  read-only");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).
   console.log(`  School B pupil ids: Zara=${zara.id} Yusuf=${yusuf.id} Willow=${willow.id}`);

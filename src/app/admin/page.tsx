@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { accountStateForTeacher, planLabel } from "@/lib/billing";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
@@ -26,6 +27,10 @@ export default async function AdminPage() {
     },
   });
   if (!school) redirect("/teacher");
+
+  // Plan label is derived from the school's subscription state (never a stored
+  // free-text string). Reading it also settles a lapsed trial into FROZEN.
+  const account = await accountStateForTeacher({ id: user.teacher.id, schoolId: user.teacher.schoolId });
 
   const staff: StaffRow[] = school.staff.map((s) => ({
     id: s.id,
@@ -61,7 +66,7 @@ export default async function AdminPage() {
   return (
     <AdminConsole
       schoolName={school.name}
-      plan={school.plan}
+      plan={planLabel(account)}
       seatLimit={school.seatLimit}
       meId={user.teacher.id}
       staff={staff}
