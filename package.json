@@ -18,20 +18,22 @@
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
+    "dotenv": "^17.4.2",
     "next": "16.2.10",
     "pdfjs-dist": "^6.1.200",
+    "prisma": "^6.19.3",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
-    "prisma": "^6.19.3",
-    "tsx": "^4.23.0",
-    "dotenv": "^17.4.2"
+    "tsx": "^4.23.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

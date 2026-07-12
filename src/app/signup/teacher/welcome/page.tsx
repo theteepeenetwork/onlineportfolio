@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import QRCode from "qrcode";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { JarLogo } from "@/components/storyjar/JarLogo";
@@ -25,12 +27,31 @@ export default async function SignupWelcomePage() {
 
   const code = klass.classCode;
 
+  // A QR that drops a device straight onto this class's sign-in (the same
+  // name-picker the class code opens — so it grants no more access than the
+  // printed code already does). Built from the request host so it works in
+  // dev and in production without hard-coding the domain.
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host") ?? "storyjar.co.uk";
+  const proto =
+    requestHeaders.get("x-forwarded-proto") ??
+    (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  const signInUrl = `${proto}://${host}/login/student?code=${code}`;
+  const qrSvg = (
+    await QRCode.toString(signInUrl, {
+      type: "svg",
+      margin: 0,
+      errorCorrectionLevel: "M",
+      color: { dark: "#22304A", light: "#FFFDF7" },
+    })
+  ).replace("<svg ", '<svg width="100%" height="100%" ');
+
   return (
     <div
       className="sj"
       style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", display: "flex", flexDirection: "column", width: "100%" }}
     >
-      <nav style={{ display: "flex", alignItems: "center", gap: 12, padding: "22px 48px" }}>
+      <nav className="no-print" style={{ display: "flex", alignItems: "center", gap: 12, padding: "22px 48px" }}>
         <Link href="/teacher" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
           <JarLogo width={26} height={32} />
           <span style={{ font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>storyjar</span>
@@ -49,7 +70,16 @@ export default async function SignupWelcomePage() {
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 26 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, marginTop: 30 }}>
+            <div
+              aria-hidden="true"
+              style={{ width: 180, height: 180, background: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 16, padding: 14, boxSizing: "border-box", boxShadow: "0 5px 0 rgba(34,48,74,0.15)" }}
+              dangerouslySetInnerHTML={{ __html: qrSvg }}
+            />
+            <p style={{ margin: 0, font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>Or scan to jump straight in — no code to type</p>
+          </div>
+
+          <div className="no-print" style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 26 }}>
             <PrintButton />
           </div>
 
@@ -79,7 +109,7 @@ export default async function SignupWelcomePage() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
+          <div className="no-print" style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
             <Link href="/teacher/activities/new" style={{ font: "700 17px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", padding: "15px 30px", borderRadius: 999, boxShadow: "0 4px 0 var(--jam-deep)" }}>Create your first activity</Link>
             <Link href={`/login/student?code=${code}`} style={{ font: "700 17px var(--font-atkinson)", color: "var(--ink)", textDecoration: "none", padding: "15px 24px" }}>See what your children will see →</Link>
           </div>
