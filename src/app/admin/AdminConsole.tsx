@@ -43,6 +43,7 @@ const ACTION_LABEL: Record<string, string> = {
   STAFF_ROLE_CHANGED: "Changed a role",
   STAFF_REMOVED: "Removed staff",
   CLASS_ASSIGNED: "Assigned a class",
+  CLASS_DELETED: "Deleted a class",
 };
 
 const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#4E9C94", "#E8A06A", "#C2476B"];
