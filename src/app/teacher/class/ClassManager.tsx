@@ -205,7 +205,13 @@ function RosterView({
             {klass.year} · {klass.kids} {klass.kids === 1 ? "child" : "children"} · class code <strong>{klass.code}</strong>
           </p>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Link
+            href={`/signup/teacher/welcome?class=${klass.id}`}
+            style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+          >
+            🖨 Printable code
+          </Link>
           <button onClick={onToggleSettings} style={OUTLINE_BTN} aria-pressed={settings}>⚙ Class settings</button>
           <button onClick={onToggleAdd} style={{ ...JAM_BTN, padding: "11px 20px", fontSize: 14 }} aria-pressed={addingChild}>＋ Add child</button>
         </div>
@@ -403,12 +409,12 @@ function AddChildForm({ classId }: { classId: string }) {
   return (
     <form ref={ref} action={action} className="sj-card" style={{ padding: "18px 20px", marginTop: 14 }}>
       <input type="hidden" name="classId" value={classId} />
-      <label htmlFor={`names-${classId}`} style={{ display: "block", font: "700 14px var(--font-atkinson)", marginBottom: 6 }}>Add children — first names, one per line</label>
+      <label htmlFor={`names-${classId}`} style={{ display: "block", font: "700 14px var(--font-atkinson)", marginBottom: 6 }}>Add children — one per line (paste your register; surnames are fine)</label>
       <textarea
         id={`names-${classId}`}
         name="names"
         rows={3}
-        placeholder={"Poppy\nJesse\nAmara"}
+        placeholder={"Poppy Fields\nJesse Cole\nAmara"}
         autoComplete="off"
         value={value}
         onChange={(e) => setValue(e.target.value)}
@@ -418,7 +424,7 @@ function AddChildForm({ classId }: { classId: string }) {
         <button type="submit" disabled={pending || count === 0} style={{ ...JAM_BTN, opacity: pending || count === 0 ? 0.6 : 1, cursor: count === 0 ? "default" : "pointer" }}>
           {pending ? "Adding…" : count > 1 ? `Add ${count} children` : "Add child"}
         </button>
-        <span style={{ font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>No surnames, no emails.</span>
+        <span style={{ font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>We keep first names only — no emails, ever.</span>
         {state.error && <p role="alert" style={{ margin: 0, font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</p>}
       </div>
     </form>
