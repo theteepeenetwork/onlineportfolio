@@ -58,8 +58,8 @@ export default async function SignupWelcomePage() {
         </Link>
       </nav>
 
-      <main style={{ flex: 1, display: "flex", justifyContent: "center", padding: "24px 24px 80px" }}>
-        <div style={{ width: "100%", maxWidth: 620, textAlign: "center" }}>
+      <main className="welcome-main" style={{ flex: 1, display: "flex", justifyContent: "center", padding: "24px 24px 80px" }}>
+        <div className="welcome-sheet" style={{ width: "100%", maxWidth: 620, textAlign: "center" }}>
           {/* Print-only masthead: on the classroom hand-out the celebratory
               badge is replaced by the Storyjar logo + wordmark. */}
           <div className="print-only" style={{ display: "none", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 6 }}>

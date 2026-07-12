@@ -332,8 +332,12 @@ h4 {
 }
 
 /* Print: keep the classroom hand-out (class name, code, QR, how-to) and drop
-   on-screen chrome — the top nav, the Print button, and the post-signup CTAs. */
+   on-screen chrome — the top nav, the Print button, and the post-signup CTAs.
+   The welcome hand-out is tuned to land on a single A4 (comfortably inside a
+   US-Letter box too) in any browser — a fixed @page box plus a tightened
+   vertical rhythm so there's headroom regardless of default print margins. */
 @media print {
+  @page { size: A4; margin: 12mm; }
   .no-print { display: none !important; }
   .print-only { display: flex !important; }
   .sj { background: #fff !important; min-height: 0 !important; }
@@ -342,6 +346,14 @@ h4 {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  /* One-A4 welcome hand-out: top-align, drop the on-screen padding, and
+     collapse the generous on-screen gaps to a compact print rhythm. */
+  .welcome-main { display: block !important; padding: 0 !important; }
+  .welcome-sheet { max-width: 100% !important; }
+  .welcome-sheet > * { margin-top: 14px !important; break-inside: avoid; }
+  .welcome-sheet > .print-only { margin-top: 0 !important; }
+  .welcome-sheet > h1 { margin-top: 8px !important; }
 }
 .legal-prose h2 {
   margin: 32px 0 10px;
