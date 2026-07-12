@@ -22,6 +22,8 @@ export const SCHOOL_B = {
   parentFamilyCode: "OAKFAM1",
   approvedMedia: "/uploads/seed-oak.svg", // APPROVED (Zara)
   pendingMedia: "/uploads/seed-oak-pending.svg", // PENDING (Yusuf)
+  quizOptionMedia: "/uploads/seed-oak-quiz.svg", // a quiz answer picture (teacher-authored)
+  quizPrompt: "Which picture shows the Oakfield oak leaf?", // distinctive text on School B's quiz
 } as const;
 
 // School C = Larchwood Primary — a FROZEN (lapsed) account. Read-only: the

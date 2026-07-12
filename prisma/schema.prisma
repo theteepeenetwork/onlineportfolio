@@ -161,6 +161,9 @@ model JournalItem {
   textContent String? // body text for TEXT items
   mediaPath   String? // relative path under /public/uploads for PHOTO / DRAWING items (single / cover image)
   mediaPathsJson String? // JSON array of paths for multi-page drawings; when set it supersedes mediaPath
+  quizAnswersJson String? // JSON QuizAnswer[] — the child's multiple-choice selections (PENDING child content)
+  quizScore   Int? // server-computed number of correct answers at submit time (null = not a quiz response)
+  quizTotal   Int? // number of questions in the assignment snapshot at submit time
   status      String    @default("PENDING") // PENDING | APPROVED | RETURNED
   authorRole  String // STUDENT | TEACHER — who created the item
   teacherNote String? // feedback the teacher leaves when returning work
@@ -183,6 +186,7 @@ model ActivityTemplate {
   title             String
   instructions      String? // what to do; may be read aloud to the child
   templatePathsJson String? // JSON array of background image paths (canvas / PDF pages)
+  quizJson          String? // JSON QuizPayload — floating multiple-choice questions; option imagePaths are /uploads paths
   tagsJson          String? // JSON array of teacher-defined tag names (e.g. ["Maths"])
   archived          Boolean      @default(false) // hidden from the grid; runs are kept
   teacher           Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -207,6 +211,7 @@ model Assignment {
   title                String // snapshot at assign time
   instructions         String? // snapshot at assign time
   templateSnapshotJson String? // frozen template pages at assign time
+  quizSnapshotJson     String? // frozen quiz definition at assign time (mirrors templateSnapshotJson)
   dueDate              DateTime? // optional: when the run is expected done; null = no due date (open/historical)
   createdAt            DateTime            @default(now())
   students             AssignmentStudent[] // set only when wholeClass = false

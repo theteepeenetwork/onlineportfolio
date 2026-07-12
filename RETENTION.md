@@ -32,6 +32,8 @@
 | Data | Kept while | Then |
 |---|---|---|
 | Children's journal items + media (approved and pending) | Account trial/active, or per school instruction | Frozen: retained **12 months** from lapse, then deleted (rows + files) |
+| Children's quiz answers + scores | **Not a separate category** — stored as fields on the journal item (`quizAnswersJson`, `quizScore`, `quizTotal`); no separate files | Deleted with their journal item (rows removed by the same cascade/erasure paths) |
+| Teacher-authored activity media — template background pages **and** quiz answer-option pictures (`quizJson` / `quizSnapshotJson`) | Template/assignment exists | Deleted with the template/account like other teacher-authored template media; served only via the authorising `/uploads` route, never to parents |
 | Child records (first name, class link) | As above | Deleted with the class/school, or on school instruction |
 | Rejected/returned moments | — | Deleted within **30 days** of rejection |
 | Parent accounts + parent↔child links | Linked child exists | Deleted when last linked child is deleted, or on request |

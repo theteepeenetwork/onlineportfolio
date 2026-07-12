@@ -66,7 +66,7 @@ export default async function StudentJournal({
           ) : (
             student.journalItems.map((item) => (
               <div key={item.id}>
-                <JournalItemCard item={item} showStatus />
+                <JournalItemCard item={item} showStatus showQuizScore />
                 <form action={deleteItem} className="mt-1 text-right">
                   <input type="hidden" name="itemId" value={item.id} />
                   <button

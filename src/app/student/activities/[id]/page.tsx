@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { jsonArray } from "@/lib/activities";
+import { readQuiz } from "@/lib/quiz";
 import { ActivityResponseForm } from "./ActivityResponseForm";
 
 export default async function RespondToActivity({
@@ -38,6 +39,7 @@ export default async function RespondToActivity({
       title={assignment.title}
       instructions={assignment.instructions ?? undefined}
       template={jsonArray(assignment.templateSnapshotJson)}
+      quiz={readQuiz(assignment.quizSnapshotJson)}
     />
   );
 }

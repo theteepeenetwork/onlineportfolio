@@ -6,6 +6,12 @@ import { JarLogo } from "@/components/storyjar/JarLogo";
 import { Icon, type IconName } from "@/components/icons/Icon";
 
 type Skill = { id: string; name: string };
+type QuizLine = {
+  prompt: string;
+  chosen: { text: string; imagePath?: string } | null;
+  correct: { text: string; imagePath?: string } | null;
+  isCorrect: boolean;
+};
 type Item = {
   id: string;
   child: string;
@@ -15,6 +21,9 @@ type Item = {
   text: string | null;
   activity: string;
   when: string;
+  quizScore: number | null;
+  quizTotal: number | null;
+  quizReview: QuizLine[] | null;
 };
 
 const KIND: Record<string, { label: string; bg: string; icon: IconName }> = {
@@ -28,6 +37,7 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
   const [live, setLive] = useState(items);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [noteOpen, setNoteOpen] = useState<string | null>(null);
+  const [quizOpen, setQuizOpen] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [skillSel, setSkillSel] = useState<Record<string, Set<string>>>({});
   const [toast, setToast] = useState("");
@@ -162,6 +172,16 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                 <div style={{ flex: 1, minWidth: 160 }}>
                   <p style={{ margin: 0, font: "700 17px var(--font-atkinson)" }}>{it.child} <span style={{ fontWeight: 400, color: "var(--sj-muted)" }}>· {k.label}</span></p>
                   <p style={{ margin: "3px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{it.activity} · {it.when}</p>
+                  {it.quizTotal != null && (
+                    <button
+                      type="button"
+                      onClick={() => setQuizOpen(quizOpen === it.id ? null : it.id)}
+                      aria-expanded={quizOpen === it.id}
+                      style={{ marginTop: 6, font: "700 13px var(--font-atkinson)", color: "#2E6B64", background: "var(--glass-light)", border: "2px solid #37796f", borderRadius: 999, padding: "4px 12px", minHeight: 32, cursor: "pointer" }}
+                    >
+                      ❓ Quiz {it.quizScore}/{it.quizTotal} · {quizOpen === it.id ? "hide" : "review"}
+                    </button>
+                  )}
                 </div>
                 {skills.length > 0 && (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 340 }}>
@@ -184,6 +204,23 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                   <input type="text" value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="A kind note — e.g. 'Lovely! Can you add a label to your diagram?'" style={{ flex: 1, minWidth: 220, font: "400 15px var(--font-atkinson)", padding: "10px 14px", border: "2px solid var(--calm-border)", borderRadius: 10, background: "var(--paper)", color: "var(--ink)" }} />
                   <button onClick={() => sendBack(it)} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", border: "none", borderRadius: 999, padding: "10px 22px", cursor: "pointer" }}>Send back</button>
                 </div>
+              )}
+
+              {quizOpen === it.id && it.quizReview && (
+                <ul style={{ listStyle: "none", margin: "14px 0 0", padding: "14px 0 0", borderTop: "2px dashed var(--calm-border)", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {it.quizReview.map((q, i) => (
+                    <li key={i} style={{ font: "400 14px var(--font-atkinson)" }}>
+                      <p style={{ margin: 0, fontWeight: 700 }}>
+                        <span aria-hidden="true" style={{ marginRight: 6 }}>{q.isCorrect ? "✅" : "❌"}</span>
+                        {q.prompt || `Question ${i + 1}`}
+                      </p>
+                      <p style={{ margin: "2px 0 0", color: "var(--sj-muted)" }}>
+                        Their answer: <span style={{ color: q.isCorrect ? "#2E6B64" : "var(--jam)", fontWeight: 700 }}>{q.chosen?.text ?? "—"}</span>
+                        {!q.isCorrect && q.correct && <> · Correct: <span style={{ fontWeight: 700 }}>{q.correct.text}</span></>}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           );
