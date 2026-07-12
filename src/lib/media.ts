@@ -1,8 +1,8 @@
 import "server-only";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { MEDIA_DIR } from "@/lib/mediaPath";
+import { MEDIA_DIR, UPLOADS_PREFIX } from "@/lib/mediaPath";
 
 // Where uploaded photos and drawings live: a PRIVATE directory (not under
 // public/). They are served only through the authorising /uploads/[...] route,
@@ -56,4 +56,28 @@ export async function saveImagePages(dataUrls: string[]): Promise<string[]> {
     throw new Error("Please draw something first.");
   }
   return Promise.all(dataUrls.map((d) => saveImageDataUrl(d)));
+}
+
+// Erase uploaded media files from disk. Used when children's work is deleted so
+// erasure is real, not just row removal (SAFEGUARDING.md rule 9). Takes the
+// stored `/uploads/<file>` URLs; only the basename is used, so a tampered path
+// can never escape MEDIA_DIR. Missing files are ignored (already gone is fine).
+export async function deleteMediaFiles(
+  urls: Array<string | null | undefined>,
+): Promise<void> {
+  const names = new Set<string>();
+  for (const url of urls) {
+    if (!url || !url.startsWith(UPLOADS_PREFIX)) continue;
+    const name = path.basename(url);
+    if (name && name !== "." && name !== "..") names.add(name);
+  }
+  await Promise.all(
+    [...names].map(async (name) => {
+      try {
+        await unlink(path.join(UPLOAD_DIR, name));
+      } catch {
+        // File already absent (or never written) — deletion is still satisfied.
+      }
+    }),
+  );
 }

@@ -11,18 +11,24 @@ const CODE_BGS = ["#F7E0E6", "#FBEED3", "#D8ECE8", "#F7E0E6", "#FBEED3", "#D8ECE
 const CODE_TILTS = ["-2deg", "1.5deg", "-1deg", "2deg", "-1.5deg", "1deg"];
 
 // Success screen after signup: the new class jar's code, a print-out button,
-// and a picture of how pupils sign in. Its own route so it survives the
-// post-signup refresh and can be returned to.
-export default async function SignupWelcomePage() {
+// and a picture of how children sign in. Its own route so it survives the
+// post-signup refresh and can be returned to. Also the printable class-code
+// sheet reachable per class from "My classes" via ?class=<id>.
+export default async function SignupWelcomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ class?: string }>;
+}) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/signup/teacher");
 
-  // The class they just made (their most recent), with a few pupils to preview.
-  const klass = await db.class.findFirst({
-    where: { teacherId: user.teacher.id },
-    orderBy: { createdAt: "desc" },
-    include: { students: { orderBy: { createdAt: "asc" }, take: 3 } },
-  });
+  const { class: classId } = await searchParams;
+  const include = { students: { orderBy: { createdAt: "asc" as const }, take: 3 } };
+  // A specific class (ownership-scoped — a class the teacher doesn't own simply
+  // isn't found), or, with no ?class, the one they most recently made.
+  const klass = classId
+    ? await db.class.findFirst({ where: { id: classId, teacherId: user.teacher.id }, include })
+    : await db.class.findFirst({ where: { teacherId: user.teacher.id }, orderBy: { createdAt: "desc" }, include });
   if (!klass) redirect("/teacher");
 
   const code = klass.classCode;
