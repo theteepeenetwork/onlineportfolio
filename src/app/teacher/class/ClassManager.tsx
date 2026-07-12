@@ -69,6 +69,25 @@ const INPUT: React.CSSProperties = {
   background: "var(--paper)",
   color: "var(--ink)",
 };
+const DANGER_BTN: React.CSSProperties = {
+  font: "700 15px var(--font-atkinson)",
+  color: "var(--paper)",
+  background: "var(--jam)",
+  border: "none",
+  borderRadius: 999,
+  padding: "12px 22px",
+  cursor: "pointer",
+  boxShadow: "0 3px 0 var(--jam-deep)",
+};
+const DANGER_OUTLINE_BTN: React.CSSProperties = {
+  font: "700 14px var(--font-atkinson)",
+  color: "var(--jam)",
+  background: "none",
+  border: "2px solid var(--jam)",
+  borderRadius: 999,
+  padding: "8px 16px",
+  cursor: "pointer",
+};
 
 export function ClassManager({ classes }: { classes: ClassCard[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -240,13 +259,100 @@ function SettingsStrip({ klass }: { klass: ClassCard }) {
       <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>
         Class code <strong style={{ letterSpacing: "0.12em" }}>{klass.code}</strong> · settings mode: use <strong>Remove</strong> beside a child to take them off the register.
       </p>
-      {klass.kids === 0 ? (
-        <form action={deleteClass} style={{ marginLeft: "auto" }}>
-          <input type="hidden" name="classId" value={klass.id} />
-          <button type="submit" style={{ font: "700 14px var(--font-atkinson)", color: "var(--jam)", background: "none", border: "2px solid var(--jam)", borderRadius: 999, padding: "8px 16px", cursor: "pointer" }}>Delete this empty class</button>
-        </form>
-      ) : (
-        <span style={{ marginLeft: "auto", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>Remove all children to delete this class.</span>
+      <DeleteClassZone klass={klass} />
+    </div>
+  );
+}
+
+// Danger zone: permanently delete a whole class at once. Deliberate friction —
+// the teacher must re-type the class name (exactly) and then confirm a second
+// time. The name is re-checked on the server, which also erases the children's
+// media files and audits the deletion (see deleteClass in actions/classes.ts).
+function DeleteClassZone({ klass }: { klass: ClassCard }) {
+  const [open, setOpen] = useState(false);
+  const [confirmStep, setConfirmStep] = useState(false);
+  const [typed, setTyped] = useState("");
+  const matches = typed === klass.name; // exact, case-sensitive
+
+  const close = () => {
+    setOpen(false);
+    setConfirmStep(false);
+    setTyped("");
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const totalMoments = klass.moments + klass.waiting;
+
+  return (
+    <div style={{ marginLeft: "auto" }}>
+      <button onClick={() => setOpen(true)} style={DANGER_OUTLINE_BTN}>🗑 Delete this class…</button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Delete ${klass.name}`}
+          onClick={close}
+          style={{ position: "fixed", inset: 0, background: "rgba(34,48,74,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 100 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="sj-card" style={{ maxWidth: 470, width: "100%", padding: "26px 26px 24px", textAlign: "left" }}>
+            {!confirmStep ? (
+              <>
+                <p style={{ margin: "0 0 4px", font: "700 12px var(--font-atkinson)", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--jam)" }}>Permanent · cannot be undone</p>
+                <h3 style={{ margin: "0 0 8px", font: "600 24px var(--font-fredoka)", color: "var(--ink)" }}>Delete “{klass.name}”?</h3>
+                <p style={{ margin: "0 0 16px", font: "400 15px/1.55 var(--font-atkinson)", color: "var(--ink-soft)" }}>
+                  This <strong>permanently deletes</strong> this class, all {klass.kids} {klass.kids === 1 ? "child" : "children"}
+                  {totalMoments > 0 ? <> and their {totalMoments} {totalMoments === 1 ? "moment" : "moments"}</> : null} — every photo, drawing and word — including the files themselves. <strong style={{ color: "var(--jam)" }}>This cannot be undone.</strong>
+                </p>
+                <label htmlFor={`confirm-${klass.id}`} style={{ display: "block", font: "700 14px var(--font-atkinson)", marginBottom: 6 }}>
+                  Type the class name{" "}
+                  <code style={{ background: "var(--paper)", border: "1px solid var(--calm-border)", borderRadius: 6, padding: "1px 6px" }}>{klass.name}</code>{" "}
+                  to confirm (exactly, capitals included):
+                </label>
+                <input
+                  id={`confirm-${klass.id}`}
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                  autoComplete="off"
+                  autoFocus
+                  aria-label="Type the class name to confirm"
+                  style={INPUT}
+                />
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
+                  <button onClick={close} style={OUTLINE_BTN}>Cancel</button>
+                  <button
+                    onClick={() => setConfirmStep(true)}
+                    disabled={!matches}
+                    style={{ ...DANGER_BTN, opacity: matches ? 1 : 0.5, cursor: matches ? "pointer" : "not-allowed" }}
+                  >
+                    Delete class
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 style={{ margin: "0 0 8px", font: "600 24px var(--font-fredoka)", color: "var(--jam)" }}>Are you absolutely sure?</h3>
+                <p style={{ margin: "0 0 18px", font: "400 15px/1.55 var(--font-atkinson)", color: "var(--ink-soft)" }}>
+                  You’re about to permanently delete <strong>{klass.name}</strong> and everything in it. There is no way back.
+                </p>
+                <form action={deleteClass} style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <input type="hidden" name="classId" value={klass.id} />
+                  <input type="hidden" name="confirmName" value={typed} />
+                  <button type="button" onClick={() => setConfirmStep(false)} style={OUTLINE_BTN}>← Go back</button>
+                  <button type="submit" style={DANGER_BTN}>Yes, permanently delete</button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
