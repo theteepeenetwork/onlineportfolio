@@ -39,7 +39,7 @@ type Tool = "cursor" | "pencil" | "pen" | "highlighter" | "eraser" | "text";
 // pencil → Pen (thin), pen → Felt tip (thick), highlighter (wide/translucent),
 // eraser. See ToolShape for the drawn nibs and true-weight sample strokes.
 const TOOLS: { key: Tool; label: string; icon?: IconName }[] = [
-  { key: "cursor", label: "Select" },
+  { key: "cursor", label: "Select", icon: "point" },
   { key: "pencil", label: "Pen", icon: "pen" },
   { key: "pen", label: "Felt tip", icon: "felt-tip" },
   { key: "highlighter", label: "Highlighter", icon: "highlighter" },
@@ -1497,11 +1497,11 @@ export function DrawingCanvas({
               onClick={() => setTool("cursor")}
               title="Select — move & resize things"
               aria-label="Select"
-              className={`flex h-14 w-14 items-center justify-center rounded-full text-2xl shadow-lg transition-transform hover:scale-105 ${
+              className={`flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 ${
                 tool === "cursor" ? "bg-brand text-white" : "bg-white text-foreground ring-1 ring-black/5"
               }`}
             >
-              🖱️
+              <Icon name="point" size={26} decorative />
             </button>
 
             {fanOpen && (
@@ -1518,10 +1518,10 @@ export function DrawingCanvas({
               type="button"
               onClick={() => { setFanOpen((v) => !v); setShapesOpen(false); }}
               className="flex h-14 w-14 items-center justify-center rounded-full bg-brand text-3xl font-light text-white shadow-lg transition-transform hover:scale-105"
-              title="Add"
-              style={{ transform: fanOpen ? "rotate(45deg)" : "none" }}
+              title={fanOpen ? "Close" : "Add"}
+              aria-label={fanOpen ? "Close add menu" : "Add"}
             >
-              ＋
+              {fanOpen ? <Icon name="close" size={26} decorative /> : "＋"}
             </button>
           </div>
 
@@ -2323,7 +2323,7 @@ function ShapeStyleBar({
     <div
       className={`flex items-center gap-2 rounded-xl border border-border bg-surface/95 px-3 py-2 text-sm shadow-lg ${className ?? ""}`}
     >
-      <span className="font-semibold">Fill</span>
+      <span className="inline-flex items-center gap-1 font-semibold"><Icon name="fill" size={16} decorative /> Fill</span>
       <label className="relative block h-6 w-6 overflow-hidden rounded-full border-2 border-border">
         <input
           type="color"
@@ -2350,7 +2350,7 @@ function ShapeStyleBar({
         {shape.fill === "none" ? "Add fill" : "No fill"}
       </button>
 
-      <span className="ml-1 font-semibold">Line</span>
+      <span className="ml-1 inline-flex items-center gap-1 font-semibold"><Icon name="line" size={16} decorative /> Line</span>
       <label className="relative block h-6 w-6 overflow-hidden rounded-full border-2 border-border">
         <input
           type="color"
