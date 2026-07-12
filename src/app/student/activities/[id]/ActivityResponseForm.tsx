@@ -10,12 +10,14 @@ import type { QuizPayload } from "@/lib/quiz";
 // full-screen canvas.
 export function ActivityResponseForm({
   assignmentId,
+  studentId,
   title,
   instructions,
   template,
   quiz,
 }: {
   assignmentId: string;
+  studentId: string;
   title: string;
   instructions?: string;
   template: string[];
@@ -39,6 +41,8 @@ export function ActivityResponseForm({
         allowImport
         quizMode={quiz && quiz.questions.length ? "answer" : undefined}
         initialQuiz={quiz}
+        draftKey={`resp:${assignmentId}:${studentId}`}
+        ownerId={studentId}
         onClose={() => router.push("/student/activities")}
       />
 

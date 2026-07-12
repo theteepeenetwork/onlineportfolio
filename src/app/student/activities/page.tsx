@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Avatar } from "@/components/Avatar";
-import { logout } from "@/app/actions/auth";
+import { LogoutForm } from "@/components/LogoutForm";
 import { Icon } from "@/components/icons/Icon";
 
 export default async function StudentActivities() {
@@ -49,11 +49,11 @@ export default async function StudentActivities() {
           <Link href="/student" className="btn-ghost px-3 py-1.5 text-sm">
             My journal
           </Link>
-          <form action={logout}>
+          <LogoutForm>
             <button className="btn-ghost px-3 py-1.5 text-sm" type="submit">
               Sign out
             </button>
-          </form>
+          </LogoutForm>
         </div>
       </header>
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logout } from "@/app/actions/auth";
+import { LogoutForm } from "@/components/LogoutForm";
 import { JarLogo } from "@/components/storyjar/JarLogo";
 
 // The Storyjar bar across the top of every signed-in teacher page.
@@ -56,9 +56,9 @@ export function TopBar({
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
           {right}
-          <form action={logout}>
+          <LogoutForm>
             <button type="submit" className="sj-btn-outline" style={{ font: "700 14px var(--font-atkinson)", padding: "8px 18px" }}>Sign out</button>
-          </form>
+          </LogoutForm>
         </div>
       </div>
 

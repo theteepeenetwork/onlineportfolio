@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { logout } from "@/app/actions/auth";
+import { LogoutForm } from "@/components/LogoutForm";
 import { Icon, type IconName } from "@/components/icons/Icon";
 
 // Look of a moment by its kind.
@@ -80,9 +80,9 @@ export default async function StudentHome() {
             {published.length > 4 && <rect x="54" y="72" width="17" height="17" rx="4" fill="#A6C979" transform="rotate(-5 62 80)" />}
           </svg>
           <span style={{ font: "600 20px var(--font-fredoka)", color: "#37796f" }}>{published.length} {published.length === 1 ? "moment" : "moments"}</span>
-          <form action={logout}>
+          <LogoutForm>
             <button type="submit" style={{ minHeight: 56, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>Bye bye 👋</button>
-          </form>
+          </LogoutForm>
         </div>
       </header>
 

@@ -15,7 +15,7 @@ export default async function NewTemplatePage() {
       <p className="mb-5 text-muted">
         Build a reusable template. You&apos;ll assign it to a class next.
       </p>
-      <ActivityBuilder />
+      <ActivityBuilder teacherId={user.teacher.id} />
     </main>
   );
 }
