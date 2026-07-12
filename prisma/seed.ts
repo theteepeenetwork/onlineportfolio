@@ -31,6 +31,8 @@ async function main() {
   }
 
   // Start clean so re-seeding is safe (order respects foreign keys).
+  await db.billingEvent.deleteMany();
+  await db.subscription.deleteMany();
   await db.auditLog.deleteMany();
   await db.session.deleteMany();
   await db.journalItem.deleteMany();
@@ -47,7 +49,21 @@ async function main() {
   // The demo teacher is also the admin of their school, so the /admin space is
   // reachable from the seeded login.
   const school = await db.school.create({
-    data: { name: "St Bede’s Primary", plan: "Annual plan", seatLimit: 10 },
+    data: { name: "St Bede’s Primary", seatLimit: 10 },
+  });
+
+  // Demo accounts start on the 42-day free trial ("free half term"), so the
+  // seeded login has full access. Tracked locally — no Stripe trial (RETENTION.md
+  // account states). Full access states: TRIAL | ACTIVE | PAST_DUE.
+  const TRIAL_DAYS = 42;
+  await db.subscription.create({
+    data: {
+      kind: "SCHOOL",
+      status: "TRIAL",
+      trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+      seatLimit: school.seatLimit,
+      schoolId: school.id,
+    },
   });
 
   const teacher = await db.teacher.create({
