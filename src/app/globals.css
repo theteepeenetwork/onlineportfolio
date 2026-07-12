@@ -340,7 +340,10 @@ h4 {
   @page { size: A4; margin: 12mm; }
   .no-print { display: none !important; }
   .print-only { display: flex !important; }
-  .sj { background: #fff !important; min-height: 0 !important; }
+  /* Plain white sheet: drop the cream paper background from the page itself
+     (the coloured code tiles and avatar dots still print, via color-adjust). */
+  html, body, .sj, .welcome-main { background: #fff !important; }
+  .sj { min-height: 0 !important; }
   * {
     box-shadow: none !important;
     -webkit-print-color-adjust: exact;
