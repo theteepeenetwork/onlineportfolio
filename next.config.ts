@@ -47,6 +47,17 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+
+  // Serve Stripe's Apple Pay domain-association file at the exact well-known path
+  // Apple expects, backed by an env-driven route handler.
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/apple-developer-merchantid-domain-association",
+        destination: "/api/apple-pay-domain-association",
+      },
+    ];
+  },
 };
 
 export default nextConfig;
