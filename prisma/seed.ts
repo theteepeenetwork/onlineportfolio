@@ -31,6 +31,7 @@ async function main() {
   }
 
   // Start clean so re-seeding is safe (order respects foreign keys).
+  await db.auditLog.deleteMany();
   await db.session.deleteMany();
   await db.journalItem.deleteMany();
   await db.assignmentStudent.deleteMany();

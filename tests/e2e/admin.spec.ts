@@ -42,6 +42,12 @@ test.describe("School admin", () => {
 
     // Sam Doyle was already a TA; Miss Malik becoming one makes two.
     await expect(page.getByText("Teaching assistant")).toHaveCount(2);
+
+    // The action is recorded in the audit log for accountability.
+    await page.getByRole("button", { name: "Audit log" }).click();
+    await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible();
+    await expect(page.getByText("Changed a role")).toBeVisible();
+    await expect(page.getByText(/Miss Malik/)).toBeVisible();
   });
 
   test("a non-admin teacher is redirected away from /admin", async ({ page }) => {
