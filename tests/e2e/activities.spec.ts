@@ -50,6 +50,8 @@ test("teacher creates a template, assigns it, a child responds, teacher sees the
 
   await drawOnCanvas(page);
   await page.locator('button[title="Done"]').click();
+  // A child must confirm before the work is handed in (no accidental submit).
+  await page.getByRole("button", { name: /hand it in/i }).click();
   // Handing in a response shows the "Popped in!" celebration too.
   await page.waitForURL((url) => url.pathname === "/student/popped");
 
@@ -60,6 +62,47 @@ test("teacher creates a template, assigns it, a child responds, teacher sees the
   await expect(page.getByText(/1 waiting/).first()).toBeVisible();
   // Amara's tile shows in the response grid as waiting for approval.
   await expect(page.getByText("Amara")).toBeVisible();
+});
+
+// Editing a template must reopen it in the builder AND push the change onto any
+// class already working on it (the live-run propagation, not the old snapshot).
+test("editing an activity updates its title and pushes the change onto a live run", async ({
+  page,
+}) => {
+  await teacherLogin(page);
+
+  // A simple template (no canvas needed for this flow).
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Weather chart");
+  await page.fill("#instructions", "Draw today's weather.");
+  await page.getByRole("button", { name: /Save to library/ }).click();
+  // Wait for the detail page proper (the heading), then capture its path — the
+  // "…/[id]" pattern also matches "…/new", so don't trust the URL alone.
+  await expect(page.getByRole("heading", { name: "Weather chart" })).toBeVisible();
+  const templatePath = new URL(page.url()).pathname;
+
+  // Assign to the whole class → a LIVE run that snapshots the current wording.
+  await page.getByRole("button", { name: /Assign/ }).first().click();
+  await page.getByRole("button", { name: /Assign to whole class/ }).click();
+  await page.waitForURL((url) => url.searchParams.has("run"));
+
+  // Edit via the 3-dot menu → change the title + instructions.
+  await page.goto(templatePath);
+  await page.getByRole("button", { name: /More actions/ }).click();
+  await page.getByRole("menuitem", { name: /Edit activity/ }).click();
+  await page.waitForURL((url) => /\/edit$/.test(url.pathname));
+  await page.fill("#title", "Weather chart (updated)");
+  await page.fill("#instructions", "Draw and label today's weather.");
+  await page.getByRole("button", { name: /Save changes/ }).click();
+  await page.waitForURL((url) => new URL(url).pathname === templatePath);
+  await expect(page.getByRole("heading", { name: "Weather chart (updated)" })).toBeVisible();
+
+  // The child on the already-live run sees the updated wording.
+  await logout(page);
+  await studentLogin(page, "Amara");
+  await page.goto("/student/activities");
+  await expect(page.getByRole("link", { name: /Weather chart \(updated\)/ })).toBeVisible();
+  await expect(page.getByText("Draw and label today's weather.")).toBeVisible();
 });
 
 test("the folders sidebar filters the activity library", async ({ page }) => {

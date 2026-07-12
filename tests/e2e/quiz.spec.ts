@@ -67,6 +67,7 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
 
   // Nothing tells the child whether they were right — silent capture.
   await page.locator('button[title="Done"]').click();
+  await page.getByRole("button", { name: /hand it in/i }).click();
   await page.waitForURL((url) => url.pathname === "/student/popped");
   await expect(page.locator("body")).not.toContainText(/\b\d\s*\/\s*\d\b/); // no score shown
   await expect(page.locator("body")).not.toContainText(/correct/i);

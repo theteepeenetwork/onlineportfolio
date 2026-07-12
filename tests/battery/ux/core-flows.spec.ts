@@ -64,9 +64,9 @@ test("teacher: create a class then bulk-import pupils by pasting a list", async 
 
   // Open it and bulk-add a pasted register (surnames allowed — kept as first names).
   await page.getByRole("button", { name: new RegExp(className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }).click();
-  await page.getByRole("button", { name: /add child/i }).click();
+  await page.getByRole("button", { name: /add pupil/i }).click();
   await page.locator('textarea[name="names"]').fill("Ada Byron\nGrace Hopper\nKatherine Johnson\nMae Jemison");
-  await page.getByRole("button", { name: /add \d+ children|add child/i }).last().click();
+  await page.getByRole("button", { name: /add \d+ pupils|add pupil/i }).last().click();
 
   // All four land on the roster (first names only).
   for (const name of ["Ada", "Grace", "Katherine", "Mae"]) {

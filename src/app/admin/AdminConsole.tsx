@@ -116,7 +116,7 @@ export function AdminConsole({
   const stats = [
     { value: `${staff.length}`, label: "Staff", sub: invited > 0 ? `${invited} invite${invited === 1 ? "" : "s"} pending` : "all active", color: "#22304A" },
     { value: `${classes.length}`, label: "Classes", sub: "across the school", color: "#37796f" },
-    { value: `${childrenCount}`, label: "Children", sub: "no child logins", color: "#C2476B" },
+    { value: `${childrenCount}`, label: "Pupils", sub: "no pupil logins", color: "#C2476B" },
     { value: `${staff.length} / ${seatLimit}`, label: "Seats used", sub: plan.toLowerCase(), color: "#B07A1E" },
   ];
 
@@ -189,7 +189,7 @@ export function AdminConsole({
               onSubmenu={setSubmenu}
             />
             <p style={{ margin: "14px 2px 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-              Each teacher manages their own classes and approval queue. Admins can invite staff, assign classes and manage the school subscription — but never see children&apos;s work unless they teach the class.
+              Each teacher manages their own classes and approval queue. Admins can invite staff, assign classes and manage the school subscription — but never see pupils&apos; work unless they teach the class.
             </p>
           </>
         )}
@@ -198,7 +198,7 @@ export function AdminConsole({
           <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
             <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Welcome to {schoolName} on Storyjar</h2>
             <p style={{ margin: "10px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
-              You have {staff.length} staff across {classes.length} classes and {childrenCount} children. Use <strong>Staff</strong> to invite colleagues and set roles, <strong>Classes</strong> to see who teaches what, and <strong>Billing</strong> for your seats.
+              You have {staff.length} staff across {classes.length} classes and {childrenCount} pupils. Use <strong>Staff</strong> to invite colleagues and set roles, <strong>Classes</strong> to see who teaches what, and <strong>Billing</strong> for your seats.
             </p>
           </div>
         )}
@@ -206,7 +206,7 @@ export function AdminConsole({
         {tab === "classes" && (
           <div style={{ ...CARD, marginTop: 24, padding: 0, overflow: "hidden" }}>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 12, padding: "14px 22px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-              <span>Class</span><span>Teacher</span><span>Children</span>
+              <span>Class</span><span>Teacher</span><span>Pupils</span>
             </div>
             {classes.length === 0 && <p style={{ padding: "18px 22px", margin: 0, color: "var(--sj-muted)" }}>No classes yet.</p>}
             {classes.map((c) => (
@@ -223,9 +223,9 @@ export function AdminConsole({
           <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
             <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Who can see what</h2>
             <ul style={{ margin: "12px 0 0", paddingLeft: 20, font: "400 16px/1.7 var(--font-atkinson)", color: "#43506B" }}>
-              <li>Children never have logins, emails or passwords — they sign in with a class code and their name.</li>
-              <li>Every moment waits in the teacher&apos;s approval queue before it joins a child&apos;s jar.</li>
-              <li>Admins manage staff, class assignment and billing, but <strong>never see children&apos;s work unless they teach the class</strong>.</li>
+              <li>Pupils never have logins, emails or passwords — they sign in with a class code and their name.</li>
+              <li>Every moment waits in the teacher&apos;s approval queue before it joins a pupil&apos;s jar.</li>
+              <li>Admins manage staff, class assignment and billing, but <strong>never see pupils&apos; work unless they teach the class</strong>.</li>
             </ul>
           </div>
         )}

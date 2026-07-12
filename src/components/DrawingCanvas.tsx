@@ -252,6 +252,7 @@ export function DrawingCanvas({
   ownerId,
   getExtraDraftFields,
   onRestoreFields,
+  confirmSubmit = false,
 }: {
   name: string;
   background?: string[];
@@ -262,6 +263,10 @@ export function DrawingCanvas({
   withCaption?: boolean;
   onClose?: () => void;
   onDone?: (pages: string[], quiz?: QuizPayload) => void;
+  // When set (and this canvas submits a form rather than calling onDone), the ✓
+  // opens a "ready to hand in?" confirmation first — so a child can't submit an
+  // activity with a single tap before working through all the pages.
+  confirmSubmit?: boolean;
   // "author" = teacher building a quiz (place/edit question boxes);
   // "answer" = child answering it (tap options, silent capture).
   // undefined = no quiz (existing callers unaffected).
@@ -331,6 +336,8 @@ export function DrawingCanvas({
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  // "Ready to hand in?" confirmation (child submit only — see confirmSubmit).
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false);
 
   // Placed objects on the current page + which one is selected.
   const [objects, setObjects] = useState<Obj[]>([]);
@@ -1449,6 +1456,9 @@ export function DrawingCanvas({
         {draftPrompt && (
           <RestorePrompt onRestore={restoreDraft} onDiscard={discardDraft} />
         )}
+        {confirmingSubmit && (
+          <ConfirmSubmitPrompt pageCount={pageCount} onCancel={() => setConfirmingSubmit(false)} />
+        )}
 
         <div ref={wrapRef} className="relative flex-1 overflow-hidden">
           <div className="absolute inset-0 flex items-center justify-center">
@@ -1482,8 +1492,14 @@ export function DrawingCanvas({
           <div className="absolute right-3 top-3 flex items-center gap-2">
             {onClose && <RoundBtn label="Close" onClick={onClose}><Icon name="close" size={20} decorative /></RoundBtn>}
             <button
-              type={onDone ? "button" : "submit"}
-              onClick={onDone ? () => onDone(currentPages(), isQuizAuthor ? { questions: quizRef.current } : undefined) : undefined}
+              type={onDone || confirmSubmit ? "button" : "submit"}
+              onClick={
+                onDone
+                  ? () => onDone(currentPages(), isQuizAuthor ? { questions: quizRef.current } : undefined)
+                  : confirmSubmit
+                    ? () => { finishEditing(); setConfirmingSubmit(true); }
+                    : undefined
+              }
               title="Done"
               className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-2xl text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-600"
             >
@@ -2794,6 +2810,68 @@ function RestorePrompt({ onRestore, onDiscard }: { onRestore: () => void; onDisc
             className="min-h-[64px] w-full rounded-xl border-2 border-border text-base font-semibold text-muted hover:bg-background"
           >
             Start fresh
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// "Ready to hand in?" — the child's last check before their work is submitted.
+// The confirm button is a real form submit (this dialog lives inside the
+// response form), so tapping it hands the work in; "Look again" just closes.
+function ConfirmSubmitPrompt({ pageCount, onCancel }: { pageCount: number; onCancel: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  }, []);
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      onCancel();
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const btns = ref.current?.querySelectorAll<HTMLButtonElement>("button");
+    if (!btns || btns.length === 0) return;
+    const first = btns[0];
+    const last = btns[btns.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-submit-title"
+      onKeyDown={onKeyDown}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+    >
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
+        <div className="text-4xl" aria-hidden>🎉</div>
+        <h2 id="confirm-submit-title" className="mt-2 text-xl font-bold text-foreground">
+          Ready to hand it in?
+        </h2>
+        <p className="mt-2 text-sm text-muted">
+          {pageCount > 1
+            ? `You have ${pageCount} pages. Check every page at the bottom first — tap each one to look again.`
+            : "Have you finished? Check your work before you hand it in."}
+        </p>
+        <div className="mt-5 flex flex-col gap-2">
+          <button type="submit" className="btn-green min-h-[64px] w-full text-lg">
+            Yes, hand it in
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-[64px] w-full rounded-xl border-2 border-border text-base font-semibold text-muted hover:bg-background"
+          >
+            Look again
           </button>
         </div>
       </div>

@@ -192,7 +192,7 @@ export function ClassManager({ classes }: { classes: ClassCard[] }) {
             <div style={{ padding: "16px 20px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{c.kids}</p>
-                <p style={{ margin: 0, font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>children</p>
+                <p style={{ margin: 0, font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>pupils</p>
               </div>
               <div>
                 <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{c.moments}</p>
@@ -232,7 +232,7 @@ function RosterView({
         <div>
           <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)" }}>{klass.name}</h1>
           <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--ink-soft)" }}>
-            {klass.year} · {klass.kids} {klass.kids === 1 ? "child" : "children"} · class code <strong>{klass.code}</strong>
+            {klass.year} · {klass.kids} {klass.kids === 1 ? "pupil" : "pupils"} · class code <strong>{klass.code}</strong>
           </p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -243,7 +243,7 @@ function RosterView({
             <Icon name="print" size={18} decorative /> Printable code
           </Link>
           <button onClick={onToggleSettings} style={{ ...OUTLINE_BTN, display: "inline-flex", alignItems: "center", gap: 8 }} aria-pressed={settings}><Icon name="settings" size={18} decorative /> Class settings</button>
-          <button onClick={onToggleAdd} style={{ ...JAM_BTN, padding: "11px 20px", fontSize: 14 }} aria-pressed={addingChild}>＋ Add child</button>
+          <button onClick={onToggleAdd} style={{ ...JAM_BTN, padding: "11px 20px", fontSize: 14 }} aria-pressed={addingChild}>＋ Add pupil</button>
         </div>
       </div>
 
@@ -257,7 +257,7 @@ function RosterView({
 
       {klass.roster.length === 0 ? (
         <p className="sj-card" style={{ padding: "28px 24px", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-          No children yet — add your class list with <strong>＋ Add child</strong>.
+          No pupils yet — add your class list with <strong>＋ Add pupil</strong>.
         </p>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
@@ -293,7 +293,7 @@ function SettingsStrip({ klass }: { klass: ClassCard }) {
   return (
     <div className="sj-card" style={{ marginTop: 14, padding: "16px 20px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
       <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>
-        Class code <strong style={{ letterSpacing: "0.12em" }}>{klass.code}</strong> · settings mode: use <strong>Remove</strong> beside a child to take them off the register.
+        Class code <strong style={{ letterSpacing: "0.12em" }}>{klass.code}</strong> · settings mode: use <strong>Remove</strong> beside a pupil to take them off the register.
       </p>
       {/* Data export (F4) — download the whole class as JSON at any time. */}
       <a
@@ -353,7 +353,7 @@ function DeleteClassZone({ klass }: { klass: ClassCard }) {
                 <p style={{ margin: "0 0 4px", font: "700 12px var(--font-atkinson)", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--jam)" }}>Permanent · cannot be undone</p>
                 <h3 style={{ margin: "0 0 8px", font: "600 24px var(--font-fredoka)", color: "var(--ink)" }}>Delete “{klass.name}”?</h3>
                 <p style={{ margin: "0 0 16px", font: "400 15px/1.55 var(--font-atkinson)", color: "var(--ink-soft)" }}>
-                  This <strong>permanently deletes</strong> this class, all {klass.kids} {klass.kids === 1 ? "child" : "children"}
+                  This <strong>permanently deletes</strong> this class, all {klass.kids} {klass.kids === 1 ? "pupil" : "pupils"}
                   {totalMoments > 0 ? <> and their {totalMoments} {totalMoments === 1 ? "moment" : "moments"}</> : null} — every photo, drawing and word — including the files themselves. <strong style={{ color: "var(--jam)" }}>This cannot be undone.</strong>
                 </p>
                 <label htmlFor={`confirm-${klass.id}`} style={{ display: "block", font: "700 14px var(--font-atkinson)", marginBottom: 6 }}>
@@ -472,7 +472,7 @@ function AddChildForm({ classId }: { classId: string }) {
   return (
     <form ref={ref} action={action} className="sj-card" style={{ padding: "18px 20px", marginTop: 14 }}>
       <input type="hidden" name="classId" value={classId} />
-      <label htmlFor={`names-${classId}`} style={{ display: "block", font: "700 14px var(--font-atkinson)", marginBottom: 6 }}>Add children — one per line (paste your register; surnames are fine)</label>
+      <label htmlFor={`names-${classId}`} style={{ display: "block", font: "700 14px var(--font-atkinson)", marginBottom: 6 }}>Add pupils — one per line (paste your register; surnames are fine)</label>
       <textarea
         id={`names-${classId}`}
         name="names"
@@ -485,7 +485,7 @@ function AddChildForm({ classId }: { classId: string }) {
       />
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
         <button type="submit" disabled={pending || count === 0} style={{ ...JAM_BTN, opacity: pending || count === 0 ? 0.6 : 1, cursor: count === 0 ? "default" : "pointer" }}>
-          {pending ? "Adding…" : count > 1 ? `Add ${count} children` : "Add child"}
+          {pending ? "Adding…" : count > 1 ? `Add ${count} pupils` : "Add pupil"}
         </button>
         <span style={{ font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>We keep first names only — no emails, ever.</span>
         {state.error && <p role="alert" style={{ margin: 0, font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</p>}

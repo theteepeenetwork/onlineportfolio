@@ -147,7 +147,7 @@ export default async function TemplateDetail({
                   </span>
                   <div className="min-w-0">
                     <p className="font-semibold">
-                      {a.class.name} · {a.wholeClass ? "whole class" : `${s.assigned} ${s.assigned === 1 ? "child" : "children"}`}
+                      {a.class.name} · {a.wholeClass ? "whole class" : `${s.assigned} ${s.assigned === 1 ? "pupil" : "pupils"}`}
                     </p>
                     <p className="text-xs text-muted">Assigned {fmtDate(a.createdAt)}</p>
                   </div>
@@ -204,7 +204,7 @@ export default async function TemplateDetail({
                   </Link>
                 );
               })}
-              {roster.length === 0 && <p className="text-sm text-muted">No children on this run.</p>}
+              {roster.length === 0 && <p className="text-sm text-muted">No pupils on this run.</p>}
             </div>
           </>
         )}

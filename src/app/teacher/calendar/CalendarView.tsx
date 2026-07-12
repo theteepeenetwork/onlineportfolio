@@ -154,7 +154,7 @@ export function CalendarView({
       <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
         <div>
           <h1 style={{ margin: 0, font: "600 32px var(--font-fredoka)" }}>Calendar</h1>
-          <p style={{ margin: "5px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>When you set each activity, and how many children have done it.</p>
+          <p style={{ margin: "5px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>When you set each activity, and how many pupils have done it.</p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 2, background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: 2 }}>
@@ -351,12 +351,12 @@ function RunRow({ run, today }: { run: CalendarRun; today: Date }) {
       </div>
       <p style={{ margin: "10px 0 0", font: "600 18px var(--font-fredoka)" }}>{run.title}</p>
       <p style={{ margin: "2px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-        {run.wholeClass ? "Whole class" : `${run.assigned} ${run.assigned === 1 ? "child" : "children"}`} · Assigned {fmtDay(assigned)}{due ? ` · Due ${fmtDay(due)}` : ""}
+        {run.wholeClass ? "Whole class" : `${run.assigned} ${run.assigned === 1 ? "pupil" : "pupils"}`} · Assigned {fmtDay(assigned)}{due ? ` · Due ${fmtDay(due)}` : ""}
       </p>
       <div style={{ marginTop: 10 }}>
         <ProgressBar completed={run.completed} waiting={run.waiting} assigned={run.assigned} />
         <p style={{ margin: "5px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--ink-soft)" }}>
-          {run.assigned === 0 ? "No children assigned" : (
+          {run.assigned === 0 ? "No pupils assigned" : (
             <>
               <strong>{run.completed}</strong> in the jar
               {run.waiting > 0 && <> · <strong>{run.waiting}</strong> waiting</>}

@@ -14,10 +14,10 @@ test("pasting a register with surnames keeps first names and disambiguates", asy
 
   await page.getByRole("button", { name: /Surname Class/ }).click();
   await expect(page.getByRole("heading", { name: "Surname Class" })).toBeVisible();
-  await page.getByRole("button", { name: /Add child/ }).click();
+  await page.getByRole("button", { name: /Add pupil/ }).click();
 
-  await page.getByLabel(/Add children/).fill("Olivia Smith\nOlivia Small\nJack Brown");
-  await page.getByRole("button", { name: "Add 3 children" }).click();
+  await page.getByLabel(/Add pupils/).fill("Olivia Smith\nOlivia Small\nJack Brown");
+  await page.getByRole("button", { name: "Add 3 pupils" }).click();
 
   // Unique first name -> surname dropped.
   await expect(page.getByText("Jack", { exact: true })).toBeVisible();

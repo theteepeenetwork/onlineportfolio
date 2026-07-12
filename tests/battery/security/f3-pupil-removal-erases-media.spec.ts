@@ -26,9 +26,9 @@ test("removing a pupil also erases their media files [F3]", async ({ page }) => 
   // Add a throwaway pupil to Acorn.
   await page.goto("/teacher/class");
   await page.getByRole("button", { name: /acorn/i }).click();
-  await page.getByRole("button", { name: /add child/i }).click();
+  await page.getByRole("button", { name: /add pupil/i }).click();
   await page.locator('textarea[name="names"]').fill("Orphantest");
-  await page.getByRole("button", { name: /add child/i }).last().click();
+  await page.getByRole("button", { name: /add pupil/i }).last().click();
   await expect(page.getByText("Orphantest")).toBeVisible();
 
   // Open THIS pupil's journal (their own row's link — not just any) and add a

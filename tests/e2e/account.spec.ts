@@ -42,7 +42,7 @@ test("a teacher can sign up through the wizard and gets a class code", async ({ 
     className: "Rainbow Class",
     children: "Amara\nBen\nChloe",
   });
-  await page.getByRole("button", { name: "Add children" }).click();
+  await page.getByRole("button", { name: "Add pupils" }).click();
 
   // Success step: the class name and a generated code, plus the sign-in guide.
   await expect(page.getByRole("heading", { name: /Rainbow Class.s class code/ })).toBeVisible();
@@ -60,7 +60,7 @@ test("the dashboard greets a formal teacher by title + surname, not just the tit
     className: "Kestrels",
     children: "Ada\nBen",
   });
-  await page.getByRole("button", { name: "Add children" }).click();
+  await page.getByRole("button", { name: "Add pupils" }).click();
   await expect(page.getByRole("heading", { name: /class code/ })).toBeVisible();
 
   // Land on the teacher dashboard and check the greeting.
@@ -75,7 +75,7 @@ test("signing up with an existing email is rejected", async ({ page }) => {
     className: "Some Class",
     children: "Kit",
   });
-  await page.getByRole("button", { name: "Add children" }).click();
+  await page.getByRole("button", { name: "Add pupils" }).click();
 
   // The server rejects the duplicate and sends us back with a kind error.
   await expect(page.getByText(/already exists/)).toBeVisible();
@@ -105,7 +105,7 @@ test("a teacher can edit their profile from Account settings, and the greeting u
     className: "Daisies",
     children: "Ada\nBo",
   });
-  await page.getByRole("button", { name: "Add children" }).click();
+  await page.getByRole("button", { name: "Add pupils" }).click();
   await expect(page.getByRole("heading", { name: /class code/ })).toBeVisible();
 
   // Switch the greeting to Title & surname on the Account page and save.
@@ -126,7 +126,7 @@ test("changing password rejects a wrong current password (server-checked)", asyn
     className: "Ferns",
     children: "Cy",
   });
-  await page.getByRole("button", { name: "Add children" }).click();
+  await page.getByRole("button", { name: "Add pupils" }).click();
   await expect(page.getByRole("heading", { name: /class code/ })).toBeVisible();
 
   await page.goto("/teacher/account");
@@ -149,13 +149,13 @@ test("a teacher can add several students at once by pasting a list", async ({ pa
   // Open the new class's roster and reveal the add-child form.
   await page.getByRole("button", { name: /Poppy Class/ }).click();
   await expect(page.getByRole("heading", { name: "Poppy Class" })).toBeVisible();
-  await page.getByRole("button", { name: /Add child/ }).click();
+  await page.getByRole("button", { name: /Add pupil/ }).click();
 
   // Paste a messy register: commas, a blank line, and a case-only duplicate.
-  await page.getByLabel(/Add children/).fill("Zed\nYara, Xavier\n\nzed");
+  await page.getByLabel(/Add pupils/).fill("Zed\nYara, Xavier\n\nzed");
   // The button counts the de-duplicated names.
-  await expect(page.getByRole("button", { name: "Add 3 children" })).toBeVisible();
-  await page.getByRole("button", { name: "Add 3 children" }).click();
+  await expect(page.getByRole("button", { name: "Add 3 pupils" })).toBeVisible();
+  await page.getByRole("button", { name: "Add 3 pupils" }).click();
 
   // All three land in the roster; the duplicate "zed" was collapsed to one.
   await expect(page.getByText("Zed", { exact: true })).toHaveCount(1);
