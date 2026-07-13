@@ -19,6 +19,7 @@ type Item = {
   type: string;
   mediaPath: string | null;
   text: string | null;
+  isActivity: boolean;
   activity: string;
   when: string;
   quizScore: number | null;
@@ -39,6 +40,9 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
   const [noteOpen, setNoteOpen] = useState<string | null>(null);
   const [quizOpen, setQuizOpen] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
+  // When sending an activity back: keep the child's work to tweak (true) or
+  // let them start again from a blank template (false). Defaults to keeping it.
+  const [keepWork, setKeepWork] = useState(true);
   const [skillSel, setSkillSel] = useState<Record<string, Set<string>>>({});
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
@@ -97,11 +101,17 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
       const fd = new FormData();
       fd.set("itemId", item.id);
       if (noteText.trim()) fd.set("teacherNote", noteText.trim());
+      // Only activity drawings can be reopened, so only they carry a mode.
+      if (item.isActivity) fd.set("returnMode", keepWork ? "CONTINUE" : "FRESH");
       await returnItem(fd);
       setNoteOpen(null);
       setNoteText("");
       remove([item.id]);
-      showToast(`↩ Sent back to ${item.child} with your note`);
+      showToast(
+        item.isActivity && !keepWork
+          ? `↩ Sent back to ${item.child} to start again`
+          : `↩ Sent back to ${item.child} with your note`,
+      );
     } finally {
       setBusy(false);
     }
@@ -195,14 +205,39 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                 )}
                 <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                   <button onClick={() => approve(it)} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "#37796f", border: "none", borderRadius: 999, padding: "10px 20px", minHeight: 44, cursor: "pointer", boxShadow: "0 3px 0 #35706A", whiteSpace: "nowrap" }}>✓ Add to jar</button>
-                  <button onClick={() => { setNoteOpen(noteOpen === it.id ? null : it.id); setNoteText(""); }} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 18px", minHeight: 44, cursor: "pointer", whiteSpace: "nowrap" }}>↩ Send back</button>
+                  <button onClick={() => { setNoteOpen(noteOpen === it.id ? null : it.id); setNoteText(""); setKeepWork(true); }} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 18px", minHeight: 44, cursor: "pointer", whiteSpace: "nowrap" }}>↩ Send back</button>
                 </div>
               </div>
 
               {noteOpen === it.id && (
-                <div style={{ display: "flex", gap: 10, marginTop: 14, paddingTop: 14, borderTop: "2px dashed var(--calm-border)", flexWrap: "wrap" }}>
-                  <input type="text" value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="A kind note — e.g. 'Lovely! Can you add a label to your diagram?'" style={{ flex: 1, minWidth: 220, font: "400 15px var(--font-atkinson)", padding: "10px 14px", border: "2px solid var(--calm-border)", borderRadius: 10, background: "var(--paper)", color: "var(--ink)" }} />
-                  <button onClick={() => sendBack(it)} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", border: "none", borderRadius: 999, padding: "10px 22px", cursor: "pointer" }}>Send back</button>
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: "2px dashed var(--calm-border)" }}>
+                  {it.isActivity && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                      <span style={{ font: "700 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>When they reopen it:</span>
+                      {[
+                        { on: true, label: "✏️ Carry on with their work", hint: "Keeps what they did so they can tweak it" },
+                        { on: false, label: "🔄 Start again", hint: "Clears their work — a fresh blank page" },
+                      ].map((opt) => {
+                        const active = keepWork === opt.on;
+                        return (
+                          <button
+                            key={String(opt.on)}
+                            type="button"
+                            onClick={() => setKeepWork(opt.on)}
+                            aria-pressed={active}
+                            title={opt.hint}
+                            style={{ font: "700 14px var(--font-atkinson)", color: active ? "#2E6B64" : "var(--sj-muted)", background: active ? "var(--glass-light)" : "var(--cream)", border: `2px solid ${active ? "#37796f" : "var(--calm-border)"}`, borderRadius: 999, padding: "8px 16px", minHeight: 40, cursor: "pointer" }}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <input type="text" value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="A kind note — e.g. 'Lovely! Can you add a label to your diagram?'" style={{ flex: 1, minWidth: 220, font: "400 15px var(--font-atkinson)", padding: "10px 14px", border: "2px solid var(--calm-border)", borderRadius: 10, background: "var(--paper)", color: "var(--ink)" }} />
+                    <button onClick={() => sendBack(it)} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", border: "none", borderRadius: 999, padding: "10px 22px", cursor: "pointer" }}>Send back</button>
+                  </div>
                 </div>
               )}
 

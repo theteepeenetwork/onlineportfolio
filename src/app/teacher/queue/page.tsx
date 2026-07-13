@@ -60,6 +60,9 @@ export default async function ApprovalQueue() {
     type: it.type,
     mediaPath: it.mediaPath,
     text: it.textContent,
+    // Only assigned drawings have a saved activity a child can reopen, so only
+    // those offer the "carry on / start again" choice when sent back.
+    isActivity: Boolean(it.assignmentId) && it.type === "DRAWING",
     activity: it.assignment?.title ?? "Free choice",
     when: formatWhen(it.createdAt),
     quizScore: it.quizTotal != null ? it.quizScore : null,

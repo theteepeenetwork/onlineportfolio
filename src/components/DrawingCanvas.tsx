@@ -308,6 +308,7 @@ export function DrawingCanvas({
   onRestoreFields,
   confirmSubmit = false,
   allowPageDelete = true,
+  resumeMode,
 }: {
   name: string;
   background?: string[];
@@ -325,6 +326,11 @@ export function DrawingCanvas({
   // Whether the "Delete page" control is offered. Pupils answering an assigned
   // activity get `false` so they can't remove the teacher's template pages.
   allowPageDelete?: boolean;
+  // Reopening a handed-back activity: "continue" restores the child's saved work
+  // straight away (fully editable — strokes rub out, objects move — from the
+  // local copy, or a same-fidelity composite across devices); "fresh" wipes it
+  // for a clean start. undefined = a normal first attempt.
+  resumeMode?: "continue" | "fresh";
   // "author" = teacher building a quiz (place/edit question boxes);
   // "answer" = child answering it (tap options, silent capture).
   // undefined = no quiz (existing callers unaffected).
@@ -915,7 +921,13 @@ export function DrawingCanvas({
       finishEditing();
       // Submitting IS the success path (a failed action re-renders in place, no
       // redirect). Mark the draft so the destination page clears local + server.
-      if (draftingEnabled && draftKey) markDraftForClear(draftKey, serverSurface, serverContext);
+      // A child's activity response is the exception: keep its draft so a
+      // "carry on" hand-back can reopen the work fully editable. It's cleared
+      // instead when the teacher approves it or sends it back to "start again"
+      // (see journal.ts / the "fresh" branch below), else the 30-day purge.
+      if (draftingEnabled && draftKey && draftSurface !== "activity-response") {
+        markDraftForClear(draftKey, serverSurface, serverContext);
+      }
     };
     form?.addEventListener("submit", onSubmit, true);
 
@@ -951,13 +963,22 @@ export function DrawingCanvas({
   // the teacher is actively continuing.
   useEffect(() => {
     if (!ready || !draftingEnabled || !draftKey || !ownerId) return;
+
+    // Sent back to "start again": wipe the saved work (local + cross-device) so
+    // the child opens on a clean template.
+    if (resumeMode === "fresh") {
+      void deleteDraft(draftKey);
+      void serverDiscardDraft(serverSurface, serverContext);
+      return;
+    }
+
     const canPrompt = draftSurface === "activity-response" || !background || background.length === 0;
     if (!canPrompt) return;
     let cancelled = false;
     (async () => {
       await purgeExpired(RETENTION_MS);
       // Reconcile the local (full-fidelity, offline) copy with the server
-      // (cross-device) copy and offer whichever is newer.
+      // (cross-device) copy and take whichever is newer.
       const [local, server] = await Promise.all([
         loadDraft(draftKey, ownerId),
         serverLoadDraft(serverSurface, serverContext),
@@ -965,15 +986,27 @@ export function DrawingCanvas({
       if (cancelled) return;
       const localAt = local?.canvas ? local.updatedAt : 0;
       const serverAt = server && server.pages.length ? server.updatedAt : 0;
+
+      let chosen: DraftCanvasV1 | null = null;
       if (server && serverAt > localAt) {
-        // Work happened on another device.
+        // Work happened on another device (a same-fidelity composite).
         draftFieldsRef.current = server.fields ?? {};
         setDraftSource("server");
-        setDraftPrompt(serverPagesToCanvas(server.pages));
+        chosen = serverPagesToCanvas(server.pages);
       } else if (local?.canvas) {
         draftFieldsRef.current = local.fields ?? {};
         setDraftSource("local");
-        setDraftPrompt(local.canvas);
+        chosen = local.canvas;
+      }
+      if (!chosen) return;
+
+      // Sent back to "carry on": reopen their work immediately rather than
+      // asking a young child to choose at a restore prompt. Otherwise (a normal
+      // first attempt with lost work) offer the prompt as before.
+      if (resumeMode === "continue") {
+        await applyRestore(chosen);
+      } else {
+        setDraftPrompt(chosen);
       }
     })();
     return () => {
@@ -982,10 +1015,9 @@ export function DrawingCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
-  async function restoreDraft() {
-    const canvas = draftPrompt;
-    setDraftPrompt(null);
-    if (!canvas) return;
+  // Load a stored canvas into the live session and apply its restored fields.
+  // Shared by the restore prompt and the automatic "carry on" reopen.
+  async function applyRestore(canvas: DraftCanvasV1) {
     await hydrateFromDraft(canvas);
     const f = draftFieldsRef.current;
     if (f) {
@@ -997,6 +1029,13 @@ export function DrawingCanvas({
     draftFieldsRef.current = null;
     // Push the restored session back so the local + server copies converge.
     if (draftingEnabled) flushServerSync();
+  }
+
+  async function restoreDraft() {
+    const canvas = draftPrompt;
+    setDraftPrompt(null);
+    if (!canvas) return;
+    await applyRestore(canvas);
   }
 
   function discardDraft() {

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { savePhoto, saveImageDataUrl, saveImagePages, deleteMediaFiles } from "@/lib/media";
+import { discardResponseDraftFor } from "@/lib/drafts";
 import { recordAudit } from "@/lib/audit";
 import { readQuiz, readAnswers, sanitizeAnswers, scoreQuiz } from "@/lib/quiz";
 import {
@@ -159,6 +160,7 @@ export async function createJournalItem(
         status: isTeacher ? "APPROVED" : "PENDING",
         approvedAt: isTeacher ? new Date() : null,
         teacherNote: null, // the previous feedback has been acted on
+        returnMode: null, // fresh submission — no longer a returned item
         authorRole,
         skills: { set: skillIds.map((id) => ({ id })) },
       },
@@ -219,6 +221,7 @@ async function ownedItem(teacherId: string, id: string) {
     select: {
       id: true,
       studentId: true,
+      assignmentId: true,
       mediaPath: true,
       mediaPathsJson: true,
       student: { select: { name: true } },
@@ -254,6 +257,10 @@ export async function approveItem(formData: FormData) {
     schoolId: user.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: id, detail: `Approved ${item.student.name}'s moment`,
   });
 
+  // The work is in the jar now — drop the kept editable draft (rows + files) so
+  // it isn't held beyond its purpose (data minimisation, SAFEGUARDING rule 9).
+  if (item.assignmentId) await discardResponseDraftFor(item.studentId, item.assignmentId);
+
   revalidatePath("/teacher/queue");
   revalidatePath("/teacher");
 }
@@ -269,14 +276,25 @@ export async function returnItem(formData: FormData) {
 
   const id = String(formData.get("itemId") ?? "");
   const note = String(formData.get("teacherNote") ?? "").trim() || null;
+  // How the child should reopen the work: keep what they did and tweak it
+  // ("CONTINUE"), or begin again from a blank template ("FRESH"). Anything the
+  // form doesn't explicitly set defaults to FRESH (the old behaviour).
+  const returnMode = String(formData.get("returnMode") ?? "") === "CONTINUE" ? "CONTINUE" : "FRESH";
 
   const item = await ownedItem(user.teacher.id, id);
   if (!item) return;
 
   await db.journalItem.update({
     where: { id },
-    data: { status: "RETURNED", teacherNote: note },
+    data: { status: "RETURNED", teacherNote: note, returnMode },
   });
+
+  // "Start again" wipes the kept draft so the child reopens on a blank template;
+  // "carry on" leaves it so they resume their editable work.
+  if (returnMode === "FRESH" && item.assignmentId) {
+    await discardResponseDraftFor(item.studentId, item.assignmentId);
+  }
+
   await recordAudit({
     action: "MOMENT_RETURNED", actorType: "TEACHER", actorId: user.teacher.id, actorName: user.teacher.displayName,
     schoolId: user.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: id, detail: `Sent ${item.student.name}'s moment back`,
