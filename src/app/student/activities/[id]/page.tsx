@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { jsonArray } from "@/lib/activities";
-import { readQuiz } from "@/lib/quiz";
+import { readQuiz, readAnswers, type QuizAnswer } from "@/lib/quiz";
 import { readTemplateObjects } from "@/lib/canvasObjects";
 import { ActivityResponseForm } from "./ActivityResponseForm";
 
@@ -34,7 +34,7 @@ export default async function RespondToActivity({
   const mine = await db.journalItem.findFirst({
     where: { assignmentId: id, studentId: user.student.id },
     orderBy: { createdAt: "desc" },
-    select: { status: true, returnMode: true },
+    select: { status: true, returnMode: true, quizAnswersJson: true },
   });
   if (mine && mine.status !== "RETURNED") redirect("/student");
 
@@ -44,6 +44,19 @@ export default async function RespondToActivity({
   const resumeMode =
     mine?.status === "RETURNED" ? (mine.returnMode === "CONTINUE" ? "continue" : "fresh") : undefined;
 
+  // On a "carry on" reopen of a quiz, keep the answers they got right (locked +
+  // shown green) and clear the ones they got wrong so they can try those again.
+  // Correctness is resolved here against the frozen snapshot; only the correct
+  // picks are passed on (wrong / unanswered are simply omitted).
+  const quiz = readQuiz(assignment.quizSnapshotJson);
+  let initialAnswers: QuizAnswer[] | undefined;
+  if (resumeMode === "continue" && quiz.questions.length) {
+    const prev = new Map(readAnswers(mine?.quizAnswersJson).map((a) => [a.questionId, a.selectedOptionId]));
+    initialAnswers = quiz.questions
+      .filter((q) => prev.get(q.id) === q.correctOptionId)
+      .map((q) => ({ questionId: q.id, selectedOptionId: q.correctOptionId }));
+  }
+
   return (
     <ActivityResponseForm
       assignmentId={assignment.id}
@@ -51,9 +64,11 @@ export default async function RespondToActivity({
       title={assignment.title}
       instructions={assignment.instructions ?? undefined}
       template={jsonArray(assignment.templateSnapshotJson)}
-      quiz={readQuiz(assignment.quizSnapshotJson)}
+      quiz={quiz}
       objects={readTemplateObjects(assignment.objectsSnapshotJson).pages}
       resumeMode={resumeMode}
+      initialAnswers={initialAnswers}
+      quizReview={resumeMode === "continue" && quiz.questions.length > 0}
     />
   );
 }
