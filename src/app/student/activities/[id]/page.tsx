@@ -28,13 +28,21 @@ export default async function RespondToActivity({
   });
   if (!assignment) notFound();
 
-  // Already handed in and not yet sent back? Go to their journal. A RETURNED
-  // item means the teacher asked for another go, so the child may reopen the
-  // activity and re-submit (createJournalItem updates that item in place).
-  const existing = await db.journalItem.findFirst({
-    where: { assignmentId: id, studentId: user.student.id, status: { not: "RETURNED" } },
+  // This child's response to the run, if any. A RETURNED item means the teacher
+  // asked for another go, so the child may reopen and re-submit (createJournalItem
+  // updates it in place). Any other status = already handed in → their journal.
+  const mine = await db.journalItem.findFirst({
+    where: { assignmentId: id, studentId: user.student.id },
+    orderBy: { createdAt: "desc" },
+    select: { status: true, returnMode: true },
   });
-  if (existing) redirect("/student");
+  if (mine && mine.status !== "RETURNED") redirect("/student");
+
+  // How a sent-back activity reopens: "continue" restores the child's saved work
+  // (their strokes and objects, fully editable); "fresh" (or legacy null) starts
+  // again on the blank template. The canvas resolves the saved work itself.
+  const resumeMode =
+    mine?.status === "RETURNED" ? (mine.returnMode === "CONTINUE" ? "continue" : "fresh") : undefined;
 
   return (
     <ActivityResponseForm
@@ -45,6 +53,7 @@ export default async function RespondToActivity({
       template={jsonArray(assignment.templateSnapshotJson)}
       quiz={readQuiz(assignment.quizSnapshotJson)}
       objects={readTemplateObjects(assignment.objectsSnapshotJson).pages}
+      resumeMode={resumeMode}
     />
   );
 }

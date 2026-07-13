@@ -17,6 +17,7 @@ export function ActivityResponseForm({
   template,
   quiz,
   objects,
+  resumeMode,
 }: {
   assignmentId: string;
   studentId: string;
@@ -25,6 +26,9 @@ export function ActivityResponseForm({
   template: string[];
   quiz?: QuizPayload;
   objects?: CanvasObj[][];
+  // Reopening a handed-back activity: "continue" restores the child's saved work
+  // (fully editable), "fresh" starts them again on the blank template.
+  resumeMode?: "continue" | "fresh";
 }) {
   const [state, action] = useActionState(createJournalItem, {});
   const router = useRouter();
@@ -46,6 +50,7 @@ export function ActivityResponseForm({
         initialQuiz={quiz}
         objectMode={objects && objects.length ? "answer" : undefined}
         initialObjects={objects}
+        resumeMode={resumeMode}
         draftKey={`resp:${assignmentId}:${studentId}`}
         ownerId={studentId}
         confirmSubmit

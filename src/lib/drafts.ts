@@ -165,6 +165,20 @@ export async function saveDraftServer(
   return { ok: true, updatedAt: draft.updatedAt.getTime() };
 }
 
+// Erase a child's activity-response draft by (student, assignment), for use from
+// the teacher's approve / "start again" actions — where the current session is
+// the teacher, not the draft's owner, so the owner-scoped path above can't run.
+// Removes rows AND media files. Safe no-op when there's no draft.
+export async function discardResponseDraftFor(studentId: string, assignmentId: string): Promise<void> {
+  const drafts = await db.draft.findMany({
+    where: { surface: "ACTIVITY_RESPONSE", contextKey: assignmentId, studentId },
+    select: { id: true, pagesJson: true },
+  });
+  if (!drafts.length) return;
+  await db.draft.deleteMany({ where: { id: { in: drafts.map((d) => d.id) } } });
+  await deleteMediaFiles(drafts.flatMap((d) => draftPaths(d.pagesJson)));
+}
+
 // NOT write-gated: erasure stays available even on a frozen account (mirrors
 // deleteItem/deleteClass). Removes rows AND media files.
 export async function discardDraftServer(surface: string, contextKey: string): Promise<void> {
