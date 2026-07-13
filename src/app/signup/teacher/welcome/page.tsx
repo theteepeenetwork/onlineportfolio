@@ -86,7 +86,7 @@ export default async function SignupWelcomePage({
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, marginTop: 30 }}>
             <div
               aria-hidden="true"
-              style={{ width: 180, height: 180, background: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 16, padding: 14, boxSizing: "border-box", boxShadow: "0 5px 0 rgba(34,48,74,0.15)" }}
+              style={{ width: 270, height: 270, background: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 16, padding: 21, boxSizing: "border-box", boxShadow: "0 5px 0 rgba(34,48,74,0.15)" }}
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
             <p style={{ margin: 0, font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>Or scan to jump straight in — no code to type</p>

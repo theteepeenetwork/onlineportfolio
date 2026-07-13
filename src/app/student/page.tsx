@@ -53,7 +53,8 @@ export default async function StudentHome() {
   const respondedIds = new Set(
     (
       await db.journalItem.findMany({
-        where: { studentId: student.id, assignmentId: { not: null } },
+        // A RETURNED response counts as still "to do" — the teacher sent it back.
+        where: { studentId: student.id, assignmentId: { not: null }, status: { not: "RETURNED" } },
         select: { assignmentId: true },
       })
     ).map((r) => r.assignmentId),
@@ -115,15 +116,31 @@ export default async function StudentHome() {
         {inProgress.map((item) => {
           const k = kindOf(item.type);
           const waiting = item.status === "PENDING";
-          return (
-            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 22, background: "#FBEED3", border: "3px dashed #C9A87C", borderRadius: 16, padding: "16px 24px" }}>
+          // A sent-back activity is a live link back into it, so the child can
+          // reopen and try again. (A sent-back free drawing has no run to reopen.)
+          const canRetry = !waiting && !!item.assignmentId;
+          const strip = (
+            <>
               <div style={{ width: 64, height: 64, borderRadius: 12, background: "repeating-linear-gradient(45deg, #FFFDF7, #FFFDF7 10px, #F6E4BE 10px, #F6E4BE 20px)", border: "3px solid var(--ink)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }} aria-hidden="true"><Icon name={k.icon} size={30} decorative /></div>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
                 <p style={{ margin: "2px 0 0", font: "400 17px var(--font-atkinson)", color: "#8A5F1E" }}>
                   {waiting ? "Waiting for your teacher to see it ⏳" : "Have another go — your teacher sent it back ✏️"}
                 </p>
               </div>
+              {canRetry && (
+                <span style={{ flexShrink: 0, background: "#37796f", color: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 20px", font: "700 17px var(--font-atkinson)" }}>Try again</span>
+              )}
+            </>
+          );
+          const stripStyle = { display: "flex", alignItems: "center", gap: 16, marginTop: 22, background: "#FBEED3", border: "3px dashed #C9A87C", borderRadius: 16, padding: "16px 24px" } as const;
+          return canRetry ? (
+            <Link key={item.id} href={`/student/activities/${item.assignmentId}`} className="sj-addtile" style={{ ...stripStyle, textDecoration: "none", color: "var(--ink)" }}>
+              {strip}
+            </Link>
+          ) : (
+            <div key={item.id} style={stripStyle}>
+              {strip}
             </div>
           );
         })}
