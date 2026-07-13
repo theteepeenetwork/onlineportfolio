@@ -5,6 +5,7 @@ import { useActionState, useRef, useState } from "react";
 import { createTemplate, updateTemplate } from "@/app/actions/activities";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
 import type { QuizPayload } from "@/lib/quiz";
+import type { CanvasObj } from "@/lib/canvasObjects";
 import { markDraftForClear } from "@/lib/draftStore";
 
 // The existing template when reopening the builder to edit. Absent = building a
@@ -16,6 +17,7 @@ export type EditableTemplate = {
   tags: string[];
   pages: string[];
   quiz: QuizPayload;
+  objects: CanvasObj[][];
 };
 
 // Build (or edit) a reusable template: title, instructions, tags, and an
@@ -36,6 +38,7 @@ export function ActivityBuilder({
   // use. It's opened as an editor; on ✓ Done the pages are handed back here.
   const [templatePages, setTemplatePages] = useState<string[]>(template?.pages ?? []);
   const [quiz, setQuiz] = useState<QuizPayload>(template?.quiz ?? { questions: [] });
+  const [objects, setObjects] = useState<CanvasObj[][]>(template?.objects ?? []);
   const [editorOpen, setEditorOpen] = useState(false);
 
   // Refs to the uncontrolled fields so the autosave draft captures/restores them.
@@ -43,6 +46,9 @@ export function ActivityBuilder({
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
   const tagsRef = useRef<HTMLInputElement>(null);
   const draftKey = editing ? `tmpl-edit:${template!.id}` : `tmpl-new:${teacherId}`;
+
+  const objectCount = objects.reduce((n, page) => n + page.length, 0);
+  const hasContent = templatePages.length > 0 || quiz.questions.length > 0 || objectCount > 0;
 
   return (
     <form
@@ -53,6 +59,7 @@ export function ActivityBuilder({
       {editing && <input type="hidden" name="templateId" value={template!.id} />}
       <input type="hidden" name="templatePages" value={JSON.stringify(templatePages)} />
       <input type="hidden" name="quizPayload" value={JSON.stringify(quiz)} />
+      <input type="hidden" name="objectsPayload" value={JSON.stringify(objects)} />
 
       {/* Title + instructions + tags */}
       <div className="card space-y-4 p-5">
@@ -95,11 +102,18 @@ export function ActivityBuilder({
           multiple-choice questions across the pages.
         </p>
 
-        {quiz.questions.length > 0 && (
-          <p className="mb-3 inline-block rounded-full bg-brand/10 px-3 py-1 text-sm font-semibold text-brand">
-            ❓ {quiz.questions.length} quiz question{quiz.questions.length === 1 ? "" : "s"}
-          </p>
-        )}
+        <div className="mb-3 flex flex-wrap gap-2">
+          {quiz.questions.length > 0 && (
+            <span className="inline-block rounded-full bg-brand/10 px-3 py-1 text-sm font-semibold text-brand">
+              ❓ {quiz.questions.length} quiz question{quiz.questions.length === 1 ? "" : "s"}
+            </span>
+          )}
+          {objectCount > 0 && (
+            <span className="inline-block rounded-full bg-brand/10 px-3 py-1 text-sm font-semibold text-brand">
+              🧩 {objectCount} movable piece{objectCount === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
 
         {templatePages.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
@@ -110,14 +124,15 @@ export function ActivityBuilder({
         )}
 
         <button type="button" onClick={() => setEditorOpen(true)} className="btn-brand">
-          {templatePages.length > 0 || quiz.questions.length > 0 ? "🎨 Edit template & quiz" : "🎨 Build a template or quiz"}
+          {hasContent ? "🎨 Edit template & quiz" : "🎨 Build a template or quiz"}
         </button>
-        {(templatePages.length > 0 || quiz.questions.length > 0) && (
+        {hasContent && (
           <button
             type="button"
             onClick={() => {
               setTemplatePages([]);
               setQuiz({ questions: [] });
+              setObjects([]);
             }}
             className="ml-2 rounded-lg px-3 py-2 text-sm text-muted hover:text-rose-600"
           >
@@ -133,6 +148,8 @@ export function ActivityBuilder({
           allowImport
           quizMode="author"
           initialQuiz={quiz}
+          objectMode="author"
+          initialObjects={objects}
           title="Build the template"
           subtitle="Draw or add a PDF / picture, and add quiz questions with ❓ Quiz."
           background={templatePages.length ? templatePages : undefined}
@@ -149,9 +166,10 @@ export function ActivityBuilder({
             if (tagsRef.current && typeof f.tags === "string") tagsRef.current.value = f.tags;
           }}
           onClose={() => setEditorOpen(false)}
-          onDone={(pages, q) => {
+          onDone={(pages, q, objs) => {
             setTemplatePages(pages);
             setQuiz(q ?? { questions: [] });
+            setObjects(objs ?? []);
             setEditorOpen(false);
           }}
         />

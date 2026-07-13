@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { jsonArray } from "@/lib/activities";
 import { readQuiz } from "@/lib/quiz";
+import { readTemplateObjects } from "@/lib/canvasObjects";
 import { TemplatePreview } from "./TemplatePreview";
 
 export default async function PreviewTemplatePage({
@@ -27,6 +28,7 @@ export default async function PreviewTemplatePage({
       instructions={template.instructions ?? undefined}
       pages={jsonArray(template.templatePathsJson)}
       quiz={readQuiz(template.quizJson)}
+      objects={readTemplateObjects(template.objectsJson).pages}
     />
   );
 }

@@ -116,6 +116,45 @@ test.describe("A1 · Quiz option pictures are scoped like template media", () =>
   });
 });
 
+test.describe("A1 · Movable-object pictures are scoped like template media", () => {
+  // A picture the teacher placed on the template as a draggable/lockable object.
+  // It is teacher-authored content living in objectsJson / objectsSnapshotJson,
+  // scoped exactly like template pages and quiz option pictures: reachable by its
+  // own teacher and the pupils set the activity, by no other tenant, no parent.
+  const B_OBJ = SCHOOL_B.objectMedia;
+
+  test("School B teacher can load their template object picture", async ({ page }) => {
+    await loginTeacher(page, SCHOOL_B.teacher);
+    expect(await fetchStatus(page, B_OBJ)).toBe(200);
+  });
+
+  test("A School B pupil set the activity can load the object picture", async ({ page }) => {
+    await loginStudent(page, SCHOOL_B.classCode, SCHOOL_B.student); // Zara, in Acorn (wholeClass run)
+    expect(await fetchStatus(page, B_OBJ)).toBe(200);
+  });
+
+  test("School A teacher and admin CANNOT load School B's object picture", async ({ page }) => {
+    await loginTeacher(page, SCHOOL_A.otherTeacher);
+    expect(await fetchStatus(page, B_OBJ)).toBe(404);
+    await loginTeacher(page, SCHOOL_A.admin);
+    expect(await fetchStatus(page, B_OBJ)).toBe(404);
+  });
+
+  test("No parent can load a template object picture (teacher content)", async ({ page }) => {
+    await loginParent(page, SCHOOL_B.parentFamilyCode);
+    expect(await fetchStatus(page, B_OBJ)).toBe(404);
+    await clearSession(page);
+    await loginParent(page, SCHOOL_A.parentFamilyCode);
+    expect(await fetchStatus(page, B_OBJ)).toBe(404);
+  });
+
+  test("anonymous cannot load a template object picture", async ({ page }) => {
+    await page.goto("/");
+    await clearSession(page);
+    expect(await fetchStatus(page, B_OBJ)).toBe(404);
+  });
+});
+
 test.describe("A1 · Cross-device drafts are owner-only", () => {
   // A CHILD's in-progress draft is their private unfinished work — visible to
   // that child ONLY, never to their teacher, a parent, or another tenant.

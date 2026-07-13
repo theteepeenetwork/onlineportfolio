@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { jsonArray } from "@/lib/activities";
 import { readQuiz } from "@/lib/quiz";
+import { readTemplateObjects } from "@/lib/canvasObjects";
 import { ActivityResponseForm } from "./ActivityResponseForm";
 
 export default async function RespondToActivity({
@@ -41,6 +42,7 @@ export default async function RespondToActivity({
       instructions={assignment.instructions ?? undefined}
       template={jsonArray(assignment.templateSnapshotJson)}
       quiz={readQuiz(assignment.quizSnapshotJson)}
+      objects={readTemplateObjects(assignment.objectsSnapshotJson).pages}
     />
   );
 }

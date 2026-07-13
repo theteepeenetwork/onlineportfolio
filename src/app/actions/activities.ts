@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { saveImagePages, saveImageDataUrl } from "@/lib/media";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 import { parseQuizPayload } from "@/lib/quiz";
+import { normalizeTemplateObjects, hasObjects } from "@/lib/canvasObjects";
 
 function parsePages(raw: string): string[] {
   try {
@@ -32,6 +33,29 @@ async function persistQuizPayload(raw: string): Promise<string | null> {
     }
   }
   return JSON.stringify(quiz);
+}
+
+// Validate the movable-objects layer from the editor and persist any freshly-
+// authored image objects (data URLs → private /uploads paths, like template
+// pages and quiz option images). Returns the JSON to store, or null when there
+// are no objects. Never throws — a bad object is dropped, not fatal.
+async function persistObjectsPayload(raw: string): Promise<string | null> {
+  let parsed: unknown;
+  try {
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+  const objects = normalizeTemplateObjects(parsed);
+  if (!hasObjects(objects)) return null;
+  for (const page of objects.pages) {
+    for (const o of page) {
+      if (o.type === "image" && o.src.startsWith("data:image")) {
+        o.src = await saveImageDataUrl(o.src);
+      }
+    }
+  }
+  return JSON.stringify(objects.pages);
 }
 
 function parseTags(raw: string): string[] {
@@ -60,10 +84,12 @@ export async function createTemplate(
 
   let templatePathsJson: string | null = null;
   let quizJson: string | null = null;
+  let objectsJson: string | null = null;
   try {
     const pages = parsePages(String(formData.get("templatePages") ?? ""));
     if (pages.length) templatePathsJson = JSON.stringify(await saveImagePages(pages));
     quizJson = await persistQuizPayload(String(formData.get("quizPayload") ?? ""));
+    objectsJson = await persistObjectsPayload(String(formData.get("objectsPayload") ?? ""));
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Couldn't save the template." };
   }
@@ -74,6 +100,7 @@ export async function createTemplate(
       instructions,
       templatePathsJson,
       quizJson,
+      objectsJson,
       tagsJson: tags.length ? JSON.stringify(tags) : null,
       teacherId: user.teacher.id,
     },
@@ -112,12 +139,14 @@ export async function updateTemplate(
 
   let templatePathsJson: string | null = null;
   let quizJson: string | null = null;
+  let objectsJson: string | null = null;
   try {
     // The builder re-composites every page, so pages come back as fresh data
     // URLs even when unchanged; save them like a new template would.
     const pages = parsePages(String(formData.get("templatePages") ?? ""));
     if (pages.length) templatePathsJson = JSON.stringify(await saveImagePages(pages));
     quizJson = await persistQuizPayload(String(formData.get("quizPayload") ?? ""));
+    objectsJson = await persistObjectsPayload(String(formData.get("objectsPayload") ?? ""));
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Couldn't save the template." };
   }
@@ -129,6 +158,7 @@ export async function updateTemplate(
       instructions,
       templatePathsJson,
       quizJson,
+      objectsJson,
       tagsJson: tags.length ? JSON.stringify(tags) : null,
     },
   });
@@ -141,6 +171,7 @@ export async function updateTemplate(
       instructions,
       templateSnapshotJson: templatePathsJson,
       quizSnapshotJson: quizJson,
+      objectsSnapshotJson: objectsJson,
     },
   });
 
@@ -201,6 +232,7 @@ export async function assignTemplate(
       instructions: template.instructions,
       templateSnapshotJson: template.templatePathsJson,
       quizSnapshotJson: template.quizJson,
+      objectsSnapshotJson: template.objectsJson,
       dueDate,
       students: wholeClass ? undefined : { create: chosen.map((studentId) => ({ studentId })) },
     },
@@ -226,6 +258,7 @@ export async function duplicateTemplate(formData: FormData) {
       instructions: t.instructions,
       templatePathsJson: t.templatePathsJson,
       quizJson: t.quizJson,
+      objectsJson: t.objectsJson,
       tagsJson: t.tagsJson,
       teacherId: user.teacher.id,
     },

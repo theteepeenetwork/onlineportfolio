@@ -190,6 +190,7 @@ model ActivityTemplate {
   instructions      String? // what to do; may be read aloud to the child
   templatePathsJson String? // JSON array of background image paths (canvas / PDF pages)
   quizJson          String? // JSON QuizPayload — floating multiple-choice questions; option imagePaths are /uploads paths
+  objectsJson       String? // JSON TemplateObjects — movable pictures/shapes/text (per page); each carries a `locked` flag. Image srcs are /uploads paths
   tagsJson          String? // JSON array of teacher-defined tag names (e.g. ["Maths"])
   archived          Boolean      @default(false) // hidden from the grid; runs are kept
   teacher           Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -215,6 +216,7 @@ model Assignment {
   instructions         String? // snapshot at assign time
   templateSnapshotJson String? // frozen template pages at assign time
   quizSnapshotJson     String? // frozen quiz definition at assign time (mirrors templateSnapshotJson)
+  objectsSnapshotJson  String? // frozen movable-objects layer at assign time (mirrors templateSnapshotJson)
   dueDate              DateTime? // optional: when the run is expected done; null = no due date (open/historical)
   createdAt            DateTime            @default(now())
   students             AssignmentStudent[] // set only when wholeClass = false

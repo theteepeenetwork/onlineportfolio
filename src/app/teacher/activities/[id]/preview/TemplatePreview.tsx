@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
 import type { QuizPayload } from "@/lib/quiz";
+import type { CanvasObj } from "@/lib/canvasObjects";
 
 // A read-only "view as a child" preview: the exact full-screen canvas a pupil
 // gets for this activity, but nothing is saved. The ✓ and Close both just take
@@ -13,12 +14,14 @@ export function TemplatePreview({
   instructions,
   pages,
   quiz,
+  objects,
 }: {
   templateId: string;
   title: string;
   instructions?: string;
   pages: string[];
   quiz?: QuizPayload;
+  objects?: CanvasObj[][];
 }) {
   const router = useRouter();
   const back = () => router.push(`/teacher/activities/${templateId}`);
@@ -40,6 +43,8 @@ export function TemplatePreview({
         background={pages.length ? pages : undefined}
         quizMode={quiz && quiz.questions.length ? "answer" : undefined}
         initialQuiz={quiz}
+        objectMode={objects && objects.length ? "answer" : undefined}
+        initialObjects={objects}
         onClose={back}
         onDone={back}
       />

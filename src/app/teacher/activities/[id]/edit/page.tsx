@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { jsonArray } from "@/lib/activities";
 import { readQuiz } from "@/lib/quiz";
+import { readTemplateObjects } from "@/lib/canvasObjects";
 import { ActivityBuilder } from "../../new/ActivityBuilder";
 
 export default async function EditTemplatePage({
@@ -40,6 +41,7 @@ export default async function EditTemplatePage({
           tags: jsonArray(template.tagsJson),
           pages: jsonArray(template.templatePathsJson),
           quiz: readQuiz(template.quizJson),
+          objects: readTemplateObjects(template.objectsJson).pages,
         }}
       />
     </main>

@@ -27,6 +27,9 @@ export async function logout(page: Page) {
 export async function drawOnCanvas(page: Page) {
   const canvas = page.locator("canvas").first();
   await expect(canvas).toBeVisible();
+  // Templates open on the finger/Select tool, so pick the Pen before drawing.
+  const pen = page.locator('button[title="Pen"]');
+  if (await pen.count()) await pen.first().click();
   const box = await canvas.boundingBox();
   if (!box) throw new Error("canvas has no bounding box");
   const x = box.x + box.width * 0.3;

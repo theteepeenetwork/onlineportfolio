@@ -23,6 +23,7 @@ export const SCHOOL_B = {
   approvedMedia: "/uploads/seed-oak.svg", // APPROVED (Zara)
   pendingMedia: "/uploads/seed-oak-pending.svg", // PENDING (Yusuf)
   quizOptionMedia: "/uploads/seed-oak-quiz.svg", // a quiz answer picture (teacher-authored)
+  objectMedia: "/uploads/seed-oak-object.svg", // a movable-object picture on the template (teacher-authored)
   quizPrompt: "Which picture shows the Oakfield oak leaf?", // distinctive text on School B's quiz
   childDraftMedia: "/uploads/seed-oak-draft.svg", // Zara's in-progress response draft — Zara ONLY
   teacherDraftMedia: "/uploads/seed-oak-tmpl-draft.svg", // Okafor's template draft — Okafor ONLY

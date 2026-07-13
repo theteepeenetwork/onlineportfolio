@@ -99,14 +99,19 @@ async function canAccess(urlPath: string): Promise<boolean> {
   }
 
   // 3) Otherwise it may be a teacher-authored activity background (template pages
-  //    or a frozen assignment snapshot) OR a quiz answer-option picture (which
-  //    lives in quizJson / quizSnapshotJson, not the page list). Both are
-  //    teacher-authored content — parents never see either.
+  //    or a frozen assignment snapshot), a quiz answer-option picture (which
+  //    lives in quizJson / quizSnapshotJson), or a movable-object picture (which
+  //    lives in objectsJson / objectsSnapshotJson). All are teacher-authored
+  //    content — parents never see any of them.
   if (user?.role === "TEACHER") {
     const owned = await db.activityTemplate.findFirst({
       where: {
         teacherId: user.teacher.id,
-        OR: [{ templatePathsJson: { contains: urlPath } }, { quizJson: { contains: urlPath } }],
+        OR: [
+          { templatePathsJson: { contains: urlPath } },
+          { quizJson: { contains: urlPath } },
+          { objectsJson: { contains: urlPath } },
+        ],
       },
       select: { id: true },
     });
@@ -114,20 +119,30 @@ async function canAccess(urlPath: string): Promise<boolean> {
     const assigned = await db.assignment.findFirst({
       where: {
         template: { teacherId: user.teacher.id },
-        OR: [{ templateSnapshotJson: { contains: urlPath } }, { quizSnapshotJson: { contains: urlPath } }],
+        OR: [
+          { templateSnapshotJson: { contains: urlPath } },
+          { quizSnapshotJson: { contains: urlPath } },
+          { objectsSnapshotJson: { contains: urlPath } },
+        ],
       },
       select: { id: true },
     });
     return !!assigned;
   }
   if (user?.role === "STUDENT") {
-    // A child may load the background AND the quiz option pictures of an activity
-    // they have been set.
+    // A child may load the background, the quiz option pictures AND the movable-
+    // object pictures of an activity they have been set.
     const assigned = await db.assignment.findFirst({
       where: {
         class: { students: { some: { id: user.student.id } } },
         AND: [
-          { OR: [{ templateSnapshotJson: { contains: urlPath } }, { quizSnapshotJson: { contains: urlPath } }] },
+          {
+            OR: [
+              { templateSnapshotJson: { contains: urlPath } },
+              { quizSnapshotJson: { contains: urlPath } },
+              { objectsSnapshotJson: { contains: urlPath } },
+            ],
+          },
           { OR: [{ wholeClass: true }, { students: { some: { studentId: user.student.id } } }] },
         ],
       },
