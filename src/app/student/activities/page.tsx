@@ -24,15 +24,15 @@ export default async function StudentActivities() {
     select: { id: true, title: true, instructions: true },
   });
 
-  // Which runs has this child already handed in?
-  const responded = new Set(
-    (
-      await db.journalItem.findMany({
-        where: { studentId: student.id, assignmentId: { not: null } },
-        select: { assignmentId: true },
-      })
-    ).map((r) => r.assignmentId),
-  );
+  // Which runs has this child already handed in? A RETURNED item doesn't count
+  // as handed in — the teacher sent it back for another go, so it belongs in
+  // "To do" (as a re-do), not "Done".
+  const items = await db.journalItem.findMany({
+    where: { studentId: student.id, assignmentId: { not: null } },
+    select: { assignmentId: true, status: true },
+  });
+  const responded = new Set(items.filter((r) => r.status !== "RETURNED").map((r) => r.assignmentId));
+  const returnedSet = new Set(items.filter((r) => r.status === "RETURNED").map((r) => r.assignmentId));
 
   const todo = assignments.filter((a) => !responded.has(a.id));
   const doneList = assignments.filter((a) => responded.has(a.id));
@@ -81,11 +81,13 @@ export default async function StudentActivities() {
                   <Icon name="add-file" size={26} decorative />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-bold">{a.title}</p>
-                    {a.instructions && (
-                      <p className="truncate text-sm text-muted">{a.instructions}</p>
+                    {returnedSet.has(a.id) ? (
+                      <p className="truncate text-sm font-semibold text-amber-700">Your teacher sent this back — have another go ✏️</p>
+                    ) : (
+                      a.instructions && <p className="truncate text-sm text-muted">{a.instructions}</p>
                     )}
                   </div>
-                  <span className="btn-green px-3 py-1.5 text-sm">Start</span>
+                  <span className="btn-green px-3 py-1.5 text-sm">{returnedSet.has(a.id) ? "Try again" : "Start"}</span>
                 </Link>
               ))}
             </div>

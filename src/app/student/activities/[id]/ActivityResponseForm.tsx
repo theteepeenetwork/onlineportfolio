@@ -49,6 +49,7 @@ export function ActivityResponseForm({
         draftKey={`resp:${assignmentId}:${studentId}`}
         ownerId={studentId}
         confirmSubmit
+        allowPageDelete={false}
         onClose={() => router.push("/student/activities")}
       />
 

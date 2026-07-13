@@ -37,6 +37,18 @@ const SWATCHES = [
 const SIZES = [6, 12, 22];
 
 type Tool = "cursor" | "pencil" | "pen" | "highlighter" | "eraser" | "text";
+
+// Each drawing tool keeps its OWN thickness for the session — pick a chunky
+// highlighter and a fine Pen and each one stays where you left it, exactly like
+// the per-tool colours below. These are the on-load defaults.
+const DEFAULT_TOOL_SIZES: Record<Tool, number> = {
+  cursor: SIZES[1],
+  pencil: SIZES[1], // Pen
+  pen: SIZES[1], // Felt tip
+  highlighter: SIZES[1], // Highlighter
+  eraser: SIZES[1],
+  text: SIZES[1],
+};
 // The four drawing tools map onto four distinct nib shapes + stroke weights:
 // pencil → Pen (thin), pen → Felt tip (thick), highlighter (wide/translucent),
 // eraser. See ToolShape for the drawn nibs and true-weight sample strokes.
@@ -295,6 +307,7 @@ export function DrawingCanvas({
   getExtraDraftFields,
   onRestoreFields,
   confirmSubmit = false,
+  allowPageDelete = true,
 }: {
   name: string;
   background?: string[];
@@ -309,6 +322,9 @@ export function DrawingCanvas({
   // opens a "ready to hand in?" confirmation first — so a child can't submit an
   // activity with a single tap before working through all the pages.
   confirmSubmit?: boolean;
+  // Whether the "Delete page" control is offered. Pupils answering an assigned
+  // activity get `false` so they can't remove the teacher's template pages.
+  allowPageDelete?: boolean;
   // "author" = teacher building a quiz (place/edit question boxes);
   // "answer" = child answering it (tap options, silent capture).
   // undefined = no quiz (existing callers unaffected).
@@ -393,7 +409,12 @@ export function DrawingCanvas({
   const [toolColors, setToolColors] = useState<Record<Tool, string>>(DEFAULT_TOOL_COLORS);
   const color = toolColors[tool];
   const setColor = (c: string) => setToolColors((prev) => ({ ...prev, [tool]: c }));
-  const [size, setSize] = useState(SIZES[1]);
+  // Per-tool thickness, kept for the whole session (parallels toolColors above).
+  // `size` is the active tool's thickness; changing it only affects the tool
+  // you're currently holding, so Pen / Felt tip / Highlighter are each adjustable.
+  const [toolSizes, setToolSizes] = useState<Record<Tool, number>>(DEFAULT_TOOL_SIZES);
+  const size = toolSizes[tool];
+  const setSize = (s: number) => setToolSizes((prev) => ({ ...prev, [tool]: s }));
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
   const sizeRef = useRef(size);
@@ -1798,7 +1819,7 @@ export function DrawingCanvas({
             />
           )}
 
-          <div className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
+          <div className="absolute right-3 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-2">
             <div
               onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); pickHue(e); }}
               onPointerMove={(e) => { if (e.buttons) pickHue(e); }}
@@ -1822,7 +1843,7 @@ export function DrawingCanvas({
               title="Colours"
             />
             {paletteOpen && (
-              <div className="absolute right-11 top-0 w-44 rounded-xl border border-border bg-surface p-2 shadow-lg">
+              <div className="absolute right-11 top-0 z-50 w-44 rounded-xl border border-border bg-surface p-2 shadow-lg">
                 <div className="grid grid-cols-5 gap-1.5">
                   {SWATCHES.map((c) => (
                     <button
@@ -1948,7 +1969,7 @@ export function DrawingCanvas({
                 >
                   ＋
                 </button>
-                {pageCount > 1 && (
+                {allowPageDelete && pageCount > 1 && (
                   <button type="button" onClick={deletePage} className="text-xs text-muted hover:text-rose-600">
                     Delete page
                   </button>
@@ -2068,7 +2089,7 @@ export function DrawingCanvas({
         <button type="button" onClick={() => goToPage(current + 1)} disabled={current === pageCount - 1} className="btn-ghost px-3 py-1.5 text-sm">Next ›</button>
         <button type="button" onClick={addPage} className="btn-ghost px-3 py-1.5 text-sm">＋ Add page</button>
         <button type="button" onClick={() => fileRef.current?.click()} className="btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"><Icon name="add-file" size={16} decorative /> Add PDF / image</button>
-        {pageCount > 1 && (
+        {allowPageDelete && pageCount > 1 && (
           <button type="button" onClick={deletePage} className="px-3 py-1.5 text-sm text-muted hover:text-rose-600">Delete page</button>
         )}
       </div>

@@ -28,9 +28,11 @@ export default async function RespondToActivity({
   });
   if (!assignment) notFound();
 
-  // Already handed in? Go to their journal.
+  // Already handed in and not yet sent back? Go to their journal. A RETURNED
+  // item means the teacher asked for another go, so the child may reopen the
+  // activity and re-submit (createJournalItem updates that item in place).
   const existing = await db.journalItem.findFirst({
-    where: { assignmentId: id, studentId: user.student.id },
+    where: { assignmentId: id, studentId: user.student.id, status: { not: "RETURNED" } },
   });
   if (existing) redirect("/student");
 

@@ -132,27 +132,73 @@ export async function createJournalItem(
   }
 
   const isTeacher = authorRole === "TEACHER";
-  await db.journalItem.create({
-    data: {
-      type,
-      caption,
-      textContent,
-      mediaPath,
-      mediaPathsJson,
-      quizAnswersJson,
-      quizScore,
-      quizTotal,
-      status: isTeacher ? "APPROVED" : "PENDING",
-      approvedAt: isTeacher ? new Date() : null,
-      authorRole,
-      studentId,
-      classId,
-      assignmentId,
-      skills: skillIds.length
-        ? { connect: skillIds.map((id) => ({ id })) }
-        : undefined,
-    },
-  });
+
+  // If this is a re-do of a handed-back activity, update the existing RETURNED
+  // item in place rather than creating a second one — one item per pupil+run,
+  // so the run doesn't show as both "sent back" and "waiting". Scoped to THIS
+  // pupil, so a crafted id can't touch another child's work (SAFEGUARDING 4, 8).
+  const returned = assignmentId
+    ? await db.journalItem.findFirst({
+        where: { assignmentId, studentId, status: "RETURNED" },
+        select: { id: true, mediaPath: true, mediaPathsJson: true },
+      })
+    : null;
+
+  if (returned) {
+    await db.journalItem.update({
+      where: { id: returned.id },
+      data: {
+        type,
+        caption,
+        textContent,
+        mediaPath,
+        mediaPathsJson,
+        quizAnswersJson,
+        quizScore,
+        quizTotal,
+        status: isTeacher ? "APPROVED" : "PENDING",
+        approvedAt: isTeacher ? new Date() : null,
+        teacherNote: null, // the previous feedback has been acted on
+        authorRole,
+        skills: { set: skillIds.map((id) => ({ id })) },
+      },
+    });
+
+    // Erase the previous attempt's media (right to erasure, SAFEGUARDING rule 9).
+    // The new attempt saved to fresh paths above, so these are safe to remove.
+    const oldMedia: Array<string | null> = [returned.mediaPath];
+    if (returned.mediaPathsJson) {
+      try {
+        const paths = JSON.parse(returned.mediaPathsJson);
+        if (Array.isArray(paths)) for (const p of paths) if (typeof p === "string") oldMedia.push(p);
+      } catch {
+        // Malformed JSON — nothing to erase from it.
+      }
+    }
+    await deleteMediaFiles(oldMedia);
+  } else {
+    await db.journalItem.create({
+      data: {
+        type,
+        caption,
+        textContent,
+        mediaPath,
+        mediaPathsJson,
+        quizAnswersJson,
+        quizScore,
+        quizTotal,
+        status: isTeacher ? "APPROVED" : "PENDING",
+        approvedAt: isTeacher ? new Date() : null,
+        authorRole,
+        studentId,
+        classId,
+        assignmentId,
+        skills: skillIds.length
+          ? { connect: skillIds.map((id) => ({ id })) }
+          : undefined,
+      },
+    });
+  }
 
   if (user.role === "STUDENT") {
     revalidatePath("/student");
