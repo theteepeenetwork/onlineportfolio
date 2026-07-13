@@ -158,8 +158,18 @@ async function main() {
       },
     ],
   });
+  // A movable-object PICTURE (a photo the teacher dropped on the template as a
+  // draggable piece). Like the quiz option picture, it is teacher-authored
+  // content scoped by ownership/assignment — no other tenant, and no parent,
+  // may load it. It lives in objectsJson / objectsSnapshotJson.
+  const oakObjImg = writeSvg("seed-oak-object.svg", OAK_SVG);
+  const oakObjects = JSON.stringify([
+    [
+      { id: "o0", type: "image", src: oakObjImg, x: 100, y: 100, w: 200, h: 150, aspect: 1.33, locked: false },
+    ],
+  ]);
   const oakQuizTemplate = await db.activityTemplate.create({
-    data: { title: "Oak leaf quiz", quizJson: oakQuiz, teacherId: oakTeacher.id },
+    data: { title: "Oak leaf quiz", quizJson: oakQuiz, objectsJson: oakObjects, teacherId: oakTeacher.id },
   });
   const oakQuizRun = await db.assignment.create({
     data: {
@@ -169,6 +179,7 @@ async function main() {
       status: "LIVE",
       title: oakQuizTemplate.title,
       quizSnapshotJson: oakQuiz,
+      objectsSnapshotJson: oakObjects,
     },
   });
   // Zara's quiz answer — a PENDING response carrying her selections + score.

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createJournalItem } from "@/app/actions/journal";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
 import type { QuizPayload } from "@/lib/quiz";
+import type { CanvasObj } from "@/lib/canvasObjects";
 
 // A child responds to an activity by working on top of its template, on the
 // full-screen canvas.
@@ -15,6 +16,7 @@ export function ActivityResponseForm({
   instructions,
   template,
   quiz,
+  objects,
 }: {
   assignmentId: string;
   studentId: string;
@@ -22,6 +24,7 @@ export function ActivityResponseForm({
   instructions?: string;
   template: string[];
   quiz?: QuizPayload;
+  objects?: CanvasObj[][];
 }) {
   const [state, action] = useActionState(createJournalItem, {});
   const router = useRouter();
@@ -41,6 +44,8 @@ export function ActivityResponseForm({
         allowImport
         quizMode={quiz && quiz.questions.length ? "answer" : undefined}
         initialQuiz={quiz}
+        objectMode={objects && objects.length ? "answer" : undefined}
+        initialObjects={objects}
         draftKey={`resp:${assignmentId}:${studentId}`}
         ownerId={studentId}
         confirmSubmit

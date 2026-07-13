@@ -51,7 +51,11 @@ export type IconName =
   | "help"
   | "star"
   | "love"
-  | "done";
+  | "done"
+  | "lock-open"
+  | "lock-closed"
+  | "bring-to-front"
+  | "send-to-back";
 
 type Glyph = { label: string; glyph: ReactNode };
 
@@ -172,6 +176,22 @@ const ICONS: Record<IconName, Glyph> = {
   ) },
   "done": { label: "Done", glyph: (
     <><circle cx="12" cy="12" r="8.5" fill="#4E9C94" /> <path d="M8 12.2 L11 15 L16.5 8.5" stroke="#FFFDF7" strokeWidth="2.4" /></>
+  ) },
+  // Open padlock — the shackle is swung up and free on one side (unlocked =
+  // pupils can move this object). Closed padlock — shackle down (locked = fixed).
+  "lock-open": { label: "Unlocked", glyph: (
+    <><rect x="5.5" y="11" width="13" height="9" rx="2.2" fill="#4E9C94" /> <path d="M8.5 11 V8 a3.5 3.5 0 0 1 6.6 -1.5" fill="none" /> <circle cx="12" cy="14.6" r="1.3" fill="#FFFDF7" stroke="none" /> <line x1="12" y1="15.4" x2="12" y2="17.4" /></>
+  ) },
+  "lock-closed": { label: "Locked", glyph: (
+    <><rect x="5.5" y="11" width="13" height="9" rx="2.2" fill="#F0B441" /> <path d="M8.5 11 V8 a3.5 3.5 0 0 1 7 0 V11" fill="none" /> <circle cx="12" cy="14.6" r="1.3" fill="#FFFDF7" stroke="none" /> <line x1="12" y1="15.4" x2="12" y2="17.4" /></>
+  ) },
+  // Two overlapping cards: the accent one is the selected object. Bring-to-front
+  // draws it on TOP; send-to-back draws it BEHIND the plain card.
+  "bring-to-front": { label: "Bring to front", glyph: (
+    <><rect x="4.5" y="4.5" width="11" height="11" rx="2" fill="#FFFDF7" /> <rect x="9" y="9" width="11" height="11" rx="2" fill="#4E9C94" /></>
+  ) },
+  "send-to-back": { label: "Send to back", glyph: (
+    <><rect x="9" y="9" width="11" height="11" rx="2" fill="#F0B441" /> <rect x="4.5" y="4.5" width="11" height="11" rx="2" fill="#FFFDF7" /></>
   ) },
 };
 

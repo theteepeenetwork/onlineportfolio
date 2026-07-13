@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "./icons/Icon";
 import {
   MIN_OPTIONS,
@@ -20,6 +20,7 @@ import {
   type DraftSurface,
 } from "@/lib/draftStore";
 import { serverSaveDraft, serverLoadDraft, serverDiscardDraft } from "@/lib/draftSync";
+import type { CanvasObj } from "@/lib/canvasObjects";
 
 // Deep-clone the questions we get from props so our editing never mutates the
 // caller's object. Quiz questions live in their own layer (quizRef) and are
@@ -55,6 +56,18 @@ const SHELF: { key: Tool; label: string }[] = [
   { key: "eraser", label: "Eraser" },
 ];
 
+// Each drawing tool keeps its OWN colour for the session — switching tools
+// restores that tool's last colour instead of forcing whatever the picker last
+// showed. These are the on-load defaults (black Pen, blue Felt tip, …).
+const DEFAULT_TOOL_COLORS: Record<Tool, string> = {
+  cursor: "#1f2430", // unused (move tool)
+  pencil: "#1f2430", // Pen — black
+  pen: "#3b82f6", // Felt tip — blue
+  highlighter: "#f59e0b", // amber highlight
+  eraser: "#1f2430", // unused (erases)
+  text: "#1f2430", // black
+};
+
 const W = 1000;
 const H = 700;
 const FONT_STACK = "ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -62,7 +75,14 @@ const MAX_HISTORY = 30;
 
 // Movable / resizable things placed on top of the drawing: imported pictures
 // (images / PDF pages) and shapes.
-type ImageObj = {
+// Placed-object lock state. `locked` is the teacher's decision (a child cannot
+// move a locked object); `fromTemplate` marks objects hydrated from a template
+// so the child's canvas knows which lock rules apply. See src/lib/canvasObjects.
+type ObjLock = {
+  locked?: boolean;
+  fromTemplate?: boolean;
+};
+type ImageObj = ObjLock & {
   id: string;
   type: "image";
   src: string;
@@ -73,7 +93,7 @@ type ImageObj = {
   aspect: number;
 };
 type ShapeKind = "rect" | "ellipse" | "triangle" | "star" | "speech";
-type ShapeObj = {
+type ShapeObj = ObjLock & {
   id: string;
   type: "shape";
   shape: ShapeKind;
@@ -151,7 +171,7 @@ function fitTextToBox(
 }
 // A text box is also a placed object, so it can be re-selected, moved, resized
 // and re-edited after it's created.
-type TextObj = {
+type TextObj = ObjLock & {
   id: string;
   type: "text";
   text: string;
@@ -237,6 +257,25 @@ function hslToHex(h: number, s: number, l: number) {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
+// Where a colour sits on the vertical hue bar (0..1), so the handle tracks the
+// current colour. Greys / black fall back to the top.
+function hexToHueFrac(hex: string): number {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return 0;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d === 0) return 0;
+  let h: number;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return ((h * 60 + 360) % 360) / 360;
+}
+
 export function DrawingCanvas({
   name,
   background,
@@ -249,6 +288,8 @@ export function DrawingCanvas({
   onDone,
   quizMode,
   initialQuiz,
+  objectMode,
+  initialObjects,
   draftKey,
   ownerId,
   getExtraDraftFields,
@@ -263,7 +304,7 @@ export function DrawingCanvas({
   subtitle?: string;
   withCaption?: boolean;
   onClose?: () => void;
-  onDone?: (pages: string[], quiz?: QuizPayload) => void;
+  onDone?: (pages: string[], quiz?: QuizPayload, objects?: CanvasObj[][]) => void;
   // When set (and this canvas submits a form rather than calling onDone), the ✓
   // opens a "ready to hand in?" confirmation first — so a child can't submit an
   // activity with a single tap before working through all the pages.
@@ -273,6 +314,18 @@ export function DrawingCanvas({
   // undefined = no quiz (existing callers unaffected).
   quizMode?: "author" | "answer";
   initialQuiz?: QuizPayload;
+  // The movable-objects layer (pictures / shapes / text with a `locked` flag).
+  //  - "author" = teacher building the template: every object is fully editable
+  //    and shows a padlock; objects are NOT flattened into the saved pages.
+  //  - "answer" = child (or a preview): locked objects are fixed, unlocked
+  //    template objects can be dragged (move only), and everything is flattened
+  //    into the child's submitted PNG.
+  //  - undefined = a plain drawing canvas: the child's own objects, fully
+  //    editable and flattened (existing callers unaffected).
+  objectMode?: "author" | "answer";
+  // Template objects to hydrate into the canvas (per page), for "answer" mode
+  // (child / preview) and for re-editing a template in "author" mode.
+  initialObjects?: CanvasObj[][];
   // Local-first autosave. Drafting is entirely gated on `draftKey` + `ownerId`
   // (undefined = no drafting, existing callers unaffected). The wrapper's
   // uncontrolled fields (title/tags/…) ride along via get/onRestore.
@@ -296,6 +349,11 @@ export function DrawingCanvas({
   const templateImgRef = useRef<Map<string, HTMLImageElement>>(new Map()); // keyed by URL
   const objectsRef = useRef<Obj[][]>([]);
   const compositeRef = useRef<string[]>([]);
+  // Like compositeRef but ALWAYS object-inclusive — the source for the Pages-
+  // panel thumbnails, so a teacher sees their objects even though the saved
+  // pages (compositeRef) stay object-free. In answer mode it just mirrors
+  // compositeRef (objects are already baked there).
+  const previewRef = useRef<string[]>([]);
   const imgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const objIdRef = useRef(0);
   const currentRef = useRef(0);
@@ -326,9 +384,15 @@ export function DrawingCanvas({
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
-  // Default to Pen (the thin nib), per the design.
-  const [tool, setTool] = useState<Tool>("pencil");
-  const [color, setColor] = useState(SWATCHES[0]);
+  // A template (teacher building it, or a child working on it) opens on the
+  // finger / Select tool, so objects can be picked up and moved straight away.
+  // A plain free-draw still opens ready to draw with the Pen.
+  const [tool, setTool] = useState<Tool>(objectMode ? "cursor" : "pencil");
+  // Per-tool colour, kept for the whole session. `color` is the active tool's
+  // colour; changing it only affects the tool you're currently holding.
+  const [toolColors, setToolColors] = useState<Record<Tool, string>>(DEFAULT_TOOL_COLORS);
+  const color = toolColors[tool];
+  const setColor = (c: string) => setToolColors((prev) => ({ ...prev, [tool]: c }));
   const [size, setSize] = useState(SIZES[1]);
   const toolRef = useRef(tool);
   const colorRef = useRef(color);
@@ -357,6 +421,16 @@ export function DrawingCanvas({
   // (not per-page) so the quiz toolbox stays put as the teacher changes pages.
   const isQuizAuthor = quizMode === "author";
   const isQuizAnswer = quizMode === "answer";
+
+  // Movable-objects mode. In "author" (teacher building a template) every object
+  // is editable and shows a padlock, and objects are kept as a structured layer
+  // (NOT flattened into the saved pages) so they stay re-editable and a child
+  // can move the unlocked ones. Everywhere else objects are flattened into the
+  // page PNG (the child's submitted work must show them).
+  const isObjectAuthor = objectMode === "author";
+  const bakeObjects = !isObjectAuthor;
+  const bakeObjectsRef = useRef(bakeObjects);
+  bakeObjectsRef.current = bakeObjects;
   const quizRef = useRef<QuizQuestion[]>(cloneQuestions(initialQuiz?.questions ?? []));
   const quizSeqRef = useRef<number>(initialQuiz?.questions?.length ?? 0);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(quizRef.current);
@@ -378,7 +452,8 @@ export function DrawingCanvas({
   const [shapesOpen, setShapesOpen] = useState(false);
   const [stripOpen, setStripOpen] = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [hueFrac, setHueFrac] = useState(0.62);
+  // The hue-bar handle just tracks the current tool's colour.
+  const hueFrac = hexToHueFrac(color);
   const [box, setBox] = useState({ w: 700, h: 490 });
 
   // Which text object (if any) is currently open for typing.
@@ -418,11 +493,14 @@ export function DrawingCanvas({
     setCanRedo((redoRef.current[currentRef.current]?.length ?? 0) > 0);
   }
   function refreshThumbs() {
-    setThumbs([...compositeRef.current]);
+    setThumbs([...previewRef.current]);
   }
 
   // Flatten all layers (white → template → objects → strokes) into one PNG.
-  function compositeCurrentPage(): string {
+  // Flatten the current page. `includeObjects` overrides the mode default: the
+  // object-free composite feeds the saved pages (author), while the Pages-panel
+  // thumbnails force objects on for a true-to-life preview.
+  function compositeCurrentPage(includeObjects?: boolean): string {
     const canvas = canvasRef.current;
     if (!canvas) return "";
     const exp = document.createElement("canvas");
@@ -435,7 +513,12 @@ export function DrawingCanvas({
     const tmplUrl = templatesRef.current[currentRef.current];
     const tmpl = tmplUrl ? templateImgRef.current.get(tmplUrl) : undefined;
     if (tmpl && tmpl.complete && tmpl.naturalWidth) ec.drawImage(tmpl, 0, 0, W, H);
-    const objs = objectsRef.current[currentRef.current] ?? [];
+    // While a teacher authors a template, objects are a separate structured
+    // layer (stored, re-editable, movable by the child) and are NOT flattened
+    // into the page PNG. Everywhere else they are baked in.
+    const objs = (includeObjects ?? bakeObjectsRef.current)
+      ? objectsRef.current[currentRef.current] ?? []
+      : [];
     for (const o of objs) {
       if (o.type === "image") {
         const img = imgCacheRef.current.get(o.id);
@@ -490,6 +573,9 @@ export function DrawingCanvas({
     if (canvas) {
       pagesRef.current[currentRef.current] = canvas.toDataURL("image/png");
       compositeRef.current[currentRef.current] = compositeCurrentPage();
+      previewRef.current[currentRef.current] = bakeObjectsRef.current
+        ? compositeRef.current[currentRef.current]
+        : compositeCurrentPage(true);
     }
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
@@ -644,6 +730,7 @@ export function DrawingCanvas({
     // Recompute each page's composite by painting its stroke layer onto the live
     // canvas and reusing compositeCurrentPage() verbatim.
     compositeRef.current = [];
+    previewRef.current = [];
     for (let i = 0; i < pagesRef.current.length; i++) {
       currentRef.current = i;
       if (c) {
@@ -652,6 +739,9 @@ export function DrawingCanvas({
         if (si) c.drawImage(si, 0, 0, W, H);
       }
       compositeRef.current[i] = compositeCurrentPage();
+      previewRef.current[i] = bakeObjectsRef.current
+        ? compositeRef.current[i]
+        : compositeCurrentPage(true);
     }
 
     // Land on the saved page.
@@ -666,7 +756,7 @@ export function DrawingCanvas({
     setPageCount(pagesRef.current.length);
     setCurrent(currentRef.current);
     setObjects(objectsRef.current[currentRef.current] ?? []);
-    setThumbs([...compositeRef.current]);
+    setThumbs([...previewRef.current]);
     refreshUndoRedo();
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
@@ -720,29 +810,63 @@ export function DrawingCanvas({
         pagesRef.current = [blankStroke];
       }
       currentRef.current = 0;
-      objectsRef.current = pagesRef.current.map(() => []);
+
+      // Hydrate the template's movable objects (per page). In "answer" mode they
+      // are marked fromTemplate so a child's lock rules apply; a plain drawing
+      // canvas (no initialObjects) starts empty.
+      const seededObjects: Obj[][] = pagesRef.current.map((_, i) => {
+        const page = initialObjects?.[i];
+        if (!Array.isArray(page)) return [];
+        return page.map((o) => ({ ...(o as Obj), fromTemplate: !isObjectAuthor }));
+      });
+      objectsRef.current = seededObjects;
+
+      // Never collide a freshly-added object id with a hydrated one.
+      let maxSeedId = objIdRef.current - 1;
+      for (const pg of seededObjects) {
+        for (const o of pg) {
+          const m = /^o(\d+)$/.exec(o.id);
+          if (m) maxSeedId = Math.max(maxSeedId, Number(m[1]));
+        }
+      }
+      objIdRef.current = maxSeedId + 1;
+      if (seededObjects.some((p) => p.length)) anyDrawnRef.current = true;
+
+      // Preload image objects so they composite synchronously.
+      await Promise.all(
+        seededObjects.flat().map(async (o) => {
+          if (o.type !== "image" || imgCacheRef.current.has(o.id)) return;
+          try {
+            imgCacheRef.current.set(o.id, await loadImage(o.src));
+          } catch {
+            /* image will simply not render */
+          }
+        }),
+      );
+
       setPageCount(pagesRef.current.length);
 
-      // Initial composite of each page is just white + its template.
-      compositeRef.current = pagesRef.current.map((_, i) => {
-        const exp = document.createElement("canvas");
-        exp.width = W;
-        exp.height = H;
-        const ec = exp.getContext("2d")!;
-        ec.fillStyle = "#ffffff";
-        ec.fillRect(0, 0, W, H);
-        const url = templatesRef.current[i];
-        const t = url ? templateImgRef.current.get(url) : undefined;
-        if (t && t.complete && t.naturalWidth) ec.drawImage(t, 0, 0, W, H);
-        return exp.toDataURL("image/png");
-      });
+      // Initial composite per page: white + template, plus the objects flattened
+      // in (except while authoring — there objects stay a separate layer).
+      // Reuse compositeCurrentPage so the flatten path never drifts.
+      clearCanvas(); // strokes start blank; compositeCurrentPage reads the live canvas
+      compositeRef.current = [];
+      previewRef.current = [];
+      for (let i = 0; i < pagesRef.current.length; i++) {
+        currentRef.current = i;
+        compositeRef.current[i] = compositeCurrentPage();
+        previewRef.current[i] = bakeObjectsRef.current
+          ? compositeRef.current[i]
+          : compositeCurrentPage(true);
+      }
+      currentRef.current = 0;
 
       clearCanvas(); // page 0's stroke layer starts blank
-      setObjects([]);
+      setObjects(objectsRef.current[0] ?? []);
       if (hiddenRef.current) {
         hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
       }
-      setThumbs([...compositeRef.current]);
+      setThumbs([...previewRef.current]);
       setReady(true);
     })();
 
@@ -1065,6 +1189,7 @@ export function DrawingCanvas({
     const index = pagesRef.current.length - 1;
     currentRef.current = index;
     compositeRef.current[index] = compositeCurrentPage(); // white
+    previewRef.current[index] = compositeRef.current[index]; // fresh page has no objects
     setPageCount(pagesRef.current.length);
     setCurrent(index);
     setSelectedId(null);
@@ -1080,6 +1205,7 @@ export function DrawingCanvas({
     templatesRef.current.splice(currentRef.current, 1);
     objectsRef.current.splice(currentRef.current, 1);
     compositeRef.current.splice(currentRef.current, 1);
+    previewRef.current.splice(currentRef.current, 1);
     // Page indices shift, so drop the (now-misaligned) history.
     undoRef.current = {};
     redoRef.current = {};
@@ -1167,13 +1293,6 @@ export function DrawingCanvas({
     refreshThumbs();
   }
 
-  // Update the style of the selected shape (fill / line colour / width).
-  function styleSelectedShape(patch: Partial<ShapeObj>) {
-    if (!selectedId) return;
-    updateObject(selectedId, patch);
-    commitObjectChange();
-  }
-
   function updateObject(id: string, patch: Partial<Obj>) {
     const list = (objectsRef.current[currentRef.current] ?? []).map((o) =>
       o.id === id ? ({ ...o, ...patch } as Obj) : o,
@@ -1193,6 +1312,36 @@ export function DrawingCanvas({
   }
 
   function commitObjectChange() {
+    syncHidden();
+    refreshThumbs();
+  }
+
+  // Teacher toggles an object's padlock: locked objects can't be moved by a
+  // child; unlocked ones can. Only meaningful while authoring a template.
+  function toggleLock(id: string) {
+    pushHistory();
+    const list = (objectsRef.current[currentRef.current] ?? []).map((o) =>
+      o.id === id ? ({ ...o, locked: !o.locked } as Obj) : o,
+    );
+    objectsRef.current[currentRef.current] = list;
+    setObjects(list);
+    syncHidden();
+    refreshThumbs();
+  }
+
+  // Z-order: objects paint in array order (later = on top), for both the live
+  // layer and the flattened composite. Move an object to the end (front) or the
+  // start (back) of its page's list.
+  function reorderObject(id: string, to: "front" | "back") {
+    const list = objectsRef.current[currentRef.current] ?? [];
+    const idx = list.findIndex((o) => o.id === id);
+    if (idx < 0) return;
+    pushHistory();
+    const moved = list[idx];
+    const rest = [...list.slice(0, idx), ...list.slice(idx + 1)];
+    const next = to === "front" ? [...rest, moved] : [moved, ...rest];
+    objectsRef.current[currentRef.current] = next;
+    setObjects(next);
     syncHidden();
     refreshThumbs();
   }
@@ -1266,6 +1415,18 @@ export function DrawingCanvas({
   function currentPages(): string[] {
     finishEditing();
     return anyDrawnRef.current ? [...compositeRef.current] : [];
+  }
+
+  // The movable-objects layer to hand back to the teacher's builder (per page).
+  // `fromTemplate` is a runtime-only marker, never persisted.
+  function currentObjectsPayload(): CanvasObj[][] {
+    return objectsRef.current.map((pg) =>
+      pg.map((o) => {
+        const { fromTemplate: _fromTemplate, ...rest } = o;
+        void _fromTemplate;
+        return rest as CanvasObj;
+      }),
+    );
   }
 
   // ---- Quiz operations ------------------------------------------------------
@@ -1391,14 +1552,10 @@ export function DrawingCanvas({
   function pickHue(e: React.PointerEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     const frac = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-    setHueFrac(frac);
     setColor(hslToHex(frac * 360, 85, 52));
   }
 
   const scale = displayW / W;
-  const selectedShape = objects.find(
-    (o): o is ShapeObj => o.id === selectedId && o.type === "shape",
-  );
 
   // Objects are only draggable/selectable with the cursor tool (or while a text
   // box is being edited). Otherwise the stroke canvas sits on top so you can
@@ -1429,6 +1586,7 @@ export function DrawingCanvas({
       objects={objects}
       scale={scale}
       interactive={objectsInteractive}
+      author={isObjectAuthor}
       selectedId={selectedId}
       editingId={editingId}
       onSelect={setSelectedId}
@@ -1436,6 +1594,9 @@ export function DrawingCanvas({
       onChange={updateObject}
       onEnd={commitObjectChange}
       onDelete={deleteObject}
+      onToggleLock={toggleLock}
+      onBringToFront={(id) => reorderObject(id, "front")}
+      onSendToBack={(id) => reorderObject(id, "back")}
       onEditText={editTextObject}
       onTextChange={updateText}
       onFinishEditing={finishEditing}
@@ -1568,7 +1729,14 @@ export function DrawingCanvas({
               type={onDone || confirmSubmit ? "button" : "submit"}
               onClick={
                 onDone
-                  ? () => onDone(currentPages(), isQuizAuthor ? { questions: quizRef.current } : undefined)
+                  ? () => {
+                      const pages = currentPages();
+                      onDone(
+                        pages,
+                        isQuizAuthor ? { questions: quizRef.current } : undefined,
+                        isObjectAuthor ? currentObjectsPayload() : undefined,
+                      );
+                    }
                   : confirmSubmit
                     ? () => { finishEditing(); setConfirmingSubmit(true); }
                     : undefined
@@ -1581,25 +1749,13 @@ export function DrawingCanvas({
           </div>
 
           <div className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setTool("cursor")}
-              title="Select — move & resize things"
-              aria-label="Select"
-              className={`flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 ${
-                tool === "cursor" ? "bg-brand text-white" : "bg-white text-foreground ring-1 ring-black/5"
-              }`}
-            >
-              <Icon name="point" size={26} decorative />
-            </button>
-
             {fanOpen && (
               <div className="flex flex-col gap-2">
-                <FanBtn label="Photo / PDF" onClick={() => fileRef.current?.click()}>🖼️</FanBtn>
-                <FanBtn label="Text" onClick={() => { setFanOpen(false); setTool("text"); }}>🔤</FanBtn>
-                <FanBtn label="Shapes" onClick={() => { setShapesOpen((v) => !v); }}>⬟</FanBtn>
+                <FanBtn label="Photo / PDF" onClick={() => fileRef.current?.click()}><Icon name="add-picture" size={26} decorative /></FanBtn>
+                <FanBtn label="Text" onClick={() => { setFanOpen(false); setTool("text"); }}><Icon name="text" size={26} decorative /></FanBtn>
+                <FanBtn label="Shapes" onClick={() => { setShapesOpen((v) => !v); }}><Icon name="shapes" size={26} decorative /></FanBtn>
                 {isQuizAuthor && (
-                  <FanBtn label="Quiz" onClick={() => { setFanOpen(false); setShapesOpen(false); setTool("cursor"); setQuizPanelOpen(true); }}>❓</FanBtn>
+                  <FanBtn label="Quiz" onClick={() => { setFanOpen(false); setShapesOpen(false); setTool("cursor"); setQuizPanelOpen(true); }}><Icon name="help" size={26} decorative /></FanBtn>
                 )}
               </div>
             )}
@@ -1616,14 +1772,6 @@ export function DrawingCanvas({
 
           {shapesOpen && (
             <div className="absolute left-20 top-1/2 -translate-y-1/2">{shapesPalette}</div>
-          )}
-
-          {selectedShape && (
-            <ShapeStyleBar
-              shape={selectedShape}
-              onChange={styleSelectedShape}
-              className="absolute left-1/2 top-16 z-20 -translate-x-1/2"
-            />
           )}
 
           {isQuizAuthor && quizPanelOpen && (
@@ -1711,6 +1859,17 @@ export function DrawingCanvas({
           </div>
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => { finishEditing(); setTool("cursor"); }}
+              className={`pointer-events-auto mb-3 mr-2 flex h-12 w-12 items-center justify-center rounded-2xl border-2 shadow ${
+                tool === "cursor" ? "border-brand bg-brand/10 text-brand" : "border-border bg-white text-muted"
+              }`}
+              title="Select — move & resize things"
+              aria-label="Select"
+            >
+              <Icon name="point" size={22} decorative />
+            </button>
             {SHELF.map((t) => {
               const selected = tool === t.key;
               return (
@@ -1722,7 +1881,7 @@ export function DrawingCanvas({
                   style={{ transform: `translateY(${selected ? 34 : 68}px)` }}
                   title={t.label}
                 >
-                  <ToolShape kind={t.key} color={color} />
+                  <ToolShape kind={t.key} color={toolColors[t.key]} />
                 </button>
               );
             })}
@@ -1843,7 +2002,6 @@ export function DrawingCanvas({
       </div>
 
       {shapesOpen && <div className="mb-2">{shapesPalette}</div>}
-      {selectedShape && <ShapeStyleBar shape={selectedShape} onChange={styleSelectedShape} className="mb-2" />}
 
       <div className="mb-2 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5">
@@ -1965,54 +2123,60 @@ function FanBtn({
   );
 }
 
-// A drawn tool that reads as its real type — a slim Pen, a fatter Felt tip, a
-// chisel Highlighter, or a block Eraser — with a sample stroke at the tip that
-// shows the tool's true weight and opacity (thin / thick / wide-translucent /
-// rubbing-out). The four must never look near-identical: nib shape AND the
-// sample stroke distinguish them.
+// The picker-cup tools, drawn tip-up on the design system's 36×88 keyline. Each
+// pen shows ITS OWN stored colour on the whole body + nib — always, whether or
+// not it's the one in use — so you can see at a glance that (say) the Pen is
+// still yellow while you're drawing with the Felt tip. Tools stay distinct by
+// nib shape and tray position. The Eraser is colourless (it rubs out).
 function ToolShape({ kind, color }: { kind: Tool; color: string }) {
-  const ink = "#22304A";
+  const svg = {
+    width: 58,
+    height: 142,
+    viewBox: "0 0 36 88",
+    fill: "none" as const,
+    stroke: "#22304A",
+    strokeWidth: 2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
   if (kind === "eraser") {
     return (
-      <svg width="52" height="150" viewBox="0 0 52 150" aria-hidden>
-        {/* dashed "rubbing out" sample */}
-        <line x1="8" y1="9" x2="44" y2="9" stroke="#B9A98C" strokeWidth="4" strokeLinecap="round" strokeDasharray="3 6" />
-        {/* pink block eraser with a blue ferrule */}
-        <rect x="10" y="18" width="32" height="30" rx="6" fill="#E08A9B" stroke={ink} strokeWidth="3" />
-        <rect x="10" y="46" width="32" height="14" rx="4" fill="#8AB9D6" stroke={ink} strokeWidth="3" />
-        <rect x="10" y="60" width="32" height="86" rx="8" fill="#FFFDF7" stroke={ink} strokeWidth="3" />
+      <svg {...svg}>
+        <path d="M11 32 Q11 24 18 24 Q25 24 25 32 L25 79 Q25 83 18 83 Q11 83 11 79 Z" fill="#8AB9D6" />
+        <path d="M11 42 L25 34 L25 32 Q25 24 18 24 Q11 24 11 32 Z" fill="#E08A9B" />
+        <rect x="9.5" y="52" width="17" height="12" rx="2" fill="#F3E3C3" />
       </svg>
     );
   }
   if (kind === "highlighter") {
     return (
-      <svg width="52" height="150" viewBox="0 0 52 150" aria-hidden>
-        {/* wide, 75%-opacity sample stroke */}
-        <line x1="6" y1="10" x2="46" y2="10" stroke="#F0B441" strokeOpacity="0.75" strokeWidth="16" strokeLinecap="round" />
-        {/* honey chisel marker */}
-        <polygon points="16,20 36,20 32,34 20,34" fill="#F0B441" stroke={ink} strokeWidth="3" strokeLinejoin="round" />
-        <rect x="14" y="34" width="24" height="14" rx="3" fill="#FBEED3" stroke={ink} strokeWidth="3" />
-        <rect x="12" y="48" width="28" height="98" rx="9" fill="#F0B441" stroke={ink} strokeWidth="3" />
-        <rect x="16" y="48" width="7" height="98" rx="4" fill="rgba(255,255,255,.4)" />
+      <svg {...svg}>
+        <path d="M9 38 L27 38 L27 79 Q27 83 18 83 Q9 83 9 79 Z" fill={color} />
+        <path d="M11 38 L11 30 Q11 28 13 27.5 L23 27.5 Q25 28 25 30 L25 38 Z" fill={color} />
+        <path d="M12 27.5 L24 27.5 L24 23 L12 23 Z" fill="#FFFDF7" />
+        <path d="M12 23 L24 23 L21.5 9 L13.5 12 Z" fill={color} />
       </svg>
     );
   }
-  const felt = kind === "pen"; // "pen" key → Felt tip; "pencil" key → Pen
-  const barrel = felt ? "#C2476B" : "#37796f";
+  if (kind === "pen") {
+    // Felt tip — bold marker.
+    return (
+      <svg {...svg}>
+        <path d="M11 36 L25 36 L25 79 Q25 83 18 83 Q11 83 11 79 Z" fill={color} />
+        <path d="M11 36 L11 30 Q11 27.5 13 27 L23 27 Q25 27.5 25 30 L25 36 Z" fill="#FFFDF7" />
+        <path d="M13.6 27 L14.6 16 Q14.6 12 18 12 Q21.4 12 21.4 16 L22.4 27 Z" fill={color} />
+      </svg>
+    );
+  }
+  // Pen — fine liner.
   return (
-    <svg width="52" height="150" viewBox="0 0 52 150" aria-hidden>
-      {/* sample stroke: thin for Pen, thick for Felt tip */}
-      <line x1="8" y1="9" x2="44" y2="9" stroke={color} strokeWidth={felt ? 8 : 3} strokeLinecap="round" />
-      {felt ? (
-        // chisel felt tip
-        <polygon points="19,16 33,16 30,30 22,30" fill={ink} stroke={ink} strokeWidth="2" strokeLinejoin="round" />
-      ) : (
-        // fine ink tip
-        <polygon points="26,14 30,30 22,30" fill={ink} />
-      )}
-      <rect x={felt ? 13 : 15} y="30" width={felt ? 26 : 22} height="8" rx="3" fill="rgba(0,0,0,.15)" />
-      <rect x={felt ? 13 : 15} y="38" width={felt ? 26 : 22} height="108" rx="10" fill={barrel} stroke={ink} strokeWidth="3" />
-      <rect x={felt ? 17 : 18} y="42" width="7" height="100" rx="4" fill="rgba(255,255,255,.35)" />
+    <svg {...svg}>
+      <path d="M12 33 L24 33 L24 79 Q24 83 18 83 Q12 83 12 79 Z" fill={color} />
+      <path d="M13 33 L18 11 L23 33 Z" fill="#FFFDF7" />
+      <path d="M16.1 18 L18 9 L19.9 18 Z" fill={color} />
+      <path d="M24 37 Q27.5 37 27.5 42 L27.5 55 Q27.5 57.5 25 57" />
+      <line x1="12" y1="41" x2="24" y2="41" />
     </svg>
   );
 }
@@ -2020,15 +2184,187 @@ function ToolShape({ kind, color }: { kind: Tool; color: string }) {
 type ObjHandlers = {
   scale: number;
   interactive: boolean;
+  // Teacher authoring a template: every object is fully editable and shows a
+  // padlock. When false (a child / preview) the object's own lock rules apply.
+  author: boolean;
   onSelect: (id: string) => void;
   onStart: () => void;
   onChange: (id: string, patch: Partial<Obj>) => void;
   onEnd: () => void;
   onDelete: (id: string) => void;
+  onToggleLock: (id: string) => void;
+  onBringToFront: (id: string) => void;
+  onSendToBack: (id: string) => void;
   onEditText: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
   onFinishEditing: () => void;
 };
+
+// Per-object interaction rules, derived from the mode + the object's lock state.
+//  - author         → fully editable (move/resize/delete/label) + a padlock.
+//  - child, template + locked   → fixed: not interactive at all.
+//  - child, template + unlocked → move only (can't resize/delete the teacher's
+//    pieces — e.g. the numbers being sorted).
+//  - child, own object          → fully editable (their import), no padlock.
+function objCapabilities(o: Obj, author: boolean) {
+  if (author) return { movable: true, editable: true, showLock: true, fixed: false };
+  const fromTemplate = !!o.fromTemplate;
+  if (fromTemplate && o.locked) {
+    return { movable: false, editable: false, showLock: false, fixed: true };
+  }
+  if (fromTemplate) return { movable: true, editable: false, showLock: false, fixed: false };
+  return { movable: true, editable: true, showLock: false, fixed: false };
+}
+
+// The floating toolbar that hovers just above (and centred over) a selected
+// object. It carries the order controls + padlock (author only) and, for a
+// shape, the fill / line controls. Its icons are deliberately large and
+// touch-friendly (roughly double the old inline toolbar).
+function ObjectToolbar({
+  o,
+  showAuthor,
+  showStyle,
+  below,
+  onToggleLock,
+  onBringToFront,
+  onSendToBack,
+  onStyle,
+}: {
+  o: Obj;
+  showAuthor: boolean; // teacher: show order + padlock
+  showStyle: boolean; // shape: show fill / line
+  below: boolean; // drop under the object (when there's no room above it)
+  onToggleLock: (id: string) => void;
+  onBringToFront: (id: string) => void;
+  onSendToBack: (id: string) => void;
+  onStyle: (patch: Partial<ShapeObj>) => void;
+}) {
+  const shape = o.type === "shape" ? (o as ShapeObj) : null;
+  const btn =
+    "pointer-events-auto flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background hover:bg-surface";
+
+  // Keep the toolbar within the canvas horizontally. It's centred over the
+  // object (`left-1/2` + a -50% translate); when that would push it past the
+  // left/right edge of the canvas box, nudge it back in. Measured off the
+  // object wrapper (its natural centre) and the clipping stage box, so it works
+  // for any object width and re-clamps as the object is dragged.
+  const ref = useRef<HTMLDivElement>(null);
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const wrap = el?.parentElement;
+    const stage = el?.closest(".overflow-hidden") as HTMLElement | null;
+    if (!el || !wrap || !stage) return;
+    const w = wrap.getBoundingClientRect();
+    const s = stage.getBoundingClientRect();
+    const tw = el.offsetWidth;
+    const margin = 8;
+    const naturalCentre = w.left + w.width / 2 - s.left; // canvas-space px
+    const half = tw / 2;
+    const lo = margin + half;
+    const hi = s.width - margin - half;
+    const clamped = lo > hi ? s.width / 2 : Math.min(hi, Math.max(lo, naturalCentre));
+    const next = clamped - naturalCentre;
+    setShift((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+  });
+
+  return (
+    <div
+      ref={ref}
+      onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      style={{ transform: `translateX(calc(-50% + ${shift}px))` }}
+      className={`pointer-events-auto absolute left-1/2 z-30 flex items-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg ${
+        below ? "top-full mt-3" : "bottom-full mb-3"
+      }`}
+    >
+      {showAuthor && (
+        <>
+          <button type="button" onClick={() => onSendToBack(o.id)} className={btn} title="Send behind other objects" aria-label="Send to back">
+            <Icon name="send-to-back" size={30} decorative />
+          </button>
+          <button type="button" onClick={() => onBringToFront(o.id)} className={btn} title="Bring in front of other objects" aria-label="Bring to front">
+            <Icon name="bring-to-front" size={30} decorative />
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggleLock(o.id)}
+            className={btn}
+            aria-pressed={!!o.locked}
+            aria-label={o.locked ? "Locked for pupils" : "Unlocked for pupils"}
+            title={
+              o.locked
+                ? "Locked — pupils can't move this. Tap to unlock."
+                : "Unlocked — pupils can move this. Tap to lock."
+            }
+          >
+            <Icon name={o.locked ? "lock-closed" : "lock-open"} size={30} decorative />
+          </button>
+        </>
+      )}
+
+      {showAuthor && showStyle && <span className="mx-0.5 h-9 w-px bg-border" />}
+
+      {showStyle && shape && (
+        <>
+          <span className="inline-flex items-center font-semibold text-muted"><Icon name="fill" size={28} decorative /></span>
+          <label className="relative block h-11 w-11 overflow-hidden rounded-full border-2 border-border">
+            <input
+              type="color"
+              value={shape.fill === "none" ? "#93c5fd" : shape.fill}
+              onChange={(e) => onStyle({ fill: e.target.value })}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              aria-label="Fill colour"
+            />
+            <span
+              className="block h-full w-full"
+              style={{
+                background:
+                  shape.fill === "none"
+                    ? "repeating-linear-gradient(45deg,#eee,#eee 4px,#fff 4px,#fff 8px)"
+                    : shape.fill,
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => onStyle({ fill: shape.fill === "none" ? "#93c5fd" : "none" })}
+            className="pointer-events-auto rounded-lg border border-border px-2 py-1 text-sm font-semibold text-muted"
+          >
+            {shape.fill === "none" ? "Add fill" : "No fill"}
+          </button>
+
+          <span className="ml-1 inline-flex items-center font-semibold text-muted"><Icon name="line" size={28} decorative /></span>
+          <label className="relative block h-11 w-11 overflow-hidden rounded-full border-2 border-border">
+            <input
+              type="color"
+              value={shape.stroke}
+              onChange={(e) => onStyle({ stroke: e.target.value })}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              aria-label="Line colour"
+            />
+            <span className="block h-full w-full" style={{ background: shape.stroke }} />
+          </label>
+          <div className="flex gap-1.5">
+            {[3, 6, 12].map((sw) => (
+              <button
+                key={sw}
+                type="button"
+                onClick={() => onStyle({ strokeWidth: sw })}
+                className={`pointer-events-auto flex h-11 w-11 items-center justify-center rounded-lg border ${
+                  shape.strokeWidth === sw ? "border-brand bg-brand/10" : "border-border"
+                }`}
+                aria-label={`Line width ${sw}`}
+              >
+                <span className="rounded-full bg-foreground" style={{ width: (sw + 2) * 1.6, height: (sw + 2) * 1.6 }} />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // The layer of movable / resizable objects (pictures, shapes, text boxes).
 function ObjectLayer({
@@ -2074,6 +2410,7 @@ function MediaObjectView({
   o,
   scale,
   interactive,
+  author,
   selected,
   editing,
   onSelect,
@@ -2081,10 +2418,21 @@ function MediaObjectView({
   onChange,
   onEnd,
   onDelete,
+  onToggleLock,
+  onBringToFront,
+  onSendToBack,
   onEditText,
   onTextChange,
   onFinishEditing,
 }: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean; editing: boolean }) {
+  const cap = objCapabilities(o, author);
+  const canGrab = interactive && cap.movable;
+  // The floating toolbar shows when a shape is restyleable (author OR the
+  // child's own shape) or whenever the teacher has an object selected.
+  const showStyle = o.type === "shape" && cap.editable;
+  const showToolbar = selected && !editing && (author || showStyle);
+  // Drop the toolbar under the object when it would clip off the top edge.
+  const toolbarBelow = o.y * scale < 92;
   const drag = useRef<
     | { mode: "move"; ax: number; ay: number }
     | { mode: "resize"; ax: number; ay: number; sw: number; sh: number }
@@ -2099,6 +2447,7 @@ function MediaObjectView({
     }
   }
   function startMove(e: React.PointerEvent) {
+    if (!cap.movable) return;
     e.stopPropagation();
     e.preventDefault();
     onSelect(o.id);
@@ -2107,6 +2456,7 @@ function MediaObjectView({
     capture(e);
   }
   function startResize(e: React.PointerEvent) {
+    if (!cap.editable) return;
     e.stopPropagation();
     e.preventDefault();
     onSelect(o.id);
@@ -2148,10 +2498,12 @@ function MediaObjectView({
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onDoubleClick={o.type === "shape" ? () => onEditText(o.id) : undefined}
-      className={`absolute cursor-move touch-none ${
-        interactive ? "pointer-events-auto" : "pointer-events-none"
-      } ${selected ? "ring-2 ring-brand" : ""}`}
+      onDoubleClick={o.type === "shape" && cap.editable ? () => onEditText(o.id) : undefined}
+      className={`absolute touch-none ${
+        canGrab ? "pointer-events-auto cursor-move" : "pointer-events-none"
+      } ${
+        selected ? "ring-2 ring-brand" : author && o.locked ? "ring-2 ring-amber-400" : ""
+      }`}
       style={{ left: o.x * scale, top: o.y * scale, width: o.w * scale, height: o.h * scale }}
     >
       {o.type === "image" ? (
@@ -2224,7 +2576,25 @@ function MediaObjectView({
         />
       )}
 
-      {selected && !editing && (
+      {/* The floating toolbar: order + padlock (teacher) and fill / line (shape),
+          hovering just above and centred over the object. */}
+      {showToolbar && (
+        <ObjectToolbar
+          o={o}
+          showAuthor={author}
+          showStyle={showStyle}
+          below={toolbarBelow}
+          onToggleLock={onToggleLock}
+          onBringToFront={onBringToFront}
+          onSendToBack={onSendToBack}
+          onStyle={(patch) => {
+            onChange(o.id, patch);
+            onEnd();
+          }}
+        />
+      )}
+
+      {selected && !editing && cap.editable && (
         <>
           {o.type === "shape" && (
             <button
@@ -2266,6 +2636,7 @@ function TextObjectView({
   o,
   scale,
   interactive,
+  author,
   selected,
   editing,
   onSelect,
@@ -2273,10 +2644,19 @@ function TextObjectView({
   onChange,
   onEnd,
   onDelete,
+  onToggleLock,
+  onBringToFront,
+  onSendToBack,
   onEditText,
   onTextChange,
   onFinishEditing,
 }: ObjHandlers & { o: TextObj; selected: boolean; editing: boolean }) {
+  const cap = objCapabilities(o, author);
+  const canGrab = interactive && cap.movable;
+  // A text box has no fill / line, so the toolbar (order + padlock) is teacher-only.
+  const showToolbar = selected && !editing && author;
+  // Drop the toolbar under the box when it would clip off the top edge.
+  const toolbarBelow = o.y * scale < 92;
   const drag = useRef<
     | { mode: "move"; ax: number; ay: number }
     | { mode: "resize"; ax: number; ay: number; sf: number }
@@ -2291,7 +2671,7 @@ function TextObjectView({
     }
   }
   function startMove(e: React.PointerEvent) {
-    if (editing) return;
+    if (editing || !cap.movable) return;
     e.stopPropagation();
     e.preventDefault();
     onSelect(o.id);
@@ -2300,6 +2680,7 @@ function TextObjectView({
     capture(e);
   }
   function startResize(e: React.PointerEvent) {
+    if (!cap.editable) return;
     e.stopPropagation();
     e.preventDefault();
     onSelect(o.id);
@@ -2338,10 +2719,12 @@ function TextObjectView({
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onDoubleClick={() => onEditText(o.id)}
+      onDoubleClick={cap.editable ? () => onEditText(o.id) : undefined}
       className={`absolute touch-none ${
-        interactive ? "pointer-events-auto" : "pointer-events-none"
-      } ${editing ? "" : "cursor-move"} ${selected ? "ring-2 ring-brand" : ""}`}
+        canGrab ? "pointer-events-auto" : "pointer-events-none"
+      } ${editing || !canGrab ? "" : "cursor-move"} ${
+        selected ? "ring-2 ring-brand" : author && o.locked ? "ring-2 ring-amber-400" : ""
+      }`}
       style={{ left: o.x * scale, top: o.y * scale }}
     >
       {editing ? (
@@ -2363,7 +2746,21 @@ function TextObjectView({
         </div>
       )}
 
-      {selected && !editing && (
+      {/* The floating toolbar (order + padlock), above and centred over the box. */}
+      {showToolbar && (
+        <ObjectToolbar
+          o={o}
+          showAuthor={author}
+          showStyle={false}
+          below={toolbarBelow}
+          onToggleLock={onToggleLock}
+          onBringToFront={onBringToFront}
+          onSendToBack={onSendToBack}
+          onStyle={() => {}}
+        />
+      )}
+
+      {selected && !editing && cap.editable && (
         <>
           <button
             type="button"
@@ -2394,77 +2791,6 @@ function TextObjectView({
           />
         </>
       )}
-    </div>
-  );
-}
-
-// A small toolbar for the selected shape's fill and line.
-function ShapeStyleBar({
-  shape,
-  onChange,
-  className,
-}: {
-  shape: ShapeObj;
-  onChange: (patch: Partial<ShapeObj>) => void;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`flex items-center gap-2 rounded-xl border border-border bg-surface/95 px-3 py-2 text-sm shadow-lg ${className ?? ""}`}
-    >
-      <span className="inline-flex items-center gap-1 font-semibold"><Icon name="fill" size={16} decorative /> Fill</span>
-      <label className="relative block h-6 w-6 overflow-hidden rounded-full border-2 border-border">
-        <input
-          type="color"
-          value={shape.fill === "none" ? "#93c5fd" : shape.fill}
-          onChange={(e) => onChange({ fill: e.target.value })}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          aria-label="Fill colour"
-        />
-        <span
-          className="block h-full w-full"
-          style={{
-            background:
-              shape.fill === "none"
-                ? "repeating-linear-gradient(45deg,#eee,#eee 3px,#fff 3px,#fff 6px)"
-                : shape.fill,
-          }}
-        />
-      </label>
-      <button
-        type="button"
-        onClick={() => onChange({ fill: shape.fill === "none" ? "#93c5fd" : "none" })}
-        className="rounded border border-border px-1.5 py-0.5 text-xs font-semibold text-muted"
-      >
-        {shape.fill === "none" ? "Add fill" : "No fill"}
-      </button>
-
-      <span className="ml-1 inline-flex items-center gap-1 font-semibold"><Icon name="line" size={16} decorative /> Line</span>
-      <label className="relative block h-6 w-6 overflow-hidden rounded-full border-2 border-border">
-        <input
-          type="color"
-          value={shape.stroke}
-          onChange={(e) => onChange({ stroke: e.target.value })}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          aria-label="Line colour"
-        />
-        <span className="block h-full w-full" style={{ background: shape.stroke }} />
-      </label>
-      <div className="flex gap-1">
-        {[3, 6, 12].map((sw) => (
-          <button
-            key={sw}
-            type="button"
-            onClick={() => onChange({ strokeWidth: sw })}
-            className={`flex h-7 w-7 items-center justify-center rounded border ${
-              shape.strokeWidth === sw ? "border-brand bg-brand/10" : "border-border"
-            }`}
-            aria-label={`Line width ${sw}`}
-          >
-            <span className="rounded-full bg-foreground" style={{ width: sw + 2, height: sw + 2 }} />
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
