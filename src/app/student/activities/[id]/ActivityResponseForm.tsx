@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { createJournalItem } from "@/app/actions/journal";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
-import type { QuizPayload } from "@/lib/quiz";
+import type { QuizPayload, QuizAnswer } from "@/lib/quiz";
 import type { CanvasObj } from "@/lib/canvasObjects";
 
 // A child responds to an activity by working on top of its template, on the
@@ -18,6 +18,8 @@ export function ActivityResponseForm({
   quiz,
   objects,
   resumeMode,
+  initialAnswers,
+  quizReview,
 }: {
   assignmentId: string;
   studentId: string;
@@ -29,6 +31,10 @@ export function ActivityResponseForm({
   // Reopening a handed-back activity: "continue" restores the child's saved work
   // (fully editable), "fresh" starts them again on the blank template.
   resumeMode?: "continue" | "fresh";
+  // On a "carry on" quiz reopen: the answers they got right (pre-filled + locked
+  // green), with the review flag; wrong ones are omitted so they retry them.
+  initialAnswers?: QuizAnswer[];
+  quizReview?: boolean;
 }) {
   const [state, action] = useActionState(createJournalItem, {});
   const router = useRouter();
@@ -48,6 +54,8 @@ export function ActivityResponseForm({
         allowImport
         quizMode={quiz && quiz.questions.length ? "answer" : undefined}
         initialQuiz={quiz}
+        initialAnswers={initialAnswers}
+        quizReview={quizReview}
         objectMode={objects && objects.length ? "answer" : undefined}
         initialObjects={objects}
         resumeMode={resumeMode}

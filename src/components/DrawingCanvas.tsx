@@ -8,6 +8,7 @@ import {
   type QuizOption,
   type QuizPayload,
   type QuizQuestion,
+  type QuizAnswer,
 } from "@/lib/quiz";
 import {
   loadDraft,
@@ -300,6 +301,8 @@ export function DrawingCanvas({
   onDone,
   quizMode,
   initialQuiz,
+  initialAnswers,
+  quizReview = false,
   objectMode,
   initialObjects,
   draftKey,
@@ -336,6 +339,11 @@ export function DrawingCanvas({
   // undefined = no quiz (existing callers unaffected).
   quizMode?: "author" | "answer";
   initialQuiz?: QuizPayload;
+  // Reopening a sent-back quiz to fix it: the child's previously-CORRECT answers
+  // to pre-fill and lock, plus a flag to show them green ("review"). Wrong /
+  // unanswered questions are simply absent here, so they open blank to retry.
+  initialAnswers?: QuizAnswer[];
+  quizReview?: boolean;
   // The movable-objects layer (pictures / shapes / text with a `locked` flag).
   //  - "author" = teacher building the template: every object is fully editable
   //    and shows a padlock; objects are NOT flattened into the saved pages.
@@ -464,16 +472,31 @@ export function DrawingCanvas({
   const [quizPanelOpen, setQuizPanelOpen] = useState(false);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   // Answer mode: the child's current selection per question, mirrored into the
-  // hidden `quizAnswers` input the response form submits.
-  const answersRef = useRef<Map<string, string>>(new Map());
+  // hidden `quizAnswers` input the response form submits. On a "carry on" reopen
+  // of a quiz, the previously-correct answers are pre-filled (see initialAnswers).
+  const initialAnswerMap = new Map<string, string>(
+    (initialAnswers ?? []).flatMap((a) => (a.selectedOptionId ? [[a.questionId, a.selectedOptionId] as const] : [])),
+  );
+  const answersRef = useRef<Map<string, string>>(new Map(initialAnswerMap));
   const quizAnswersRef = useRef<HTMLInputElement>(null);
   const pendingOptionRef = useRef<{ qid: string; oid: string } | null>(null);
   const quizFileRef = useRef<HTMLInputElement>(null);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>(Object.fromEntries(initialAnswerMap));
+  // In review mode, the pre-filled (correct) questions are locked and shown
+  // green; the child can't change them, only retry the ones they got wrong.
+  const lockedQuizRef = useRef<Set<string>>(quizReview ? new Set(initialAnswerMap.keys()) : new Set());
 
   useEffect(() => {
     if (allowImport) import("pdfjs-dist").catch(() => {});
   }, [allowImport]);
+
+  // Push any pre-filled answers into the hidden input on mount, so a review
+  // reopen keeps its already-correct answers even if the child submits without
+  // touching the quiz. (No-op for a fresh quiz — the map is empty.)
+  useEffect(() => {
+    if (isQuizAnswer) syncAnswers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [fanOpen, setFanOpen] = useState(false);
   const [shapesOpen, setShapesOpen] = useState(false);
@@ -1603,7 +1626,9 @@ export function DrawingCanvas({
   }
 
   // A child taps an answer. Record it silently — no right/wrong is ever shown.
+  // A locked (already-correct) question in review mode can't be changed.
   function selectAnswer(qid: string, oid: string) {
+    if (lockedQuizRef.current.has(qid)) return;
     answersRef.current.set(qid, oid);
     setAnswers(Object.fromEntries(answersRef.current));
     syncAnswers();
@@ -1674,6 +1699,8 @@ export function DrawingCanvas({
       interactive={isQuizAuthor ? objectsInteractive : true}
       selectedId={selectedQuestionId}
       answers={answers}
+      review={quizReview}
+      lockedIds={lockedQuizRef.current}
       onSelect={setSelectedQuestionId}
       onMove={updateQuestion}
       onDelete={deleteQuestion}
@@ -2867,6 +2894,8 @@ function QuizLayer({
   interactive,
   selectedId,
   answers,
+  review,
+  lockedIds,
   onSelect,
   onMove,
   onDelete,
@@ -2878,6 +2907,8 @@ function QuizLayer({
   interactive: boolean;
   selectedId: string | null;
   answers: Record<string, string>;
+  review: boolean;
+  lockedIds: Set<string>;
   onSelect: (id: string) => void;
   onMove: (id: string, patch: Partial<QuizQuestion>) => void;
   onDelete: (id: string) => void;
@@ -2894,6 +2925,8 @@ function QuizLayer({
           interactive={interactive}
           selected={q.id === selectedId}
           selectedOption={answers[q.id] ?? null}
+          review={review}
+          locked={lockedIds.has(q.id)}
           onSelect={onSelect}
           onMove={onMove}
           onDelete={onDelete}
@@ -2911,6 +2944,8 @@ function QuizBoxView({
   interactive,
   selected,
   selectedOption,
+  review,
+  locked,
   onSelect,
   onMove,
   onDelete,
@@ -2922,6 +2957,8 @@ function QuizBoxView({
   interactive: boolean;
   selected: boolean;
   selectedOption: string | null;
+  review: boolean;
+  locked: boolean;
   onSelect: (id: string) => void;
   onMove: (id: string, patch: Partial<QuizQuestion>) => void;
   onDelete: (id: string) => void;
@@ -2992,25 +3029,34 @@ function QuizBoxView({
         >
           {q.options.map((o) => {
             const chosen = !author && selectedOption === o.id;
-            const isCorrect = author && q.correctOptionId === o.id;
+            // Show the tick on the correct answer in author mode always, and in a
+            // review reopen on the locked (already-correct) question the child got right.
+            const showCorrect = (author || (review && locked)) && q.correctOptionId === o.id;
+            // A locked-correct question reads as a fixed green result; anything
+            // else the child can still tap.
+            const disabled = author || locked;
             return (
               <button
                 key={o.id}
                 type="button"
-                disabled={author}
+                disabled={disabled}
                 aria-label={o.text || "Picture answer"}
                 aria-pressed={chosen}
-                onClick={author ? undefined : () => onAnswer(q.id, o.id)}
+                onClick={author || locked ? undefined : () => onAnswer(q.id, o.id)}
                 className={`flex min-h-[64px] items-center justify-center gap-2 rounded-xl border-2 p-2 text-center transition-colors ${
-                  chosen ? "border-brand bg-brand/15" : "border-border bg-white"
-                } ${author ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
+                  showCorrect
+                    ? "border-emerald-500 bg-emerald-50"
+                    : chosen
+                      ? "border-brand bg-brand/15"
+                      : "border-border bg-white"
+                } ${author || locked ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
               >
                 {o.imagePath && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={o.imagePath} alt="" className="max-h-16 w-auto shrink-0 object-contain" />
                 )}
                 {o.text && <span className="font-semibold text-foreground">{o.text}</span>}
-                {isCorrect && (
+                {showCorrect && (
                   <span className="text-emerald-600" title="Correct answer">
                     ✓
                   </span>
