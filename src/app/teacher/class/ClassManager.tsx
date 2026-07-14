@@ -177,28 +177,32 @@ export function ClassManager({ classes }: { classes: ClassCard[] }) {
           <button
             key={c.id}
             onClick={() => openClass(c.id)}
-            style={{ textAlign: "left", cursor: "pointer", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: 0, overflow: "hidden", boxShadow: "0 4px 0 rgba(34,48,74,0.14)" }}
+            style={{ textAlign: "left", cursor: "pointer", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: 0, overflow: "hidden", boxShadow: "0 4px 0 rgba(34,48,74,0.14)", display: "flex", flexDirection: "column" }}
           >
-            <div style={{ height: 96, background: c.color, borderBottom: "3px solid var(--ink)", position: "relative", display: "flex", alignItems: "center", padding: "0 20px", gap: 14 }}>
+            <div style={{ background: c.color, borderBottom: "3px solid var(--ink)", position: "relative", display: "flex", alignItems: "center", padding: "18px 20px", gap: 14, alignSelf: "stretch" }}>
               <JarMark width={46} height={55} jarFill={c.jarFill} />
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <p style={{ margin: 0, font: "600 24px var(--font-fredoka)", color: "var(--ink)" }}>{c.name}</p>
                 <p style={{ margin: "2px 0 0", font: "700 13px var(--font-atkinson)", color: "var(--ink-soft)" }}>{c.year}</p>
               </div>
-              {c.waiting > 0 && (
-                <span style={{ position: "absolute", top: -12, right: 16, background: "var(--jam)", color: "var(--paper)", border: "2px solid var(--ink)", borderRadius: 999, padding: "4px 11px", font: "700 13px var(--font-atkinson)", whiteSpace: "nowrap" }}>{c.waiting} waiting</span>
-              )}
             </div>
-            <div style={{ padding: "16px 20px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 20 }}>
               <div>
-                <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{c.kids}</p>
-                <p style={{ margin: 0, font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>pupils</p>
+                <p style={{ margin: 0, font: "600 26px var(--font-fredoka)", lineHeight: 1 }}>{c.kids}</p>
+                <p style={{ margin: "3px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>pupils</p>
               </div>
+              <div style={{ width: 2, alignSelf: "stretch", background: "#EDE4D2" }} />
               <div>
-                <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{c.moments}</p>
-                <p style={{ margin: 0, font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>in the jar</p>
+                <p style={{ margin: 0, font: "600 26px var(--font-fredoka)", lineHeight: 1 }}>{c.moments}</p>
+                <p style={{ margin: "3px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>in the jar</p>
               </div>
-              <span style={{ font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>Open →</span>
+            </div>
+            <div style={{ marginTop: "auto", padding: "12px 20px", borderTop: "2px dashed #EDE4D2", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, alignSelf: "stretch" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, font: "700 13px var(--font-atkinson)", color: c.waiting > 0 ? "var(--jam)" : "var(--glass-ink)", minWidth: 0 }}>
+                <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: "50%", background: c.waiting > 0 ? "var(--jam)" : "var(--glass-ink)", flexShrink: 0 }} />
+                {c.waiting > 0 ? `${c.waiting} waiting to approve` : "All caught up"}
+              </span>
+              <span style={{ font: "700 14px var(--font-atkinson)", color: "var(--jam)", whiteSpace: "nowrap", flexShrink: 0 }}>Open →</span>
             </div>
           </button>
         ))}
