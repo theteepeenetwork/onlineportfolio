@@ -8,6 +8,7 @@ import { savePhoto, saveImageDataUrl, saveImagePages, deleteMediaFiles } from "@
 import { discardResponseDraftFor } from "@/lib/drafts";
 import { recordAudit } from "@/lib/audit";
 import { readQuiz, readAnswers, sanitizeAnswers, scoreQuiz } from "@/lib/quiz";
+import { sanitizeStickerKeys } from "@/lib/stickers";
 import {
   requireWritableAccount,
   requireWritableAccountForClass,
@@ -229,7 +230,8 @@ async function ownedItem(teacherId: string, id: string) {
   });
 }
 
-// Teacher approves a pending item, optionally tagging skills as they go.
+// Teacher approves a pending item, optionally tagging skills and attaching
+// reward stickers (max 4 keys from the fixed catalog) plus a kind note.
 export async function approveItem(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
@@ -240,6 +242,10 @@ export async function approveItem(formData: FormData) {
 
   const id = String(formData.get("itemId") ?? "");
   const skillIds = formData.getAll("skillIds").map(String).filter(Boolean);
+  // Stickers arrive as repeated `stickerKeys` fields. Reduce them to known
+  // catalog keys only — never trust the client (SAFEGUARDING rules 4 & 8).
+  const stickerKeys = sanitizeStickerKeys(formData.getAll("stickerKeys"));
+  const praiseNote = String(formData.get("praiseNote") ?? "").trim() || null;
 
   const item = await ownedItem(user.teacher.id, id);
   if (!item) return; // not this teacher's class — do nothing
@@ -249,12 +255,16 @@ export async function approveItem(formData: FormData) {
     data: {
       status: "APPROVED",
       approvedAt: new Date(),
+      stickersJson: stickerKeys.length ? JSON.stringify(stickerKeys) : null,
+      praiseNote,
+      stickerReply: null, // fresh feedback — the child hasn't replied to it yet
       skills: skillIds.length ? { set: skillIds.map((sid) => ({ id: sid })) } : undefined,
     },
   });
   await recordAudit({
     action: "MOMENT_APPROVED", actorType: "TEACHER", actorId: user.teacher.id, actorName: user.teacher.displayName,
-    schoolId: user.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: id, detail: `Approved ${item.student.name}'s moment`,
+    schoolId: user.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: id,
+    detail: `Approved ${item.student.name}'s moment${stickerKeys.length ? ` with ${stickerKeys.length} sticker${stickerKeys.length === 1 ? "" : "s"}` : ""}`,
   });
 
   // The work is in the jar now — drop the kept editable draft (rows + files) so
@@ -301,6 +311,42 @@ export async function returnItem(formData: FormData) {
   });
 
   revalidatePath("/teacher/queue");
+}
+
+// A child sends one back: a single fixed "heart" acknowledgement of the
+// teacher's sticker. Deliberately NOT free text — the reply vocabulary is one
+// hard-coded value, so no unmoderated child-authored content can travel
+// anywhere (SAFEGUARDING.md rules 2 & 3).
+export async function sendStickerBack(formData: FormData) {
+  const user = await getCurrentUser();
+  if (user?.role !== "STUDENT") redirect("/");
+
+  // Replying is a (tiny) mutation — blocked while the school account is frozen.
+  const gate = await requireWritableAccountForClass(user.student.classId);
+  if (!gate.ok) return;
+
+  const id = String(formData.get("itemId") ?? "");
+
+  // Scope to THIS child's own approved, stickered moment — a crafted id can
+  // never touch another child's work (SAFEGUARDING rules 4 & 8).
+  const item = await db.journalItem.findFirst({
+    where: { id, studentId: user.student.id, status: "APPROVED", stickersJson: { not: null } },
+    select: { id: true, class: { select: { teacher: { select: { schoolId: true } } } } },
+  });
+  if (!item) return;
+
+  await db.journalItem.update({
+    where: { id: item.id },
+    data: { stickerReply: "HEART" },
+  });
+  await recordAudit({
+    action: "STICKER_SENT_BACK", actorType: "STUDENT", actorId: user.student.id, actorName: user.student.name,
+    schoolId: item.class.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: item.id, detail: "Child sent a heart back",
+  });
+
+  // Deliberately no revalidatePath here: the arrival panel stays on screen so
+  // the child sees their "Sent a heart back!" confirmation; the next visit to
+  // /student renders fresh data anyway.
 }
 
 // Delete an item (teacher only). Deliberately NOT write-gated: deletion (right

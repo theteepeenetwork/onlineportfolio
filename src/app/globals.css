@@ -109,6 +109,67 @@ html {
 @media (prefers-reduced-motion: reduce) {
   [data-anim] { animation: none !important; opacity: 1 !important; }
 }
+
+/* Reward stickers (design handoff "Sticker feedback", screens 1b/1d). */
+/* Peel-on: a sticker pops onto the work with an overshoot, settling at its tilt. */
+@keyframes sj-stk-pop {
+  0% { transform: scale(0) rotate(-18deg); }
+  60% { transform: scale(1.18) rotate(var(--tilt, -8deg)); }
+  100% { transform: scale(1) rotate(var(--tilt, -8deg)); }
+}
+/* Drop: the arriving sticker falls onto the child's moment and lands askew. */
+@keyframes sj-stk-drop {
+  0% { transform: translateY(-120px) rotate(-24deg) scale(0.6); opacity: 0; }
+  55% { opacity: 1; }
+  70% { transform: translateY(8px) rotate(6deg) scale(1.12); }
+  100% { transform: translateY(0) rotate(var(--tilt, -7deg)) scale(1); opacity: 1; }
+}
+/* The moment card wobbles when the sticker lands (transform-origin top centre). */
+@keyframes sj-stk-jarbump {
+  0%, 100% { transform: rotate(-1.5deg); }
+  30% { transform: rotate(2.5deg); }
+  60% { transform: rotate(-3deg); }
+}
+[data-stk="pop"] { animation: sj-stk-pop 0.5s cubic-bezier(.34, 1.4, .64, 1) both; }
+[data-stk="drop"] { animation: sj-stk-drop 0.9s cubic-bezier(.34, 1.4, .64, 1) both; }
+[data-stk="bump"] { animation: sj-stk-jarbump 1s cubic-bezier(.34, 1.4, .64, 1) 0.5s both; transform-origin: 50% 0; }
+/* Holographic foil layers inside a sticker disc — transform-only (GPU-composited). */
+@keyframes sj-holo-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sj-holo-sheen {
+  0% { transform: translate3d(-160%, 0, 0) skewX(-14deg); }
+  100% { transform: translate3d(180%, 0, 0) skewX(-14deg); }
+}
+.sj-holo-foil {
+  position: absolute;
+  top: -30%;
+  left: -30%;
+  width: 160%;
+  height: 160%;
+  transform-origin: center;
+  will-change: transform;
+  background: conic-gradient(from 0deg, #ff8fbf, #ffd36e, #8be3a1, #6fd0e8, #b79bff, #ff8fbf);
+  animation: sj-holo-spin 7s linear infinite;
+}
+.sj-holo-sheen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 48%;
+  height: 100%;
+  will-change: transform;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
+  mix-blend-mode: screen;
+  animation: sj-holo-sheen 3.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-stk] { animation: none !important; opacity: 1 !important; transform: rotate(var(--tilt, 0deg)); }
+  .sj-holo-foil,
+  .sj-holo-sheen {
+    animation: none !important;
+  }
+}
 .sj details > summary {
   list-style: none;
   cursor: pointer;
