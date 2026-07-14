@@ -78,6 +78,15 @@ test("a11y (AA): approval queue", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "approval queue");
 });
 
+test("a11y (AA): sticker sheet", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  // Reach a real waiting moment's sticker sheet via the queue's own link.
+  await page.goto("/teacher/queue");
+  await page.locator('a[href^="/teacher/queue/"]').first().click();
+  await page.waitForURL(/\/teacher\/queue\/.+/);
+  assertNoSeriousViolations(await scan(page), "sticker sheet");
+});
+
 test("a11y (AA): class manager", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/teacher/class");

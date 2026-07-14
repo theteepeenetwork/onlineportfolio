@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { approveItem, returnItem } from "@/app/actions/journal";
 import { JarLogo } from "@/components/storyjar/JarLogo";
 import { Icon, type IconName } from "@/components/icons/Icon";
@@ -205,6 +206,7 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                 )}
                 <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                   <button onClick={() => approve(it)} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "#37796f", border: "none", borderRadius: 999, padding: "10px 20px", minHeight: 44, cursor: "pointer", boxShadow: "0 3px 0 #35706A", whiteSpace: "nowrap" }}>✓ Add to jar</button>
+                  <Link href={`/teacher/queue/${it.id}`} style={{ display: "inline-flex", alignItems: "center", font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 18px", minHeight: 44, boxSizing: "border-box", textDecoration: "none", whiteSpace: "nowrap" }}>🌟 Stickers</Link>
                   <button onClick={() => { setNoteOpen(noteOpen === it.id ? null : it.id); setNoteText(""); setKeepWork(true); }} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 18px", minHeight: 44, cursor: "pointer", whiteSpace: "nowrap" }}>↩ Send back</button>
                 </div>
               </div>

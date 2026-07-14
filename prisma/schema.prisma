@@ -170,6 +170,9 @@ model JournalItem {
   status      String    @default("PENDING") // PENDING | APPROVED | RETURNED
   authorRole  String // STUDENT | TEACHER — who created the item
   teacherNote String? // feedback the teacher leaves when returning work
+  stickersJson String? // JSON array of sticker KEYS (max 4) from the fixed catalog in src/lib/stickers.ts — keys only, look is derived
+  praiseNote  String? // the teacher's kind note attached at approval time (shown to the child with the stickers)
+  stickerReply String? // "HEART" once the child sends one back — fixed value, never free text (SAFEGUARDING rule 2)
   returnMode  String? // when RETURNED: "CONTINUE" (reopen with their work) | "FRESH" (blank restart). null = not returned / legacy (treated as FRESH)
   student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId   String

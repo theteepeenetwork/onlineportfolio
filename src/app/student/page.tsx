@@ -3,6 +3,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { LogoutForm } from "@/components/LogoutForm";
 import { Icon, type IconName } from "@/components/icons/Icon";
+import { Sticker } from "@/components/stickers/Sticker";
+import { readStickers } from "@/lib/stickers";
+import { StickerArrival } from "./StickerArrival";
 
 // Look of a moment by its kind.
 const KIND = {
@@ -36,6 +39,20 @@ export default async function StudentHome() {
   });
   const published = items.filter((i) => i.status === "APPROVED");
   const inProgress = items.filter((i) => i.status !== "APPROVED");
+
+  // A newly arrived sticker: the most recent approved moment with stickers the
+  // child hasn't sent a heart back for yet. Shown as the big arrival panel.
+  const arrived = published
+    .filter((i) => readStickers(i.stickersJson).length > 0 && !i.stickerReply)
+    .sort((a, b) => (b.approvedAt?.getTime() ?? 0) - (a.approvedAt?.getTime() ?? 0))[0];
+  const teacherName = arrived
+    ? (
+        await db.class.findUnique({
+          where: { id: student.classId },
+          select: { teacher: { select: { displayName: true } } },
+        })
+      )?.teacher.displayName ?? "your teacher"
+    : null;
 
   // How many assigned activities are still to do?
   const assignedIds = (
@@ -88,6 +105,28 @@ export default async function StudentHome() {
       </header>
 
       <div style={{ flex: 1, overflow: "auto", padding: "30px 40px 50px", maxWidth: 1100, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        {/* a new sticker just arrived (design 1d) */}
+        {arrived && (
+          <div style={{ marginBottom: 22 }}>
+            <StickerArrival
+              itemId={arrived.id}
+              childName={student.name}
+              avatarColor={student.avatarColor}
+              teacherName={teacherName ?? "your teacher"}
+              note={arrived.praiseNote}
+              stickers={readStickers(arrived.stickersJson).map((s) => s.k)}
+              moment={{
+                mediaPath: arrived.mediaPath,
+                text: arrived.textContent,
+                title: arrived.caption || kindOf(arrived.type).fallback,
+                dateLabel: formatDate(arrived.createdAt),
+                bandBg: kindOf(arrived.type).bg,
+                icon: kindOf(arrived.type).icon,
+              }}
+            />
+          </div>
+        )}
+
         {/* add to my jar */}
         <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: "24px 30px", boxShadow: "var(--pop-shadow)" }}>
           <p style={{ margin: "0 0 16px", font: "600 30px var(--font-fredoka)" }}>Add to my jar</p>
@@ -157,6 +196,7 @@ export default async function StudentHome() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 22 }}>
             {published.map((item) => {
               const k = kindOf(item.type);
+              const stickers = readStickers(item.stickersJson);
               return (
                 <div key={item.id} style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, overflow: "hidden", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
                   <div style={{ height: 190, background: k.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
@@ -169,10 +209,30 @@ export default async function StudentHome() {
                       <Icon name={k.icon} size={64} decorative />
                     )}
                     <span style={{ position: "absolute", top: 12, right: 12, background: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 13px var(--font-atkinson)" }}>{k.label}</span>
+                    {/* the teacher's stickers stay peeled onto the work */}
+                    {stickers.map((s, i) => {
+                      const spot = [
+                        { top: 8, left: 8, tilt: "-9deg" },
+                        { top: 56, left: 20, tilt: "7deg" },
+                        { top: 12, left: 62, tilt: "-6deg" },
+                        { top: 62, left: 74, tilt: "8deg" },
+                      ][i] ?? { top: 8, left: 8, tilt: "-9deg" };
+                      return (
+                        <span key={s.k} title={s.label} style={{ position: "absolute", top: spot.top, left: spot.left, transform: `rotate(${spot.tilt})` }}>
+                          <Sticker k={s.k} size={44} />
+                        </span>
+                      );
+                    })}
                   </div>
                   <div style={{ padding: "14px 18px 18px" }}>
                     <p style={{ margin: 0, font: "600 21px var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
                     <p style={{ margin: "4px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>{formatDate(item.createdAt)}</p>
+                    {item.praiseNote && (
+                      <p style={{ margin: "8px 0 0", font: "400 15px/1.4 var(--font-atkinson)", color: "var(--ink-soft)" }}>💬 “{item.praiseNote}”</p>
+                    )}
+                    {item.stickerReply === "HEART" && (
+                      <p style={{ margin: "6px 0 0", font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>💛 You sent a heart back</p>
+                    )}
                   </div>
                 </div>
               );
