@@ -13,9 +13,12 @@ const NAV_LINK: React.CSSProperties = {
 };
 const SECTION_H2: React.CSSProperties = {
   margin: 0,
-  font: "600 44px var(--font-fredoka)",
+  font: "600 clamp(30px, 5vw, 44px) var(--font-fredoka)",
   textAlign: "center",
 };
+// Fluid horizontal gutter / vertical rhythm shared by every landing section.
+const GUTTER = "clamp(20px, 5vw, 56px)";
+const SECTION_PAD = "clamp(72px, 9vw, 110px)";
 const FEATURE_KICKER: React.CSSProperties = {
   margin: "0 0 12px",
   font: "700 14px var(--font-atkinson)",
@@ -23,7 +26,7 @@ const FEATURE_KICKER: React.CSSProperties = {
   letterSpacing: "0.08em",
   textTransform: "uppercase",
 };
-const FEATURE_H2: React.CSSProperties = { margin: 0, font: "600 38px/1.15 var(--font-fredoka)" };
+const FEATURE_H2: React.CSSProperties = { margin: 0, font: "600 clamp(27px, 4.4vw, 38px)/1.15 var(--font-fredoka)" };
 const FEATURE_P: React.CSSProperties = {
   margin: "18px 0 0",
   font: "400 18px/1.6 var(--font-atkinson)",
@@ -61,24 +64,27 @@ export default async function Home() {
       <ScrollFill />
 
       {/* ═══════════ HERO (tall track; sticky stage; jar fills on scroll) ═══════════ */}
-      <section id="hero-track" style={{ height: "220vh", position: "relative" }}>
-        <div style={{ position: "sticky", top: 0, height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <nav style={{ display: "flex", alignItems: "center", gap: 30, padding: "22px 56px", flexWrap: "wrap" }}>
+      <section id="hero-track" className="hero-track" style={{ height: "220vh", position: "relative" }}>
+        <div className="hero-sticky" style={{ position: "sticky", top: 0, height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <nav style={{ display: "flex", alignItems: "center", gap: 30, padding: `22px ${GUTTER}`, flexWrap: "wrap" }}>
             <a href="#hero-track" style={{ display: "flex", alignItems: "center", gap: 10, marginRight: "auto", textDecoration: "none" }}>
               <JarLogo />
               <span style={{ font: "600 24px var(--font-fredoka)", letterSpacing: "-0.01em", color: "var(--ink)" }}>storyjar</span>
             </a>
-            <a href="#how" style={NAV_LINK}>How it works</a>
-            <a href="#safeguarding" style={NAV_LINK}>Safeguarding</a>
-            <a href="#pricing" style={NAV_LINK}>Pricing</a>
-            <a href="#faq" style={NAV_LINK}>FAQ</a>
+            {/* Anchor links hide below 640px; the sign-in button stays. */}
+            <span className="nav-links" style={{ display: "contents" }}>
+              <a href="#how" style={NAV_LINK}>How it works</a>
+              <a href="#safeguarding" style={NAV_LINK}>Safeguarding</a>
+              <a href="#pricing" style={NAV_LINK}>Pricing</a>
+              <a href="#faq" style={NAV_LINK}>FAQ</a>
+            </span>
             <Link href="/login/teacher" className="sj-btn-outline">Teacher sign in</Link>
           </nav>
 
-          <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 24, alignItems: "center", padding: "0 56px 40px", maxWidth: 1280, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+          <div className="hero-grid" style={{ flex: 1, display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 24, alignItems: "center", padding: `0 ${GUTTER} 40px`, maxWidth: 1280, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
             <div>
               <p style={{ margin: "0 0 18px", display: "inline-block", font: "700 14px var(--font-atkinson)", color: "#37796f", letterSpacing: "0.08em", textTransform: "uppercase" }}>A class journal for ages 3–7</p>
-              <h1 style={{ margin: 0, font: "600 62px/1.05 var(--font-fredoka)", letterSpacing: "-0.015em" }}>
+              <h1 style={{ margin: 0, font: "600 clamp(34px, 6.6vw, 62px)/1.05 var(--font-fredoka)", letterSpacing: "-0.015em" }}>
                 Every child&apos;s story,{" "}
                 <span style={{ position: "relative", whiteSpace: "nowrap" }}>
                   collected.
@@ -87,7 +93,7 @@ export default async function Home() {
                   </svg>
                 </span>
               </h1>
-              <p style={{ margin: "26px 0 0", font: "400 20px/1.55 var(--font-atkinson)", maxWidth: "30em", color: "var(--ink-soft)" }}>
+              <p style={{ margin: "26px 0 0", font: "400 clamp(17px, 2.2vw, 20px)/1.55 var(--font-atkinson)", maxWidth: "30em", color: "var(--ink-soft)" }}>
                 A journal and portfolio for your class. Children pop their photos, drawings and words into the jar — and nothing is kept until you&apos;ve seen it.
               </p>
               <div style={{ display: "flex", gap: 14, marginTop: 34, alignItems: "center", flexWrap: "wrap" }}>
@@ -98,7 +104,9 @@ export default async function Home() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <HeroJar />
+              <div className="hero-jar-wrap">
+                <HeroJar />
+              </div>
               <p data-scroll-cue="true" style={{ margin: "10px 0 0", font: "700 15px var(--font-atkinson)", color: "var(--sj-muted)", transition: "opacity 0.4s" }}>Scroll to fill the jar ↓</p>
             </div>
           </div>
@@ -106,12 +114,12 @@ export default async function Home() {
       </section>
 
       {/* ═══════════ HOW IT WORKS ═══════════ */}
-      <section id="how" style={{ padding: "110px 56px", maxWidth: 1280, margin: "0 auto", boxSizing: "border-box", overflowX: "clip" }}>
+      <section id="how" style={{ padding: `${SECTION_PAD} ${GUTTER}`, maxWidth: 1280, margin: "0 auto", boxSizing: "border-box", overflowX: "clip" }}>
         <h2 style={SECTION_H2}>How the jar fills up</h2>
         <p style={{ margin: "14px auto 0", font: "400 19px/1.5 var(--font-atkinson)", color: "var(--ink-soft)", textAlign: "center", maxWidth: "34em" }}>Three small steps, over and over, all year. That&apos;s it.</p>
-        {/* minmax(0,1fr) lets the cards shrink below their content width on narrow
-            screens (e.g. iPad portrait) so the row never overflows — FINDINGS F13. */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 32, marginTop: 56 }}>
+        {/* auto-fit lets the three cards wrap to two/one column on narrow
+            screens so the row never overflows (supersedes the F13 fix). */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 32, marginTop: 56 }}>
           {/* 1 · Make */}
           <div className="sj-card" style={{ padding: "34px 30px" }}>
             <div style={{ display: "inline-block", background: "#F3E3C3", border: "3px solid #22304A", borderRadius: 8, padding: "4px 14px", transform: "rotate(-2deg)", font: "600 17px var(--font-fredoka)" }}>1 · Make</div>
@@ -160,9 +168,9 @@ export default async function Home() {
       </section>
 
       {/* ═══════════ FEATURES (alternating) ═══════════ */}
-      <section style={{ padding: "20px 56px 40px", maxWidth: 1280, margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 110 }}>
+      <section style={{ padding: `20px ${GUTTER} 40px`, maxWidth: 1280, margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "clamp(64px, 9vw, 110px)" }}>
         {/* canvas */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
+        <div className="feat-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
           <div>
             <p style={FEATURE_KICKER}>The drawing canvas</p>
             <h2 style={FEATURE_H2}>A canvas that feels like a pot of felt-tips</h2>
@@ -187,13 +195,16 @@ export default async function Home() {
         </div>
 
         {/* photos */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
+        <div className="feat-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
           <div style={{ order: 2 }}>
             <p style={FEATURE_KICKER}>Photos</p>
             <h2 style={FEATURE_H2}>Point, snap, pop it in</h2>
             <p style={FEATURE_P}>The junk-model, the tricky maths on a whiteboard, the tower that took all of golden time — captured on the classroom iPad in seconds, with an optional caption in the child&apos;s own words.</p>
           </div>
-          <div style={{ order: 1, display: "flex", justifyContent: "center", gap: 20, alignItems: "center" }}>
+          {/* flexWrap added beyond the design file: two fixed 210px polaroids
+              can't fit side-by-side under ~480px, so they stack instead of
+              forcing sideways scroll. */}
+          <div style={{ order: 1, display: "flex", justifyContent: "center", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ width: 210, background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 12, padding: "12px 12px 16px", transform: "rotate(-4deg)", boxShadow: "var(--pop-shadow)" }}>
               <div style={{ height: 150, borderRadius: 6, background: "repeating-linear-gradient(45deg, #EAF4F1, #EAF4F1 12px, #E0EEE9 12px, #E0EEE9 24px)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ font: "400 12px/1.4 monospace", color: "#37796f", textAlign: "center" }}>photo of a<br />junk model</span></div>
               <p style={{ margin: "10px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>&ldquo;my rocket has 3 boosters&rdquo;</p>
@@ -206,7 +217,7 @@ export default async function Home() {
         </div>
 
         {/* activities */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
+        <div className="feat-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
           <div>
             <p style={FEATURE_KICKER}>Activities</p>
             <h2 style={FEATURE_H2}>Set an activity once, use it every year</h2>
@@ -241,7 +252,7 @@ export default async function Home() {
         </div>
 
         {/* approval queue */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
+        <div className="feat-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
           <div style={{ order: 2 }}>
             <p style={FEATURE_KICKER}>The approval queue</p>
             <h2 style={FEATURE_H2}>Marking, minus the pile</h2>
@@ -284,13 +295,13 @@ export default async function Home() {
       </section>
 
       {/* ═══════════ SAFEGUARDING ═══════════ */}
-      <section id="safeguarding" style={{ background: "#22304A", color: "#FAF6EE", padding: "110px 56px", marginTop: 110 }}>
+      <section id="safeguarding" style={{ background: "#22304A", color: "#FAF6EE", padding: `${SECTION_PAD} ${GUTTER}`, marginTop: SECTION_PAD }}>
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 18, flexWrap: "wrap" }}>
-            <h2 style={{ margin: 0, font: "600 44px var(--font-fredoka)", color: "#FAF6EE" }}>Our promises to your school</h2>
+            <h2 style={{ margin: 0, font: "600 clamp(30px, 5vw, 44px) var(--font-fredoka)", color: "#FAF6EE" }}>Our promises to your school</h2>
             <span style={{ font: "400 17px var(--font-atkinson)", color: "#A9B4C9" }}>Not small print. The whole point.</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 26, marginTop: 52 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 26, marginTop: 52 }}>
             {PROMISES.map((pr) => (
               <div key={pr.chip} style={{ border: "3px solid rgba(250,246,238,0.25)", borderRadius: 16, padding: 30 }}>
                 <div style={{ display: "inline-block", background: pr.chipBg, color: "#22304A", borderRadius: 8, padding: "4px 14px", transform: `rotate(${pr.tilt})`, font: "600 16px var(--font-fredoka)" }}>{pr.chip}</div>
@@ -303,11 +314,11 @@ export default async function Home() {
       </section>
 
       {/* ═══════════ PARENTS TEASER + ROADMAP ═══════════ */}
-      <section id="parents" style={{ padding: "110px 56px 0", maxWidth: 1280, margin: "0 auto", boxSizing: "border-box" }}>
-        <div style={{ background: "#F3E9D8", border: "3px solid #22304A", borderRadius: 20, padding: "48px 56px", display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 40, alignItems: "center", boxShadow: "var(--pop-shadow)" }}>
+      <section id="parents" style={{ padding: `${SECTION_PAD} ${GUTTER} 0`, maxWidth: 1280, margin: "0 auto", boxSizing: "border-box" }}>
+        <div className="parents-grid" style={{ background: "#F3E9D8", border: "3px solid #22304A", borderRadius: 20, padding: "48px 56px", display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 40, alignItems: "center", boxShadow: "var(--pop-shadow)" }}>
           <div>
             <div style={{ display: "inline-block", background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 999, padding: "5px 16px", font: "600 15px var(--font-fredoka)", transform: "rotate(-1.5deg)" }}>Coming soon</div>
-            <h2 style={{ margin: "16px 0 0", font: "600 36px/1.2 var(--font-fredoka)" }}>One day, families will watch the jar fill up from home</h2>
+            <h2 style={{ margin: "16px 0 0", font: "600 clamp(26px, 4.2vw, 36px)/1.2 var(--font-fredoka)" }}>One day, families will watch the jar fill up from home</h2>
             <p style={{ margin: "14px 0 0", font: "400 18px/1.6 var(--font-atkinson)", color: "var(--ink-soft)" }}>A gentle, read-only view for parents and carers — only what you&apos;ve approved, only their own child. On the roadmap alongside voice &amp; video recording, groups, and scheduled activities.</p>
           </div>
           <div style={{ display: "flex", justifyContent: "center" }}>
@@ -323,22 +334,22 @@ export default async function Home() {
       </section>
 
       {/* ═══════════ FOUNDER NOTE ═══════════ */}
-      <section id="founder" style={{ padding: "110px 56px 0", maxWidth: 900, margin: "0 auto", boxSizing: "border-box" }}>
-        <div style={{ position: "relative", background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 6, padding: "52px 56px", boxShadow: "0 5px 0 rgba(34,48,74,0.15)" }}>
+      <section id="founder" style={{ padding: `${SECTION_PAD} ${GUTTER} 0`, maxWidth: 900, margin: "0 auto", boxSizing: "border-box" }}>
+        <div style={{ position: "relative", background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 6, padding: "clamp(36px, 5vw, 52px) clamp(28px, 5vw, 56px)", boxShadow: "0 5px 0 rgba(34,48,74,0.15)" }}>
           <div style={{ position: "absolute", left: "50%", top: -14, transform: "translateX(-50%) rotate(-2deg)", width: 120, height: 28, background: "#E5A0B2", opacity: 0.85 }} />
-          <p style={{ margin: 0, font: "400 21px/1.7 var(--font-atkinson)", color: "#22304A" }}>I built Storyjar in my own Year 2 classroom in the North East, because the tools we were given made evidence-gathering feel like admin, and the children&apos;s work deserved better than a folder on a shelf. Every feature here has been tested by the toughest review panel there is: thirty six-year-olds and one very tired teacher on a Thursday afternoon.</p>
+          <p style={{ margin: 0, font: "400 clamp(18px, 2.4vw, 21px)/1.7 var(--font-atkinson)", color: "#22304A" }}>I built Storyjar in my own Year 2 classroom in the North East, because the tools we were given made evidence-gathering feel like admin, and the children&apos;s work deserved better than a folder on a shelf. Every feature here has been tested by the toughest review panel there is: thirty six-year-olds and one very tired teacher on a Thursday afternoon.</p>
           <p style={{ margin: "26px 0 0", font: "600 22px var(--font-fredoka)", color: "#37796f" }}>— A Year 2 teacher in the North East</p>
         </div>
       </section>
 
       {/* ═══════════ PRICING ═══════════ */}
-      <section id="pricing" style={{ padding: "110px 56px 0", maxWidth: 1100, margin: "0 auto", boxSizing: "border-box" }}>
+      <section id="pricing" style={{ padding: `${SECTION_PAD} ${GUTTER} 0`, maxWidth: 1100, margin: "0 auto", boxSizing: "border-box" }}>
         <h2 style={SECTION_H2}>Simple, honest launch pricing</h2>
         <p style={{ margin: "14px auto 0", font: "400 18px var(--font-atkinson)", color: "var(--ink-soft)", textAlign: "center", maxWidth: "32em" }}>Start free with one class. Grow when your school does.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginTop: 52 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 32, marginTop: 52 }}>
           <div style={{ background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 20, padding: "42px 40px", boxShadow: "var(--pop-shadow)" }}>
             <h3 style={{ margin: 0, font: "600 28px var(--font-fredoka)" }}>One class jar</h3>
-            <p style={{ margin: "16px 0 0", font: "600 46px var(--font-fredoka)" }}>Free</p>
+            <p style={{ margin: "16px 0 0", font: "600 clamp(38px, 5.4vw, 46px) var(--font-fredoka)" }}>Free</p>
             <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>forever, for one class</p>
             <ul style={{ margin: "26px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12, font: "400 17px var(--font-atkinson)", color: "var(--ink-soft)" }}>
               {["One teacher, one class", "Unlimited moments & approvals", "Drawing canvas, photos & words", "Class code sign-in for children"].map((f) => (
@@ -350,7 +361,7 @@ export default async function Home() {
           <div style={{ background: "#22304A", color: "#FAF6EE", border: "3px solid #22304A", borderRadius: 20, padding: "42px 40px", position: "relative", boxShadow: "0 4px 0 rgba(34,48,74,0.3)" }}>
             <div style={{ position: "absolute", top: -16, right: 32, background: "#F0B441", color: "#22304A", border: "3px solid #22304A", borderRadius: 999, padding: "5px 16px", font: "600 14px var(--font-fredoka)", transform: "rotate(2deg)" }}>Launch pricing</div>
             <h3 style={{ margin: 0, font: "600 28px var(--font-fredoka)", color: "#FAF6EE" }}>School plan</h3>
-            <p style={{ margin: "16px 0 0", font: "600 46px var(--font-fredoka)", color: "#FAF6EE" }}>£4.99 <span style={{ font: "400 17px var(--font-atkinson)", color: "#A9B4C9" }}>per teacher / month</span></p>
+            <p style={{ margin: "16px 0 0", font: "600 clamp(38px, 5.4vw, 46px) var(--font-fredoka)", color: "#FAF6EE" }}>£4.99 <span style={{ font: "400 17px var(--font-atkinson)", color: "#A9B4C9" }}>per teacher / month</span></p>
             <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "#A9B4C9" }}>billed annually · final pricing confirmed at launch</p>
             <ul style={{ margin: "26px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12, font: "400 17px var(--font-atkinson)", color: "#C4CDDD" }}>
               {["Every class you teach, one roof", "Reusable activity library & worksheets", "Skill tagging & evidence reports", "Priority support from a real teacher"].map((f) => (
@@ -363,8 +374,8 @@ export default async function Home() {
       </section>
 
       {/* ═══════════ FAQ ═══════════ */}
-      <section id="faq" style={{ padding: "110px 56px", maxWidth: 860, margin: "0 auto", boxSizing: "border-box" }}>
-        <h2 style={{ margin: "0 0 40px", font: "600 44px var(--font-fredoka)", textAlign: "center" }}>Questions teachers ask</h2>
+      <section id="faq" style={{ padding: `${SECTION_PAD} ${GUTTER}`, maxWidth: 860, margin: "0 auto", boxSizing: "border-box" }}>
+        <h2 style={{ margin: "0 0 40px", font: "600 clamp(30px, 5vw, 44px) var(--font-fredoka)", textAlign: "center" }}>Questions teachers ask</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {FAQS.map((item) => (
             <details key={item.q} style={{ background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 14, padding: "20px 26px" }}>
@@ -379,9 +390,9 @@ export default async function Home() {
       </section>
 
       {/* ═══════════ FINAL CTA + FOOTER ═══════════ */}
-      <section style={{ background: "#22304A", color: "#FAF6EE", padding: "90px 56px 40px" }}>
+      <section style={{ background: "#22304A", color: "#FAF6EE", padding: `clamp(56px, 8vw, 90px) ${GUTTER} 40px` }}>
         <div style={{ maxWidth: 1180, margin: "0 auto", textAlign: "center" }}>
-          <h2 style={{ margin: 0, font: "600 44px var(--font-fredoka)", color: "#FAF6EE" }}>Start your class jar today</h2>
+          <h2 style={{ margin: 0, font: "600 clamp(30px, 5vw, 44px) var(--font-fredoka)", color: "#FAF6EE" }}>Start your class jar today</h2>
           <p style={{ margin: "14px auto 0", font: "400 18px var(--font-atkinson)", color: "#A9B4C9", maxWidth: "30em" }}>Free for one class. Your children can pop their first moment in before home time.</p>
           <Link href="/signup/teacher" className="sj-btn-jam" style={{ marginTop: 30 }}>Start your class jar</Link>
           <div style={{ marginTop: 70, paddingTop: 28, borderTop: "1px solid rgba(250,246,238,0.2)" }}>

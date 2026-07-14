@@ -9,7 +9,10 @@ import { useEffect } from "react";
 export function ScrollFill() {
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
+    // On phones (≤760px) the hero track is static rather than sticky, so the
+    // scroll-fill effect makes no sense — the nine tiles simply stay visible.
+    const mobile = window.innerWidth <= 760;
+    if (reduce || mobile) return;
 
     const tiles = Array.from(
       document.querySelectorAll<SVGGElement>("[data-scroll-tile]"),

@@ -170,6 +170,32 @@ html {
     animation: none !important;
   }
 }
+/* Landing-page responsiveness (design: "Homepage responsiveness update").
+   Below 860px the two-column rows stack; below 760px the scroll-fill hero
+   becomes a static, scaled-down jar; below 640px the anchor nav links hide
+   (the sign-in button stays). */
+@media (max-width: 860px) {
+  .feat-row { grid-template-columns: 1fr !important; gap: 32px !important; }
+  .feat-row > * { order: 0 !important; }
+  .hero-grid { grid-template-columns: 1fr !important; row-gap: 8px !important; }
+  .parents-grid { grid-template-columns: 1fr !important; padding: 36px 28px !important; gap: 26px !important; }
+}
+@media (max-width: 760px) {
+  .hero-track { height: auto !important; }
+  .hero-sticky { position: static !important; height: auto !important; }
+  /* The design file scales the jar with transform: scale(0.85), but a
+     transform doesn't shrink the LAYOUT box — the fixed 380px art would
+     force the single hero column wider than a phone screen and clip the
+     headline text. zoom scales identically AND shrinks the layout box. */
+  .hero-jar-wrap { zoom: 0.85; }
+}
+@media (max-width: 640px) {
+  .nav-links { display: none !important; }
+}
+@media (max-width: 440px) {
+  .hero-jar-wrap { zoom: 0.62; }
+}
+
 .sj details > summary {
   list-style: none;
   cursor: pointer;
