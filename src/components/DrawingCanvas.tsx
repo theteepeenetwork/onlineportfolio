@@ -3019,8 +3019,14 @@ function QuizBoxView({
       } ${selected ? "ring-2 ring-brand" : ""}`}
       style={{ left: q.x * scale, top: q.y * scale, width: q.w * scale, height: q.h * scale }}
     >
-      <div className="flex h-full w-full flex-col gap-2 overflow-hidden rounded-2xl border-2 border-brand/60 bg-white/95 p-3 shadow-lg">
-        <p className="text-center font-bold leading-tight text-foreground" style={{ fontSize: Math.max(15, 24 * scale) }}>
+      {/* Content is laid out at logical canvas size (q.w × q.h) and shrunk with a
+          transform, so text and answer buttons scale with the box on small screens
+          instead of overflowing it. */}
+      <div
+        className="flex flex-col gap-2 overflow-hidden rounded-2xl border-2 border-brand/60 bg-white/95 p-3 shadow-lg"
+        style={{ width: q.w, height: q.h, transform: `scale(${scale})`, transformOrigin: "top left" }}
+      >
+        <p className="text-center text-2xl font-bold leading-tight text-foreground">
           {q.prompt || (author ? "Add your question in the Quiz panel →" : "")}
         </p>
         <div
