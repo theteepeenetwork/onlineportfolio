@@ -196,6 +196,29 @@ html {
   .hero-jar-wrap { zoom: 0.62; }
 }
 
+/* Teacher login redesign ("Teacher Login — 1b"): work tiles drift gently
+   around the card and twinkles pulse. Tilt comes in via --r per tile. */
+@keyframes sj-float {
+  0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+  50% { transform: translateY(-12px) rotate(var(--r, 0deg)); }
+}
+@keyframes sj-twinkle {
+  0%, 100% { transform: scale(0.85); opacity: 0.55; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+.sj-float { animation: sj-float 6.5s ease-in-out infinite; }
+.sj-twinkle { animation: sj-twinkle 3.8s ease-in-out infinite; }
+/* Below 720px the decorations would crowd (or hide behind) the card. */
+@media (max-width: 720px) {
+  .sj-login-decor { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sj-float,
+  .sj-twinkle {
+    animation: none !important;
+  }
+}
+
 .sj details > summary {
   list-style: none;
   cursor: pointer;
