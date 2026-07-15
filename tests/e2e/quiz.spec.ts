@@ -235,3 +235,66 @@ test("shrinking a question box scales its contents instead of clipping them", as
   }));
   expect(state).toEqual({ clipped: false, overflows: false });
 });
+
+// Answer rows stretch to share out the box's height, so their size says little
+// about how much text is in them — two short answers in a tall box left small
+// text marooned in a big empty row. The text is grown to fill the row it's in,
+// at one shared size so the answers stay consistent with each other.
+test("answer text grows to fill its row, at one size for every answer", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Fit to box");
+
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+
+  const panel = page.getByRole("region", { name: "Quiz builder" });
+  const box = page.getByRole("group", { name: "Question box" });
+  await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+  await box.getByPlaceholder("Type your question here").fill("hello this is the question");
+
+  const answers = box.getByPlaceholder("Type an answer");
+  await answers.nth(0).fill("hello this is the answer to the question");
+  await answers.nth(1).fill("hello this is the answer to the question");
+
+  // The text fills most of the row it sits in, rather than floating small in a
+  // tall box. (It was 16px in a ~96px row before — about a quarter of it.)
+  const fill = await box.evaluate((el) => {
+    const t = el.querySelector("textarea[aria-label='Answer text']") as HTMLTextAreaElement;
+    return t.offsetHeight / (t.parentElement as HTMLElement).clientHeight;
+  });
+  expect(fill).toBeGreaterThan(0.5);
+
+  // Every answer is the same size — sizing each to its own text would leave one
+  // answer looming over another.
+  const sizes = await box.evaluate(() =>
+    [...document.querySelectorAll("textarea[aria-label='Answer text']")].map(
+      (t) => getComputedStyle(t).fontSize,
+    ),
+  );
+  expect(new Set(sizes).size).toBe(1);
+
+  // Growing must not push the text out of its row.
+  const clipped = await box.evaluate((el) =>
+    [...el.querySelectorAll("textarea")].some((t) => t.scrollHeight > t.clientHeight + 1),
+  );
+  expect(clipped).toBe(false);
+
+  // A different answer length must not change the shared size mid-flight, and
+  // four answers in narrower columns must shrink to fit rather than spill.
+  await panel.getByRole("button", { name: /^＋ Add answer$/ }).click();
+  await panel.getByRole("button", { name: /^＋ Add answer$/ }).click();
+  await answers.nth(2).fill("He was riding his bicycle to school");
+  await answers.nth(3).fill("Red");
+  const after = await box.evaluate(() => ({
+    sizes: [...document.querySelectorAll("textarea[aria-label='Answer text']")].map(
+      (t) => getComputedStyle(t).fontSize,
+    ),
+    clipped: [...document.querySelectorAll("textarea[aria-label='Answer text']")].some(
+      (t) => (t as HTMLTextAreaElement).scrollHeight > t.clientHeight + 1,
+    ),
+  }));
+  expect(new Set(after.sizes).size).toBe(1);
+  expect(after.clipped).toBe(false);
+});
