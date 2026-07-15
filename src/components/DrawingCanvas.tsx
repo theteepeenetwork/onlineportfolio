@@ -3240,7 +3240,12 @@ function QuizBoxView({
                 return (
                   <div
                     key={o.id}
-                    className={`flex min-h-[64px] items-center justify-center gap-2 rounded-xl border-2 p-2 text-center ${
+                    // min-w-0: a grid "1fr" is minmax(auto, 1fr), and the auto
+                    // floor is the item's min-content — which a textarea inflates
+                    // to its intrinsic `cols` width, unlike the span this used to
+                    // hold. Without this the two columns refuse to shrink and the
+                    // answers overflow the box and get clipped.
+                    className={`flex min-h-[64px] min-w-0 items-center justify-center gap-2 rounded-xl border-2 p-2 text-center ${
                       correct ? "border-emerald-500 bg-emerald-50" : "border-brand/25 bg-white"
                     }`}
                   >

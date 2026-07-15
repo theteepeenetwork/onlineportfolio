@@ -140,3 +140,45 @@ test("the worksheet box and the quiz panel edit the same question, both ways", a
   await panel.getByRole("button", { name: /Mark "In bed" as correct/ }).click();
   await expect(box.getByTitle(/Correct answer/)).toBeVisible();
 });
+
+// Four answers lay out two-per-row. The fields are textareas, which carry an
+// intrinsic width a plain <span> never had, so the grid columns will refuse to
+// shrink and spill out of the box unless they're allowed to. The box clips its
+// overflow, so when that happens the teacher simply loses half their answers.
+test("a four-answer question stays inside its box on the worksheet", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Four answers");
+
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+
+  const panel = page.getByRole("region", { name: "Quiz builder" });
+  const box = page.getByRole("group", { name: "Question box" });
+  await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+
+  // Two answers by default → add two more to get the two-column layout.
+  await panel.getByRole("button", { name: /^＋ Add answer$/ }).click();
+  await panel.getByRole("button", { name: /^＋ Add answer$/ }).click();
+  const answers = box.getByPlaceholder("Type an answer");
+  await expect(answers).toHaveCount(4);
+
+  // Real, wrapping answer text — short words would fit even a broken layout.
+  await answers.nth(0).fill("He was stood next to the bus stop");
+  await answers.nth(1).fill("He was fast asleep in his bed");
+  await answers.nth(2).fill("He was riding his bicycle to school");
+  await answers.nth(3).fill("He was eating his breakfast");
+
+  // Every answer sits within the box, and none of the text is cut off.
+  const boxBox = (await box.boundingBox())!;
+  for (let i = 0; i < 4; i++) {
+    const row = (await answers.nth(i).boundingBox())!;
+    expect(row.x).toBeGreaterThanOrEqual(boxBox.x - 1);
+    expect(row.x + row.width).toBeLessThanOrEqual(boxBox.x + boxBox.width + 1);
+  }
+  const clipped = await box.evaluate((el) =>
+    [...el.querySelectorAll("textarea")].some((t) => t.scrollHeight > t.clientHeight + 1),
+  );
+  expect(clipped).toBe(false);
+});
