@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "./icons/Icon";
 import {
   MIN_OPTIONS,
@@ -3067,6 +3067,7 @@ function BoxField({
   label,
   className,
   style,
+  register,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -3075,8 +3076,13 @@ function BoxField({
   label: string;
   className: string;
   style?: React.CSSProperties;
+  register?: (el: HTMLTextAreaElement | null) => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    register?.(ref.current);
+    return () => register?.(null);
+  }, [register]);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -3214,6 +3220,69 @@ function QuizBoxView({
   // size it's unreadable anyway and the space is better spent on the question.
   const showSyncHint = editable && k > 0.55;
 
+  // Answer rows stretch to share out the box's height, so their size has little
+  // to do with how much text is in them: two short answers in a tall box left
+  // small text marooned in a big empty row. So the text is grown to fill the
+  // row it's actually in rather than sized from the box.
+  //
+  // One size for all of them, the largest that fits every answer — sizing each
+  // independently would leave "Red" huge next to a small "It was raining".
+  // Capped at the question's size so the question still reads as the question.
+  const answerCap = px(24);
+  const answerFloor = Math.min(8, answerCap);
+  const [answerFont, setAnswerFont] = useState(answerCap);
+  const answerEls = useRef<Map<string, HTMLElement>>(new Map());
+  const registerAnswer = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) answerEls.current.set(id, el);
+    else answerEls.current.delete(id);
+  }, []);
+
+  // Re-fit whenever anything that changes how much room the text has changes.
+  const answerKey = q.options.map((o) => `${o.text ?? ""}|${o.imagePath ? 1 : 0}`).join(" ");
+  useLayoutEffect(() => {
+    const els = [...answerEls.current.values()];
+    if (!els.length) return;
+    const fitsAll = (size: number) =>
+      els.every((el) => {
+        const row = el.parentElement;
+        if (!row) return true;
+        const cs = getComputedStyle(row);
+        const avail = row.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+        el.style.fontSize = `${size}px`;
+        if (el instanceof HTMLTextAreaElement) {
+          el.style.height = "auto";
+          return el.scrollHeight <= avail && el.scrollWidth <= el.clientWidth + 1;
+        }
+        return el.offsetHeight <= avail && el.scrollWidth <= el.clientWidth + 1;
+      });
+
+    let lo = answerFloor;
+    let hi = answerCap;
+    let best = answerFloor;
+    // Largest size that fits, to a fraction of a pixel. Eight halvings is well
+    // inside the precision anyone can see.
+    for (let i = 0; i < 8; i++) {
+      const mid = (lo + hi) / 2;
+      if (fitsAll(mid)) {
+        best = mid;
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    best = Math.round(best * 10) / 10;
+    // Leave the DOM at the chosen size even when state doesn't change — the
+    // search above left it at whatever it probed last.
+    els.forEach((el) => {
+      el.style.fontSize = `${best}px`;
+      if (el instanceof HTMLTextAreaElement) {
+        el.style.height = "auto";
+        el.style.height = `${el.scrollHeight}px`;
+      }
+    });
+    setAnswerFont((prev) => (Math.abs(prev - best) < 0.15 ? prev : best));
+  }, [answerKey, answerCap, answerFloor, q.w, q.h, q.options.length, editable]);
+
   return (
     <div
       onPointerDown={author ? startMove : undefined}
@@ -3311,8 +3380,9 @@ function QuizBoxView({
                       onPointerDown={stopDrag}
                       placeholder="Type an answer"
                       label="Answer text"
-                      className="min-w-0 flex-1 font-semibold text-foreground"
-                      style={{ fontSize: px(16) }}
+                      className="min-w-0 flex-1 break-words font-semibold text-foreground"
+                      style={{ fontSize: answerFont }}
+                      register={(el) => registerAnswer(o.id, el)}
                     />
                     {correct && (
                       <span
@@ -3360,7 +3430,15 @@ function QuizBoxView({
                         style={{ maxHeight: px(64) }}
                       />
                     )}
-                    {o.text && <span className="min-w-0 font-semibold text-foreground">{o.text}</span>}
+                    {o.text && (
+                      <span
+                        ref={(el) => registerAnswer(o.id, el)}
+                        className="min-w-0 break-words font-semibold text-foreground"
+                        style={{ fontSize: answerFont }}
+                      >
+                        {o.text}
+                      </span>
+                    )}
                     {showCorrect && (
                       <span className="text-emerald-600" title="Correct answer">
                         ✓
