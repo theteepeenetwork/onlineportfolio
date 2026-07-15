@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { teacherLogin } from "./helpers";
+import { teacherLogin, drawOnCanvas } from "./helpers";
 
 // Stage 2: a draft started on one device can be resumed on another. Two browser
 // CONTEXTS = two devices (separate IndexedDB), so a restore in the second can
@@ -15,15 +15,10 @@ test("a template draft synced on one device is offered on another", async ({ bro
   await page1.getByRole("button", { name: /Build a template/ }).click();
   await expect(page1.locator("canvas")).toBeVisible();
 
-  const canvas = page1.locator("canvas").first();
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("no canvas box");
-  await page1.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.4);
-  await page1.mouse.down();
-  for (let i = 1; i <= 8; i++) {
-    await page1.mouse.move(box.x + box.width * 0.3 + i * 16, box.y + box.height * 0.4 + i * 6);
-  }
-  await page1.mouse.up();
+  // Use the shared helper rather than hand-rolling the stroke: it picks the Pen
+  // first, and templates open on the Select tool. Drawing without that leaves
+  // the page blank, so nothing is captured and there's no draft to sync.
+  await drawOnCanvas(page1);
 
   // The editor has captured the composite pages into its hidden field. Push them
   // to the account exactly as the client's debounced server sync does.
@@ -63,5 +58,15 @@ test("a template draft synced on one device is offered on another", async ({ bro
   // And the title synced with it.
   await page2.locator('button[title="Done"]').click();
   await expect(page2.locator("#title")).toHaveValue("Synced across devices");
+
+  // Clean up: the suite shares one teacher account, so a draft left on the
+  // server is offered to every later test that opens the template builder,
+  // whose restore prompt then blocks it. "Start fresh" is the real discard
+  // path (it calls serverDiscardDraft), so this tidies up the way a teacher
+  // would.
+  await page2.goto("/teacher/activities/new");
+  await page2.getByRole("button", { name: /Build a template/ }).click();
+  await page2.getByRole("button", { name: /Start fresh/i }).click();
+  await expect(page2.getByRole("dialog", { name: /restore your work/i })).toBeHidden();
   await device2.close();
 });
