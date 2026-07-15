@@ -50,7 +50,20 @@ const STEP_TAG = (bg: string, tilt: string): React.CSSProperties => ({
 const PROGRESS_FILLS = ["#C2476B", "#F0B441", "#37796f", "#8AB9D6", "#A6C979"];
 
 const COUNTRIES = ["England", "Scotland", "Wales", "Northern Ireland", "Elsewhere"];
-const YEAR_GROUPS = ["Nursery", "Reception", "Year 1", "Year 2", "Mixed / other"];
+// Storyjar is for ages 3–11, so the list runs the full primary phase — Nursery
+// and Reception through to Year 6. "Mixed / other" stays last for the classes
+// that don't fit a single year (and for Scotland/NI naming).
+const YEAR_GROUPS = [
+  "Nursery",
+  "Reception",
+  "Year 1",
+  "Year 2",
+  "Year 3",
+  "Year 4",
+  "Year 5",
+  "Year 6",
+  "Mixed / other",
+];
 const TITLES = ["Mr", "Miss", "Mrs", "Ms", "Mx", ""];
 
 // One of the two "what your class calls you" choice tiles.
