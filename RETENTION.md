@@ -35,6 +35,7 @@
 | Children's quiz answers + scores | **Not a separate category** — stored as fields on the journal item (`quizAnswersJson`, `quizScore`, `quizTotal`); no separate files | Deleted with their journal item (rows removed by the same cascade/erasure paths) |
 | Teacher-authored activity media — template background pages **and** quiz answer-option pictures (`quizJson` / `quizSnapshotJson`) | Template/assignment exists | Deleted with the template/account like other teacher-authored template media; served only via the authorising `/uploads` route, never to parents |
 | Child records (first name, class link) | As above | Deleted with the class/school, or on school instruction |
+| **Child PIN** — bcrypt hash + the date it was set (`pinHash`, `pinSetAt`), optional and only on classes where a teacher switched PINs on (see SAFEGUARDING rule 1) | The class has PINs switched on **and** the child exists | Deleted **immediately** when a teacher switches PINs off for the class — the hash is removed, not just ignored — and otherwise with the child/class/school by the same cascade. Never exported, never shown to any teacher, admin, parent or child, never included in a data export or a parent view. A PIN is not an account and does not outlive the class. |
 | In-progress drafts — the template builder + a child's activity response (server copy for cross-device resume; composite pages stored as media, owner-scoped) | Last edited within **30 days** | Deleted (rows **and** media files) — lazily purged on access (no cron); erased immediately on submit/publish/discard and on class/student/school deletion. A child's draft is never visible to anyone but that child. |
 | Rejected/returned moments | — | Deleted within **30 days** of rejection |
 | Parent accounts + parent↔child links | Linked child exists | Deleted when last linked child is deleted, or on request |
@@ -84,6 +85,10 @@ The school remains the data controller regardless of who pays. Consequences:
       SAFEGUARDING.md; this document is the schedule it must implement).
 - [ ] DPO/legal review of all periods above, especially the 12-month frozen
       window and audit-log retention.
+- [ ] **DPO review of the child PIN** (added 2026-07-15 with the SAFEGUARDING
+      rule 1 amendment): it is the first per-child data field beyond a first
+      name. Needed **before** PINs reach real children, not before the code is
+      written.
 - [ ] Surface this schedule in the customer-facing privacy notice and DPA in
       plain language (Children's Code transparency standard).
 
