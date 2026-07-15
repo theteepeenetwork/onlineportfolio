@@ -10,9 +10,13 @@ resolved. Data-protection failures are treated as critical/high per the brief
 > delete (`deleteItem`). Findings reflect that state — F3 was narrowed to
 > `removeStudent`, which this work then fixed too.
 
-**Status: all findings addressed.** Fixes were applied after explicit sign-off
+**Status: F1–F15 addressed; F16 open.** Fixes were applied after explicit sign-off
 (the Phase-1 plan was "findings only"; the user then asked to fix them). Every
 fix is covered by a test that now passes.
+
+> **F15/F16 were found later**, while checking the July 2026 intuitiveness audit
+> against the code — not during the original battery work. F15 is fixed here.
+> **F16 is open** and scheduled with the audit's sign-in work.
 
 Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 
@@ -32,6 +36,71 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F12 | Low | Resilience | Reload discarded the add-child draft & lost your place | **Fixed** | `ux/interruption.spec.ts` |
 | F13 | Low | Responsive | Landing scrolled horizontally at iPad-portrait | **Fixed** | `ux/responsive.spec.ts` |
 | F14 | Low | Touch target | Approval-queue buttons < 44px on tablet | **Fixed** | `ux/responsive.spec.ts` |
+| F15 | Critical | AuthZ | `createJournalItem` trusted a client `studentId` — a teacher could publish into another school's pupil's journal, past the approval queue | **Fixed** | `security/f15-cross-tenant-journal-write.spec.ts` |
+| F16 | High | Rate-limit / Enumeration | Class-code lookup is unthrottled, and a hit discloses the class name + every pupil's first name | **Open** | — (scheduled with SJ-02) |
+
+---
+
+## F15 · Cross-tenant journal write, past the approval queue — Critical → Fixed
+
+**Was:** `createJournalItem` (`src/app/actions/journal.ts`) read `studentId` from
+the form and resolved it with an **unscoped** `findUnique`, then took `classId`
+off that student. The only remaining gate, `requireWritableAccountForClass`
+(`src/lib/billing.ts`), resolves the **owning** class's teacher and checks *their*
+subscription — it never compares against the teacher who is acting. Because
+teacher-authored items publish immediately (`status: isTeacher ? "APPROVED"`),
+any signed-in teacher could post into any school's pupil's journal and have it
+land **already approved** — visible to that school's parents, without their own
+teacher ever seeing it. Breaks rules 3 (the queue is sacred), 4 (scope every
+child-data query by ownership) and 8 (deny by default) at once.
+
+**Why it survived:** it is F1's twin — F1 fixed the *student* side of the same
+mistake, and this file already applies the principle correctly three more times
+(the `assignmentId` re-resolve, the `returned` lookup, the student branch), with
+comments citing rules 4 and 8. The teacher branch was the one place it wasn't.
+The add-work **page** is scoped correctly
+(`teacher/students/[studentId]/new/page.tsx` → `findFirst` on `class.teacherId`
+→ `notFound`), and `tenant-isolation.spec.ts` asserts exactly that: the UI route
+was closed, the server action behind it was not. Server actions are callable
+directly, so the page check was never the control.
+
+**Fix:** the teacher branch re-resolves the student with
+`findFirst where id AND class.teacherId = <acting teacher>`, mirroring
+`studentLogin`'s F1 fix. No match denies.
+
+**Not part of this fix:** `skillIds` is also read unscoped from the form, but
+`Skill` is a deliberately global taxonomy (`prisma/schema.prisma` — no
+`schoolId`, globally-unique `name`, and the teacher page offers every skill), so
+there is no tenant boundary to cross. A non-existent id would throw rather than
+leak; worth tidying, not a security fix.
+
+**Guards:** `security/f15-cross-tenant-journal-write.spec.ts` — a School B
+teacher tampering the hidden `studentId` on their own add-work page cannot reach
+a School A pupil; asserted against what School A's *own* teacher can see in the
+pupil's journal and in their queue. Blocking gate. Fails against the pre-fix
+code.
+
+## F16 · Class-code lookup: unthrottled, and discloses the roster — High → Open
+
+**Is:** `/login/student?code=…` (`src/app/login/student/page.tsx`) validates the
+class code with a direct Prisma lookup **in the page render** — a plain GET with
+no rate limiting. `src/lib/rateLimit.ts` is wired into `teacherLogin` and the
+family/magic-link actions only; F2 never covered this path. A hit returns the
+class name **and every pupil's first name** in it.
+
+**Severity reasoning:** the code alphabet is 31 chars at length 6 (≈887M), so
+blind brute force is impractical — this is grinding, not instant. But it is
+unbounded, unlogged, and the response is the roster itself.
+
+**The trap for whoever fixes it:** a school is one NAT IP. The existing limiter
+is 5 failures / 15 min **per IP** — thirty children mistyping twice would lock
+out the whole school. This path needs a miss-only counter with a classroom-safe
+threshold (~40–60/15min), and *the test proving honest classrooms aren't locked
+out matters more than the one proving the throttle works.*
+
+**Scheduled:** with the SJ-02 sign-in rework, which rewrites this same file.
+Note the child-facing PIN planned for KS2 does **not** answer this — the roster
+is disclosed before any PIN is reached.
 
 ---
 

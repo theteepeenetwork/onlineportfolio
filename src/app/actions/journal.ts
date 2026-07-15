@@ -39,10 +39,17 @@ export async function createJournalItem(
     classId = user.student.classId;
     authorRole = "STUDENT";
   } else {
-    // Teacher is posting on behalf of a student.
+    // Teacher is posting on behalf of a student. Never trust the studentId from
+    // the form: re-resolve it scoped to a class THIS teacher teaches, so a
+    // crafted id from another school can't reach a child who isn't theirs. This
+    // path publishes immediately (see `isTeacher` below), so an unscoped lookup
+    // here would put content in a child's journal without their own teacher
+    // ever seeing it — past the approval queue (SAFEGUARDING rules 3, 4 & 8).
     studentId = String(formData.get("studentId") ?? "");
     authorRole = "TEACHER";
-    const student = await db.student.findUnique({ where: { id: studentId } });
+    const student = await db.student.findFirst({
+      where: { id: studentId, class: { teacherId: user.teacher.id } },
+    });
     if (!student) return { error: "Please choose a student." };
     classId = student.classId;
   }
