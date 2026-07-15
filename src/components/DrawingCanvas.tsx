@@ -3663,9 +3663,9 @@ function QuizPanel({
             onClick={() => onCollapsedChange(false)}
             title="Expand"
             aria-label="Expand quiz panel"
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-xs text-surface hover:bg-white/25"
+            className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-[11px] leading-none text-surface hover:bg-white/25"
           >
-            ▴
+            ▲
           </button>
         </div>
       </div>
@@ -3696,9 +3696,12 @@ function QuizPanel({
           onClick={() => onCollapsedChange(true)}
           title="Shrink to a pill"
           aria-label="Shrink quiz panel"
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-xs text-surface hover:bg-white/25"
+          // ▼/▲ (the full-size triangles), not ▾/▴ — those are the *small*
+          // variants, whose ink stays a few pixels tall however large the font,
+          // so they read as a speck beside the ✕ however much you inflate them.
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-[11px] leading-none text-surface hover:bg-white/25"
         >
-          ▾
+          ▼
         </button>
         <button
           type="button"
