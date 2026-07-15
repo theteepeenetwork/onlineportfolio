@@ -54,7 +54,7 @@ const DEFAULT_TOOL_SIZES: Record<Tool, number> = {
 // pencil → Pen (thin), pen → Felt tip (thick), highlighter (wide/translucent),
 // eraser. See ToolShape for the drawn nibs and true-weight sample strokes.
 const TOOLS: { key: Tool; label: string; icon?: IconName }[] = [
-  { key: "cursor", label: "Select", icon: "point" },
+  { key: "cursor", label: "Select", icon: "select" },
   { key: "pencil", label: "Pen", icon: "pen" },
   { key: "pen", label: "Felt tip", icon: "felt-tip" },
   { key: "highlighter", label: "Highlighter", icon: "highlighter" },
@@ -62,7 +62,10 @@ const TOOLS: { key: Tool; label: string; icon?: IconName }[] = [
   { key: "text", label: "Text", icon: "text" },
 ];
 
+// The shelf: tools stand in a row, sunk to their nibs until picked. Select is a
+// shelf tool like the rest — the arrow cursor stands where a pen would.
 const SHELF: { key: Tool; label: string }[] = [
+  { key: "cursor", label: "Select" },
   { key: "pencil", label: "Pen" },
   { key: "pen", label: "Felt tip" },
   { key: "highlighter", label: "Highlighter" },
@@ -415,7 +418,7 @@ export function DrawingCanvas({
   const [canRedo, setCanRedo] = useState(false);
 
   // A template (teacher building it, or a child working on it) opens on the
-  // finger / Select tool, so objects can be picked up and moved straight away.
+  // Select tool, so objects can be picked up and moved straight away.
   // A plain free-draw still opens ready to draw with the Pen.
   const [tool, setTool] = useState<Tool>(objectMode ? "cursor" : "pencil");
   // Per-tool colour, kept for the whole session. `color` is the active tool's
@@ -1946,17 +1949,6 @@ export function DrawingCanvas({
           </div>
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => { finishEditing(); setTool("cursor"); }}
-              className={`pointer-events-auto mb-3 mr-2 flex h-12 w-12 items-center justify-center rounded-2xl border-2 shadow ${
-                tool === "cursor" ? "border-brand bg-brand/10 text-brand" : "border-border bg-white text-muted"
-              }`}
-              title="Select — move & resize things"
-              aria-label="Select"
-            >
-              <Icon name="point" size={22} decorative />
-            </button>
             {SHELF.map((t) => {
               const selected = tool === t.key;
               return (
@@ -1966,7 +1958,9 @@ export function DrawingCanvas({
                   onClick={() => { finishEditing(); setTool(t.key); }}
                   className="pointer-events-auto flex flex-col items-center transition-transform duration-150"
                   style={{ transform: `translateY(${selected ? 34 : 68}px)` }}
-                  title={t.label}
+                  title={t.key === "cursor" ? "Select — move & resize things" : t.label}
+                  aria-label={t.label}
+                  aria-pressed={selected}
                 >
                   <ToolShape kind={t.key} color={toolColors[t.key]} />
                 </button>
@@ -2227,6 +2221,18 @@ function ToolShape({ kind, color }: { kind: Tool; color: string }) {
     strokeLinejoin: "round" as const,
     "aria-hidden": true,
   };
+  if (kind === "cursor") {
+    // The Select arrow (icon library's "select"), stood up at pen scale. It's a
+    // shorter shape than the pens, so it sits whole on the shelf rather than
+    // sinking to a nib — the lift on pick is what marks it as the live tool.
+    return (
+      <svg {...svg}>
+        <g transform="translate(-15 7)">
+          <path d="M18 13 L18 55 L28 46 L34 60 L41 57 L35 43 L48 43 Z" fill="#FFFDF7" />
+        </g>
+      </svg>
+    );
+  }
   if (kind === "eraser") {
     return (
       <svg {...svg}>
