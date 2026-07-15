@@ -19,10 +19,17 @@ test("teacher padlock locks an object so pupils can't move it; unlocked stays mo
     await page.getByRole("button", { name }).click();
   };
 
+  // The objects drawn on the canvas. Scoped to their wrappers deliberately: a
+  // bare "svg path[stroke]" also matches Next's dev-tools overlay, which lives
+  // in a shadow root that Playwright's CSS engine pierces, and which renders
+  // stroked icons while the dev server is compiling. That made this test pass
+  // against a warm server and fail against a cold one — i.e. always, on CI.
+  const objectPaths = page.locator("div.touch-none svg path[stroke]");
+
   // First shape: a fixed piece. Move it aside so the two don't overlap, then
   // lock it with its padlock (open → closed).
   await addShape("Rectangle");
-  const rect = page.locator("svg path[stroke]").first();
+  const rect = objectPaths.first();
   const rectWrap = rect.locator("xpath=ancestor::div[1]");
   const rb = (await rectWrap.boundingBox())!;
   await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
@@ -77,7 +84,7 @@ test("teacher padlock locks an object so pupils can't move it; unlocked stays mo
   // --- Re-open the template as its author: every object is editable again ---
   await page.goto(`${templateUrl}/edit`);
   await page.getByRole("button", { name: /Edit template/ }).click();
-  await expect(page.locator("svg path[stroke]")).toHaveCount(2);
+  await expect(objectPaths).toHaveCount(2);
   await page.locator('button[aria-label="Select"]').click();
 
   // Selecting an object brings up its author toolbar (proving it's editable
