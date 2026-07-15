@@ -3332,6 +3332,12 @@ function QuizBoxView({
   );
 }
 
+// Quiz panel geometry. The body is capped at the design's height; on a short
+// window the panel as a whole is capped to the room below it instead and the
+// body scrolls. MIN_PANEL_H keeps the header grabbable however short the stage.
+const MAX_PANEL_BODY_H = 456;
+const MIN_PANEL_H = 120;
+
 // The corner launcher the panel tucks away into. Shown whenever the teacher is
 // authoring a quiz but has closed the panel, so the quiz is always one tap away
 // (the ＋ fan menu opens it too). Sits bottom-RIGHT: the design put it
@@ -3407,6 +3413,48 @@ function QuizPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ dx: number; dy: number } | null>(null);
 
+  // The panel floats, so nothing else keeps it inside the editor. Track the
+  // stage so its body can be capped to the room actually available and its
+  // position pulled back in when the window shrinks — otherwise the question
+  // list runs off the bottom and the teacher can't reach it.
+  const [stageSize, setStageSize] = useState<{ w: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    const stage = el?.offsetParent as HTMLElement | null;
+    if (!stage) return;
+    // Ignore zero readings — a stage that hasn't been laid out yet isn't a
+    // small stage, and treating it as one crushes the panel to its minimum.
+    const read = () => {
+      if (stage.clientWidth > 0 && stage.clientHeight > 0) {
+        setStageSize({ w: stage.clientWidth, h: stage.clientHeight });
+      }
+    };
+    read();
+    const obs = new ResizeObserver(read);
+    obs.observe(stage);
+    // Belt and braces: the observer covers the stage changing for any reason,
+    // the window listener covers the case this is really about.
+    window.addEventListener("resize", read);
+    return () => {
+      obs.disconnect();
+      window.removeEventListener("resize", read);
+    };
+  }, [collapsed]);
+
+  // Pull the panel back inside after the stage shrinks. Keeps the header (the
+  // only way to move it, and the way to reopen it) on screen.
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    if (!el || !stageSize) return;
+    const maxX = Math.max(6, stageSize.w - el.offsetWidth - 6);
+    // Leave the header's worth of panel on screen, not the whole panel — the
+    // point is only that it stays grabbable.
+    const maxY = Math.max(6, stageSize.h - MIN_PANEL_H);
+    if (pos.x > maxX || pos.y > maxY) {
+      onPosChange({ x: Math.min(pos.x, maxX), y: Math.min(pos.y, maxY) });
+    }
+  }, [stageSize, pos, onPosChange]);
+
   // Drag the header to reposition, clamped inside the editor stage so the panel
   // can never be dropped somewhere it can't be grabbed again.
   function onHeaderDown(e: React.PointerEvent) {
@@ -3445,6 +3493,11 @@ function QuizPanel({
   groups.sort((a, b) => a.pageIndex - b.pageIndex);
 
   const dragBar = "cursor-grab touch-none select-none active:cursor-grabbing";
+  // Cap the whole panel to the room below it and let the body flex inside that,
+  // rather than guessing the header's height. On a short window the list
+  // scrolls inside the panel — as it did when the panel was pinned to the
+  // stage — instead of hanging off the bottom out of reach.
+  const panelMax = stageSize ? Math.max(MIN_PANEL_H, stageSize.h - pos.y - 6) : undefined;
 
   if (collapsed) {
     return (
@@ -3481,14 +3534,14 @@ function QuizPanel({
       ref={panelRef}
       role="region"
       aria-label="Quiz builder"
-      className="absolute z-40 w-[300px] max-w-[80vw] overflow-hidden rounded-2xl border-2 border-foreground bg-surface shadow-xl"
-      style={{ left: pos.x, top: pos.y }}
+      className="absolute z-40 flex w-[300px] max-w-[80vw] flex-col overflow-hidden rounded-2xl border-2 border-foreground bg-surface shadow-xl"
+      style={{ left: pos.x, top: pos.y, maxHeight: panelMax }}
     >
       <div
         onPointerDown={onHeaderDown}
         onPointerMove={onHeaderMove}
         onPointerUp={onHeaderUp}
-        className={`${dragBar} flex items-center gap-2 bg-foreground px-2.5 py-2 text-surface`}
+        className={`${dragBar} flex shrink-0 items-center gap-2 bg-foreground px-2.5 py-2 text-surface`}
       >
         <span aria-hidden className="text-sm opacity-60">
           ⠿
@@ -3516,7 +3569,7 @@ function QuizPanel({
         </button>
       </div>
 
-      <div className="max-h-[456px] overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3" style={{ maxHeight: MAX_PANEL_BODY_H }}>
         <p className="text-xs text-muted">
           You&apos;re on <b className="text-foreground">page {currentPage + 1} of {pageCount}</b>. Questions can
           live on any page.
@@ -3577,7 +3630,9 @@ function QuizPanel({
                       <span className="flex-1 truncate text-sm text-foreground">
                         {q.prompt || "Untitled question"}
                       </span>
-                      <span aria-hidden className="text-xs text-muted">
+                      {/* ▾/▸ sit small inside their em box, so this needs a
+                          bigger size than the label to read as a control. */}
+                      <span aria-hidden className="shrink-0 text-2xl leading-none text-muted">
                         {open ? "▾" : "▸"}
                       </span>
                     </button>
