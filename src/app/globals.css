@@ -384,6 +384,15 @@ h4 {
   color: var(--ink);
 }
 
+/* The hero tiles are decoration, and ScrollFill parks the hidden ones at
+   translate(20px,-480px) — i.e. directly over the nav — with opacity:0. An
+   opacity:0 element still swallows clicks, so without this the invisible tiles
+   sit on top of the sign-in buttons and eat taps. Decoration must never
+   intercept a pointer. */
+[data-scroll-tile] {
+  pointer-events: none;
+}
+
 /* The child's front door. Deliberately the largest target in the nav: it is the
    only element on this page aimed at someone who may not read it, so it carries
    the jar mark and meets the 64px child touch floor (SAFEGUARDING rule 18) while
