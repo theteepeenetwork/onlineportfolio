@@ -182,3 +182,56 @@ test("a four-answer question stays inside its box on the worksheet", async ({ pa
   );
   expect(clipped).toBe(false);
 });
+
+// A teacher can shrink a question to an aside. The contents are designed at the
+// box's birth size and scale down with it, so a smaller box shows everything at
+// smaller type rather than keeping the type and clipping — which is what the old
+// fixed sizes did, and why the box couldn't usefully go below its old floor.
+test("shrinking a question box scales its contents instead of clipping them", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Small box");
+
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+
+  const panel = page.getByRole("region", { name: "Quiz builder" });
+  const box = page.getByRole("group", { name: "Question box" });
+  await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+
+  const prompt = box.getByPlaceholder("Type your question here");
+  await prompt.fill("How do you know Harry was waiting for the bus?");
+  await box.getByPlaceholder("Type an answer").nth(0).fill("He was stood next to the bus stop");
+  await box.getByPlaceholder("Type an answer").nth(1).fill("He was in bed");
+
+  const fontOf = (l: ReturnType<typeof page.locator>) =>
+    l.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const before = await fontOf(prompt);
+
+  // Drag the resize handle well past the old 220×160 floor.
+  const handle = page.locator('[title="Resize"]');
+  const h = (await handle.boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x - 260, h.y - 190, { steps: 8 });
+  await page.mouse.up();
+
+  // The box really did get smaller than the old 220 floor. Measured in canvas
+  // units (offsetWidth), not the rendered box: the canvas scales to fit the
+  // window, so a bounding box in CSS pixels reads under 220 even when the
+  // question is still pinned at the old floor.
+  const shrunkWidth = await box.evaluate((el) => (el as HTMLElement).offsetWidth);
+  expect(shrunkWidth).toBeLessThan(220);
+
+  // …the type came down with it…
+  const after = await fontOf(prompt);
+  expect(after).toBeLessThan(before);
+
+  // …and everything still fits: no clipped fields, no overflow.
+  const state = await box.evaluate((el) => ({
+    clipped: [...el.querySelectorAll("textarea")].some((t) => t.scrollHeight > t.clientHeight + 1),
+    overflows: el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1,
+  }));
+  expect(state).toEqual({ clipped: false, overflows: false });
+});
