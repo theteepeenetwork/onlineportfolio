@@ -18,7 +18,7 @@ next (see [Roadmap](#roadmap-whats-next)).
 - **Multiple classes**: a teacher can create as many classes as they like, each
   with its own auto-generated class code and roster.
 - **Student sign-in** with a short class code, then tapping their own name — no
-  passwords or emails for children (safe for early years / KS1).
+  passwords or emails for children (safe from early years through KS2).
 - A **class roster** you manage: add children one at a time **or paste a whole
   class list at once** (one name per line, straight from a register or
   spreadsheet), remove children, and see the class code to share with them.

@@ -1,6 +1,6 @@
 # Rule 1: safeguarding comes first
 
-Storyjar holds the work of children aged 3–7. **Before changing anything that
+Storyjar holds the work of children aged 3–11. **Before changing anything that
 touches authentication, access control, the approval queue, children's data, or
 uploaded media, read [`SAFEGUARDING.md`](./SAFEGUARDING.md) and follow it.** Its
 rules override convenience, speed and every other consideration. When a choice is
