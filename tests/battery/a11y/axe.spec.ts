@@ -87,6 +87,29 @@ test("a11y (AA): sticker sheet", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "sticker sheet");
 });
 
+// The template editor is where a teacher builds a quiz. It's the most complex
+// surface in the product (floating panel, accordion, on-worksheet fields) and
+// was previously unscanned — nothing else here opens the editor at all.
+test("a11y (AA): quiz builder in the template editor", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities/new");
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+  // Scan with a question expanded, so the inline editor is in the tree too.
+  const panel = page.getByRole("region", { name: "Quiz builder" });
+  await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+  const prompt = panel.getByPlaceholder("What do you want to ask?");
+  await expect(prompt).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "quiz builder (question open)");
+
+  // And again collapsed: the accordion's two states have different markup, and
+  // a reference to the unmounted body would only show up here.
+  await panel.getByRole("button", { name: /Untitled question/ }).click();
+  await expect(prompt).toBeHidden();
+  assertNoSeriousViolations(await scan(page), "quiz builder (question closed)");
+});
+
 test("a11y (AA): class manager", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/teacher/class");
