@@ -92,6 +92,20 @@ const H = 700;
 const FONT_STACK = "ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif";
 const MAX_HISTORY = 30;
 
+// A quiz box is born at this size, and its contents are designed at it: the
+// type sizes below are "at QUIZ_W × QUIZ_H". A resized box scales its contents
+// from these, so they're the maximum rather than a fixed size.
+const QUIZ_W = 380;
+const QUIZ_H = 300;
+// How small a teacher may drag a box: a quiz can be a small aside on a busy
+// worksheet, not just the main event. Well under the old 220×160 floor — which
+// was nominal anyway, since at that size the old fixed-size contents didn't fit
+// and simply got clipped. Contents scale now, so every size down to here shows
+// everything. Note this is child-facing text: at the floor the answers are
+// ~6px, so it's the teacher's judgement, not a size to design at.
+const QUIZ_MIN_W = 150;
+const QUIZ_MIN_H = 120;
+
 // Movable / resizable things placed on top of the drawing: imported pictures
 // (images / PDF pages) and shapes.
 // Placed-object lock state. `locked` is the teacher's decision (a child cannot
@@ -1553,10 +1567,10 @@ export function DrawingCanvas({
     const q: QuizQuestion = {
       id: qid,
       pageIndex: currentRef.current,
-      x: (W - 380) / 2,
-      y: (H - 300) / 2,
-      w: 380,
-      h: 300,
+      x: (W - QUIZ_W) / 2,
+      y: (H - QUIZ_H) / 2,
+      w: QUIZ_W,
+      h: QUIZ_H,
       prompt: "",
       options,
       correctOptionId: "opt0",
@@ -3052,6 +3066,7 @@ function BoxField({
   placeholder,
   label,
   className,
+  style,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -3059,6 +3074,7 @@ function BoxField({
   placeholder: string;
   label: string;
   className: string;
+  style?: React.CSSProperties;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
@@ -3081,7 +3097,10 @@ function BoxField({
     });
     obs.observe(el);
     return () => obs.disconnect();
-  }, [value]);
+    // fontSize matters too: scaling the box down re-wraps the text and changes
+    // the height needed, and a height-only resize never changes our width, so
+    // the observer above wouldn't catch it.
+  }, [value, style?.fontSize]);
   return (
     <textarea
       ref={ref}
@@ -3094,6 +3113,7 @@ function BoxField({
       }}
       placeholder={placeholder}
       aria-label={label}
+      style={style}
       className={`resize-none overflow-hidden border-none bg-transparent text-center outline-none placeholder:text-muted ${className}`}
     />
   );
@@ -3164,8 +3184,8 @@ function QuizBoxView({
         y: Math.max(0, Math.min(H - q.h, (e.clientY - d.ay) / scale)),
       });
     } else {
-      const w = Math.max(220, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
-      const h = Math.max(160, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
+      const w = Math.max(QUIZ_MIN_W, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
+      const h = Math.max(QUIZ_MIN_H, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
       onMove(q.id, { w, h });
     }
   }
@@ -3183,6 +3203,17 @@ function QuizBoxView({
   // chrome is still the drag handle.
   const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
 
+  // Everything inside is designed at QUIZ_W × QUIZ_H and scales down with the
+  // box, so a teacher can shrink a question to an aside and still have it read
+  // — smaller text is the point, not a compromise. Capped at 1 so a big box
+  // gets more room rather than giant type. Driven by whichever axis is tighter,
+  // so a short-and-wide box doesn't overflow vertically.
+  const k = Math.min(1, q.w / QUIZ_W, q.h / QUIZ_H);
+  const px = (n: number) => Math.round(n * k * 10) / 10;
+  // The sync hint is an authoring affordance, not content: below about half
+  // size it's unreadable anyway and the space is better spent on the question.
+  const showSyncHint = editable && k > 0.55;
+
   return (
     <div
       onPointerDown={author ? startMove : undefined}
@@ -3199,23 +3230,37 @@ function QuizBoxView({
       <div
         role={editable ? "group" : undefined}
         aria-label={editable ? "Question box" : undefined}
-        className={`flex flex-col gap-2 overflow-hidden rounded-2xl border-2 p-3 shadow-lg ${
+        className={`flex flex-col overflow-hidden rounded-2xl border-2 shadow-lg ${
           author ? "border-brand bg-brand/5" : "border-brand/60 bg-white/95"
         }`}
-        style={{ width: q.w, height: q.h, transform: `scale(${scale})`, transformOrigin: "top left" }}
+        style={{
+          width: q.w,
+          height: q.h,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          padding: px(12),
+          gap: px(8),
+          fontSize: px(16),
+        }}
       >
         {editable ? (
           <>
-            <p className="text-center text-xs font-bold uppercase tracking-wide text-brand">
-              Edits here also show in the Quiz panel
-            </p>
+            {showSyncHint && (
+              <p
+                className="text-center font-bold uppercase tracking-wide text-brand"
+                style={{ fontSize: px(12) }}
+              >
+                Edits here also show in the Quiz panel
+              </p>
+            )}
             <BoxField
               value={q.prompt}
               onChange={(v) => onPrompt(q.id, v)}
               onPointerDown={stopDrag}
               placeholder="Type your question here"
               label="Question"
-              className="w-full text-2xl font-bold leading-tight text-foreground"
+              className="w-full font-bold leading-tight text-foreground"
+              style={{ fontSize: px(24) }}
             />
           </>
         ) : (
@@ -3223,16 +3268,17 @@ function QuizBoxView({
           // so the teacher can draw across it, so echo the placeholder rather
           // than leaving a new question looking like an empty box.
           <p
-            className={`text-center text-2xl font-bold leading-tight ${
+            className={`text-center font-bold leading-tight ${
               q.prompt ? "text-foreground" : "text-muted"
             }`}
+            style={{ fontSize: px(24) }}
           >
             {q.prompt || (author ? "Type your question here" : "")}
           </p>
         )}
         <div
-          className="grid min-h-0 flex-1 gap-2"
-          style={{ gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr" }}
+          className="grid min-h-0 flex-1"
+          style={{ gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr", gap: px(8) }}
         >
           {editable
             ? q.options.map((o) => {
@@ -3245,13 +3291,19 @@ function QuizBoxView({
                     // to its intrinsic `cols` width, unlike the span this used to
                     // hold. Without this the two columns refuse to shrink and the
                     // answers overflow the box and get clipped.
-                    className={`flex min-h-[64px] min-w-0 items-center justify-center gap-2 rounded-xl border-2 p-2 text-center ${
+                    className={`flex min-w-0 items-center justify-center rounded-xl border-2 text-center ${
                       correct ? "border-emerald-500 bg-emerald-50" : "border-brand/25 bg-white"
                     }`}
+                    style={{ minHeight: px(64), padding: px(8), gap: px(8) }}
                   >
                     {o.imagePath && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={o.imagePath} alt="" className="max-h-16 w-auto shrink-0 object-contain" />
+                      <img
+                        src={o.imagePath}
+                        alt=""
+                        className="w-auto shrink-0 object-contain"
+                        style={{ maxHeight: px(64) }}
+                      />
                     )}
                     <BoxField
                       value={o.text ?? ""}
@@ -3260,11 +3312,13 @@ function QuizBoxView({
                       placeholder="Type an answer"
                       label="Answer text"
                       className="min-w-0 flex-1 font-semibold text-foreground"
+                      style={{ fontSize: px(16) }}
                     />
                     {correct && (
                       <span
                         title="Correct answer — set this in the Quiz panel"
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-xs text-white"
+                        className="flex shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
+                        style={{ height: px(20), width: px(20), fontSize: px(11) }}
                       >
                         ✓
                       </span>
@@ -3288,19 +3342,25 @@ function QuizBoxView({
                     aria-label={o.text || "Picture answer"}
                     aria-pressed={chosen}
                     onClick={author || locked ? undefined : () => onAnswer(q.id, o.id)}
-                    className={`flex min-h-[64px] items-center justify-center gap-2 rounded-xl border-2 p-2 text-center transition-colors ${
+                    className={`flex min-w-0 items-center justify-center rounded-xl border-2 text-center transition-colors ${
                       showCorrect
                         ? "border-emerald-500 bg-emerald-50"
                         : chosen
                           ? "border-brand bg-brand/15"
                           : "border-border bg-white"
                     } ${author || locked ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
+                    style={{ minHeight: px(64), padding: px(8), gap: px(8) }}
                   >
                     {o.imagePath && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={o.imagePath} alt="" className="max-h-16 w-auto shrink-0 object-contain" />
+                      <img
+                        src={o.imagePath}
+                        alt=""
+                        className="w-auto shrink-0 object-contain"
+                        style={{ maxHeight: px(64) }}
+                      />
                     )}
-                    {o.text && <span className="font-semibold text-foreground">{o.text}</span>}
+                    {o.text && <span className="min-w-0 font-semibold text-foreground">{o.text}</span>}
                     {showCorrect && (
                       <span className="text-emerald-600" title="Correct answer">
                         ✓
