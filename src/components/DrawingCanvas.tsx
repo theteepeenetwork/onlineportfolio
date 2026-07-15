@@ -36,6 +36,9 @@ const SWATCHES = [
   "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#ffffff",
 ];
 const SIZES = [6, 12, 22];
+// Bounds of the child canvas line-thickness slider.
+const MIN_WIDTH = 2;
+const MAX_WIDTH = 30;
 
 type Tool = "cursor" | "pencil" | "pen" | "highlighter" | "eraser" | "text";
 
@@ -504,7 +507,13 @@ export function DrawingCanvas({
   const [fanOpen, setFanOpen] = useState(false);
   const [shapesOpen, setShapesOpen] = useState(false);
   const [stripOpen, setStripOpen] = useState(true);
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  // The line-thickness slider (child canvas). Closed by default; the line button
+  // toggles it and a tap anywhere else on the stage puts it away again.
+  const [sliderOpen, setSliderOpen] = useState(false);
+  // The slider only makes sense while a drawing tool is in hand.
+  const drawingTool = SHELF.some((t) => t.key === tool);
+  const toolLabel = SHELF.find((t) => t.key === tool)?.label ?? "";
+  const nibPreviewPx = Math.max(4, Math.min(38, size * 1.3));
   // The hue-bar handle just tracks the current tool's colour.
   const hueFrac = hexToHueFrac(color);
   const [box, setBox] = useState({ w: 700, h: 490 });
@@ -1643,6 +1652,20 @@ export function DrawingCanvas({
     setColor(hslToHex(frac * 360, 85, 52));
   }
 
+  // The hue bar is the only colour control on the child canvas, so it has to be
+  // reachable without a pointer: arrows step the hue, Home/End jump to the ends.
+  function nudgeHue(e: React.KeyboardEvent<HTMLDivElement>) {
+    const step = e.key === "PageUp" || e.key === "PageDown" ? 10 : 2;
+    let deg = hueFrac * 360;
+    if (e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "PageUp") deg -= step;
+    else if (e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "PageDown") deg += step;
+    else if (e.key === "Home") deg = 0;
+    else if (e.key === "End") deg = 360;
+    else return;
+    e.preventDefault();
+    setColor(hslToHex(Math.min(360, Math.max(0, deg)), 85, 52));
+  }
+
   const scale = displayW / W;
 
   // Objects are only draggable/selectable with the cursor tool (or while a text
@@ -1784,7 +1807,11 @@ export function DrawingCanvas({
           <ConfirmSubmitPrompt pageCount={pageCount} onCancel={() => setConfirmingSubmit(false)} />
         )}
 
-        <div ref={wrapRef} className="relative flex-1 overflow-hidden">
+        <div
+          ref={wrapRef}
+          className="relative flex-1 overflow-hidden"
+          onPointerDown={() => setSliderOpen(false)}
+        >
           <div className="absolute inset-0 flex items-center justify-center">
             <div
               className="relative rounded-2xl shadow-lg ring-1 ring-black/5 overflow-hidden"
@@ -1892,6 +1919,15 @@ export function DrawingCanvas({
             <div
               onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); pickHue(e); }}
               onPointerMove={(e) => { if (e.buttons) pickHue(e); }}
+              onKeyDown={nudgeHue}
+              role="slider"
+              tabIndex={0}
+              aria-label="Colour"
+              aria-valuemin={0}
+              aria-valuemax={360}
+              aria-valuenow={Math.round(hueFrac * 360)}
+              aria-valuetext={`Colour ${color}`}
+              aria-orientation="vertical"
               className="relative w-6 cursor-pointer rounded-full"
               style={{
                 height: "min(52vh, 460px)",
@@ -1904,49 +1940,64 @@ export function DrawingCanvas({
                 style={{ top: `${hueFrac * 100}%`, backgroundColor: color }}
               />
             </div>
+            {/* Line thickness. Sits where the colour dot used to: colour now
+                comes from the hue bar above, so this slot shows the one control
+                children could never find. */}
             <button
               type="button"
-              onClick={() => setPaletteOpen((v) => !v)}
-              className="h-9 w-9 rounded-full border-2 border-white shadow"
-              style={{ backgroundColor: color }}
-              title="Colours"
-            />
-            {paletteOpen && (
-              <div className="absolute right-11 top-0 z-50 w-44 rounded-xl border border-border bg-surface p-2 shadow-lg">
-                <div className="grid grid-cols-5 gap-1.5">
-                  {SWATCHES.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => { setColor(c); setPaletteOpen(false); }}
-                      className="h-7 w-7 rounded-full border-2"
-                      style={{ backgroundColor: c, borderColor: color === c ? "#1f2430" : "#e6e8ef" }}
-                      aria-label={`Colour ${c}`}
-                    />
-                  ))}
-                </div>
-                <label className="mt-2 flex items-center gap-2 text-sm">
-                  <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
-                  Any colour
-                </label>
-                <div className="mt-2 flex gap-1.5">
-                  {SIZES.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSize(s)}
-                      className={`flex h-8 flex-1 items-center justify-center rounded-lg border ${
-                        size === s ? "border-brand bg-brand/10" : "border-border"
-                      }`}
-                      aria-label={`Size ${s}`}
-                    >
-                      <span className="rounded-full bg-foreground" style={{ width: s / 2 + 3, height: s / 2 + 3 }} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setSliderOpen((v) => !v)}
+              className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] text-[#22304a] shadow"
+              style={{
+                borderColor: sliderOpen ? "#bd3f63" : "#fff",
+                backgroundColor: sliderOpen ? "rgba(189,63,99,0.12)" : "#fff",
+              }}
+              title="Line thickness"
+              aria-label="Line thickness"
+              aria-expanded={sliderOpen}
+            >
+              <Icon name="line" size={20} decorative />
+            </button>
           </div>
+
+          {drawingTool && sliderOpen && (
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              className="absolute left-1/2 z-30 flex min-w-[300px] -translate-x-1/2 items-center gap-3.5 rounded-[20px] border-2 border-[#e4dcc8] bg-[#fffdf7] px-[18px] py-3 shadow-[0_8px_22px_rgba(34,48,74,0.18)]"
+              style={{ bottom: 116 }}
+            >
+              <div className="flex w-14 flex-none flex-col items-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f6f2e8]">
+                  <span
+                    className="block rounded-full transition-all duration-100"
+                    style={{
+                      width: nibPreviewPx,
+                      height: nibPreviewPx,
+                      background: tool === "eraser" ? "#cdd2dd" : color,
+                      opacity: tool === "highlighter" ? 0.5 : 1,
+                    }}
+                  />
+                </div>
+                <span className="mt-[3px] text-[11px] font-bold text-[#5b6379]">{toolLabel}</span>
+              </div>
+              <div className="flex flex-1 flex-col gap-[3px]">
+                <div className="flex justify-between text-[11px] font-bold text-[#9aa0ad]">
+                  <span aria-hidden>Thin</span>
+                  <span aria-hidden>Thick</span>
+                </div>
+                <input
+                  type="range"
+                  min={MIN_WIDTH}
+                  max={MAX_WIDTH}
+                  value={size}
+                  onChange={(e) => setSize(Number(e.target.value))}
+                  className="h-[26px] w-full cursor-pointer"
+                  style={{ accentColor: "#bd3f63" }}
+                  aria-label={`How thick your line is, ${toolLabel}`}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-2">
             {SHELF.map((t) => {
@@ -1991,6 +2042,17 @@ export function DrawingCanvas({
           {selectedId && (
             <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-muted shadow">
               Drag to move · pull the corner to resize · ✕ to remove
+            </div>
+          )}
+
+          {drawingTool && !selectedId && (
+            <div
+              className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/90 px-3.5 py-[5px] text-xs font-bold text-[#5b6379] shadow-[0_2px_8px_rgba(34,48,74,0.12)]"
+              style={{ bottom: 92 }}
+            >
+              {sliderOpen
+                ? "Slide to change how thick your line is"
+                : "Tap the line button (right) to set your line width"}
             </div>
           )}
 
