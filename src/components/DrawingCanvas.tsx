@@ -476,6 +476,11 @@ export function DrawingCanvas({
   const quizSeqRef = useRef<number>(initialQuiz?.questions?.length ?? 0);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(quizRef.current);
   const [quizPanelOpen, setQuizPanelOpen] = useState(false);
+  // The panel floats over the canvas. Its position and collapsed state live here
+  // rather than in the panel so that tucking it away to the launcher and
+  // reopening brings it back exactly where the teacher left it.
+  const [quizPanelPos, setQuizPanelPos] = useState({ x: 80, y: 96 });
+  const [quizPanelCollapsed, setQuizPanelCollapsed] = useState(false);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   // Answer mode: the child's current selection per question, mirrored into the
   // hidden `quizAnswers` input the response form submits. On a "carry on" reopen
@@ -1531,6 +1536,14 @@ export function DrawingCanvas({
     setQuizQuestions([...quizRef.current]);
   }
 
+  // Every route to the quiz panel goes through here, so asking for it always
+  // GIVES it to you: if it was shrunk to a pill, "Quiz" would otherwise appear
+  // to do nothing at all.
+  function openQuizPanel() {
+    setQuizPanelOpen(true);
+    setQuizPanelCollapsed(false);
+  }
+
   // Drop a new question box in the middle of the CURRENT page. Marking a quiz
   // present forces the page composites to be saved (currentPages), so blank
   // pages a question sits on are preserved and line up at answer time.
@@ -1551,7 +1564,7 @@ export function DrawingCanvas({
     quizRef.current = [...quizRef.current, q];
     anyDrawnRef.current = true;
     setSelectedQuestionId(qid);
-    setQuizPanelOpen(true);
+    openQuizPanel();
     commitQuiz();
     syncHidden();
     refreshThumbs();
@@ -1731,6 +1744,8 @@ export function DrawingCanvas({
       onMove={updateQuestion}
       onDelete={deleteQuestion}
       onAnswer={selectAnswer}
+      onPrompt={(id, prompt) => updateQuestion(id, { prompt })}
+      onOptionText={(qid, oid, text) => setOptionField(qid, oid, { text })}
     />
   ) : null;
 
@@ -1872,7 +1887,7 @@ export function DrawingCanvas({
                 <FanBtn label="Text" onClick={() => { setFanOpen(false); setTool("text"); }}><Icon name="text" size={26} decorative /></FanBtn>
                 <FanBtn label="Shapes" onClick={() => { setShapesOpen((v) => !v); }}><Icon name="shapes" size={26} decorative /></FanBtn>
                 {isQuizAuthor && (
-                  <FanBtn label="Quiz" onClick={() => { setFanOpen(false); setShapesOpen(false); setTool("cursor"); setQuizPanelOpen(true); }}><Icon name="help" size={26} decorative /></FanBtn>
+                  <FanBtn label="Quiz" onClick={() => { setFanOpen(false); setShapesOpen(false); setTool("cursor"); openQuizPanel(); }}><Icon name="help" size={26} decorative /></FanBtn>
                 )}
               </div>
             )}
@@ -1891,15 +1906,28 @@ export function DrawingCanvas({
             <div className="absolute left-20 top-1/2 -translate-y-1/2">{shapesPalette}</div>
           )}
 
+          {isQuizAuthor && !quizPanelOpen && <QuizLauncher onOpen={openQuizPanel} />}
+
           {isQuizAuthor && quizPanelOpen && (
             <QuizPanel
               questions={quizQuestions}
               currentPage={current}
               pageCount={pageCount}
               selectedId={selectedQuestionId}
+              pos={quizPanelPos}
+              collapsed={quizPanelCollapsed}
+              onPosChange={setQuizPanelPos}
+              onCollapsedChange={setQuizPanelCollapsed}
               onClose={() => setQuizPanelOpen(false)}
               onAddQuestion={addQuestion}
               onSelectQuestion={(id) => {
+                // Opening a question jumps to the page it lives on, so the box
+                // being edited is always the one on screen. Collapsing it (null)
+                // shouldn't move the teacher anywhere.
+                if (id === null) {
+                  setSelectedQuestionId(null);
+                  return;
+                }
                 const q = quizRef.current.find((x) => x.id === id);
                 if (q && q.pageIndex !== currentRef.current) goToPage(q.pageIndex);
                 setSelectedQuestionId(id);
@@ -2968,6 +2996,8 @@ function QuizLayer({
   onMove,
   onDelete,
   onAnswer,
+  onPrompt,
+  onOptionText,
 }: {
   questions: QuizQuestion[];
   scale: number;
@@ -2981,6 +3011,8 @@ function QuizLayer({
   onMove: (id: string, patch: Partial<QuizQuestion>) => void;
   onDelete: (id: string) => void;
   onAnswer: (qid: string, oid: string) => void;
+  onPrompt: (id: string, prompt: string) => void;
+  onOptionText: (qid: string, oid: string, text: string) => void;
 }) {
   return (
     <div className="pointer-events-none absolute inset-0">
@@ -2999,9 +3031,71 @@ function QuizLayer({
           onMove={onMove}
           onDelete={onDelete}
           onAnswer={onAnswer}
+          onPrompt={onPrompt}
+          onOptionText={onOptionText}
         />
       ))}
     </div>
+  );
+}
+
+// A borderless field for typing directly onto the worksheet. It's a textarea,
+// not an input, because the child sees this text WRAPPED — a single-line input
+// would clip a real question ("How do you know Harry was waiting for the bus?")
+// and hide from the teacher what they're actually writing. Grows to fit, so the
+// box always previews what the child will get. Enter is swallowed: these are
+// one-liners, and a stray newline only shifts the layout.
+function BoxField({
+  value,
+  onChange,
+  onPointerDown,
+  placeholder,
+  label,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onPointerDown: (e: React.PointerEvent) => void;
+  placeholder: string;
+  label: string;
+  className: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    // Text re-wraps when the teacher resizes the box, which changes the height
+    // needed without changing the value — so re-fit on width changes too, or a
+    // narrowed box clips its question. Only on WIDTH: fit() sets the height, so
+    // reacting to height would feed the observer its own output.
+    let lastWidth = el.clientWidth;
+    const obs = new ResizeObserver(() => {
+      if (el.clientWidth === lastWidth) return;
+      lastWidth = el.clientWidth;
+      fit();
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onPointerDown={onPointerDown}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.preventDefault();
+      }}
+      placeholder={placeholder}
+      aria-label={label}
+      className={`resize-none overflow-hidden border-none bg-transparent text-center outline-none placeholder:text-muted ${className}`}
+    />
   );
 }
 
@@ -3018,6 +3112,8 @@ function QuizBoxView({
   onMove,
   onDelete,
   onAnswer,
+  onPrompt,
+  onOptionText,
 }: {
   q: QuizQuestion;
   scale: number;
@@ -3031,6 +3127,8 @@ function QuizBoxView({
   onMove: (id: string, patch: Partial<QuizQuestion>) => void;
   onDelete: (id: string) => void;
   onAnswer: (qid: string, oid: string) => void;
+  onPrompt: (id: string, prompt: string) => void;
+  onOptionText: (qid: string, oid: string, text: string) => void;
 }) {
   const author = mode === "author";
   const drag = useRef<{ mode: "move" | "resize"; ax: number; ay: number; sw: number; sh: number } | null>(null);
@@ -3076,6 +3174,14 @@ function QuizBoxView({
   }
 
   const twoCol = q.options.length > 2;
+  // The box is a second, equal editing surface for the same question the panel
+  // edits — both write through the same mutators, so they mirror per keystroke.
+  // Marking the correct answer is deliberately NOT here: it stays in the panel,
+  // and the box only reflects the marked answer (green + ✓ badge, no handler).
+  const editable = author && interactive;
+  // Typing must not drag the box out from under the teacher; the surrounding
+  // chrome is still the drag handle.
+  const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
 
   return (
     <div
@@ -3091,53 +3197,113 @@ function QuizBoxView({
           transform, so text and answer buttons scale with the box on small screens
           instead of overflowing it. */}
       <div
-        className="flex flex-col gap-2 overflow-hidden rounded-2xl border-2 border-brand/60 bg-white/95 p-3 shadow-lg"
+        role={editable ? "group" : undefined}
+        aria-label={editable ? "Question box" : undefined}
+        className={`flex flex-col gap-2 overflow-hidden rounded-2xl border-2 p-3 shadow-lg ${
+          author ? "border-brand bg-brand/5" : "border-brand/60 bg-white/95"
+        }`}
         style={{ width: q.w, height: q.h, transform: `scale(${scale})`, transformOrigin: "top left" }}
       >
-        <p className="text-center text-2xl font-bold leading-tight text-foreground">
-          {q.prompt || (author ? "Add your question in the Quiz panel →" : "")}
-        </p>
+        {editable ? (
+          <>
+            <p className="text-center text-xs font-bold uppercase tracking-wide text-brand">
+              Edits here also show in the Quiz panel
+            </p>
+            <BoxField
+              value={q.prompt}
+              onChange={(v) => onPrompt(q.id, v)}
+              onPointerDown={stopDrag}
+              placeholder="Type your question here"
+              label="Question"
+              className="w-full text-2xl font-bold leading-tight text-foreground"
+            />
+          </>
+        ) : (
+          // Author mode with a drawing tool picked: the box goes non-interactive
+          // so the teacher can draw across it, so echo the placeholder rather
+          // than leaving a new question looking like an empty box.
+          <p
+            className={`text-center text-2xl font-bold leading-tight ${
+              q.prompt ? "text-foreground" : "text-muted"
+            }`}
+          >
+            {q.prompt || (author ? "Type your question here" : "")}
+          </p>
+        )}
         <div
           className="grid min-h-0 flex-1 gap-2"
           style={{ gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr" }}
         >
-          {q.options.map((o) => {
-            const chosen = !author && selectedOption === o.id;
-            // Show the tick on the correct answer in author mode always, and in a
-            // review reopen on the locked (already-correct) question the child got right.
-            const showCorrect = (author || (review && locked)) && q.correctOptionId === o.id;
-            // A locked-correct question reads as a fixed green result; anything
-            // else the child can still tap.
-            const disabled = author || locked;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                disabled={disabled}
-                aria-label={o.text || "Picture answer"}
-                aria-pressed={chosen}
-                onClick={author || locked ? undefined : () => onAnswer(q.id, o.id)}
-                className={`flex min-h-[64px] items-center justify-center gap-2 rounded-xl border-2 p-2 text-center transition-colors ${
-                  showCorrect
-                    ? "border-emerald-500 bg-emerald-50"
-                    : chosen
-                      ? "border-brand bg-brand/15"
-                      : "border-border bg-white"
-                } ${author || locked ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
-              >
-                {o.imagePath && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={o.imagePath} alt="" className="max-h-16 w-auto shrink-0 object-contain" />
-                )}
-                {o.text && <span className="font-semibold text-foreground">{o.text}</span>}
-                {showCorrect && (
-                  <span className="text-emerald-600" title="Correct answer">
-                    ✓
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {editable
+            ? q.options.map((o) => {
+                const correct = q.correctOptionId === o.id;
+                return (
+                  <div
+                    key={o.id}
+                    className={`flex min-h-[64px] items-center justify-center gap-2 rounded-xl border-2 p-2 text-center ${
+                      correct ? "border-emerald-500 bg-emerald-50" : "border-brand/25 bg-white"
+                    }`}
+                  >
+                    {o.imagePath && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={o.imagePath} alt="" className="max-h-16 w-auto shrink-0 object-contain" />
+                    )}
+                    <BoxField
+                      value={o.text ?? ""}
+                      onChange={(v) => onOptionText(q.id, o.id, v)}
+                      onPointerDown={stopDrag}
+                      placeholder="Type an answer"
+                      label="Answer text"
+                      className="min-w-0 flex-1 font-semibold text-foreground"
+                    />
+                    {correct && (
+                      <span
+                        title="Correct answer — set this in the Quiz panel"
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-xs text-white"
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                );
+              })
+            : q.options.map((o) => {
+                const chosen = !author && selectedOption === o.id;
+                // Show the tick on the correct answer in author mode always, and in a
+                // review reopen on the locked (already-correct) question the child got right.
+                const showCorrect = (author || (review && locked)) && q.correctOptionId === o.id;
+                // A locked-correct question reads as a fixed green result; anything
+                // else the child can still tap.
+                const disabled = author || locked;
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    disabled={disabled}
+                    aria-label={o.text || "Picture answer"}
+                    aria-pressed={chosen}
+                    onClick={author || locked ? undefined : () => onAnswer(q.id, o.id)}
+                    className={`flex min-h-[64px] items-center justify-center gap-2 rounded-xl border-2 p-2 text-center transition-colors ${
+                      showCorrect
+                        ? "border-emerald-500 bg-emerald-50"
+                        : chosen
+                          ? "border-brand bg-brand/15"
+                          : "border-border bg-white"
+                    } ${author || locked ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
+                  >
+                    {o.imagePath && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={o.imagePath} alt="" className="max-h-16 w-auto shrink-0 object-contain" />
+                    )}
+                    {o.text && <span className="font-semibold text-foreground">{o.text}</span>}
+                    {showCorrect && (
+                      <span className="text-emerald-600" title="Correct answer">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
         </div>
       </div>
 
@@ -3166,14 +3332,46 @@ function QuizBoxView({
   );
 }
 
-// The persistent quiz authoring panel. Stays mounted regardless of the current
-// page, so a quiz can be built across non-consecutive pages without losing the
-// toolbox. Lists every question (with its page), and edits the selected one.
+// The corner launcher the panel tucks away into. Shown whenever the teacher is
+// authoring a quiz but has closed the panel, so the quiz is always one tap away
+// (the ＋ fan menu opens it too). Sits bottom-RIGHT: the design put it
+// bottom-left, but that corner is the page-thumbnail strip in the real editor.
+function QuizLauncher({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title="Open the quiz builder"
+      // Named distinctly from the ＋ fan menu's "Quiz" button, which opens the
+      // same panel — two controls sharing one name is ambiguous by voice or
+      // screen reader. Still contains the visible "Quiz" label (WCAG 2.5.3).
+      aria-label="Open the quiz builder"
+      className="absolute bottom-3 right-3 z-40 flex items-center gap-2 rounded-full bg-brand py-3 pl-4 pr-5 text-base font-bold text-white shadow-lg transition-transform hover:scale-105"
+    >
+      <Icon name="help" size={20} decorative /> Quiz
+    </button>
+  );
+}
+
+// The quiz authoring panel — a floating "wizard" the teacher can drag out of the
+// way, shrink to a pill, or tuck into the corner launcher. Stays mounted
+// regardless of the current page, so a quiz can be built across non-consecutive
+// pages without losing the toolbox. Every question is listed, grouped by its
+// page, and expands inline (one at a time) into its editor.
+//
+// The expanded question is the SAME `selectedId` the canvas uses, so opening one
+// here highlights its box on the worksheet — and the box edits the same question
+// through the same mutators. Marking the correct answer lives here ONLY; the
+// worksheet box mirrors the marked answer but can't change it.
 function QuizPanel({
   questions,
   currentPage,
   pageCount,
   selectedId,
+  pos,
+  collapsed,
+  onPosChange,
+  onCollapsedChange,
   onClose,
   onAddQuestion,
   onSelectQuestion,
@@ -3190,9 +3388,13 @@ function QuizPanel({
   currentPage: number;
   pageCount: number;
   selectedId: string | null;
+  pos: { x: number; y: number };
+  collapsed: boolean;
+  onPosChange: (pos: { x: number; y: number }) => void;
+  onCollapsedChange: (collapsed: boolean) => void;
   onClose: () => void;
   onAddQuestion: () => void;
-  onSelectQuestion: (id: string) => void;
+  onSelectQuestion: (id: string | null) => void;
   onUpdatePrompt: (id: string, prompt: string) => void;
   onDeleteQuestion: (id: string) => void;
   onAddOption: (qid: string) => void;
@@ -3202,138 +3404,290 @@ function QuizPanel({
   onClearOptionImage: (qid: string, oid: string) => void;
   onSetCorrect: (qid: string, oid: string) => void;
 }) {
-  const selected = questions.find((q) => q.id === selectedId) ?? null;
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+
+  // Drag the header to reposition, clamped inside the editor stage so the panel
+  // can never be dropped somewhere it can't be grabbed again.
+  function onHeaderDown(e: React.PointerEvent) {
+    dragRef.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }
+  function onHeaderMove(e: React.PointerEvent) {
+    const d = dragRef.current;
+    const el = panelRef.current;
+    if (!d || !el) return;
+    const stage = el.offsetParent as HTMLElement | null;
+    const maxX = Math.max(6, (stage?.clientWidth ?? 0) - el.offsetWidth - 6);
+    const maxY = Math.max(6, (stage?.clientHeight ?? 0) - el.offsetHeight - 6);
+    onPosChange({
+      x: Math.max(6, Math.min(maxX, e.clientX - d.dx)),
+      y: Math.max(6, Math.min(maxY, e.clientY - d.dy)),
+    });
+  }
+  function onHeaderUp() {
+    dragRef.current = null;
+  }
+  const stop = (e: React.PointerEvent) => e.stopPropagation();
+
+  // Questions grouped by the page they sit on, pages in order. A page only
+  // appears once it has a question.
+  const groups: { pageIndex: number; items: QuizQuestion[] }[] = [];
+  for (const q of questions) {
+    const g = groups.find((x) => x.pageIndex === q.pageIndex);
+    if (g) g.items.push(q);
+    else groups.push({ pageIndex: q.pageIndex, items: [q] });
+  }
+  groups.sort((a, b) => a.pageIndex - b.pageIndex);
+
+  const dragBar = "cursor-grab touch-none select-none active:cursor-grabbing";
+
+  if (collapsed) {
+    return (
+      <div ref={panelRef} className="absolute z-40" style={{ left: pos.x, top: pos.y }}>
+        <div
+          onPointerDown={onHeaderDown}
+          onPointerMove={onHeaderMove}
+          onPointerUp={onHeaderUp}
+          className={`${dragBar} flex items-center gap-2 rounded-full bg-foreground py-2 pl-3 pr-2 text-surface shadow-xl`}
+        >
+          <span aria-hidden className="text-sm opacity-60">
+            ⠿
+          </span>
+          <span className="text-sm font-bold">
+            ❓ Quiz · {questions.length} {questions.length === 1 ? "question" : "questions"}
+          </span>
+          <button
+            type="button"
+            onPointerDown={stop}
+            onClick={() => onCollapsedChange(false)}
+            title="Expand"
+            aria-label="Expand quiz panel"
+            className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-xs text-surface hover:bg-white/25"
+          >
+            ▴
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="absolute bottom-3 left-20 top-24 z-20 flex w-72 max-w-[80vw] flex-col rounded-2xl border border-border bg-surface/95 p-3 shadow-xl">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-foreground">❓ Quiz</h2>
+    <div
+      ref={panelRef}
+      role="region"
+      aria-label="Quiz builder"
+      className="absolute z-40 w-[300px] max-w-[80vw] overflow-hidden rounded-2xl border-2 border-foreground bg-surface shadow-xl"
+      style={{ left: pos.x, top: pos.y }}
+    >
+      <div
+        onPointerDown={onHeaderDown}
+        onPointerMove={onHeaderMove}
+        onPointerUp={onHeaderUp}
+        className={`${dragBar} flex items-center gap-2 bg-foreground px-2.5 py-2 text-surface`}
+      >
+        <span aria-hidden className="text-sm opacity-60">
+          ⠿
+        </span>
+        <h2 className="flex-1 text-sm font-bold">❓ Quiz</h2>
         <button
           type="button"
+          onPointerDown={stop}
+          onClick={() => onCollapsedChange(true)}
+          title="Shrink to a pill"
+          aria-label="Shrink quiz panel"
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-xs text-surface hover:bg-white/25"
+        >
+          ▾
+        </button>
+        <button
+          type="button"
+          onPointerDown={stop}
           onClick={onClose}
+          title="Tuck away"
           aria-label="Close quiz panel"
-          className="flex h-7 w-7 items-center justify-center rounded-full text-muted hover:bg-background"
+          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-xs text-surface hover:bg-white/25"
         >
           ✕
         </button>
       </div>
-      <p className="mt-0.5 text-xs text-muted">
-        Questions can be on any page. You&apos;re on page {currentPage + 1} of {pageCount}.
-      </p>
-      <button
-        type="button"
-        onClick={onAddQuestion}
-        className="mt-2 rounded-xl bg-brand px-3 py-2 text-sm font-bold text-white shadow hover:brightness-105"
-      >
-        ＋ Add question on this page
-      </button>
 
-      <div className="mt-2 min-h-[3rem] max-h-40 overflow-y-auto">
+      <div className="max-h-[456px] overflow-y-auto p-3">
+        <p className="text-xs text-muted">
+          You&apos;re on <b className="text-foreground">page {currentPage + 1} of {pageCount}</b>. Questions can
+          live on any page.
+        </p>
+        <button
+          type="button"
+          onClick={onAddQuestion}
+          className="mt-2 w-full rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-white shadow hover:brightness-105"
+        >
+          ＋ Add question to page {currentPage + 1}
+        </button>
+
         {questions.length === 0 ? (
-          <p className="px-1 text-xs text-muted">No questions yet. Add one to get started.</p>
+          <p className="mt-3 px-1 text-xs text-muted">No questions yet. Add one to get started.</p>
         ) : (
-          <ul className="flex flex-col gap-1">
-            {questions.map((q, i) => (
-              <li key={q.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelectQuestion(q.id)}
-                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm ${
-                    q.id === selectedId ? "bg-brand/10 ring-1 ring-brand" : "hover:bg-background"
+          groups.map((g) => (
+            <div key={g.pageIndex}>
+              <div className="mb-1.5 mt-3 flex items-center gap-2">
+                <span
+                  className={`rounded-md px-2 py-0.5 text-xs font-bold ${
+                    g.pageIndex === currentPage
+                      ? "bg-brand text-white"
+                      : "bg-[var(--kraft-tag)] text-foreground"
                   }`}
                 >
-                  <span className="rounded bg-background px-1.5 text-xs font-semibold text-muted">
-                    P{q.pageIndex + 1}
+                  Page {g.pageIndex + 1}
+                </span>
+                {g.pageIndex === currentPage && (
+                  <span className="rounded-md bg-[var(--honey-tint)] px-1.5 py-0.5 text-xs font-semibold text-[var(--honey-ink)]">
+                    you&apos;re here
                   </span>
-                  <span className="flex-1 truncate text-foreground">{q.prompt || `Question ${i + 1}`}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+                )}
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
+              {g.items.map((q) => {
+                const open = q.id === selectedId;
+                return (
+                  <div
+                    key={q.id}
+                    className={`mb-2 overflow-hidden rounded-xl border-2 ${
+                      open ? "border-brand bg-surface" : "border-border bg-background"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onSelectQuestion(open ? null : q.id)}
+                      aria-expanded={open}
+                      // Only while open: the body is unmounted when closed, and
+                      // aria-controls pointing at a missing id is a broken
+                      // reference for a screen reader.
+                      aria-controls={open ? `quiz-q-${q.id}` : undefined}
+                      className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
+                    >
+                      <span className="rounded border border-border bg-surface px-1.5 text-xs font-bold text-muted">
+                        P{q.pageIndex + 1}
+                      </span>
+                      <span className="flex-1 truncate text-sm text-foreground">
+                        {q.prompt || "Untitled question"}
+                      </span>
+                      <span aria-hidden className="text-xs text-muted">
+                        {open ? "▾" : "▸"}
+                      </span>
+                    </button>
+
+                    {open && (
+                      <div id={`quiz-q-${q.id}`} className="px-2.5 pb-3 pt-0.5">
+                        <label className="text-xs font-semibold text-muted" htmlFor={`quiz-prompt-${q.id}`}>
+                          Question
+                        </label>
+                        <input
+                          id={`quiz-prompt-${q.id}`}
+                          value={q.prompt}
+                          onChange={(e) => onUpdatePrompt(q.id, e.target.value)}
+                          placeholder="What do you want to ask?"
+                          className="input mt-1 w-full text-sm"
+                        />
+
+                        <p className="mt-3 text-xs font-semibold text-muted">Answers</p>
+                        <p className="mb-1.5 text-xs text-muted">Tap the circle to mark the right answer.</p>
+
+                        {q.options.map((o) => {
+                          const correct = q.correctOptionId === o.id;
+                          return (
+                            <div key={o.id}>
+                              <div
+                                className={`flex items-center gap-1.5 rounded-lg border p-1.5 ${
+                                  correct ? "border-emerald-500 bg-emerald-50" : "border-transparent"
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => onSetCorrect(q.id, o.id)}
+                                  title="Mark as the correct answer"
+                                  aria-label={`Mark "${o.text || "this answer"}" as correct`}
+                                  aria-pressed={correct}
+                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs ${
+                                    correct
+                                      ? "border-emerald-500 bg-emerald-500 text-white"
+                                      : "border-border text-transparent"
+                                  }`}
+                                >
+                                  ✓
+                                </button>
+                                <input
+                                  value={o.text ?? ""}
+                                  onChange={(e) => onOptionText(q.id, o.id, e.target.value)}
+                                  placeholder="Type an answer"
+                                  aria-label="Answer text"
+                                  className="input min-w-0 flex-1 text-sm"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    o.imagePath ? onClearOptionImage(q.id, o.id) : onOptionImage(q.id, o.id)
+                                  }
+                                  title={o.imagePath ? "Remove picture" : "Add a picture"}
+                                  aria-label={o.imagePath ? "Remove answer picture" : "Add answer picture"}
+                                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-sm ${
+                                    o.imagePath ? "border-brand bg-brand/10" : "border-border"
+                                  }`}
+                                >
+                                  {o.imagePath ? "🖼️" : "＋🖼️"}
+                                </button>
+                                {q.options.length > MIN_OPTIONS && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onRemoveOption(q.id, o.id)}
+                                    aria-label="Remove answer"
+                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:text-rose-600"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                              {correct && (
+                                <p className="mb-1 ml-9 text-xs font-bold text-[var(--glass-ink)]">
+                                  ✓ correct answer
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {q.options.length < MAX_OPTIONS && (
+                          <button
+                            type="button"
+                            onClick={() => onAddOption(q.id)}
+                            className="mt-1.5 text-xs font-semibold text-brand"
+                          >
+                            ＋ Add answer
+                          </button>
+                        )}
+                        <div className="mt-3 border-t border-border pt-2">
+                          <button
+                            type="button"
+                            onClick={() => onDeleteQuestion(q.id)}
+                            className="text-xs font-semibold text-rose-600 hover:underline"
+                          >
+                            Delete this question
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))
         )}
       </div>
-
-      {selected && (
-        <div className="mt-2 flex-1 overflow-y-auto border-t border-border pt-2">
-          <label className="text-xs font-semibold text-muted" htmlFor="quiz-prompt">
-            Question
-          </label>
-          <input
-            id="quiz-prompt"
-            value={selected.prompt}
-            onChange={(e) => onUpdatePrompt(selected.id, e.target.value)}
-            placeholder="What do you want to ask?"
-            className="input mt-1 w-full text-sm"
-          />
-
-          <p className="mt-2 text-xs font-semibold text-muted">Answers — tap the circle to mark the correct one</p>
-          <div className="mt-1 flex flex-col gap-1.5">
-            {selected.options.map((o) => (
-              <div key={o.id} className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => onSetCorrect(selected.id, o.id)}
-                  title="Mark as the correct answer"
-                  aria-label={`Mark "${o.text || "this answer"}" as correct`}
-                  aria-pressed={selected.correctOptionId === o.id}
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs ${
-                    selected.correctOptionId === o.id
-                      ? "border-emerald-500 bg-emerald-500 text-white"
-                      : "border-border text-transparent"
-                  }`}
-                >
-                  ✓
-                </button>
-                <input
-                  value={o.text ?? ""}
-                  onChange={(e) => onOptionText(selected.id, o.id, e.target.value)}
-                  placeholder="Answer"
-                  aria-label="Answer text"
-                  className="input flex-1 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => (o.imagePath ? onClearOptionImage(selected.id, o.id) : onOptionImage(selected.id, o.id))}
-                  title={o.imagePath ? "Remove picture" : "Add a picture"}
-                  aria-label={o.imagePath ? "Remove answer picture" : "Add answer picture"}
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-sm ${
-                    o.imagePath ? "border-brand bg-brand/10" : "border-border"
-                  }`}
-                >
-                  {o.imagePath ? "🖼️" : "＋🖼️"}
-                </button>
-                {selected.options.length > MIN_OPTIONS && (
-                  <button
-                    type="button"
-                    onClick={() => onRemoveOption(selected.id, o.id)}
-                    aria-label="Remove answer"
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:text-rose-600"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-          {selected.options.length < MAX_OPTIONS && (
-            <button
-              type="button"
-              onClick={() => onAddOption(selected.id)}
-              className="mt-1.5 text-xs font-semibold text-brand"
-            >
-              ＋ Add answer
-            </button>
-          )}
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => onDeleteQuestion(selected.id)}
-              className="text-xs font-semibold text-rose-600 hover:underline"
-            >
-              Delete this question
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

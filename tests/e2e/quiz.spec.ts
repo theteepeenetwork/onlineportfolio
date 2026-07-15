@@ -18,21 +18,26 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   await page.locator('button[title="Add"]').click(); // the ＋ fan toggle
   await page.getByRole("button", { name: "Quiz", exact: true }).click();
 
-  // Question 1 on page 1: correct answer is the first option ("Moo").
-  await page.getByRole("button", { name: /Add question on this page/ }).click();
-  await page.getByPlaceholder("What do you want to ask?").fill("What does a cow say?");
-  await page.getByPlaceholder("Answer").nth(0).fill("Moo");
-  await page.getByPlaceholder("Answer").nth(1).fill("Woof");
+  // The worksheet box and the panel are two editing surfaces for the same
+  // question, so answer fields exist in both — scope to the panel.
+  const panel = page.getByRole("region", { name: "Quiz builder" });
+
+  // Question 1 on page 1: correct answer is the first option ("Moo"). A new
+  // question opens expanded in the accordion, ready to type into.
+  await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+  await panel.getByPlaceholder("What do you want to ask?").fill("What does a cow say?");
+  await panel.getByPlaceholder("Type an answer").nth(0).fill("Moo");
+  await panel.getByPlaceholder("Type an answer").nth(1).fill("Woof");
 
   // Add two more pages, then a question on page 3 (non-consecutive with page 1).
   await page.locator('button[title="Add page"]').click();
   await page.locator('button[title="Add page"]').click();
-  await page.getByRole("button", { name: /Add question on this page/ }).click();
-  await page.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
-  await page.getByPlaceholder("Answer").nth(0).fill("Four");
-  await page.getByPlaceholder("Answer").nth(1).fill("Eight");
+  await panel.getByRole("button", { name: /Add question to page 3/ }).click();
+  await panel.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
+  await panel.getByPlaceholder("Type an answer").nth(0).fill("Four");
+  await panel.getByPlaceholder("Type an answer").nth(1).fill("Eight");
   // Mark the SECOND option ("Eight") as correct for this question.
-  await page.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
+  await panel.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
 
   // Finish the editor and save the template.
   await page.locator('button[title="Done"]').click();
@@ -88,4 +93,50 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   // The response is still awaiting approval on the run.
   await page.goto(templatePath);
   await expect(page.getByText(/1 waiting/).first()).toBeVisible();
+});
+
+// The quiz box on the worksheet and the panel's accordion are two editing
+// surfaces for ONE question: they read and write the same data, so a keystroke
+// in either shows up in the other. Marking the correct answer is deliberately
+// the panel's job alone — the box only reflects it.
+test("the worksheet box and the quiz panel edit the same question, both ways", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Mirror quiz");
+
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+
+  const panel = page.getByRole("region", { name: "Quiz builder" });
+  const box = page.getByRole("group", { name: "Question box" });
+  await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+
+  const panelPrompt = panel.getByPlaceholder("What do you want to ask?");
+  const boxPrompt = box.getByPlaceholder("Type your question here");
+
+  // Panel → worksheet.
+  await panelPrompt.fill("What colour is the bus?");
+  await expect(boxPrompt).toHaveValue("What colour is the bus?");
+
+  // Worksheet → panel, per keystroke (not just on blur), and the box keeps
+  // focus while it mirrors so the teacher can keep typing.
+  await boxPrompt.fill("");
+  await boxPrompt.pressSequentially("Where is Harry?");
+  await expect(panelPrompt).toHaveValue("Where is Harry?");
+  await expect(boxPrompt).toBeFocused();
+  // The accordion header title tracks the prompt too.
+  await expect(panel.getByRole("button", { name: /Where is Harry\?/ })).toBeVisible();
+
+  // Answers mirror both ways as well.
+  await panel.getByPlaceholder("Type an answer").nth(0).fill("At the bus stop");
+  await expect(box.getByPlaceholder("Type an answer").nth(0)).toHaveValue("At the bus stop");
+  await box.getByPlaceholder("Type an answer").nth(1).fill("In bed");
+  await expect(panel.getByPlaceholder("Type an answer").nth(1)).toHaveValue("In bed");
+
+  // Marking the correct answer is panel-only: the box has no control for it,
+  // but it does show which answer is marked.
+  await expect(box.getByRole("button", { name: /Mark .* as correct/ })).toHaveCount(0);
+  await panel.getByRole("button", { name: /Mark "In bed" as correct/ }).click();
+  await expect(box.getByTitle(/Correct answer/)).toBeVisible();
 });
