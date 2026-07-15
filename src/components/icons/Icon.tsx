@@ -41,6 +41,7 @@ export type IconName =
   | "download"
   | "next"
   | "point"
+  | "select"
   | "home"
   | "class"
   | "search"
@@ -143,6 +144,12 @@ const ICONS: Record<IconName, Glyph> = {
   ) },
   "point": { label: "Point", glyph: (
     <><path d="M9.7 13.4 L9.7 5 Q9.7 3.4 11.3 3.4 Q12.9 3.4 12.9 5 L12.9 10.3 Q13 9.3 14 9.3 Q15 9.3 15 10.3 L15 11.1 Q15.2 10.1 16.2 10.1 Q17.2 10.1 17.2 11.1 L17.2 11.9 Q17.4 11 18.4 11.2 Q19.3 11.4 19.2 12.5 L18.9 16 Q18.6 20.2 14.4 20.2 L13 20.2 Q10.7 20.2 9.4 18.3 L9.4 15.4 Q8.3 15.8 7.2 15.1 Q5.9 14.3 6.5 13.1 Q6.9 12.3 8.1 12.6 Q9.1 12.9 9.7 13.9 Z" fill="#FFFDF7" /> <path d="M12.9 11.2 L12.9 13.4 M15 11.5 L15 13.6 M17.2 12.1 L17.2 14.2" /> <path d="M9.5 17.8 Q11 20 14.6 19.6 L18.9 19 L18.3 22.3 Q18.2 22.6 17.8 22.6 L10.3 22.6 Q9.9 22.6 9.8 22.3 Z" fill="#8AB9D6" /></>
+  ) },
+  // Classic arrow cursor: tip top-left, notched tail, kicked-out foot. Drawn on
+  // the design system's 60×80 grid, then scaled onto the 24×24 icon grid — the
+  // 5px stroke lands back on the family's 2px once scaled.
+  "select": { label: "Select", glyph: (
+    <><g transform="translate(-1.2 -2.6) scale(0.4)" strokeWidth="5"><path d="M18 13 L18 55 L28 46 L34 60 L41 57 L35 43 L48 43 Z" fill="#FFFDF7" /></g></>
   ) },
   "home": { label: "Home", glyph: (
     <><path d="M4 11 L12 4 L20 11" /> <path d="M6 10 L6 20 L18 20 L18 10" /> <path d="M10 20 L10 14 L14 14 L14 20 Z" fill="#C2476B" /></>

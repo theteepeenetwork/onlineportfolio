@@ -60,9 +60,9 @@ test("teacher padlock locks an object so pupils can't move it; unlocked stays mo
     .locator("div.touch-none")
     .filter({ has: page.locator("svg path[stroke]") });
   await expect(objectWraps).toHaveCount(2);
-  // A template with objects opens on the finger/Select tool by default, so a
-  // pupil can pick objects up straight away (no need to switch tools first).
-  await expect(page.locator('button[aria-label="Select"]')).toHaveClass(/bg-brand/);
+  // A template with objects opens on the Select tool by default, so a pupil can
+  // pick objects up straight away (no need to switch tools first).
+  await expect(page.locator('button[aria-label="Select"]')).toHaveAttribute("aria-pressed", "true");
 
   // The locked object is fixed (pointer-events: none); the unlocked one can be
   // grabbed (pointer-events: auto). Exactly one of each.
