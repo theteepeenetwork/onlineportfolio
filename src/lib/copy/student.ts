@@ -66,4 +66,25 @@ export const studentCopy = {
     teacherWillSee: "Your teacher will see it first.",
     saving: "Popping it in…",
   },
+
+  // Where a child's work is, in three states.
+  //
+  // These sentences are NOT the status — they're the readable version of it.
+  // A moment's state is carried by where it sits on the jar (on the rim /
+  // inside / on a kraft tag) and by an icon, because most of the children this
+  // is built for can't read a sentence. Anyone who can read gets these; anyone
+  // who can't gets the picture; anyone who wants it read out gets the button.
+  // Nothing is carried by colour alone (WCAG 1.4.1).
+  status: {
+    waiting: "Waiting for your teacher to see it",
+    waitingShort: "Waiting",
+    returned: "Have another go — your teacher sent it back",
+    returnedShort: "Have another go",
+    inTheJar: "In your jar",
+    // The moment the product exists for: approved while they were away, so the
+    // first time they see it is now.
+    justArrived: "This went in your jar!",
+    tryAgain: "Try again",
+    hearIt: "Hear it",
+  },
 } as const;
