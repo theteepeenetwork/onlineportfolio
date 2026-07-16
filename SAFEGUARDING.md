@@ -37,9 +37,49 @@ before they are relied upon.
 Each rule is testable. A change that breaks one does not ship.
 
 ### A. Children are never made into account-holders
-1. **No child logins, emails or passwords — ever.** Children sign in only with a
-   class code and by tapping their own name. Never add a flow that asks a child
-   for an email, password, phone number, or any credential.
+1. **No child logins, emails or passwords — ever.** Children sign in with a class
+   code and by tapping their own name. Never add a flow that asks a child for an
+   email address, a password, a phone number, or any other contact detail — or
+   any credential that could identify them outside Storyjar.
+
+   **The one exception — an optional KS2 class PIN** *(amended 2026-07-15; see
+   "Amendments" below)*. A teacher may switch on a short numeric PIN for their
+   class — intended for Years 4–6, where signing in as each other is a real
+   problem and typing four digits is not a barrier. Each child chooses their own.
+   It exists for exactly one reason: **to stop children signing in as each
+   other.** It is bound by all of the following, and a change that breaks any of
+   them does not ship:
+
+   - **Off by default, per class.** A teacher opts in. Nothing changes for any
+     class that doesn't, and nothing about it is nudged or recommended in the UI.
+   - **It is not security, and must never be described as one** — not to a
+     school, not to a child, not in this repo, not in marketing. A short numeric
+     PIN is guessable by a determined adult and shoulder-surfable by a classmate.
+     It raises the effort of casual name-borrowing. **That is its entire claim.**
+     It does not make a child's work safe from anyone, and it relaxes nothing
+     else: rule 4's server-side ownership scoping remains the actual access
+     control, exactly as it was before.
+   - **Never a barrier to a child reaching their own work.** Forgetting is normal
+     at this age. Reset is one teacher tap; a wrong entry never scolds; any
+     lockout is short and always routes the child to their teacher. **If a PIN is
+     ever the reason a child cannot reach their own jar, the feature is wrong.**
+   - **The teacher resets it; nobody reads it.** Hashed with bcrypt (rule 13). No
+     teacher, no admin, and no one at Storyjar can see a child's PIN. Switching
+     PINs off for a class **deletes every stored hash** — it does not merely stop
+     asking for them.
+   - **It creates no new identity.** The PIN is not an account. It is meaningless
+     without the class code and the name tap in front of it, it is never accepted
+     from any other flow, it never travels between classes, and it is never a
+     recovery factor for anything.
+   - **Rule 2 is untouched: still first names only.** A PIN must never be derived
+     from, or hint at, a date of birth — that is banned data, and a DOB-derived
+     PIN smuggles it back in as a hash. Its retention entry is in
+     [`RETENTION.md`](./RETENTION.md) (rule 9).
+
+   **Not covered by this exception**, and each needing its own amendment: a
+   per-child secret for KS1; a picture or symbol password; a badge, tag or token
+   a child carries; a PIN that outlives the class or unlocks anything other than
+   that child's own jar.
 2. **First names only.** We store a child's first name and their work. **No**
    surnames, dates of birth, addresses, contact details, or biometric data.
    Data minimisation (UK GDPR Art. 5(1)(c)) is a hard limit, not a target.
@@ -201,6 +241,17 @@ Tracked here until closed; each becomes its own change.
 | P3 | Demo seed exposes public credentials (fine for demo; gate before real launch) | 1 | Note |
 
 ---
+
+## Amendments
+
+This document is meant to be hard to change. When a rule is amended, the reason
+goes here — so that a future reader can see what was traded away and who agreed
+to it, rather than finding a rule that quietly says something else than it used
+to.
+
+| Date | Rule | Change | Decided by | Why |
+|---|---|---|---|---|
+| 2026-07-15 | 1 | Carved out **one** exception to "never ask a child for any credential": an optional, off-by-default, teacher-enabled numeric PIN, self-chosen, intended for Years 4–6. Bans on child emails, passwords and phone numbers are unchanged, as is rule 2. | Product owner (the serving teacher who owns Storyjar), acting on the July 2026 intuitiveness audit | Widening to ages 3–11 brought in Years 4–6, where children signing in as each other is a genuine problem that the class-code-plus-name model does not address. A mis-tap files one child's work in another child's evidence base — an assessment problem and a safeguarding one. **The honest framing: this is a classroom-management feature, not a security control**, and rule 1's text now says so explicitly so that no one later mistakes it for protection. **Not yet reviewed by a DPO** — the PIN adds a per-child data field (`pinHash`), so it needs that review before it reaches real children. |
 
 *Last reviewed by engineering; **not yet reviewed by a DPO / legal.** Update the
 "Last reviewed" line and the backlog whenever this changes.*
