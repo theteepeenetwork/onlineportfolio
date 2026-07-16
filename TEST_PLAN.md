@@ -25,7 +25,7 @@
 | Media | Moving to Cloudflare R2 (private bucket) | **Local disk** at `.media/`, served via authorising route | R2-specific tests (bucket ACL, signed URLs) are **forward-looking** — see §5 |
 | Sessions | Externalised | **DB-backed** `Session` rows + cookie | Test the store we have; "external store unavailable" maps to "DB unavailable" |
 | Framework | Node.js | **Next.js 16** (App Router, Server Actions), React 19 | State changes are Server Actions / route handlers, not a REST API — shapes the CSRF/access tests |
-| Ages | 4–11 | SAFEGUARDING.md + schema say **3–7** | Discrepancy — see open question Q1 |
+| Ages | 3–11 | **3–11** everywhere (resolved 2026-07-15) | Was 4–11 (brief) vs 3–7 (docs); widened to 3–11 so no year group is orphaned |
 
 ### 1.2 Routes (pages)
 
@@ -164,7 +164,7 @@ Proposal: a **dedicated `prisma/seed-test.ts`** (fictional data only) that adds 
 
 ## 6. Decisions (resolved 2026-07-12)
 
-1. **Age range → 4–11 (brief governs).** SAFEGUARDING.md/schema 3–7 mismatch logged as a doc inconsistency to reconcile; touch targets asserted at ≥44px (brief), noting rule 18's stricter ≥64px.
+1. **Age range → 3–11 (resolved 2026-07-15).** The brief said 4–11, SAFEGUARDING/schema said 3–7. Neither was adopted as-is: 4–11 would have orphaned Nursery, and the July 2026 intuitiveness audit's proposed 5–11 would also have orphaned Reception — both are year groups the signup form already offers. **3–11 widens the ceiling without dropping anyone.** Touch targets are still asserted at ≥44px, noting rule 18's stricter ≥64px — a gap worth closing now the range reaches Year 6.
 2. **Rate limiting (F2) → findings only.** Tests assert the intended limit and currently **fail** (documenting the gap). No app-code change without a separate ask.
 3. **R2 (A5) → skipped-ready + CI tripwire.** Specs written now as skipped; a CI check fails if R2 code lands without them enabled.
 4. **`test:perf` → non-blocking on PRs** (report-only), blocking security + a11y gates only. (Assumed default; say if you want perf blocking too.)

@@ -2,7 +2,7 @@
 
 > **Rule 1: Safeguarding comes first. Everything else comes after it.**
 >
-> Storyjar exists to hold the work of children aged 3–7. If a feature,
+> Storyjar exists to hold the work of children aged 3–11. If a feature,
 > optimisation, deadline or convenience trades off against a child's safety or
 > privacy, **safety wins — without discussion**. When a choice is unclear, take
 > the more protective option and escalate rather than guess.

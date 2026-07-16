@@ -117,7 +117,7 @@ and (bonus) a child signs in on the iPad with the code + name.
 Watch for:
 - Is the class code's purpose obvious?
 - Do they find the printable sheet / QR?
-- On the iPad: is the child sign-in (code → tap name) something they'd trust 4–11s to do alone?
+- On the iPad: is the child sign-in (code → tap name) something they'd trust 3–11s to do alone?
 
 Moderator notes / severity: ______________________________________________
 
