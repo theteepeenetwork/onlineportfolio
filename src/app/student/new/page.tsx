@@ -1,27 +1,23 @@
-import Link from "next/link";
-import { CreateForm } from "@/components/CreateForm";
+import { redirect } from "next/navigation";
 
-type Tab = "PHOTO" | "TEXT" | "DRAWING";
-const VALID: Tab[] = ["PHOTO", "TEXT", "DRAWING"];
-
-export default async function StudentNewPage({
+// This screen used to ask a child which way they wanted to add their work —
+// after they had already tapped "Photo" or "Drawing" on their jar. It's gone
+// (SJ-03): the tiles now deep-link straight to /student/new/photo, /drawing or
+// /words.
+//
+// The route stays as a redirect rather than a 404, because a child on a
+// bookmarked or shared link should land on their jar — a place they recognise —
+// rather than an error they can't read.
+export default async function StudentNewRedirect({
   searchParams,
 }: {
   searchParams: Promise<{ type?: string }>;
 }) {
   const { type } = await searchParams;
-  const defaultTab = VALID.includes(type as Tab) ? (type as Tab) : "PHOTO";
-
-  return (
-    <main className="mx-auto w-full max-w-5xl flex-1 p-4">
-      <Link href="/student" className="text-sm text-muted hover:text-foreground">
-        ← Back to my jar
-      </Link>
-      <h1 className="mb-1 mt-3 text-2xl font-bold">Add to my jar</h1>
-      <p className="mb-5 text-muted">
-        Show your thinking with a photo, your words, or a drawing.
-      </p>
-      <CreateForm mode="student" defaultTab={defaultTab} />
-    </main>
-  );
+  const legacy: Record<string, string> = {
+    PHOTO: "/student/new/photo",
+    TEXT: "/student/new/words",
+    DRAWING: "/student/new/drawing",
+  };
+  redirect(type && legacy[type] ? legacy[type] : "/student");
 }

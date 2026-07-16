@@ -15,32 +15,28 @@ const TABS: { key: Tab; label: string; icon: IconName }[] = [
   { key: "DRAWING", label: "Draw", icon: "draw" },
 ];
 
-// The creation canvas. A child (or teacher, on a child's behalf) picks a way
-// to respond and adds it to a journal.
+// A teacher adds work on a child's behalf. Tabs are right here: a teacher is
+// deciding what to capture while sitting with a child, and works on a laptop
+// with a register they already know.
+//
+// Children used to share this form, arriving from a jar tile that had ALREADY
+// asked them which kind of work they were adding — so it asked twice, in
+// teacher's clothes (SJ-03). They now go straight to their own capture surface
+// (src/app/student/new/[type]) and this is teacher-only.
 export function CreateForm({
-  mode,
   studentId,
   skills = [],
-  defaultTab = "PHOTO",
 }: {
-  mode: "student" | "teacher";
   studentId?: string;
   skills?: Skill[];
-  defaultTab?: Tab;
 }) {
-  const [tab, setTab] = useState<Tab>(defaultTab);
+  const [tab, setTab] = useState<Tab>("PHOTO");
   const [state, action, pending] = useActionState(createJournalItem, {});
-
-  // A child's drawing takes over the whole screen; the canvas owns its own
-  // caption and green ✓ submit button in that mode.
-  const fsDraw = mode === "student" && tab === "DRAWING";
 
   return (
     <form action={action} className="space-y-5">
       <input type="hidden" name="type" value={tab} />
-      {mode === "teacher" && studentId && (
-        <input type="hidden" name="studentId" value={studentId} />
-      )}
+      {studentId && <input type="hidden" name="studentId" value={studentId} />}
 
       {/* Choose how to respond */}
       <div className="grid grid-cols-3 gap-2">
@@ -74,18 +70,11 @@ export function CreateForm({
         />
       )}
 
-      {/* Draw — full-screen and child-led for students, inline for teachers */}
-      {tab === "DRAWING" && (
-        <DrawingCanvas
-          name="drawingPages"
-          fullScreen={mode === "student"}
-          withCaption={mode === "student"}
-          onClose={mode === "student" ? () => setTab("PHOTO") : undefined}
-        />
-      )}
+      {/* Draw — inline for teachers; the child's canvas is full-screen. */}
+      {tab === "DRAWING" && <DrawingCanvas name="drawingPages" />}
 
-      {/* Caption (the full-screen canvas provides its own) */}
-      {tab !== "TEXT" && !fsDraw && (
+      {/* Caption */}
+      {tab !== "TEXT" && (
         <div>
           <label className="label" htmlFor="caption">
             Add a caption (optional)
@@ -99,8 +88,8 @@ export function CreateForm({
         </div>
       )}
 
-      {/* Teacher-only: tag skills at the point of adding */}
-      {mode === "teacher" && skills.length > 0 && (
+      {/* Tag skills at the point of adding */}
+      {skills.length > 0 && (
         <div>
           <p className="label">Tag against skills (optional)</p>
           <div className="flex flex-wrap gap-2">
@@ -123,23 +112,9 @@ export function CreateForm({
         </p>
       )}
 
-      {/* In full-screen drawing the canvas has its own ✓ Done button. */}
-      {!fsDraw && (
-        <>
-          <button type="submit" disabled={pending} className="btn-green w-full py-4 text-lg">
-            {pending
-              ? "Saving…"
-              : mode === "student"
-                ? "✓ Add to my journal"
-                : "✓ Add to journal"}
-          </button>
-          {mode === "student" && (
-            <p className="text-center text-sm text-muted">
-              Your teacher will see it before it&apos;s saved.
-            </p>
-          )}
-        </>
-      )}
+      <button type="submit" disabled={pending} className="btn-green w-full py-4 text-lg">
+        {pending ? "Saving…" : "✓ Add to journal"}
+      </button>
     </form>
   );
 }

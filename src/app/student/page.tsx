@@ -22,10 +22,15 @@ function formatDate(d: Date) {
   return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 }
 
-const ADD_BUTTONS: { type: string; icon: IconName; label: string; bg: string }[] = [
-  { type: "PHOTO", icon: "camera", label: "Photo", bg: "#D8ECE8" },
-  { type: "DRAWING", icon: "draw", label: "Drawing", bg: "#FBEED3" },
-  { type: "TEXT", icon: "write", label: "My words", bg: "#F7E0E6" },
+// Each tile deep-links to the capture surface it names — no screen in between
+// asking the child to choose again (SJ-03). The labels are the ones a child
+// reads on their own jar, so the capture screens use the same words: the old
+// add screen called these "Photo / Write / Draw" while the jar called them
+// "Photo / Drawing / My words", which is two names for the same three things.
+const ADD_BUTTONS: { href: string; icon: IconName; label: string; bg: string }[] = [
+  { href: "/student/new/photo", icon: "camera", label: "Photo", bg: "#D8ECE8" },
+  { href: "/student/new/drawing", icon: "draw", label: "Drawing", bg: "#FBEED3" },
+  { href: "/student/new/words", icon: "write", label: "My words", bg: "#F7E0E6" },
 ];
 
 export default async function StudentHome() {
@@ -132,7 +137,7 @@ export default async function StudentHome() {
           <p style={{ margin: "0 0 16px", font: "600 30px var(--font-fredoka)" }}>Add to my jar</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
             {ADD_BUTTONS.map((b) => (
-              <Link key={b.type} href={`/student/new?type=${b.type}`} className="sj-addtile" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 88, background: b.bg, border: "3px solid var(--ink)", borderRadius: 16, textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
+              <Link key={b.href} href={b.href} className="sj-addtile" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 88, background: b.bg, border: "3px solid var(--ink)", borderRadius: 16, textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
                 <Icon name={b.icon} size={40} decorative />
                 <span style={{ font: "600 27px var(--font-fredoka)", color: "var(--ink)" }}>{b.label}</span>
               </Link>

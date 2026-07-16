@@ -1,12 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { studentLogin } from "./helpers";
+import { studentLogin, openDrawing } from "./helpers";
 
 // Text boxes are objects: after being placed they can be re-selected, moved,
 // and re-edited. (Dev has no seeded or other-test work.)
 test("text can be placed, re-selected, moved and re-edited", async ({ page }) => {
   await studentLogin(page, "Dev");
-  await page.goto("/student/new");
-  await page.getByRole("button", { name: /Draw/ }).click();
+  await openDrawing(page);
 
   const canvas = page.locator("canvas");
   await expect(canvas).toBeVisible();
