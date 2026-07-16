@@ -1,9 +1,39 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { teacherLogin, studentLogin, logout, drawOnCanvas } from "./helpers";
 
 // Local-first draft autosave: in-progress work survives an accidental close /
 // crash / lost connection (simulated here by a full page reload, which throws
 // away all in-memory React state — exactly what a crash does).
+
+// Wait until the draft is actually ON DISK, rather than guessing how long that
+// takes. The canvas debounces the save by 1000ms and then writes a multi-MB
+// composite to IndexedDB asynchronously — so a fixed sleep is a race against an
+// unbounded write. A 1300ms sleep here left ~300ms of headroom and failed on CI
+// three times across unrelated PRs while passing locally every time; the reload
+// simply landed mid-write, and a draft that isn't written yet has nothing to
+// restore. Poll the store the app actually reads.
+async function waitForDraftSaved(page: Page) {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            new Promise<number>((resolve) => {
+              const req = indexedDB.open("storyjar-drafts");
+              req.onerror = () => resolve(0);
+              req.onsuccess = () => {
+                const db = req.result;
+                if (!db.objectStoreNames.contains("drafts")) return resolve(0);
+                const count = db.transaction("drafts", "readonly").objectStore("drafts").count();
+                count.onsuccess = () => resolve(count.result);
+                count.onerror = () => resolve(0);
+              };
+            }),
+        ),
+      { message: "the canvas should autosave a draft to IndexedDB", timeout: 15_000 },
+    )
+    .toBeGreaterThan(0);
+}
 
 test("a teacher's in-progress template survives a reload and saves correctly", async ({ page }) => {
   await teacherLogin(page);
@@ -13,7 +43,7 @@ test("a teacher's in-progress template survives a reload and saves correctly", a
   await page.getByRole("button", { name: /Build a template/ }).click();
   await expect(page.locator("canvas")).toBeVisible();
   await drawOnCanvas(page);
-  await page.waitForTimeout(1300); // let the ~1s debounced autosave reach IndexedDB
+  await waitForDraftSaved(page);
 
   // Crash/close: reload throws away React state (templatePages, the title field).
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -57,7 +87,7 @@ test("a child's in-progress drawing survives a reload", async ({ page }) => {
   await page.getByRole("link", { name: /Draft recovery activity/ }).click();
   await expect(page.locator("canvas")).toBeVisible();
   await drawOnCanvas(page);
-  await page.waitForTimeout(1300);
+  await waitForDraftSaved(page);
 
   // Their tablet reloads (lost connection / closed lid) — work would be gone.
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -94,7 +124,7 @@ test("a child never sees another child's draft on a shared device", async ({ pag
   await page.getByRole("link", { name: /Shared device activity/ }).click();
   await expect(page.locator("canvas")).toBeVisible();
   await drawOnCanvas(page);
-  await page.waitForTimeout(1300);
+  await waitForDraftSaved(page);
 
   // Ben signs in on the same device (same browser storage) and opens the activity.
   await logout(page);
