@@ -32,7 +32,7 @@ export default async function TeacherAddForStudent({
       <p className="mb-5 text-muted">
         This publishes straight away — no approval needed.
       </p>
-      <CreateForm mode="teacher" studentId={student.id} skills={skills} />
+      <CreateForm studentId={student.id} skills={skills} />
     </main>
   );
 }

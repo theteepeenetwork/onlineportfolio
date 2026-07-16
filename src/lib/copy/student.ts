@@ -43,4 +43,27 @@ export const studentCopy = {
     wrongClass: "← Wrong class?",
     noNames: "No names here yet — ask your teacher to add you.",
   },
+
+  // Adding work. A child arrives here having already chosen — they tapped
+  // "Photo" on their jar — so nothing here asks them to choose again.
+  add: {
+    photoHeading: "Take a photo",
+    wordsHeading: "My words",
+    backToJar: "Back to my jar",
+    // A visible label, not a placeholder. Placeholder text vanishes the moment a
+    // child taps the box — taking the instruction away exactly when they need
+    // it. Optional is said out loud so nobody thinks they're stuck.
+    captionLabel: "Tell us about your work",
+    captionOptional: "You don't have to.",
+    // An example of the thing they just did — a photo screen suggesting "I drew…"
+    // models the wrong task.
+    captionPlaceholder: "I made a tower with the big blocks…",
+    wordsLabel: "Write your words here",
+    wordsPlaceholder: "Today I…",
+    submit: "Add to my jar",
+    // The approval promise, in the child's own words, at the moment they hand
+    // it over — this is the product's core loop, so it must never be silent.
+    teacherWillSee: "Your teacher will see it first.",
+    saving: "Popping it in…",
+  },
 } as const;

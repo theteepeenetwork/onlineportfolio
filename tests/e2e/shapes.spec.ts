@@ -1,13 +1,12 @@
 import { test, expect } from "@playwright/test";
-import { studentLogin } from "./helpers";
+import { studentLogin, openDrawing } from "./helpers";
 
 // Shapes can be added, are movable / resizable, and their fill + line colour
 // can be changed.
 test("a child can add a shape, recolour it, move and resize it", async ({ page }) => {
   // Ella has no seeded or other-test work, so "Waiting for you" is unambiguous.
   await studentLogin(page, "Ella");
-  await page.goto("/student/new");
-  await page.getByRole("button", { name: /Draw/ }).click();
+  await openDrawing(page);
 
   // Open the ＋ fan → Shapes → add a rectangle.
   await page.locator('button[title="Add"]').click();

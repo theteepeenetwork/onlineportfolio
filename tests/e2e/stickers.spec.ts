@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { teacherLogin, studentLogin, logout, drawOnCanvas, pageCount } from "./helpers";
+import { teacherLogin, studentLogin, logout, drawOnCanvas, pageCount, openDrawing } from "./helpers";
 
 // Sticker feedback (design 1b + 1d): the teacher opens a waiting moment on the
 // sticker sheet, peels stickers onto the work with a kind note, and the child
@@ -7,8 +7,7 @@ import { teacherLogin, studentLogin, logout, drawOnCanvas, pageCount } from "./h
 test("stickers travel from the teacher's sheet to the child's jar and back", async ({ page }) => {
   // Finn (no seeded work) draws and hands it in.
   await studentLogin(page, "Finn");
-  await page.goto("/student/new");
-  await page.getByRole("button", { name: /Draw/ }).click();
+  await openDrawing(page);
   await drawOnCanvas(page);
   expect(await pageCount(page, "drawingPages")).toBeGreaterThan(0);
   await page.locator('button[title="Done"]').click();

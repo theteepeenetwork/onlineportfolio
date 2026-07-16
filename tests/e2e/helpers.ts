@@ -18,6 +18,14 @@ export async function studentLogin(page: Page, name: string) {
   await page.waitForURL((url) => url.pathname === "/student");
 }
 
+// Open a child's blank drawing canvas. The Drawing tile on their jar deep-links
+// straight to it — there is no intermediate "which kind?" screen any more
+// (SJ-03), and this is the one place that knows the route.
+export async function openDrawing(page: Page) {
+  await page.goto("/student/new/drawing");
+  await expect(page.locator("canvas")).toBeVisible();
+}
+
 // Log out by clearing the session cookie.
 export async function logout(page: Page) {
   await page.context().clearCookies();

@@ -1,11 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { studentLogin } from "./helpers";
-
-async function openDrawing(page: import("@playwright/test").Page) {
-  await page.goto("/student/new");
-  await page.getByRole("button", { name: /Draw/ }).click();
-  await expect(page.locator("canvas")).toBeVisible();
-}
+import { studentLogin, openDrawing } from "./helpers";
 
 async function addRectangle(page: import("@playwright/test").Page) {
   await page.locator('button[title="Add"]').click();
