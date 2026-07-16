@@ -10,7 +10,20 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
-const SRC = path.join(process.cwd(), "src");
+// The raw-query and dangerouslySetInnerHTML checks are about APP code: they
+// look for patterns that are dangerous in a page and unremarkable anywhere
+// else. This gate's own source says "dangerouslySetInnerHTML" a dozen times
+// because it hunts for it — scanning itself for that would be pure noise, and a
+// gate that cries wolf gets ignored.
+const APP = path.join(process.cwd(), "src");
+
+// The control-byte check is different: it applies to any file a human or an
+// agent might need to SEARCH, which includes the tooling. It is here because a
+// gate that cannot see its own file is not a gate — this very check was first
+// written with a raw NUL inside its own comment, and passed clean, because only
+// src/ was ever scanned.
+const SEARCHABLE = [APP, path.join(process.cwd(), "scripts")];
+
 const violations = [];
 const reviewed = [];
 
@@ -25,18 +38,44 @@ const DSIH_ALLOWLIST = [
   },
 ];
 
-function walk(dir) {
+// `visit` gets (file) and decides what to run on it. Same extension filter for
+// both passes — deliberately not a fresh walker, because src/app/favicon.ico
+// holds 29 control bytes and a blanket scan would red-line this gate on day one.
+function walk(dir, visit) {
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry);
     const s = statSync(full);
-    if (s.isDirectory()) walk(full);
-    else if (/\.(ts|tsx|js|jsx|mjs)$/.test(entry)) scan(full);
+    if (s.isDirectory()) walk(full, visit);
+    else if (/\.(ts|tsx|js|jsx|mjs)$/.test(entry)) visit(full);
   }
+}
+
+// A raw control byte makes grep, ripgrep and every code-search tool treat the
+// whole file as binary and skip it SILENTLY — no error, just no results. One
+// stray NUL in DrawingCanvas.tsx hid 4,025 lines from search, and that file is
+// on the path children's work travels. Reviewing what you cannot search is
+// guesswork, so this is a security concern, not tidiness.
+//
+// A written escape is fine: it is plain ASCII in the source and means the same
+// thing at runtime. Only the raw byte is banned. Tab, newline and carriage
+// return are excluded — they're ordinary whitespace.
+function scanForControlBytes(file) {
+  const text = readFileSync(file, "utf8");
+  const rel = path.relative(process.cwd(), file);
+  const control = text.match(/[\x00-\x08\x0B\x0C\x0E-\x1F]/);
+  if (!control) return;
+  const at = text.indexOf(control[0]);
+  const line = text.slice(0, at).split("\n").length;
+  const code = `\\x${control[0].charCodeAt(0).toString(16).padStart(2, "0")}`;
+  violations.push(
+    `${rel}:${line}  raw control byte ${code} — makes this file invisible to grep/rg. Write it as an escape instead.`,
+  );
 }
 
 function scan(file) {
   const text = readFileSync(file, "utf8");
   const rel = path.relative(process.cwd(), file);
+
   text.split("\n").forEach((line, i) => {
     const n = i + 1;
     // Unsafe raw query APIs — never allowed.
@@ -59,7 +98,8 @@ function scan(file) {
   });
 }
 
-walk(SRC);
+walk(APP, scan);
+for (const dir of SEARCHABLE) walk(dir, scanForControlBytes);
 
 if (violations.length) {
   console.error("✖ Static security gate failed:\n");

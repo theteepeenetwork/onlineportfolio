@@ -3238,7 +3238,7 @@ function QuizBoxView({
   }, []);
 
   // Re-fit whenever anything that changes how much room the text has changes.
-  const answerKey = q.options.map((o) => `${o.text ?? ""}|${o.imagePath ? 1 : 0}`).join(" ");
+  const answerKey = q.options.map((o) => `${o.text ?? ""}|${o.imagePath ? 1 : 0}`).join("\x00");
   useLayoutEffect(() => {
     const els = [...answerEls.current.values()];
     if (!els.length) return;
