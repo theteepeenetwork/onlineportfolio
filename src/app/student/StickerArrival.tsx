@@ -73,7 +73,7 @@ export function StickerArrival({ itemId, childName, avatarColor, teacherName, no
           <p style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--paper)" }}>{childName}&apos;s jar</p>
           <p style={{ margin: "2px 0 0", font: "400 14px var(--font-atkinson)", color: "#A9B4C9" }}>A new sticker just arrived ✨</p>
         </div>
-        <button onClick={replay} style={{ marginLeft: "auto", font: "700 13px var(--font-atkinson)", color: "var(--ink)", background: "var(--honey)", border: "none", borderRadius: 999, padding: "9px 16px", minHeight: 44, cursor: "pointer" }}>
+        <button onClick={replay} style={{ marginLeft: "auto", font: "700 15px var(--font-atkinson)", color: "var(--ink)", background: "var(--honey)", border: "none", borderRadius: 999, padding: "9px 20px", minHeight: 64, cursor: "pointer" }}>
           ↺ Play again
         </button>
       </div>

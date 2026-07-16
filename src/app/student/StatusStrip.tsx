@@ -59,7 +59,10 @@ export function StatusStrip({ returned }: { returned: boolean }) {
             e.stopPropagation();
             readAloud(line);
           }}
-          style={{ minHeight: 44, minWidth: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 999, padding: "4px 14px", font: "700 14px var(--font-atkinson)", color: "var(--ink)", cursor: "pointer" }}
+          // 64px, not the 44px web default: this is a child's control, and it
+          // is the one that exists FOR the children who can't read the line
+          // beside it (SAFEGUARDING rule 18).
+          style={{ minHeight: 64, minWidth: 64, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 999, padding: "4px 14px", font: "700 14px var(--font-atkinson)", color: "var(--ink)", cursor: "pointer" }}
         >
           <span aria-hidden="true">🔊</span>
         </button>

@@ -84,7 +84,7 @@ export function StudentCapture({ type }: { type: Exclude<CaptureType, "DRAWING">
               id="caption"
               name="caption"
               placeholder={c.captionPlaceholder}
-              style={{ width: "100%", boxSizing: "border-box", marginTop: 8, font: "400 22px var(--font-atkinson)", padding: "14px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
+              style={{ width: "100%", boxSizing: "border-box", marginTop: 8, minHeight: 64, font: "400 22px var(--font-atkinson)", padding: "14px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
             />
           </div>
         )}

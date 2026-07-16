@@ -18,7 +18,9 @@ const ROWS: string[] = [
 ];
 
 const KEY: React.CSSProperties = {
-  minWidth: 56,
+  // 64 on BOTH axes — rule 18 is a target, not a height. The widest row is the
+  // ten digits, so the pad below is sized to fit 10 x 64 plus its gaps.
+  minWidth: 64,
   minHeight: 64,
   flex: "1 1 0",
   font: "600 24px var(--font-fredoka)",
@@ -150,7 +152,7 @@ export function CodeEntry({ notFound }: { notFound: boolean }) {
             <button
               type="button"
               onClick={() => readAloud(c.codeNotFound)}
-              style={{ minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6, font: "700 15px var(--font-atkinson)", color: "var(--ink)", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 16px", cursor: "pointer" }}
+              style={{ minHeight: 64, display: "inline-flex", alignItems: "center", gap: 6, font: "700 15px var(--font-atkinson)", color: "var(--ink)", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 18px", cursor: "pointer" }}
             >
               <span aria-hidden="true">🔊</span>
               {c.hearIt}
@@ -160,9 +162,11 @@ export function CodeEntry({ notFound }: { notFound: boolean }) {
       )}
 
       {/* Our own pad, so the iPad's keyboard never rises over the Next button. */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "clamp(6px, 1.2vh, 10px)", marginTop: "clamp(14px, 2.6vh, 24px)", width: "min(680px, 94vw)" }}>
+      {/* Sized for the widest row: 10 digits x 64px + 9 x 6px gaps = 694. Both
+          iPad orientations clear that (landscape 96vw = 983, portrait = 737). */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "clamp(6px, 1.2vh, 10px)", marginTop: "clamp(14px, 2.6vh, 24px)", width: "min(700px, 96vw)" }}>
         {ROWS.map((row) => (
-          <div key={row} style={{ display: "flex", gap: "clamp(5px, 1vw, 9px)", justifyContent: "center" }}>
+          <div key={row} style={{ display: "flex", gap: 6, justifyContent: "center" }}>
             {row.split("").map((ch) => {
               const usable = isCodeChar(ch);
               return (
