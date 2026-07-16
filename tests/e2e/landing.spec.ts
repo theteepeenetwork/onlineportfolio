@@ -138,6 +138,26 @@ test.describe("Landing page — navigation and content", () => {
     }
   });
 
+  // The hidden tiles are parked at translate(20px,-480px) — over the nav — with
+  // opacity 0, and an opacity-0 element still swallows clicks. Decoration must
+  // never intercept a pointer, so assert the real thing a visitor does: the
+  // topmost element at the centre of each sign-in button IS that button.
+  test("the decorative hero tiles never intercept a click on the sign-in buttons", async ({ page }) => {
+    await page.goto("/");
+    await waitForRevealed(page, 0); // tiles now parked over the header
+
+    for (const href of ["/login/student", "/login/teacher"]) {
+      const topmostIsTheLink = await page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !!(hit && hit.closest(sel));
+      }, `a[href="${href}"]`);
+      expect(topmostIsTheLink, `${href} is clickable, not covered by hero decoration`).toBe(true);
+    }
+  });
+
   test("the hero calls-to-action lead to the teacher auth pages", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Teacher sign in" }).click();

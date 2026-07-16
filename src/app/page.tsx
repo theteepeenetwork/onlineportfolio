@@ -78,6 +78,13 @@ export default async function Home() {
               <a href="#pricing" style={NAV_LINK}>Pricing</a>
               <a href="#faq" style={NAV_LINK}>FAQ</a>
             </span>
+            {/* A child on a fresh classroom iPad has to be able to get in on
+                their own — every dead end here is an adult interruption. The
+                pupil door comes first and is the bigger of the two. */}
+            <Link href="/login/student" className="sj-btn-door">
+              <JarLogo width={22} height={26} />
+              I&apos;m a pupil
+            </Link>
             <Link href="/login/teacher" className="sj-btn-outline">Teacher sign in</Link>
           </nav>
 
@@ -407,6 +414,7 @@ export default async function Home() {
                 ["/legal/accessibility", "Accessibility"],
                 ["/legal", "All policies"],
                 ["/family", "Family sign in"],
+                ["/login/student", "Pupil sign in"],
               ].map(([href, label]) => (
                 <Link key={href} href={href} style={{ font: "400 15px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>{label}</Link>
               ))}

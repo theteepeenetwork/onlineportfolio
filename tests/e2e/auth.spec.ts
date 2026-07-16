@@ -21,4 +21,14 @@ test.describe("Sign in", () => {
     await expect(page.getByText("Add to my jar")).toBeVisible();
     await expect(page.getByText("Sunflower Class")).toBeVisible();
   });
+
+  // SJ-01: the landing page used to offer "Teacher sign in" and nothing else, so
+  // a child on a fresh classroom iPad had no way in without an adult. The pupil
+  // door is their only self-serve route — if it ever disappears again, a child
+  // is stuck, so guard it here rather than in the report-only UX project.
+  test("a child can reach sign-in from the landing page on their own", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "I'm a pupil" }).click();
+    await expect(page.getByRole("heading", { name: /what's your class code/i })).toBeVisible();
+  });
 });
