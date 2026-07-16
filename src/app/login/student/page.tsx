@@ -2,6 +2,9 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { studentLogin } from "@/app/actions/auth";
 import { JarLogo } from "@/components/storyjar/JarLogo";
+import { normaliseClassCode } from "@/lib/classCodeChars";
+import { studentCopy } from "@/lib/copy/student";
+import { CodeEntry } from "./CodeEntry";
 
 const TWINKLE = "M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z";
 
@@ -17,7 +20,10 @@ export default async function StudentLoginPage({
 }) {
   const { code, preview } = await searchParams;
   const isPreview = preview === "1";
-  const normalised = code?.trim().toUpperCase();
+  // Strip ALL whitespace, not just the ends: the old screen modelled the code as
+  // "ABC 123" in its placeholder and allowed 7 characters, but only trimmed —
+  // so a child who typed exactly what they were shown could never match.
+  const normalised = code === undefined ? "" : normaliseClassCode(code);
 
   const klass = normalised
     ? await db.class.findUnique({
@@ -39,32 +45,19 @@ export default async function StudentLoginPage({
       )}
       {!klass ? (
         /* ── Stage 1: enter code ── */
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px", position: "relative", textAlign: "center" }}>
-          <svg width="60" height="60" viewBox="0 0 24 24" style={{ position: "absolute", left: "12%", top: "18%" }} aria-hidden="true"><path transform="translate(12,12) scale(0.8)" d={TWINKLE} fill="#F0B441" /></svg>
-          <svg width="44" height="44" viewBox="0 0 24 24" style={{ position: "absolute", right: "14%", bottom: "22%" }} aria-hidden="true"><path transform="translate(12,12) scale(0.7) rotate(15)" d={TWINKLE} fill="#E08A9B" /></svg>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "clamp(16px, 3vh, 32px) 20px", position: "relative", textAlign: "center" }}>
+          <svg width="60" height="60" viewBox="0 0 24 24" style={{ position: "absolute", left: "6%", top: "14%" }} aria-hidden="true"><path transform="translate(12,12) scale(0.8)" d={TWINKLE} fill="#F0B441" /></svg>
+          <svg width="44" height="44" viewBox="0 0 24 24" style={{ position: "absolute", right: "7%", bottom: "16%" }} aria-hidden="true"><path transform="translate(12,12) scale(0.7) rotate(15)" d={TWINKLE} fill="#E08A9B" /></svg>
 
-          <JarLogo width={120} height={150} />
-          <h1 style={{ margin: "24px 0 0", font: "600 52px var(--font-fredoka)" }}>What&apos;s your class code?</h1>
-          <p style={{ margin: "14px 0 0", font: "400 24px var(--font-atkinson)", color: "var(--ink-soft)" }}>Your teacher will show you.</p>
+          {/* The jar shrinks on a short screen so the pad and Next always fit
+              above the fold — the whole point is that nothing buries them. */}
+          <div className="sj-code-jar">
+            <JarLogo width={72} height={90} />
+          </div>
+          <h1 style={{ margin: "clamp(8px, 1.6vh, 16px) 0 0", font: "600 clamp(28px, 4.6vw, 44px) var(--font-fredoka)" }}>{studentCopy.signIn.codeHeading}</h1>
+          <p style={{ margin: "8px 0 0", font: "400 clamp(15px, 2vw, 19px) var(--font-atkinson)", color: "var(--ink-soft)" }}>{studentCopy.signIn.codeHelp}</p>
 
-          <form method="get" style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 44 }}>
-            <input
-              name="code"
-              type="text"
-              maxLength={7}
-              aria-label="Class code"
-              placeholder="ABC 123"
-              autoFocus
-              autoComplete="off"
-              style={{ width: 420, maxWidth: "90vw", textAlign: "center", font: "600 64px var(--font-fredoka)", letterSpacing: "0.22em", textTransform: "uppercase", padding: "20px 10px", border: "4px solid var(--ink)", borderRadius: 20, background: "var(--cream)", color: "var(--ink)", boxSizing: "border-box" }}
-            />
-            {normalised && (
-              <p style={{ margin: "18px 0 0", font: "700 18px var(--font-atkinson)", color: "var(--jam)", background: "var(--error-tint)", borderRadius: 12, padding: "12px 18px" }}>
-                We couldn&apos;t find that class code. Have another go!
-              </p>
-            )}
-            <button type="submit" style={{ marginTop: 36, minHeight: 72, font: "600 28px var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "none", padding: "18px 60px", borderRadius: 999, boxShadow: "0 5px 0 var(--jam-deep)", cursor: "pointer" }}>Next →</button>
-          </form>
+          <CodeEntry notFound={Boolean(normalised)} />
         </div>
       ) : (
         /* ── Stage 2: tap your name ── */
@@ -74,13 +67,13 @@ export default async function StudentLoginPage({
               <div style={{ position: "absolute", left: 8, top: "50%", width: 8, height: 8, border: "3px solid var(--ink)", borderRadius: "50%", transform: "translateY(-50%)", background: "var(--paper)" }} />
               <span style={{ font: "600 26px var(--font-fredoka)", whiteSpace: "nowrap" }}>{klass.name}</span>
             </div>
-            <h1 style={{ margin: 0, font: "600 44px var(--font-fredoka)" }}>Tap your name!</h1>
-            <Link href="/login/student" style={{ marginLeft: "auto", minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 20px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "12px 26px", textDecoration: "none" }}>← Wrong class?</Link>
+            <h1 style={{ margin: 0, font: "600 44px var(--font-fredoka)" }}>{studentCopy.signIn.namesHeading}</h1>
+            <Link href="/login/student" style={{ marginLeft: "auto", minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 20px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "12px 26px", textDecoration: "none" }}>{studentCopy.signIn.wrongClass}</Link>
           </div>
 
           {klass.students.length === 0 ? (
             <p style={{ marginTop: 40, font: "400 22px var(--font-atkinson)", color: "var(--ink-soft)" }}>
-              No names here yet — ask your teacher to add you.
+              {studentCopy.signIn.noNames}
             </p>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 20, marginTop: 34 }}>
