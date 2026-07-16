@@ -5,7 +5,10 @@ import { LogoutForm } from "@/components/LogoutForm";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { Sticker } from "@/components/stickers/Sticker";
 import { readStickers } from "@/lib/stickers";
+import { studentCopy } from "@/lib/copy/student";
 import { StickerArrival } from "./StickerArrival";
+import { JarStatus, JarSummary } from "./JarStatus";
+import { StatusStrip } from "./StatusStrip";
 
 // Look of a moment by its kind.
 const KIND = {
@@ -44,6 +47,18 @@ export default async function StudentHome() {
   });
   const published = items.filter((i) => i.status === "APPROVED");
   const inProgress = items.filter((i) => i.status !== "APPROVED");
+  const waitingCount = inProgress.filter((i) => i.status === "PENDING").length;
+
+  // When did this child last look at their jar? The session carries only their
+  // identity, so read it here. Approval happens while they're away, so anything
+  // approved since then is news to them and falls in when they look (M2).
+  const seen = await db.student.findUnique({
+    where: { id: student.id },
+    select: { jarSeenAt: true },
+  });
+  const justArrivedCount = published.filter(
+    (i) => i.approvedAt && (!seen?.jarSeenAt || i.approvedAt > seen.jarSeenAt),
+  ).length;
 
   // A newly arrived sticker: the most recent approved moment with stickers the
   // child hasn't sent a heart back for yet. Shown as the big arrival panel.
@@ -93,16 +108,11 @@ export default async function StudentHome() {
           <p style={{ margin: 0, font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>{student.className}</p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
-          <svg width="46" height="58" viewBox="0 0 100 120" aria-label={`${published.length} moments in the jar`}>
-            <rect x="26" y="4" width="48" height="14" rx="7" fill="#C9A87C" />
-            <path d="M30,20 L70,20 L70,30 C82,36 86,46 86,58 L86,98 Q86,114 70,114 L30,114 Q14,114 14,98 L14,58 C14,46 18,36 30,30 Z" fill="#EAF4F1" stroke="#22304A" strokeWidth="5" strokeLinejoin="round" />
-            {published.length > 0 && <rect x="24" y="92" width="17" height="17" rx="4" fill="#C2476B" transform="rotate(-6 32 100)" />}
-            {published.length > 1 && <rect x="45" y="96" width="17" height="17" rx="4" fill="#F0B441" transform="rotate(5 53 104)" />}
-            {published.length > 2 && <rect x="60" y="90" width="17" height="17" rx="4" fill="#37796f" transform="rotate(-4 68 98)" />}
-            {published.length > 3 && <rect x="34" y="74" width="17" height="17" rx="4" fill="#8AB9D6" transform="rotate(4 42 82)" />}
-            {published.length > 4 && <rect x="54" y="72" width="17" height="17" rx="4" fill="#A6C979" transform="rotate(-5 62 80)" />}
-          </svg>
-          <span style={{ font: "600 20px var(--font-fredoka)", color: "#37796f" }}>{published.length} {published.length === 1 ? "moment" : "moments"}</span>
+          {/* The jar IS the status now: what's in, what's balanced on the rim
+              waiting for the teacher, and what just went in while you were
+              away (SJ-04 / M2). */}
+          <JarStatus inJar={published.length} waiting={waitingCount} arrived={justArrivedCount} />
+          <JarSummary inJar={published.length} waiting={waitingCount} />
           <LogoutForm>
             <button type="submit" style={{ minHeight: 56, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>Bye bye 👋</button>
           </LogoutForm>
@@ -168,22 +178,24 @@ export default async function StudentHome() {
               <div style={{ width: 64, height: 64, borderRadius: 12, background: "repeating-linear-gradient(45deg, #FFFDF7, #FFFDF7 10px, #F6E4BE 10px, #F6E4BE 20px)", border: "3px solid var(--ink)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }} aria-hidden="true"><Icon name={k.icon} size={30} decorative /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
-                <p style={{ margin: "2px 0 0", font: "400 17px var(--font-atkinson)", color: "#8A5F1E" }}>
-                  {waiting ? "Waiting for your teacher to see it ⏳" : "Have another go — your teacher sent it back ✏️"}
-                </p>
+                <StatusStrip returned={!waiting} />
               </div>
               {canRetry && (
-                <span style={{ flexShrink: 0, background: "#37796f", color: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 20px", font: "700 17px var(--font-atkinson)" }}>Try again</span>
+                <span style={{ flexShrink: 0, background: "#37796f", color: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 20px", font: "700 17px var(--font-atkinson)" }}>{studentCopy.status.tryAgain}</span>
               )}
             </>
           );
+          // M4: a sent-back moment pulses once on first sight — it's the one
+          // thing here that needs the child. A waiting one rests: it needs
+          // nothing from them, and a jar that keeps twitching is a jar you
+          // stop reading.
           const stripStyle = { display: "flex", alignItems: "center", gap: 16, marginTop: 22, background: "#FBEED3", border: "3px dashed #C9A87C", borderRadius: 16, padding: "16px 24px" } as const;
           return canRetry ? (
-            <Link key={item.id} href={`/student/activities/${item.assignmentId}`} className="sj-addtile" style={{ ...stripStyle, textDecoration: "none", color: "var(--ink)" }}>
+            <Link key={item.id} href={`/student/activities/${item.assignmentId}`} className="sj-addtile" data-returned-beacon="true" style={{ ...stripStyle, textDecoration: "none", color: "var(--ink)" }}>
               {strip}
             </Link>
           ) : (
-            <div key={item.id} style={stripStyle}>
+            <div key={item.id} data-returned-beacon={!waiting ? "true" : undefined} style={stripStyle}>
               {strip}
             </div>
           );

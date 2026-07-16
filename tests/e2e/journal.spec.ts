@@ -106,3 +106,69 @@ test.describe("Adding work stays in the child's world", () => {
     await expect(page).toHaveURL(/\/student$/);
   });
 });
+
+// SJ-04 — "where is my work?" used to be answered with a sentence ("Waiting for
+// your teacher to see it ⏳"), which is nothing to a child who can't read yet.
+// The approve-then-publish loop is the product's core promise, so a pre-reader
+// being unable to perceive it was the audit's central finding.
+test.describe("A child can see where their work is", () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+
+  // Chloe carries seeded waiting work and no other spec asserts on her jar.
+  test("waiting work sits ON the jar, not in it", async ({ page }) => {
+    await studentLogin(page, "Chloe");
+    const jar = page.getByRole("img", { name: /in your jar/ });
+
+    // The jar itself carries the status, and says the same thing to a screen
+    // reader that it shows a child who can't read.
+    await expect(jar).toHaveAttribute("aria-label", /waiting on top/);
+    expect(await page.locator("[data-jar-rim]").count(), "waiting moments perch on the rim").toBeGreaterThan(0);
+  });
+
+  test("every status says it with a tag and words, never colour alone", async ({ page }) => {
+    await studentLogin(page, "Chloe");
+
+    // WCAG 1.4.1: the tag is a shape with an icon and a word, not a hue. A
+    // child who can't distinguish kraft from honey still gets the meaning.
+    const tags = page.getByText("Waiting", { exact: true });
+    expect(await tags.count()).toBeGreaterThan(0);
+    await expect(page.getByText(/waiting for your teacher to see it/i).first()).toBeVisible();
+  });
+
+  test("a child can have their status read to them", async ({ page }) => {
+    await studentLogin(page, "Chloe");
+    const speak = page.getByRole("button", { name: /^Hear it/ }).first();
+    await expect(speak).toBeVisible();
+    const box = (await speak.boundingBox())!;
+    expect(box.height, "read-aloud is a real target").toBeGreaterThanOrEqual(44);
+  });
+
+  // M2 — the strongest missing moment. Approval happens while the child is
+  // away, so the reward landed in an empty room: they'd open their jar and the
+  // work would simply be there, with nothing to say it had just arrived.
+  test("work approved while you were away drops into the jar — once", async ({ page }) => {
+    await studentLogin(page, "Chloe");
+    const before = await page.locator("[data-jar-arrival]").count();
+    await logout(page);
+
+    // The teacher approves while the child is elsewhere. Chloe has several
+    // waiting moments, so her card stays in the queue — wait on the count
+    // dropping rather than the card vanishing (which is Finn's case, not hers).
+    await teacherLogin(page);
+    await page.goto("/teacher/queue");
+    const chloeCards = page.locator('[data-child="Chloe"]');
+    const queued = await chloeCards.count();
+    await chloeCards.first().getByRole("button", { name: /Add to jar/ }).click();
+    await expect(chloeCards).toHaveCount(queued - 1);
+    await logout(page);
+
+    // The child comes back and SEES it happen.
+    await studentLogin(page, "Chloe");
+    await expect(page.locator('[data-jar-arrival="in"]'), "the newly approved moment falls in").toHaveCount(before + 1);
+
+    // And it is not news for ever: the celebration fires once, then the moment
+    // is simply theirs. A jar that re-celebrates is a jar you stop believing.
+    await page.reload();
+    await expect(page.locator("[data-jar-arrival]"), "the drop plays once, not on every visit").toHaveCount(0);
+  });
+});

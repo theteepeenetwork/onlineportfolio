@@ -124,6 +124,15 @@ model Student {
   class        Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
   classId      String
   createdAt    DateTime      @default(now())
+  // When this child last opened their jar. Approval happens while they're away,
+  // so without this the reward lands in an empty room: anything approved after
+  // this timestamp is new to them and drops into the jar when they next look.
+  //
+  // ONE timestamp, overwritten every visit — deliberately not a history. It is
+  // wayfinding, never a measure of how often a child uses Storyjar. Never
+  // aggregate, report or export it, and never show it to a parent: that is
+  // profiling, which SAFEGUARDING rule 11 forbids. See RETENTION.md.
+  jarSeenAt    DateTime?
   journalItems JournalItem[]
   sessions     Session[]
   assignments  AssignmentStudent[]

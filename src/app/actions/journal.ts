@@ -356,6 +356,31 @@ export async function sendStickerBack(formData: FormData) {
   // /student renders fresh data anyway.
 }
 
+// The child has now seen their jar, so anything approved before this moment is
+// no longer news. Called after the "it went in!" drop has played (M2) —
+// approval happens while the child is away, so without this the reward lands in
+// an empty room and they never learn that the queue gives their work back.
+//
+// One timestamp, overwritten. Deliberately not a visit log: this is wayfinding,
+// not a measure of how often a child uses Storyjar, and it must never become
+// one (SAFEGUARDING rule 11 — children are never profiled). See RETENTION.md.
+//
+// Not write-gated: a frozen account is read-only for *content*, but a child
+// still gets to look at their own jar and have it stop shouting at them.
+export async function markJarSeen() {
+  const user = await getCurrentUser();
+  if (user?.role !== "STUDENT") return;
+
+  await db.student.update({
+    where: { id: user.student.id },
+    data: { jarSeenAt: new Date() },
+  });
+
+  // Deliberately no audit entry and no revalidate: recording that a child
+  // looked at their own work would be the profiling this field exists to avoid,
+  // and re-rendering would yank the celebration off the screen mid-animation.
+}
+
 // Delete an item (teacher only). Deliberately NOT write-gated: deletion (right
 // to erasure) stays available even in a frozen account (RETENTION.md: FROZEN
 // blocks mutations "except account management, data export, and deletion").
