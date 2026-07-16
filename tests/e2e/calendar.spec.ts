@@ -92,7 +92,13 @@ test.describe("Teacher calendar", () => {
     await page.getByRole("button", { name: /Assign to whole class/ }).click();
     await expect(page).toHaveURL(/\/teacher\/activities\/[^/]+\?run=/);
 
+    // Assert via the agenda, not the month grid: a day cell shows at most
+    // MAX_PILLS runs and collapses the rest behind "+N more", so whether a new
+    // run is visible in the grid depends on how many others happen to share its
+    // day. That made this test pass or fail with the calendar date. The agenda
+    // lists every run, which is what "puts the run on the calendar" means.
     await page.goto("/teacher/calendar");
-    await expect(page.getByText("Draw your family").first()).toBeVisible();
+    await page.getByRole("button", { name: "Agenda", exact: true }).click();
+    await expect(page.getByRole("link", { name: /Draw your family/ }).first()).toBeVisible();
   });
 });
