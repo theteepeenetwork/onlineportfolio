@@ -114,7 +114,7 @@ export default async function StudentHome() {
           <JarStatus inJar={published.length} waiting={waitingCount} arrived={justArrivedCount} />
           <JarSummary inJar={published.length} waiting={waitingCount} />
           <LogoutForm>
-            <button type="submit" style={{ minHeight: 56, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>Bye bye 👋</button>
+            <button type="submit" style={{ minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>Bye bye 👋</button>
           </LogoutForm>
         </div>
       </header>
