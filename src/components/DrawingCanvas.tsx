@@ -66,13 +66,18 @@ const TOOLS: { key: Tool; label: string; icon?: IconName }[] = [
 ];
 
 // The shelf: tools stand in a row, sunk to their nibs until picked. Move is a
-// shelf tool like the rest — the hand stands where a pen would.
+// shelf tool like the rest — the arrow stands where a pen would.
 //
 // It is only OFFERED when there is something to move (see `canMove` in the
 // component). "Select" was a desktop convention: a child tapping it found every
 // pen had silently stopped working, with nothing on screen to say why. Silent
 // mode-switches are the classic child-UX trap, and a Year 1 doesn't know what a
 // pointer is — they just touch.
+//
+// Conditional existence, not the glyph, is what protects the child: a tool that
+// can't be reached when it can't act can't strand anyone, whatever it looks
+// like. (A hand was tried in place of the arrow and reverted on the owner's
+// call — it didn't read well on the shelf.)
 //
 // NOT auto-returning to the last pen after a move, which is what the audit
 // proposed: `objectMode="answer"` (a drag-the-objects worksheet) STARTS on this
@@ -2366,24 +2371,19 @@ function ToolShape({ kind, color }: { kind: Tool; color: string }) {
     "aria-hidden": true,
   };
   if (kind === "cursor") {
-    // An open hand, not an arrow. The shelf renders ONLY this picture — the word
-    // "Move" lives in the aria-label and the hover title, so a child on a tablet
-    // never reads it. The glyph is therefore the whole child-facing fix, and an
-    // arrow meant nothing to a Year 1 who has never seen a mouse pointer.
+    // The arrow (icon library's "select"), stood up at pen scale. It's a
+    // shorter shape than the pens, so it sits whole on the shelf rather than
+    // sinking to a nib — the lift on pick is what marks it as the live tool.
     //
-    // Shorter than the pens, so it sits whole on the shelf rather than sinking
-    // to a nib — the lift on pick is what marks it as the live tool.
+    // A hand was tried here and reverted: it didn't read well on the shelf. The
+    // tool is still called Move (aria-label, tooltip) and — the part that
+    // actually protects a child — it is only OFFERED when there is something to
+    // move, so a wrong tap can no longer leave a child holding a tool that does
+    // nothing. See SHELF and `canMove`.
     return (
       <svg {...svg}>
-        <g transform="translate(4 30)">
-          {/* palm */}
-          <path
-            d="M5 26 Q5 34 9 40 Q13 46 20 46 Q27 46 27 38 L27 20 Q27 16 23.5 16 Q20 16 20 20 L20 14 Q20 10 16.5 10 Q13 10 13 14 L13 12 Q13 8 9.5 8 Q6 8 6 12 L6 22 Q6 22 5 26 Z"
-            fill="#F3E3C3"
-            strokeWidth="2.4"
-          />
-          {/* thumb */}
-          <path d="M6 22 Q2 24 2 29 Q2 33 5 36" fill="none" strokeWidth="2.4" />
+        <g transform="translate(-15 7)">
+          <path d="M18 13 L18 55 L28 46 L34 60 L41 57 L35 43 L48 43 Z" fill="#FFFDF7" />
         </g>
       </svg>
     );
