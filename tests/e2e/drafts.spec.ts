@@ -5,34 +5,46 @@ import { teacherLogin, studentLogin, logout, drawOnCanvas } from "./helpers";
 // crash / lost connection (simulated here by a full page reload, which throws
 // away all in-memory React state — exactly what a crash does).
 
-// Wait until the draft is actually ON DISK, rather than guessing how long that
-// takes. The canvas debounces the save by 1000ms and then writes a multi-MB
-// composite to IndexedDB asynchronously — so a fixed sleep is a race against an
-// unbounded write. A 1300ms sleep here left ~300ms of headroom and failed on CI
-// three times across unrelated PRs while passing locally every time; the reload
-// simply landed mid-write, and a draft that isn't written yet has nothing to
-// restore. Poll the store the app actually reads.
+// Wait until the drawn work is actually ON DISK, rather than guessing how long
+// that takes.
+//
+// The canvas debounces its save by 1000ms and then writes to IndexedDB
+// asynchronously, so a fixed sleep races an unbounded write. A 1300ms sleep
+// left ~300ms of headroom and failed on CI three times across unrelated PRs
+// while passing locally every time.
+//
+// Waiting for a RECORD to exist isn't enough either: `doPersist` writes one
+// whether or not anything has been drawn, so an empty draft satisfies that —
+// the test then reloads and finds nothing to restore, which is the same failure
+// wearing a different hat. Wait for `anyDrawn`, which is the app's own word for
+// "there is work here worth keeping".
 async function waitForDraftSaved(page: Page) {
   await expect
     .poll(
       () =>
         page.evaluate(
           () =>
-            new Promise<number>((resolve) => {
+            new Promise<boolean>((resolve) => {
               const req = indexedDB.open("storyjar-drafts");
-              req.onerror = () => resolve(0);
+              req.onerror = () => resolve(false);
               req.onsuccess = () => {
                 const db = req.result;
-                if (!db.objectStoreNames.contains("drafts")) return resolve(0);
-                const count = db.transaction("drafts", "readonly").objectStore("drafts").count();
-                count.onsuccess = () => resolve(count.result);
-                count.onerror = () => resolve(0);
+                if (!db.objectStoreNames.contains("drafts")) return resolve(false);
+                const all = db.transaction("drafts", "readonly").objectStore("drafts").getAll();
+                all.onerror = () => resolve(false);
+                all.onsuccess = () =>
+                  resolve(
+                    all.result.some(
+                      (r: { canvas?: { anyDrawn?: boolean; pages?: string[] } }) =>
+                        r.canvas?.anyDrawn === true && (r.canvas?.pages?.length ?? 0) > 0,
+                    ),
+                  );
               };
             }),
         ),
-      { message: "the canvas should autosave a draft to IndexedDB", timeout: 15_000 },
+      { message: "the canvas should autosave the DRAWN work to IndexedDB", timeout: 15_000 },
     )
-    .toBeGreaterThan(0);
+    .toBe(true);
 }
 
 test("a teacher's in-progress template survives a reload and saves correctly", async ({ page }) => {
