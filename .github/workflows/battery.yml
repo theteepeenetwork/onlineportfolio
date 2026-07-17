@@ -29,6 +29,8 @@ jobs:
       - run: npm ci
       - name: No unsafe raw queries / dangerouslySetInnerHTML
         run: node scripts/audit-static.mjs
+      - name: Reduced-motion guard (rule 18)
+        run: node scripts/audit-motion.mjs
       - name: R2 tripwire (media migration guard)
         run: node scripts/check-r2-tripwire.mjs
       - name: Production dependency audit (fail on high)

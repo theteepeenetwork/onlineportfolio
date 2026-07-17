@@ -106,9 +106,6 @@ html {
 [data-anim="tile"] { animation: sj-tile-drop 0.9s cubic-bezier(.34,1.4,.64,1) both; }
 [data-anim="jar"] { animation: sj-jar-bump 0.9s ease-in-out 0.45s both; transform-origin: 50% 90%; }
 [data-anim="twinkle"] { animation: sj-twinkle-pop 0.5s ease-out 0.9s both; transform-origin: center; }
-@media (prefers-reduced-motion: reduce) {
-  [data-anim] { animation: none !important; opacity: 1 !important; }
-}
 
 /* M3 — class-code feedback. A filled slot pops softly, so a pre-reader can see
    their tap landed; a code we can't find gets a neutral side-wobble. Never a red
@@ -128,10 +125,6 @@ html {
 }
 [data-code-slot="filled"] { animation: sj-slot-pop 0.22s cubic-bezier(.34, 1.5, .64, 1); }
 [data-code-slots="wobble"] { animation: sj-code-wobble 0.55s ease-in-out; }
-@media (prefers-reduced-motion: reduce) {
-  [data-code-slot],
-  [data-code-slots] { animation: none !important; }
-}
 
 /* A classroom iPad in landscape is only ~768px tall and the code screen has to
    fit the slots, the pad and Next without scrolling — that is the entire point
@@ -168,12 +161,6 @@ html {
 }
 [data-returned-beacon] { animation: sj-returned-pulse 1.1s ease-in-out 1; }
 
-@media (prefers-reduced-motion: reduce) {
-  /* The tile still ends up in the jar — it just doesn't fly. Status must never
-     depend on motion (WCAG 2.3.3 / 1.4.1). */
-  [data-jar-arrival] { animation: none !important; opacity: 1 !important; }
-  [data-returned-beacon] { animation: none !important; }
-}
 
 /* Visually hidden, still announced — for the live status that tells a screen
    reader how far through the code you are without spelling it out. */
@@ -242,13 +229,6 @@ html {
   mix-blend-mode: screen;
   animation: sj-holo-sheen 3.4s ease-in-out infinite;
 }
-@media (prefers-reduced-motion: reduce) {
-  [data-stk] { animation: none !important; opacity: 1 !important; transform: rotate(var(--tilt, 0deg)); }
-  .sj-holo-foil,
-  .sj-holo-sheen {
-    animation: none !important;
-  }
-}
 /* Landing-page responsiveness (design: "Homepage responsiveness update").
    Below 860px the two-column rows stack; below 760px the scroll-fill hero
    becomes a static, scaled-down jar; below 640px the anchor nav links hide
@@ -291,12 +271,6 @@ html {
 @media (max-width: 720px) {
   .sj-login-decor { display: none; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .sj-float,
-  .sj-twinkle {
-    animation: none !important;
-  }
-}
 
 .sj details > summary {
   list-style: none;
@@ -307,14 +281,6 @@ html {
 }
 .sj details[open] .faq-chevron {
   transform: rotate(45deg);
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-jar-jiggle] {
-    animation: none !important;
-  }
-  html {
-    scroll-behavior: auto;
-  }
 }
 
 body {
@@ -543,9 +509,46 @@ h4 {
   color: var(--ink);
 }
 
+
+/* ── Reduced motion: ONE guard, for everything ─────────────────────────────
+   SAFEGUARDING rule 18 requires prefers-reduced-motion to be honoured. This
+   used to be SEVEN blocks scattered beside the animations they covered, each
+   naming its own selectors — so honouring the rule depended on whoever added an
+   animation remembering to come back and add a line. `.sj-btn-door:hover`
+   proves the point: it shipped with a 3px lift and no override, because it was
+   added far from any of the seven lists.
+
+   One catch-all instead, and `scripts/audit-motion.mjs` fails the build if a
+   second block ever appears or a duration escapes this one. A new animation is
+   now covered by default rather than by memory.
+
+   Everything ends effectively instantly and lands on its FINAL keyframe — so a
+   tile still arrives in the jar, it just doesn't fly there. Status must never
+   depend on motion (WCAG 2.3.3 / 1.4.1), and a child who needs reduced motion
+   still needs to know where their work is. */
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    /* Not optional: without it an INFINITE animation (the landing jar's idle
+       jiggle, the sticker foil) runs at 0.01ms per cycle — flickering rather
+       than stopping, which is worse than the motion it replaced. */
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* A sticker's resting place is its own tilt, not its final bump frame. */
+  [data-stk] {
+    transform: rotate(var(--tilt, 0deg));
+  }
+
+  /* Hover lifts are REMOVED, not accelerated — a 3px jump is still a jump.
+     .sj-btn-door was missing from the list this replaces. */
   .sj-btn-jam:hover,
   .sj-btn-outline:hover,
+  .sj-btn-door:hover,
   .sj-namecard:hover,
   .sj-addtile:hover {
     transform: none;
