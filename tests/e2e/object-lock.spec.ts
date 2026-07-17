@@ -69,7 +69,7 @@ test("teacher padlock locks an object so pupils can't move it; unlocked stays mo
   await expect(objectWraps).toHaveCount(2);
   // A template with objects opens on the Select tool by default, so a pupil can
   // pick objects up straight away (no need to switch tools first).
-  await expect(page.locator('button[aria-label="Select"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('button[aria-label="Move"]')).toHaveAttribute("aria-pressed", "true");
 
   // The locked object is fixed (pointer-events: none); the unlocked one can be
   // grabbed (pointer-events: auto). Exactly one of each.
@@ -85,7 +85,7 @@ test("teacher padlock locks an object so pupils can't move it; unlocked stays mo
   await page.goto(`${templateUrl}/edit`);
   await page.getByRole("button", { name: /Edit template/ }).click();
   await expect(objectPaths).toHaveCount(2);
-  await page.locator('button[aria-label="Select"]').click();
+  await page.locator('button[aria-label="Move"]').click();
 
   // Selecting an object brings up its author toolbar (proving it's editable
   // again), and each object's lock state was preserved: the rectangle (added

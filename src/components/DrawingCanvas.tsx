@@ -57,7 +57,7 @@ const DEFAULT_TOOL_SIZES: Record<Tool, number> = {
 // pencil → Pen (thin), pen → Felt tip (thick), highlighter (wide/translucent),
 // eraser. See ToolShape for the drawn nibs and true-weight sample strokes.
 const TOOLS: { key: Tool; label: string; icon?: IconName }[] = [
-  { key: "cursor", label: "Select", icon: "select" },
+  { key: "cursor", label: "Move", icon: "select" },
   { key: "pencil", label: "Pen", icon: "pen" },
   { key: "pen", label: "Felt tip", icon: "felt-tip" },
   { key: "highlighter", label: "Highlighter", icon: "highlighter" },
@@ -65,10 +65,23 @@ const TOOLS: { key: Tool; label: string; icon?: IconName }[] = [
   { key: "text", label: "Text", icon: "text" },
 ];
 
-// The shelf: tools stand in a row, sunk to their nibs until picked. Select is a
-// shelf tool like the rest — the arrow cursor stands where a pen would.
+// The shelf: tools stand in a row, sunk to their nibs until picked. Move is a
+// shelf tool like the rest — the hand stands where a pen would.
+//
+// It is only OFFERED when there is something to move (see `canMove` in the
+// component). "Select" was a desktop convention: a child tapping it found every
+// pen had silently stopped working, with nothing on screen to say why. Silent
+// mode-switches are the classic child-UX trap, and a Year 1 doesn't know what a
+// pointer is — they just touch.
+//
+// NOT auto-returning to the last pen after a move, which is what the audit
+// proposed: `objectMode="answer"` (a drag-the-objects worksheet) STARTS on this
+// tool because moving IS the task, so handing the child a pencil after their
+// first move would turn their next tap into a stray dot on their answers. A
+// tool that only exists when it can do something never strands anyone, and the
+// app never has to guess what a five-year-old meant.
 const SHELF: { key: Tool; label: string }[] = [
-  { key: "cursor", label: "Select" },
+  { key: "cursor", label: "Move" },
   { key: "pencil", label: "Pen" },
   { key: "pen", label: "Felt tip" },
   { key: "highlighter", label: "Highlighter" },
@@ -468,6 +481,33 @@ export function DrawingCanvas({
   // Placed objects on the current page + which one is selected.
   const [objects, setObjects] = useState<Obj[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Is the Move tool worth offering? Only when this page HAS something to move
+  // — or when the canvas is in object mode, where placing and arranging things
+  // is the whole job (a teacher building a worksheet, a child answering one).
+  //
+  // A blank drawing page has nothing to move, so Move isn't on the shelf, so a
+  // child can't land on it and find their pens have silently stopped working.
+  // That was SJ-09: the trap was the tool existing when it couldn't do
+  // anything, and a child has no way to diagnose a mode they didn't know they
+  // were in. Add a shape and it appears, because now it means something.
+  const canMove = objects.length > 0 || Boolean(objectMode);
+
+  // The pen to fall back to. Tracked rather than assumed, so a child who was
+  // using the highlighter gets the highlighter back, not a pencil.
+  const lastDrawToolRef = useRef<Tool>("pencil");
+  useEffect(() => {
+    if (tool !== "cursor" && tool !== "text") lastDrawToolRef.current = tool;
+  }, [tool]);
+
+  // If the last movable thing goes (the child deletes their only shape), Move
+  // stops being offered — so don't strand them holding an invisible tool. This
+  // is the ONLY safe auto-switch: there is provably nothing left to move.
+  // Never in objectMode, where the canvas legitimately starts on Move before
+  // anything is placed.
+  useEffect(() => {
+    if (!canMove && tool === "cursor") setTool(lastDrawToolRef.current);
+  }, [canMove, tool]);
 
   // ---- Quiz layer (structured, NEVER composited into the page PNG) ----------
   // `quizRef` is the source of truth (a flat list carrying each question's
@@ -2042,7 +2082,7 @@ export function DrawingCanvas({
           )}
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-2">
-            {SHELF.map((t) => {
+            {SHELF.filter((t) => t.key !== "cursor" || canMove).map((t) => {
               const selected = tool === t.key;
               return (
                 <button
@@ -2051,7 +2091,7 @@ export function DrawingCanvas({
                   onClick={() => { finishEditing(); setTool(t.key); }}
                   className="pointer-events-auto flex flex-col items-center transition-transform duration-150"
                   style={{ transform: `translateY(${selected ? 34 : 68}px)` }}
-                  title={t.key === "cursor" ? "Select — move & resize things" : t.label}
+                  title={t.key === "cursor" ? "Move — drag & resize things" : t.label}
                   aria-label={t.label}
                   aria-pressed={selected}
                 >
@@ -2326,13 +2366,24 @@ function ToolShape({ kind, color }: { kind: Tool; color: string }) {
     "aria-hidden": true,
   };
   if (kind === "cursor") {
-    // The Select arrow (icon library's "select"), stood up at pen scale. It's a
-    // shorter shape than the pens, so it sits whole on the shelf rather than
-    // sinking to a nib — the lift on pick is what marks it as the live tool.
+    // An open hand, not an arrow. The shelf renders ONLY this picture — the word
+    // "Move" lives in the aria-label and the hover title, so a child on a tablet
+    // never reads it. The glyph is therefore the whole child-facing fix, and an
+    // arrow meant nothing to a Year 1 who has never seen a mouse pointer.
+    //
+    // Shorter than the pens, so it sits whole on the shelf rather than sinking
+    // to a nib — the lift on pick is what marks it as the live tool.
     return (
       <svg {...svg}>
-        <g transform="translate(-15 7)">
-          <path d="M18 13 L18 55 L28 46 L34 60 L41 57 L35 43 L48 43 Z" fill="#FFFDF7" />
+        <g transform="translate(4 30)">
+          {/* palm */}
+          <path
+            d="M5 26 Q5 34 9 40 Q13 46 20 46 Q27 46 27 38 L27 20 Q27 16 23.5 16 Q20 16 20 20 L20 14 Q20 10 16.5 10 Q13 10 13 14 L13 12 Q13 8 9.5 8 Q6 8 6 12 L6 22 Q6 22 5 26 Z"
+            fill="#F3E3C3"
+            strokeWidth="2.4"
+          />
+          {/* thumb */}
+          <path d="M6 22 Q2 24 2 29 Q2 33 5 36" fill="none" strokeWidth="2.4" />
         </g>
       </svg>
     );
