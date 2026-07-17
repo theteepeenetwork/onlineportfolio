@@ -10,13 +10,15 @@ resolved. Data-protection failures are treated as critical/high per the brief
 > delete (`deleteItem`). Findings reflect that state — F3 was narrowed to
 > `removeStudent`, which this work then fixed too.
 
-**Status: F1–F15 addressed; F16 open.** Fixes were applied after explicit sign-off
+**Status: F1–F15 addressed; F16 and F17 open.** Fixes were applied after explicit sign-off
 (the Phase-1 plan was "findings only"; the user then asked to fix them). Every
 fix is covered by a test that now passes.
 
-> **F15/F16 were found later**, while checking the July 2026 intuitiveness audit
-> against the code — not during the original battery work. F15 is fixed here.
-> **F16 is open** and scheduled with the audit's sign-in work.
+> **F15–F17 were found later**, while working through the July 2026 intuitiveness
+> audit — not during the original battery work. F15 is fixed. **F16 is open**,
+> scheduled with the class-code rotation release. **F17 is open**: routed around
+> rather than fixed, because the fix loosens a deny-by-default branch and needs
+> safeguarding review — see its section below.
 
 Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 
@@ -38,6 +40,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F14 | Low | Touch target | Approval-queue buttons < 44px on tablet | **Fixed** | `ux/responsive.spec.ts` |
 | F15 | Critical | AuthZ | `createJournalItem` trusted a client `studentId` — a teacher could publish into another school's pupil's journal, past the approval queue | **Fixed** | `security/f15-cross-tenant-journal-write.spec.ts` |
 | F16 | High | Rate-limit / Enumeration | Class-code lookup is unthrottled, and a hit discloses the class name + every pupil's first name | **Open** | — (scheduled with SJ-02) |
+| F17 | Medium | AuthZ / robustness | `/uploads` authorises **path-first**: it decides on the first journal item matching a media path and never falls through to the template branch. Two records sharing a path therefore mis-authorise each other. | **Open** (routed around, not fixed) | `findings/uploads-path-collision.spec.ts` |
 
 ---
 

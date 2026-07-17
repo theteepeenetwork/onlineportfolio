@@ -168,8 +168,25 @@ async function main() {
       { id: "o0", type: "image", src: oakObjImg, x: 100, y: 100, w: 200, h: 150, aspect: 1.33, locked: false },
     ],
   ]);
+  // The template BACKGROUND — the worksheet a child draws on top of. Teacher-
+  // authored, scoped by ownership/assignment exactly like the quiz option and
+  // object pictures above. It had no fixture at all until now, which is why the
+  // two describes that say "scoped LIKE template media" were mirroring coverage
+  // that did not exist (tenant-isolation.spec.ts).
+  //
+  // Deliberately its OWN file, never a child's response media: /uploads
+  // authorises path-first, so a shared path means a child loading the template
+  // gets checked against a stranger's work and refused.
+  const oakTmplBg = writeSvg("seed-oak-tmpl-bg.svg", OAK_SVG);
+  const oakTmplPaths = JSON.stringify([oakTmplBg]);
   const oakQuizTemplate = await db.activityTemplate.create({
-    data: { title: "Oak leaf quiz", quizJson: oakQuiz, objectsJson: oakObjects, teacherId: oakTeacher.id },
+    data: {
+      title: "Oak leaf quiz",
+      quizJson: oakQuiz,
+      objectsJson: oakObjects,
+      templatePathsJson: oakTmplPaths,
+      teacherId: oakTeacher.id,
+    },
   });
   const oakQuizRun = await db.assignment.create({
     data: {
@@ -180,6 +197,7 @@ async function main() {
       title: oakQuizTemplate.title,
       quizSnapshotJson: oakQuiz,
       objectsSnapshotJson: oakObjects,
+      templateSnapshotJson: oakTmplPaths,
     },
   });
   // Zara's quiz answer — a PENDING response carrying her selections + score.
