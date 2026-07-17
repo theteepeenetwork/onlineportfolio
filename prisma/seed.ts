@@ -121,9 +121,25 @@ async function main() {
     ),
   );
 
+  // Children's work.
   const sunPath = writeSvg("seed-sun.svg", SUN);
   const housePath = writeSvg("seed-house.svg", HOUSE);
   const bugPath = writeSvg("seed-bug.svg", BUG);
+
+  // Teachers' template backgrounds — SEPARATE FILES, even though the pictures
+  // are the same. A template background and a child's response must never share
+  // a media path: /uploads authorises path-first (route.ts canAccess), matching
+  // the first journal item with that path and deciding on THAT item alone. When
+  // a template background is also some child's response media, another child
+  // loading the template gets checked against a stranger's work and is refused
+  // — their own to-do thumbnail 404s into an invisible empty box.
+  //
+  // Real uploads can't collide (savePhoto mints a random name per upload), so
+  // this was the fixture modelling something production never does — and it
+  // would have made the SJ-08 thumbnail work look broken.
+  const tmplSunPath = writeSvg("seed-tmpl-sun.svg", SUN);
+  const tmplHousePath = writeSvg("seed-tmpl-house.svg", HOUSE);
+  const tmplBugPath = writeSvg("seed-tmpl-bug.svg", BUG);
 
   const response = (data: {
     studentId: string;
@@ -162,7 +178,7 @@ async function main() {
     data: {
       title: "Count the apples",
       instructions: "Circle how many apples you can count.",
-      templatePathsJson: JSON.stringify([sunPath]),
+      templatePathsJson: JSON.stringify([tmplSunPath]),
       tagsJson: JSON.stringify(["Maths"]),
       folderId: mathsFolder.id,
       teacherId: teacher.id,
@@ -188,7 +204,7 @@ async function main() {
     data: {
       title: "Minibeast hunt",
       instructions: "Draw the minibeasts you found outside.",
-      templatePathsJson: JSON.stringify([bugPath, housePath]),
+      templatePathsJson: JSON.stringify([tmplBugPath, tmplHousePath]),
       tagsJson: JSON.stringify(["Science", "Outdoors"]),
       folderId: outdoorsFolder.id,
       teacherId: teacher.id,

@@ -116,6 +116,54 @@ test.describe("A1 · Quiz option pictures are scoped like template media", () =>
   });
 });
 
+// The thing the two describes below say they are "like". Until now there was no
+// fixture for a template BACKGROUND and no test of it — so "scoped like template
+// media" was mirroring coverage that did not exist. The background is the
+// worksheet a child actually draws on: teacher-authored, reachable by its owner
+// and by the pupils set the activity, and by nobody else.
+test.describe("A1 · Template backgrounds are scoped by ownership and assignment", () => {
+  const B_TMPL = SCHOOL_B.templateMedia;
+
+  test("School B teacher can load their own template background", async ({ page }) => {
+    await loginTeacher(page, SCHOOL_B.teacher);
+    expect(await fetchStatus(page, B_TMPL)).toBe(200);
+  });
+
+  // The case the seed collision broke: a child set the activity could not load
+  // the worksheet they were meant to draw on, because the path was also another
+  // child's response media and /uploads authorises path-first.
+  test("A School B pupil set the activity can load the background they draw on", async ({ page }) => {
+    await loginStudent(page, SCHOOL_B.classCode, SCHOOL_B.student); // Zara, Acorn (wholeClass run)
+    expect(await fetchStatus(page, B_TMPL)).toBe(200);
+  });
+
+  test("School A teacher and admin CANNOT load School B's template background", async ({ page }) => {
+    await loginTeacher(page, SCHOOL_A.otherTeacher);
+    expect(await fetchStatus(page, B_TMPL)).toBe(404);
+    await loginTeacher(page, SCHOOL_A.admin);
+    expect(await fetchStatus(page, B_TMPL)).toBe(404);
+  });
+
+  test("A School A pupil cannot load School B's template background", async ({ page }) => {
+    await loginStudent(page, SCHOOL_A.classCode, SCHOOL_A.student);
+    expect(await fetchStatus(page, B_TMPL)).toBe(404);
+  });
+
+  test("No parent can load a template background (teacher content)", async ({ page }) => {
+    await loginParent(page, SCHOOL_B.parentFamilyCode);
+    expect(await fetchStatus(page, B_TMPL)).toBe(404);
+    await clearSession(page);
+    await loginParent(page, SCHOOL_A.parentFamilyCode);
+    expect(await fetchStatus(page, B_TMPL)).toBe(404);
+  });
+
+  test("anonymous cannot load a template background", async ({ page }) => {
+    await page.goto("/");
+    await clearSession(page);
+    expect(await fetchStatus(page, B_TMPL)).toBe(404);
+  });
+});
+
 test.describe("A1 · Movable-object pictures are scoped like template media", () => {
   // A picture the teacher placed on the template as a draggable/lockable object.
   // It is teacher-authored content living in objectsJson / objectsSnapshotJson,
