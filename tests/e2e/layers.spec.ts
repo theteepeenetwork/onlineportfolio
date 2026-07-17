@@ -31,7 +31,7 @@ test("a drawing tool writes over objects; the cursor tool moves them", async ({ 
   expect(pages.length).toBeGreaterThan(1000); // a stroke was recorded
 
   // With the cursor tool, dragging the shape moves it.
-  await page.locator('button[aria-label="Select"]').click();
+  await page.locator('button[aria-label="Move"]').click();
   await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
   await page.mouse.down();
   await page.mouse.move(before.x + before.width / 2 + 130, before.y + before.height / 2 + 80, {
@@ -55,7 +55,7 @@ test("a shape's label is locked inside it, and re-fits when the shape resizes", 
   await page.mouse.dblclick(box0.x + box0.width / 2, box0.y + box0.height / 2);
   await expect(page.locator('textarea[placeholder="Type…"]')).toBeVisible();
   await page.keyboard.type("Label");
-  await page.locator('button[aria-label="Select"]').click(); // commit, stay on cursor tool
+  await page.locator('button[aria-label="Move"]').click(); // commit, stay on cursor tool
 
   const label = page.getByText("Label", { exact: true });
   await expect(label).toBeVisible();
