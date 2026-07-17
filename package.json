@@ -17,7 +17,7 @@
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report",
     "test:e2e": "playwright test",
-    "test:security": "node scripts/audit-static.mjs && node scripts/check-r2-tripwire.mjs && npm run audit:prod && playwright test -c playwright.battery.config.ts --project=security",
+    "test:security": "node scripts/audit-static.mjs && node scripts/audit-motion.mjs && node scripts/check-r2-tripwire.mjs && npm run audit:prod && playwright test -c playwright.battery.config.ts --project=security",
     "test:security:findings": "playwright test -c playwright.battery.config.ts --project=security-findings",
     "test:a11y": "playwright test -c playwright.battery.config.ts --project=a11y",
     "test:ux": "playwright test -c playwright.battery.config.ts --project=ux",
