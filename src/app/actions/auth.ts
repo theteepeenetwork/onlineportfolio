@@ -6,13 +6,11 @@ import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
 import { trialEndFromNow } from "@/lib/billing";
 import { uniqueClassCode } from "@/lib/classCode";
+import { AVATAR_PALETTE } from "@/lib/avatar";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
 import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 
 // Storyjar avatar palette — children get a colour bubble in rotation.
-const AVATAR_PALETTE = [
-  "#E08A9B", "#8AB9D6", "#A6C979", "#C2476B", "#F0B441", "#37796f", "#B99CD6", "#E8A06A",
-];
 
 export type SignupResult = { error?: string; step?: number };
 

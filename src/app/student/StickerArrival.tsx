@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { sendStickerBack } from "@/app/actions/journal";
 import { Sticker } from "@/components/stickers/Sticker";
 import { Icon, type IconName } from "@/components/icons/Icon";
+import { avatarInk } from "@/lib/avatar";
 
 // "What the child sees" (design 1d): the payoff. The teacher's sticker drops
 // gently onto the moment, the card gives a little bump, and the teacher's kind
@@ -66,7 +67,7 @@ export function StickerArrival({ itemId, childName, avatarColor, teacherName, no
     <section aria-label="A new sticker just arrived" style={{ background: "var(--ink)", borderRadius: 18, padding: 26, boxShadow: "0 12px 30px rgba(34,48,74,.16)" }}>
       {/* header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
-        <span aria-hidden="true" style={{ width: 46, height: 46, borderRadius: "50%", background: avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 22px var(--font-fredoka)", color: "#FFFDF7", flexShrink: 0 }}>
+        <span aria-hidden="true" style={{ width: 46, height: 46, borderRadius: "50%", background: avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 22px var(--font-fredoka)", color: avatarInk(avatarColor), flexShrink: 0 }}>
           {childName.charAt(0).toUpperCase()}
         </span>
         <div>

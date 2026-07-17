@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { AVATAR_PALETTE } from "../src/lib/avatar";
 
 const db = new PrismaClient();
 
@@ -103,7 +104,13 @@ async function main() {
     data: { name: "Ladybird Class", classCode: "LDB456", teacherId: teacher.id },
   });
 
-  const colors = ["#ef4444", "#f97316", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
+  // The REAL palette, not a lookalike. This used to be six hardcoded Tailwind
+  // defaults with no relation to the brand — and three of them are unreadable
+  // at any ink (best case 3.6:1 against a 4.5:1 floor), so the demo showed
+  // children initials they couldn't read while real classes were fine. Same
+  // fixture drift as the class codes: the demo modelling something the app
+  // never does. Imported so it cannot drift again.
+  const colors = AVATAR_PALETTE;
   const sun = await Promise.all(
     ["Amara", "Ben", "Chloe", "Dev", "Ella", "Finn"].map((name, i) =>
       db.student.create({ data: { name, classId: sunflower.id, avatarColor: colors[i % colors.length] } }),

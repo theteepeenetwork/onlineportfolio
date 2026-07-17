@@ -6,6 +6,7 @@ import { Icon, type IconName } from "@/components/icons/Icon";
 import { Sticker } from "@/components/stickers/Sticker";
 import { readStickers } from "@/lib/stickers";
 import { studentCopy } from "@/lib/copy/student";
+import { avatarInk } from "@/lib/avatar";
 import { StickerArrival } from "./StickerArrival";
 import { JarStatus, JarSummary } from "./JarStatus";
 import { StatusStrip } from "./StatusStrip";
@@ -102,7 +103,7 @@ export default async function StudentHome() {
     <div className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}>
       {/* header */}
       <header style={{ display: "flex", alignItems: "center", gap: 18, padding: "22px 40px", background: "var(--cream)", borderBottom: "3px solid var(--ink)", flexWrap: "wrap" }}>
-        <span style={{ width: 64, height: 64, borderRadius: "50%", background: student.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 30px var(--font-fredoka)", color: "#FFFDF7", flexShrink: 0 }}>{student.name.charAt(0).toUpperCase()}</span>
+        <span style={{ width: 64, height: 64, borderRadius: "50%", background: student.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 30px var(--font-fredoka)", color: avatarInk(student.avatarColor), flexShrink: 0 }}>{student.name.charAt(0).toUpperCase()}</span>
         <div>
           <p style={{ margin: 0, font: "600 28px var(--font-fredoka)" }}>{student.name}&apos;s jar</p>
           <p style={{ margin: 0, font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>{student.className}</p>

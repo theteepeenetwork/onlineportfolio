@@ -10,15 +10,20 @@ resolved. Data-protection failures are treated as critical/high per the brief
 > delete (`deleteItem`). Findings reflect that state — F3 was narrowed to
 > `removeStudent`, which this work then fixed too.
 
-**Status: F1–F15 addressed; F16 and F17 open.** Fixes were applied after explicit sign-off
+**Status: F1–F15 + F18 addressed; F16 and F17 open.** Fixes were applied after explicit sign-off
 (the Phase-1 plan was "findings only"; the user then asked to fix them). Every
 fix is covered by a test that now passes.
 
-> **F15–F17 were found later**, while working through the July 2026 intuitiveness
-> audit — not during the original battery work. F15 is fixed. **F16 is open**,
-> scheduled with the class-code rotation release. **F17 is open**: routed around
-> rather than fixed, because the fix loosens a deny-by-default branch and needs
-> safeguarding review — see its section below.
+> **F15–F18 were found later**, while working through the July 2026 intuitiveness
+> audit — not during the original battery work. **F15 and F18 are fixed.**
+> **F16 is open**, scheduled with the class-code rotation release. **F17 is
+> open**: routed around rather than fixed, because the fix loosens a
+> deny-by-default branch and needs safeguarding review — see its section below.
+>
+> **F18 is the one to learn from:** a child could not read their own initial, and
+> the a11y gate passed the whole time because F11's `color-contrast` baseline
+> hid it. "The a11y gate will catch it" is not a safe argument until
+> `BASELINE_RULES` is empty — an assumption already made twice in planning.
 
 Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 
@@ -34,7 +39,8 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F8 | Info | Repo hygiene | `.env` + root `dev.db` git-tracked | **Fixed** (dev.db untracked) | — |
 | F9 | Info | XSS surface | `dangerouslySetInnerHTML` on a library QR SVG | **Reviewed** (allowlisted) | `scripts/audit-static.mjs` |
 | F10 | Low | Deps | Moderate `postcss` advisory via `next` (upstream) | **Deferred** (needs Next bump) | `npm run audit:prod` |
-| F11 | High | A11y | App-wide WCAG 2.2 AA colour-contrast + colour-only links | **Substantially fixed** (baseline reduced) | `a11y/axe.spec.ts` |
+| F11 | High | A11y | App-wide WCAG 2.2 AA colour-contrast + colour-only links | **Substantially fixed** (baseline reduced; ~19 adult-surface nodes left) | `a11y/axe.spec.ts` |
+| F18 | High | A11y (child-facing) | Six of the eight avatar colours gave a child an unreadable initial on their own name card (1.8–2.5:1 vs a 4.5:1 floor) — **hidden by F11's `color-contrast` baseline**, so the name-picker scan passed throughout | **Fixed** | `a11y/avatar-contrast.spec.ts` |
 | F12 | Low | Resilience | Reload discarded the add-child draft & lost your place | **Fixed** | `ux/interruption.spec.ts` |
 | F13 | Low | Responsive | Landing scrolled horizontally at iPad-portrait | **Fixed** | `ux/responsive.spec.ts` |
 | F14 | Low | Touch target | Approval-queue buttons < 44px on tablet | **Fixed** | `ux/responsive.spec.ts` |
@@ -192,6 +198,39 @@ Recorded in the static gate's allowlist so any *new* use still fails CI.
 
 Fix requires a breaking Next upgrade. The CI gate is at **high** on production
 deps (`audit:prod`, green). Tracked for the next Next bump.
+
+## F18 · A child could not read their own initial — High → Fixed
+
+**Was:** the avatar disc drew every initial in cream. Six of the eight palette
+colours are warm pastels, so six children in eight had an initial at **1.8–2.5:1**
+against their own disc — the AA floor is 4.5:1. A child's name card is *how they
+sign in*: they are asked to find themselves by it (and per SJ-05, with surnames
+banned by rule 2, the colour is one of only two compliant ways to tell two
+Olivias apart). SAFEGUARDING rule 18 puts WCAG 2.2 AA under "Access for every
+child".
+
+**Why nothing caught it:** `a11y/axe.spec.ts` baselines `color-contrast` away
+while F11 is open, so the name-picker scan passed the whole time. This is the
+concrete cost of a baselined rule, and it is why "the a11y gate will catch it"
+is not a safe argument until `BASELINE_RULES` is empty.
+
+**Fix:** the INK adapts to the disc rather than the palette being dulled — the
+warm colours are the brand and are load-bearing on the name wall
+(`src/lib/avatar.ts`). Worst case across the palette went from 1.83:1 to
+**4.68:1**; measured on a real name wall, every child now clears AA.
+
+**Also fixed — the drift underneath it:** `prisma/seed.ts` had its OWN avatar
+palette (six Tailwind defaults), unrelated to the app's. Three of those cannot
+reach AA at *any* ink (best 3.6:1), so the demo showed unreadable initials while
+real classes were fine. `actions/auth.ts` is `"use server"` and can only export
+async functions, which is *why* the palette got copy-pasted — it now lives in a
+shared module both import, like `classCodeChars.ts` for the code alphabet.
+
+**Guards:** `a11y/avatar-contrast.spec.ts` — un-baselined, and deliberately not
+an axe scan: it asserts arithmetically that **every** palette colour (plus the
+schema's fallback) gives a readable initial, so a pretty-but-unreadable colour
+fails the build the moment it is added. Proved by adding one. Plus a live check
+of a real name wall.
 
 ## F11 · WCAG 2.2 AA colour-contrast — High → Substantially fixed
 
