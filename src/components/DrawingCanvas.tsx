@@ -1357,18 +1357,28 @@ export function DrawingCanvas({
     refreshUndoRedo();
   }
 
-  function deletePage() {
+  // Delete a specific page (by index). Used by the per-thumbnail delete cross,
+  // so it can remove any page — not only the one on screen.
+  function deletePageAt(target: number) {
     if (pagesRef.current.length <= 1) return;
+    if (target < 0 || target >= pagesRef.current.length) return;
     finishEditing();
-    pagesRef.current.splice(currentRef.current, 1);
-    templatesRef.current.splice(currentRef.current, 1);
-    objectsRef.current.splice(currentRef.current, 1);
-    compositeRef.current.splice(currentRef.current, 1);
-    previewRef.current.splice(currentRef.current, 1);
+    // Bake the page on screen first, so deleting a DIFFERENT page never drops
+    // the in-progress work on the page you're currently viewing.
+    syncHidden();
+    pagesRef.current.splice(target, 1);
+    templatesRef.current.splice(target, 1);
+    objectsRef.current.splice(target, 1);
+    compositeRef.current.splice(target, 1);
+    previewRef.current.splice(target, 1);
     // Page indices shift, so drop the (now-misaligned) history.
     undoRef.current = {};
     redoRef.current = {};
-    const index = Math.max(0, currentRef.current - 1);
+    // Keep the viewer on the same page where possible: a page removed at or
+    // before the current one shifts the current index back by one; a page
+    // removed after it leaves the current index alone.
+    let index = target <= currentRef.current ? currentRef.current - 1 : currentRef.current;
+    index = Math.max(0, Math.min(index, pagesRef.current.length - 1));
     currentRef.current = index;
     setPageCount(pagesRef.current.length);
     setCurrent(index);
@@ -1378,6 +1388,11 @@ export function DrawingCanvas({
     syncHidden();
     refreshThumbs();
     refreshUndoRedo();
+  }
+
+  // Delete the page currently on screen (the inline layout's "Delete page").
+  function deletePage() {
+    deletePageAt(currentRef.current);
   }
 
   function clearPage() {
@@ -1939,9 +1954,9 @@ export function DrawingCanvas({
             </button>
           </div>
 
-          <div className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2">
+          <div className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col items-start gap-2">
             {fanOpen && (
-              <div className="flex flex-col gap-2">
+              <div className="flex w-44 flex-col gap-2">
                 <FanBtn label="Photo / PDF" onClick={() => fileRef.current?.click()}><Icon name="add-picture" size={26} decorative /></FanBtn>
                 <FanBtn label="Text" onClick={() => { setFanOpen(false); setTool("text"); }}><Icon name="text" size={26} decorative /></FanBtn>
                 <FanBtn label="Shapes" onClick={() => { setShapesOpen((v) => !v); }}><Icon name="shapes" size={26} decorative /></FanBtn>
@@ -1962,7 +1977,8 @@ export function DrawingCanvas({
           </div>
 
           {shapesOpen && (
-            <div className="absolute left-20 top-1/2 -translate-y-1/2">{shapesPalette}</div>
+            // Sits to the right of the (labelled) add menu so the two don't overlap.
+            <div className="absolute left-52 top-1/2 -translate-y-1/2">{shapesPalette}</div>
           )}
 
           {isQuizAuthor && !quizPanelOpen && <QuizLauncher onOpen={openQuizPanel} />}
@@ -2149,40 +2165,59 @@ export function DrawingCanvas({
             </div>
           )}
 
-          <div className="absolute right-3 top-20 flex flex-col items-end">
+          {/* Pages sit on the right, but nudged in from the edge so the strip
+              clears the hue (colour) bar instead of sitting behind it. */}
+          <div className="absolute right-16 top-20 flex flex-col items-end">
             <button
               type="button"
               onClick={() => setStripOpen((v) => !v)}
-              className="mb-1 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-muted shadow"
+              className="mb-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-foreground shadow ring-1 ring-black/5"
             >
               {stripOpen ? "Pages ›" : "‹ Pages"}
             </button>
             {stripOpen && (
-              <div className="flex max-h-[42vh] w-24 flex-col gap-1.5 overflow-y-auto rounded-xl bg-white/80 p-1.5 shadow">
+              // A greyer tray so each (white) page preview reads as its own tile;
+              // thumbnails keep a fixed size (shrink-0) so adding pages makes this
+              // column SCROLL rather than squashing every preview smaller. Each is
+              // numbered in the corner so its place in the order is obvious.
+              <div className="flex max-h-[42vh] w-24 flex-col gap-2 overflow-y-auto rounded-xl bg-slate-400/40 p-2 shadow-inner ring-1 ring-black/10">
                 {thumbs.map((src, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => goToPage(i)}
-                    className={`overflow-hidden rounded-lg border-2 ${i === current ? "border-brand" : "border-transparent"}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={`Page ${i + 1}`} className="aspect-[10/7] w-full object-cover" />
-                  </button>
+                  <div key={i} className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => goToPage(i)}
+                      aria-current={i === current ? "true" : undefined}
+                      className={`block w-full overflow-hidden rounded-lg border-2 bg-white shadow-sm ${i === current ? "border-brand" : "border-white"}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt={`Page ${i + 1}`} className="aspect-[10/7] w-full object-cover" />
+                      {/* Decorative — the image's alt already names the page. */}
+                      <span aria-hidden="true" className="absolute bottom-0.5 right-0.5 min-w-[16px] rounded bg-foreground/75 px-1 text-center text-[10px] font-bold leading-[15px] text-white">
+                        {i + 1}
+                      </span>
+                    </button>
+                    {/* Delete this page — same red cross as the shape/object delete. */}
+                    {allowPageDelete && pageCount > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => deletePageAt(i)}
+                        className="absolute right-0.5 top-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white shadow ring-2 ring-white transition-transform hover:scale-105"
+                        title="Delete page"
+                        aria-label={`Delete page ${i + 1}`}
+                      >
+                        <Icon name="close" size={13} decorative />
+                      </button>
+                    )}
+                  </div>
                 ))}
                 <button
                   type="button"
                   onClick={addPage}
-                  className="flex aspect-[10/7] w-full items-center justify-center rounded-lg border-2 border-dashed border-border text-lg text-muted"
+                  className="flex aspect-[10/7] w-full shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-slate-500/50 bg-white/40 text-lg text-slate-600"
                   title="Add page"
                 >
                   ＋
                 </button>
-                {allowPageDelete && pageCount > 1 && (
-                  <button type="button" onClick={deletePage} className="text-xs text-muted hover:text-rose-600">
-                    Delete page
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -2344,11 +2379,10 @@ function FanBtn({
     <button
       type="button"
       onClick={onClick}
-      title={label}
-      aria-label={label}
-      className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-xl shadow-lg ring-1 ring-black/5 transition-transform hover:scale-105"
+      className="flex w-full items-center gap-2.5 rounded-full bg-white py-2 pl-2 pr-5 text-left text-base font-bold text-foreground shadow-lg ring-1 ring-black/5 transition-transform hover:scale-105"
     >
-      {children}
+      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-background text-foreground">{children}</span>
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   );
 }

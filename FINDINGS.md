@@ -299,9 +299,13 @@ the badge palette is settled.
 
 ## F12 · Reload lost draft & place — Low → Fixed
 
-**Fix:** `ClassManager` persists the open class + add-child draft to
-`sessionStorage` (transient) and restores them **only on a reload** (Navigation
-Timing `type === "reload"`), so normal navigation still lands on the grid.
+**Fix:** the open class now lives in the URL (`/teacher/class?class=<id>`), so a
+reload lands you back on the same class and — deliberately — landing on the bare
+`/teacher/class` (nav, bookmark, typed URL) always shows the grid, never the
+last class you had open. The half-typed add-child draft is kept by
+`AddChildForm` in `sessionStorage` (transient); on a reload (Navigation Timing
+`type === "reload"`) `ClassManager` re-opens the Add-pupil panel when a draft
+survives, so the recovered text is visible again.
 **Guards:** `ux/interruption.spec.ts` — a half-typed name survives a reload.
 
 ## F13 · Landing horizontal scroll at iPad-portrait — Low → Fixed

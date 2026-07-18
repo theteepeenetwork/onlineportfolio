@@ -66,3 +66,36 @@ test("skipping the question stores NULL (→ younger by default)", async ({ page
     })
     .toBeNull();
 });
+
+// A teacher can correct the register after creation, from Class settings. A
+// class made without an answer shows "younger" (the protective default); the
+// teacher switches it to "older" and it persists as KS2.
+test("changing age mode in Class settings persists the new register", async ({ page }) => {
+  const name = `Settings Age ${Date.now()}`;
+  CREATED.push(name);
+
+  // Make a class, skipping the age question (stored NULL → younger).
+  await openNewClassForm(page);
+  await page.getByLabel("Class name").fill(name);
+  await page.getByRole("button", { name: "Create class" }).click();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+
+  // Open it and reveal Class settings.
+  await page.getByRole("button", { name: new RegExp(name) }).click();
+  await page.getByRole("button", { name: /Class settings/ }).click();
+
+  // Younger is the current register, so Save is disabled until something changes.
+  await expect(page.getByRole("radio", { name: /younger children/i })).toBeChecked();
+  const save = page.getByRole("button", { name: /^Save$/ });
+  await expect(save).toBeDisabled();
+
+  // Switch to older and save.
+  await page.getByRole("radio", { name: /older children/i }).check();
+  await expect(save).toBeEnabled();
+  await save.click();
+
+  // It persists as KS2 on the class.
+  await expect
+    .poll(async () => (await db.class.findFirst({ where: { name } }))?.ageMode)
+    .toBe("KS2");
+});
