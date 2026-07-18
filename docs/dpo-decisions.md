@@ -39,3 +39,36 @@ amendment) is ever built, the Privacy policy will need a line describing it, as 
 PIN hash is data held about the child. No action until that ships.
 
 **Decided by:** the founder/DPO. **Recorded:** 2026-07-18.
+
+---
+
+## 2026-07-18 — Retention schedule reviewed and approved
+
+**Decision:** Reviewed every period in `RETENTION.md` and approved the schedule
+**as written** — no periods changed:
+
+- **Frozen (lapsed) account: 12 months** before permanent deletion, kept. The
+  data-minimisation pull toward a shorter window was weighed against the school
+  being the data controller, the 6/9/11-month warning emails, and the parent
+  download reminder; 12 months with those safeguards was judged proportionate.
+- **Audit logs: 2 years rolling; the bare deletion record: 6 years**, kept.
+- **In-progress drafts and returned/rejected moments: 30 days**, approved.
+- **Child-PIN row:** retention treatment confirmed (hash deleted immediately when
+  a teacher turns PINs off; never exported or shown). *The full PIN feature
+  sign-off is still required before any PIN reaches a child* — this entry covers
+  only its retention handling.
+- The `ageMode` row (a teacher display setting, not child data) confirmed.
+
+**Explicit caveat carried into the doc, not signed away:** the
+frozen → deletion **automation** is not built yet (a tracked P2 gap). This review
+approves the *schedule*; it does not claim the lapsed-account lifecycle is
+enforced automatically today — it is carried out manually until the pipeline
+ships. Erasure **on request** already works (deletion cascades exist). Recorded
+so no one reads the approval as "the system does all this automatically."
+
+**Still open after this review (not signed off here):** automating the
+frozen→deletion pipeline; the full child-PIN feature review; and surfacing this
+schedule in plain language in the customer-facing privacy notice / DPA
+(Children's Code transparency).
+
+**Decided by:** the founder/DPO. **Recorded:** 2026-07-18.
