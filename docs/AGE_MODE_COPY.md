@@ -45,9 +45,38 @@ never babyish, never a form. Roughly 15% terser reads as respect.
 | 14 | Activities: handed-in state | `Handed in` → becoming `In the jar ✓` (SJ-08) | `Handed in ✓` | SJ-08 already restyles this; older keeps the plainer word. |
 | 15 | "Wrong class" link | `← Wrong class?` | `← Not your class?` | Draft; both fine. |
 
-**Anything you'd add or split?** e.g. if "jar" itself should become "journal"
-for KS2, that's one find-and-replace and I'll wire it — say the word and I'll add
-a row for every "jar".
+---
+
+## 🫙→📓 jar → journal (older register) — DECIDED 2026-07-17
+
+The product grows up with the child: little ones keep the **jar**, older classes
+get a **journal**. Two calls made:
+
+- **The jar PICTURE goes for older, not just the word.** A journal has no rim for
+  a tile to balance on and nothing "drops into" it, so keeping the jar SVG while
+  the words say "journal" would read as unfinished to a Y6 — the exact thing this
+  feature fixes. Older classes get a plain journal (moments in a grid), and the
+  status still reads because SJ-04 was built so every state carries a **tag + a
+  sentence + read-aloud**, never the jar alone. The M2 "it dropped in" moment
+  becomes a quieter **"Added ✓"**. *This is the one piece of real build in SJ-06
+  beyond copy: a second status display for KS2. The status LOGIC is unchanged.*
+- **The product NAME stays "storyjar" everywhere** — header, landing, legal. Only
+  the in-app metaphor matures. One product, one name.
+
+| # | Where | Younger | Older |
+|---|-------|---------|-------|
+| J1 | Add-work submit / home tile | `Add to my jar` | `Add to my journal` |
+| J2 | Back link (capture screens) | `Back to my jar` | `Back to my journal` |
+| J3 | Status "in" | `In your jar` | `In your journal` |
+| J4 | Just-arrived (see swap #6) | `This went in your jar!` | `Added to your journal` |
+| J5 | Empty state | `Your jar is empty` | `Your journal is empty` |
+| J6 | Header title | `{name}'s jar` | `{name}'s journal` |
+| J7 | Count line | `{n} moments` *(+ jar SVG)* | `{n} in your journal` *(no jar SVG)* |
+| J8 | Celebration heading | `Popped in!` | `Added ✓` |
+| J9 | M2 aria / drop label | `Your moment dropping into your jar` | `Added to your journal` |
+
+**Redline these too** — "journal" is my draft; if you'd rather "portfolio",
+"book", or something else for the older word, change J1–J9 in one go.
 
 ---
 
