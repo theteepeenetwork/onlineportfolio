@@ -19,6 +19,14 @@ export default async function PoppedInPage() {
   return (
     <div className="sj" data-ks={mode} style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "40px 20px" }}>
       <ClearMarkedDraft />
+      {mode === "KS2" ? (
+        /* Older children have no jar to drop into — a calm tick, not a jar
+           bounce (SJ-06). */
+        <svg width="150" height="150" viewBox="0 0 24 24" aria-label={c.status.justArrived}>
+          <circle cx="12" cy="12" r="10" fill="#37796f" />
+          <path d="M7 12.4l3.2 3.2L17 9" fill="none" stroke="#FFFDF7" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : (
       <div data-anim="jar" style={{ position: "relative" }}>
         <svg width="300" height="380" viewBox="0 0 380 480" style={{ overflow: "visible" }} aria-label="Your moment dropping into your jar">
           <g data-anim="tile">
@@ -41,9 +49,10 @@ export default async function PoppedInPage() {
           <g data-anim="twinkle"><path transform="translate(300,110) scale(0.6) rotate(-10)" d={TWINKLE} fill="#E08A9B" /></g>
         </svg>
       </div>
+      )}
       <h1 style={{ margin: "10px 0 0", font: "600 calc(54px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "#37796f" }}>{c.celebration.heading}</h1>
       <p style={{ margin: "12px 0 0", font: "400 calc(26px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--ink-soft)" }}>{c.celebration.subtitle}</p>
-      <Link href="/student" style={{ marginTop: 34, minHeight: 72, display: "inline-flex", alignItems: "center", font: "600 calc(26px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "3px solid var(--ink)", borderRadius: 999, padding: "14px 48px", textDecoration: "none", boxShadow: "0 5px 0 var(--jam-deep)", gap: 12 }}>{c.add.backToJar} <Icon name="jar" size={30} decorative /></Link>
+      <Link href="/student" style={{ marginTop: 34, minHeight: 72, display: "inline-flex", alignItems: "center", font: "600 calc(26px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "3px solid var(--ink)", borderRadius: 999, padding: "14px 48px", textDecoration: "none", boxShadow: "0 5px 0 var(--jam-deep)", gap: 12 }}>{c.add.backToJar} <Icon name={mode === "KS2" ? "home" : "jar"} size={30} decorative /></Link>
     </div>
   );
 }

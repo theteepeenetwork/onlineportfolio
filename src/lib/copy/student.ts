@@ -59,10 +59,24 @@ function reg(mode: AgeMode) {
       noNames: p("No names here yet — ask your teacher to add you.", "No names here yet — ask your teacher."),
     },
 
-    // The child's own jar/home.
+    // The child's own home. For older children the jar metaphor matures into a
+    // journal (J1–J9): the same moments, a plainer container, no jar picture.
+    // The product NAME stays "storyjar" everywhere — only this in-app metaphor
+    // changes.
     home: {
       // #1 — the audit's own example of the voice reading too young for a Y6.
       signOut: p("Bye bye 👋", "Sign out"),
+      // J6 — the header title.
+      title: (name: string) => p(`${name}'s jar`, `${name}'s journal`),
+      // J7 — the count line. Younger gets the warm "moments" beside the jar;
+      // older gets a plain "in your journal" (and no jar drawing).
+      count: (n: number) => p(`${n} ${n === 1 ? "moment" : "moments"}`, `${n} in your journal`),
+      // J5 — the empty state.
+      emptyHeading: p("Your jar is empty", "Your journal is empty"),
+      emptyHelp: "Add your first moment above!",
+      // J9 / M2 — a moment approved while the child was away. Younger watches it
+      // drop into the jar; older, with no jar, gets a quiet tag on the moment.
+      arrivedBadge: "Added ✓",
     },
 
     // Adding work. A child arrives here having already chosen — they tapped
@@ -70,7 +84,7 @@ function reg(mode: AgeMode) {
     add: {
       photoHeading: "Take a photo",
       wordsHeading: "My words",
-      backToJar: "Back to my jar",
+      backToJar: p("Back to my jar", "Back to my journal"), // J2
       // A visible label, not a placeholder. Placeholder text vanishes the moment
       // a child taps the box — taking the instruction away when they need it.
       captionLabel: "Tell us about your work",
@@ -81,7 +95,7 @@ function reg(mode: AgeMode) {
       captionPlaceholder: p("I made a tower with the big blocks…", "What is this? Where were you?"),
       wordsLabel: "Write your words here",
       wordsPlaceholder: "Today I…",
-      submit: "Add to my jar",
+      submit: p("Add to my jar", "Add to my journal"), // J1
       // 🔒1 — the approval promise, in the child's own words, at the moment they
       // hand it over. (Meaning: nothing is public until the teacher approves.)
       teacherWillSee: p("Your teacher will see it first.", "Your teacher checks it first."),
@@ -96,10 +110,10 @@ function reg(mode: AgeMode) {
       waitingShort: "Waiting",
       returned: p("Have another go — your teacher sent it back", "Sent back — have another go"),
       returnedShort: p("Have another go", "Redo"),
-      inTheJar: "In your jar",
+      inTheJar: p("In your jar", "In your journal"), // J3
       // The moment the product exists for: approved while they were away, so the
       // first time they see it is now. The older one states it rather than cheers.
-      justArrived: p("This went in your jar!", "Added to your jar"),
+      justArrived: p("This went in your jar!", "Added to your journal"), // J4
       tryAgain: "Try again",
       hearIt: "Hear it",
     },
