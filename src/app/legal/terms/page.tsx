@@ -9,7 +9,7 @@ export default function Terms() {
       <p>These Terms, together with the <a href="/legal/data-processing">Data Processing Agreement</a> and <a href="/legal/acceptable-use">Acceptable Use Policy</a>, form the agreement between the school (&ldquo;you&rdquo;) and Storyjar. By creating an account or using the service you accept them on behalf of your school.</p>
 
       <h2>2. The service</h2>
-      <p>Storyjar is a class journal and portfolio for children aged 3–7. Teachers create classes, children add moments (photos, drawings, words), and teachers approve them before they join a child&apos;s journal. Parents may be given a read-only family view.</p>
+      <p>Storyjar is a class journal and portfolio for children aged 3–11. Teachers create classes, children add moments (photos, drawings, words), and teachers approve them before they join a child&apos;s journal. Parents may be given a read-only family view.</p>
 
       <h2>3. Accounts &amp; responsibilities</h2>
       <ul>

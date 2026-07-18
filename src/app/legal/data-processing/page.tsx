@@ -16,7 +16,7 @@ export default function DPA() {
         <li><strong>Duration:</strong> the term of the subscription.</li>
         <li><strong>Nature &amp; purpose:</strong> storing and displaying children&apos;s learning moments under teacher moderation.</li>
         <li><strong>Data types:</strong> children&apos;s first names and their work (incl. images); staff account data; parent contact data and child links.</li>
-        <li><strong>Data subjects:</strong> pupils (aged 3–7), school staff, parents/carers.</li>
+        <li><strong>Data subjects:</strong> pupils (aged 3–11), school staff, parents/carers.</li>
       </ul>
 
       <h2>3. Our obligations (Art. 28(3))</h2>
