@@ -12,7 +12,7 @@ export async function teacherLogin(page: Page) {
 
 // Sign in as a student by class code + tapping their name.
 export async function studentLogin(page: Page, name: string) {
-  await page.goto("/login/student?code=SUN123");
+  await page.goto("/login/student?code=SUN234");
   // Exact match so e.g. "Dev" doesn't also hit the "Dev Tools" button.
   await page.getByRole("button", { name, exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/student");

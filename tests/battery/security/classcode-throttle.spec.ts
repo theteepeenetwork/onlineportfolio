@@ -23,7 +23,7 @@ import { SCHOOL_A } from "../helpers";
 // limiter, which would contaminate sibling logins in the gating run).
 // ===========================================================================
 
-const RIGHT = `/login/student?code=${SCHOOL_A.classCode}`; // SUN123 → shows "Amara"
+const RIGHT = `/login/student?code=${SCHOOL_A.classCode}`; // SUN234 → shows "Amara"
 const WRONG = "/login/student?code=ZZZZZZ"; // well-formed but not a real code
 const ROSTER_NAME = SCHOOL_A.student; // "Amara" — only rendered on a real hit
 

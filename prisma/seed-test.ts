@@ -13,7 +13,7 @@ import { PrismaClient } from "@prisma/client";
 // seed (prisma/seed.ts) has only one school (St Bede's), so this script:
 //
 //   1. Runs the normal demo seed first (FORCE_SEED) → gives us School A exactly
-//      as the app ships it (teacher@school.uk, class SUN123, parent FAM123).
+//      as the app ships it (teacher@school.uk, class SUN234, parent FAM123).
 //   2. Appends a second, fully-isolated school ("Oakfield Primary") → School B.
 //
 // Everything here is FICTIONAL. This never runs against production data: it is
@@ -83,7 +83,7 @@ async function main() {
   });
 
   const acorn = await db.class.create({
-    data: { name: "Acorn Class", yearGroup: "Year 1", classCode: "OAK111", teacherId: oakTeacher.id },
+    data: { name: "Acorn Class", yearGroup: "Year 1", classCode: "ACRN22", teacherId: oakTeacher.id },
   });
 
   const oakColors = ["#2e7d32", "#1565c0", "#6a1b9a"];
@@ -279,7 +279,7 @@ async function main() {
     },
   });
   const larchClass = await db.class.create({
-    data: { name: "Willow Class", yearGroup: "Year 2", classCode: "LRCH22", teacherId: larchTeacher.id },
+    data: { name: "Willow Class", yearGroup: "Year 2", classCode: "ARCH22", teacherId: larchTeacher.id },
   });
   const [pip] = await Promise.all(
     ["Pip", "Robin", "Sage"].map((name, i) =>
@@ -301,11 +301,11 @@ async function main() {
   });
 
   console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
-  console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN123 (Sunflower)  parent FAM123");
+  console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN234 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
-  console.log("                         teacher teacher@oakfield.sch.uk / password  class OAK111 (Acorn)  parent OAKFAM1");
+  console.log("                         teacher teacher@oakfield.sch.uk / password  class ACRN22 (Acorn)  parent OAKFAM1");
   console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)  /uploads/seed-oak-quiz.svg (quiz option)");
-  console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class LRCH22 (Willow)  read-only");
+  console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class ARCH22 (Willow)  read-only");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).
   console.log(`  School B pupil ids: Zara=${zara.id} Yusuf=${yusuf.id} Willow=${willow.id}`);

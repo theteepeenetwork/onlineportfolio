@@ -88,7 +88,7 @@ another day, you only need `npm run dev`.
 | Role        | How to sign in                                          |
 | ----------- | ------------------------------------------------------- |
 | **Teacher** | Email `teacher@school.uk` · Password `password`         |
-| **Student** | Choose "I'm a student", class code `SUN123`, tap a name |
+| **Student** | Choose "I'm a student", class code `SUN234`, tap a name |
 
 A good way to see the whole idea in two minutes:
 

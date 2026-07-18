@@ -51,7 +51,7 @@ const PUBLIC_PAGES = [
   ["/", "landing"],
   ["/login/teacher", "teacher login"],
   ["/login/student", "student login (code entry)"],
-  ["/login/student?code=SUN123", "student login (name picker)"],
+  ["/login/student?code=SUN234", "student login (name picker)"],
   ["/family", "family sign-in"],
   ["/signup/teacher", "teacher signup"],
   ["/legal", "legal index"],

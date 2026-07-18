@@ -6,7 +6,7 @@ export const SCHOOL_A = {
   name: "St Bede’s Primary",
   admin: { email: "teacher@school.uk", password: "password" }, // also owns Sunflower
   otherTeacher: { email: "a.malik@stbedes.sch.uk", password: "password" }, // owns Butterflies
-  classCode: "SUN123",
+  classCode: "SUN234",
   student: "Amara",
   parentFamilyCode: "FAM123",
   // A media file owned by an APPROVED Sunflower moment (teacher@school.uk's class).
@@ -17,7 +17,7 @@ export const SCHOOL_B = {
   name: "Oakfield Primary",
   admin: { email: "admin@oakfield.sch.uk", password: "password" },
   teacher: { email: "teacher@oakfield.sch.uk", password: "password" }, // owns Acorn
-  classCode: "OAK111",
+  classCode: "ACRN22",
   student: "Zara",
   parentFamilyCode: "OAKFAM1",
   approvedMedia: "/uploads/seed-oak.svg", // APPROVED (Zara)
@@ -61,7 +61,7 @@ export async function firstAssignmentId(page: Page, code: string, name: string):
 export const SCHOOL_C = {
   name: "Larchwood Primary",
   teacher: { email: "teacher@larchwood.sch.uk", password: "password" }, // ADMIN, frozen
-  classCode: "LRCH22",
+  classCode: "ARCH22",
   student: "Pip",
   approvedMedia: "/uploads/seed-larch.svg", // APPROVED before the freeze
 } as const;

@@ -98,10 +98,10 @@ async function main() {
   });
 
   const sunflower = await db.class.create({
-    data: { name: "Sunflower Class", classCode: "SUN123", teacherId: teacher.id },
+    data: { name: "Sunflower Class", classCode: "SUN234", teacherId: teacher.id },
   });
   const ladybird = await db.class.create({
-    data: { name: "Ladybird Class", classCode: "LDB456", teacherId: teacher.id },
+    data: { name: "Ladybird Class", classCode: "BUG456", teacherId: teacher.id },
   });
 
   // The REAL palette, not a lookalike. This used to be six hardcoded Tailwind
@@ -355,7 +355,7 @@ async function main() {
 
   console.log("✅ Seeded demo data (library-first activities).");
   console.log("   Teacher: teacher@school.uk / password");
-  console.log("   Class codes: SUN123 (Sunflower), LDB456 (Ladybird)");
+  console.log("   Class codes: SUN234 (Sunflower), BUG456 (Ladybird)");
   console.log("   Parent: family code FAM123 / magic link parent@home.com");
 }
 
