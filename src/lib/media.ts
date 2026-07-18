@@ -17,7 +17,19 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   "image/gif": "gif",
 };
 
-const MAX_BYTES = 15 * 1024 * 1024; // 15 MB — plenty for a photo or drawing
+// Audio voice notes (AUDIO items). MediaRecorder in the browser produces these
+// container types; the File.type may carry a codecs parameter (e.g.
+// "audio/webm;codecs=opus"), which is stripped before lookup below. Kept to a
+// short, unambiguous allow-list — m4a (Safari), webm/ogg (Chrome/Firefox), mp3.
+// Video is deliberately NOT accepted here (a voice note is audio-only).
+const ALLOWED_AUDIO_TYPES: Record<string, string> = {
+  "audio/webm": "webm",
+  "audio/ogg": "ogg",
+  "audio/mp4": "m4a", // Safari MediaRecorder; .m4a keeps it unambiguously audio-only
+  "audio/mpeg": "mp3",
+};
+
+const MAX_BYTES = 15 * 1024 * 1024; // 15 MB — plenty for a photo, drawing or short voice note
 
 async function writeBytes(bytes: Buffer, ext: string): Promise<string> {
   if (bytes.length > MAX_BYTES) {
@@ -34,6 +46,20 @@ export async function savePhoto(file: File): Promise<string> {
   const ext = ALLOWED_IMAGE_TYPES[file.type];
   if (!ext) {
     throw new Error("That file type isn't supported. Please use a photo (PNG or JPG).");
+  }
+  return writeBytes(Buffer.from(await file.arrayBuffer()), ext);
+}
+
+// Save a recorded voice note (a File/Blob from the browser's MediaRecorder,
+// submitted through the same authorised Server Action as a photo) and return its
+// /uploads path. The stored file is served ONLY through the authorising /uploads
+// route, exactly like a photo — never publicly, never to parents except for
+// approved items (SAFEGUARDING rules 4 & 7). Audio-only; video is not accepted.
+export async function saveAudio(file: File): Promise<string> {
+  const base = file.type.split(";")[0].trim().toLowerCase(); // drop any ";codecs=…"
+  const ext = ALLOWED_AUDIO_TYPES[base];
+  if (!ext) {
+    throw new Error("That recording couldn't be saved. Please try recording again.");
   }
   return writeBytes(Buffer.from(await file.arrayBuffer()), ext);
 }

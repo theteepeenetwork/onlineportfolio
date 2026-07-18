@@ -30,6 +30,14 @@ function writeSvg(name: string, svg: string) {
   return `/uploads/${name}`;
 }
 
+// Write raw bytes (used for the voice-note fixtures). The /uploads route serves
+// whatever exists on disk and derives the content type from the extension, so
+// placeholder bytes are enough for the access-control specs.
+function writeBytesFile(name: string, bytes: Buffer) {
+  writeFileSync(path.join(MEDIA_DIR, name), bytes);
+  return `/uploads/${name}`;
+}
+
 async function main() {
   // 1) Base demo seed = School A (St Bede's). Force it so we always start from
   //    the known clean state, exactly as the functional e2e suite expects.
@@ -117,6 +125,36 @@ async function main() {
       type: "DRAWING",
       caption: "Waiting to be checked",
       mediaPath: oakPending,
+      status: "PENDING",
+      authorRole: "STUDENT",
+      studentId: yusuf.id,
+      classId: acorn.id,
+    },
+  });
+
+  // Voice-note (AUDIO) fixtures so the audio isolation spec can prove a voice
+  // note is scoped exactly like a photo:
+  //  - seed-oak-voice.m4a         → an APPROVED voice note (Zara) — her parent may play it; no other tenant may.
+  //  - seed-oak-voice-pending.webm → a PENDING voice note (Yusuf) — not even Oakfield's own parent may reach it (rule 3).
+  const oakVoiceApproved = writeBytesFile("seed-oak-voice.m4a", Buffer.from([0, 0, 0, 32]));
+  const oakVoicePending = writeBytesFile("seed-oak-voice-pending.webm", Buffer.from([26, 69, 223, 163]));
+  await db.journalItem.create({
+    data: {
+      type: "AUDIO",
+      caption: "My news",
+      mediaPath: oakVoiceApproved,
+      status: "APPROVED",
+      approvedAt: new Date(),
+      authorRole: "STUDENT",
+      studentId: zara.id,
+      classId: acorn.id,
+    },
+  });
+  await db.journalItem.create({
+    data: {
+      type: "AUDIO",
+      caption: "Waiting to be checked",
+      mediaPath: oakVoicePending,
       status: "PENDING",
       authorRole: "STUDENT",
       studentId: yusuf.id,
@@ -305,6 +343,7 @@ async function main() {
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
   console.log("                         teacher teacher@oakfield.sch.uk / password  class ACRN22 (Acorn)  parent OAKFAM1");
   console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)  /uploads/seed-oak-quiz.svg (quiz option)");
+  console.log("  School B voice: /uploads/seed-oak-voice.m4a (APPROVED)  /uploads/seed-oak-voice-pending.webm (PENDING)");
   console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class ARCH22 (Willow)  read-only");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).

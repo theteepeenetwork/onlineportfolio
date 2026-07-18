@@ -84,6 +84,24 @@ function reg(mode: AgeMode) {
     add: {
       photoHeading: "Take a photo",
       wordsHeading: "My words",
+      audioHeading: p("Record your voice", "Record a voice note"),
+      // Voice-note controls. Plain, calm words a pre-reader can be shown by an
+      // adult; the older register is terser. Fixed UI copy (never child content),
+      // so it's safe to read aloud.
+      audio: {
+        record: p("Record", "Record"),
+        stop: p("Stop", "Stop"),
+        again: p("Record again", "Record again"),
+        ready: p("Your voice note is ready", "Voice note ready"),
+        recording: p("Recording…", "Recording…"),
+        player: p("Your voice note", "Your voice note"),
+        hint: p("Tap record, say your bit, then tap stop.", "Tap record, speak, then stop."),
+        // 🔒 mic error — nobody is at fault; the fix is to try again or ask the teacher.
+        micError: p(
+          "We couldn't use the microphone. Have another go, or ask your teacher.",
+          "We couldn't use the microphone. Try again, or ask your teacher.",
+        ),
+      },
       backToJar: p("Back to my jar", "Back to my journal"), // J2
       // A visible label, not a placeholder. Placeholder text vanishes the moment
       // a child taps the box — taking the instruction away when they need it.

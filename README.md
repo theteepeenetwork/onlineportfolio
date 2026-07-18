@@ -2,12 +2,13 @@
 
 A digital portfolio and journal for a primary class — a first, working slice of
 a Seesaw-style platform. Every child has their own journal. They add work as a
-**photo**, in their **own words**, or as a **drawing**, and nothing appears in
-their journal until you (the teacher) approve it.
+**photo**, a **voice note**, in their **own words**, or as a **drawing**, and
+nothing appears in their journal until you (the teacher) approve it.
 
-This is **Milestone 1: the journal spine**. Voice/video recording, assignable
-activities, and the side-by-side "30 responses on one screen" view are planned
-next (see [Roadmap](#roadmap-whats-next)).
+This is **Milestone 1: the journal spine**. Voice recording is now built (the
+top pre-launch priority for the EYFS/pre-reader market); video recording,
+assignable activities, and the side-by-side "30 responses on one screen" view
+are planned next (see [Roadmap](#roadmap-whats-next)).
 
 ---
 
@@ -25,6 +26,9 @@ next (see [Roadmap](#roadmap-whats-next)).
 - Children **add to their journal** with:
   - 📷 a **photo** — taken live with the **device camera** or **uploaded** from a
     file (with an optional caption),
+  - 🎙️ a **voice note** — a short recording made with the **device microphone**
+    (record / stop / play back / record again, with an optional caption), the
+    same one-tap, child-led simplicity as the rest of the capture flow,
   - ✏️ their **own words** (typed),
   - 🎨 a **drawing** on a **full-screen, child-led canvas** (Seesaw-style):
     realistic tools that rise from the bottom edge (pencil, pen, marker,
@@ -213,16 +217,17 @@ the next request.
 
 The next milestones, in a sensible order to build them:
 
-1. **Voice & video** recording as response types (the most important addition
-   for pre-readers — record a child explaining their thinking), including
-   **recorded voice instructions** on activities.
+1. **Video** recording as a response type, and **recorded voice instructions**
+   on activities (voice *notes* from children are now built — see below).
 2. **Groups** and tagging work to a group as well as individuals.
 3. **Families** — a read-only home view so parents can see published work.
 4. **Scheduling & a reusable activity library** to save tasks for next year.
 
 Already built: the journal spine, the multi-tool multi-page canvas with text
-boxes, camera/upload photos, and **activities with canvas/PDF templates,
-whole-class or per-child assignment, and the side-by-side responses view**.
+boxes, camera/upload photos, **child voice notes** (the top pre-reader
+priority — record → approve → publish, through the normal approval queue), and
+**activities with canvas/PDF templates, whole-class or per-child assignment, and
+the side-by-side responses view**.
 
 ---
 

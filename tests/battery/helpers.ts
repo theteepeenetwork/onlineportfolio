@@ -22,6 +22,8 @@ export const SCHOOL_B = {
   parentFamilyCode: "OAKFAM1",
   approvedMedia: "/uploads/seed-oak.svg", // APPROVED (Zara)
   pendingMedia: "/uploads/seed-oak-pending.svg", // PENDING (Yusuf)
+  approvedAudio: "/uploads/seed-oak-voice.m4a", // an APPROVED voice note (Zara)
+  pendingAudio: "/uploads/seed-oak-voice-pending.webm", // a PENDING voice note (Yusuf)
   quizOptionMedia: "/uploads/seed-oak-quiz.svg", // a quiz answer picture (teacher-authored)
   objectMedia: "/uploads/seed-oak-object.svg", // a movable-object picture on the template (teacher-authored)
   templateMedia: "/uploads/seed-oak-tmpl-bg.svg", // the template BACKGROUND — teacher-authored, its own file (never a child's response media)

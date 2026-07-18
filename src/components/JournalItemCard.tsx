@@ -36,6 +36,7 @@ const TYPE_ICON: Record<string, IconName> = {
   PHOTO: "camera",
   TEXT: "write",
   DRAWING: "draw",
+  AUDIO: "voice",
 };
 
 function formatDate(d: Date) {
@@ -82,7 +83,22 @@ export function JournalItemCard({
         </span>
       </div>
 
+      {/* A voice note: the browser's own player, served via the authorising
+          /uploads route just like a photo. */}
+      {item.type === "AUDIO" && item.mediaPath && (
+        <div className="mt-3 px-4">
+          <audio
+            src={item.mediaPath}
+            controls
+            preload="none"
+            aria-label={item.caption ?? "Voice note"}
+            className="w-full"
+          />
+        </div>
+      )}
+
       {(() => {
+        if (item.type === "AUDIO") return null; // rendered as a player above
         const paths = mediaPaths(item);
         if (paths.length === 0) return null;
         return (

@@ -6,8 +6,8 @@ import { relativeDay } from "@/lib/relativeDay";
 import type { ParentChild, ParentMoment, ParentSession } from "@/lib/parentAuth";
 import { Icon, type IconName } from "@/components/icons/Icon";
 
-const TYPE_LABEL: Record<string, string> = { PHOTO: "Photo", DRAWING: "Drawing", TEXT: "Their words" };
-const TYPE_ART: Record<string, IconName> = { PHOTO: "camera", DRAWING: "draw", TEXT: "write" };
+const TYPE_LABEL: Record<string, string> = { PHOTO: "Photo", DRAWING: "Drawing", TEXT: "Their words", AUDIO: "Voice" };
+const TYPE_ART: Record<string, IconName> = { PHOTO: "camera", DRAWING: "draw", TEXT: "write", AUDIO: "voice" };
 const TILE_BG = ["#FBEED3", "#F7E0E6", "#DEEAF3", "#E5EED9", "#F3E3C3", "#EAF4F1"];
 
 const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#37796f"];
@@ -98,13 +98,21 @@ function ChildView({ child }: { child: ParentChild }) {
 
 function MomentCard({ moment, bg }: { moment: ParentMoment; bg: string }) {
   const showImg = (moment.type === "PHOTO" || moment.type === "DRAWING") && moment.mediaPath;
+  const showAudio = moment.type === "AUDIO" && moment.mediaPath;
   const src = moment.mediaPath ? (moment.mediaPath.startsWith("/") ? moment.mediaPath : `/${moment.mediaPath}`) : null;
   return (
     <div style={{ background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 16, overflow: "hidden", boxShadow: "0 3px 0 rgba(34,48,74,0.08)" }}>
-      <div style={{ aspectRatio: "4 / 3", background: bg, display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "2px solid var(--calm-border)", overflow: "hidden" }}>
+      <div style={{ aspectRatio: "4 / 3", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, borderBottom: "2px solid var(--calm-border)", overflow: "hidden", padding: showAudio ? "0 16px" : 0 }}>
         {showImg && src ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={src} alt={`${moment.title}`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        ) : showAudio && src ? (
+          <>
+            <Icon name="voice" size={44} decorative />
+            {/* Approved voice notes only — a parent can play and download, but
+                never sees a pending moment (enforced in getCurrentParent). */}
+            <audio src={src} controls preload="none" aria-label={moment.title} style={{ width: "100%", maxWidth: 240 }} />
+          </>
         ) : (
           <Icon name={TYPE_ART[moment.type] ?? "jar"} size={52} decorative />
         )}
