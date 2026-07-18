@@ -90,7 +90,7 @@ export default async function Home() {
 
           <div className="hero-grid" style={{ flex: 1, display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 24, alignItems: "center", padding: `0 ${GUTTER} 40px`, maxWidth: 1280, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
             <div>
-              <p style={{ margin: "0 0 18px", display: "inline-block", font: "700 14px var(--font-atkinson)", color: "#37796f", letterSpacing: "0.08em", textTransform: "uppercase" }}>A class journal for ages 3–7</p>
+              <p style={{ margin: "0 0 18px", display: "inline-block", font: "700 14px var(--font-atkinson)", color: "#37796f", letterSpacing: "0.08em", textTransform: "uppercase" }}>A class journal for ages 3–11</p>
               <h1 style={{ margin: 0, font: "600 clamp(34px, 6.6vw, 62px)/1.05 var(--font-fredoka)", letterSpacing: "-0.015em" }}>
                 Every child&apos;s story,{" "}
                 <span style={{ position: "relative", whiteSpace: "nowrap" }}>

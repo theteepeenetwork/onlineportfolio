@@ -17,7 +17,7 @@ const BLURB: Record<string, string> = {
 
 export default function LegalIndex() {
   return (
-    <LegalShell title="Policies" updated="Draft — under review" intro="Storyjar is a class journal for children aged 3–7. Because it holds children's work, safeguarding and data protection sit at its core. These policies explain how it works and how we protect the people who use it.">
+    <LegalShell title="Policies" updated="Draft — under review" intro="Storyjar is a class journal for children aged 3–11. Because it holds children's work, safeguarding and data protection sit at its core. These policies explain how it works and how we protect the people who use it.">
       <p>
         In data-protection law the <strong>school is the data controller</strong> and{" "}
         <strong>Storyjar is a data processor</strong> acting on the school&apos;s instructions.

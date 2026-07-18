@@ -4,7 +4,7 @@ export const metadata = { title: "Safeguarding & Child Protection — Storyjar" 
 
 export default function Safeguarding() {
   return (
-    <LegalShell title="Safeguarding & Child Protection" intro="Storyjar holds the work of children aged 3–7. Keeping them safe is our first principle — every design decision is made to protect the child.">
+    <LegalShell title="Safeguarding & Child Protection" intro="Storyjar holds the work of children aged 3–11. Keeping them safe is our first principle — every design decision is made to protect the child.">
       <h2>Our safeguarding principles</h2>
       <ul>
         <li><strong>Children are never account-holders.</strong> No child logins, emails or passwords. Children sign in only with a class code and by tapping their own name.</li>

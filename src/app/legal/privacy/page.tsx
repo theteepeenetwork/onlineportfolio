@@ -22,7 +22,7 @@ export default function Privacy() {
       <table>
         <thead><tr><th>Who</th><th>What</th><th>Why</th></tr></thead>
         <tbody>
-          <tr><td>Children (3–7)</td><td>First name only; the &ldquo;moments&rdquo; they create (photos, drawings, typed words); optional teacher-added skill tags and dates</td><td>To build the child&apos;s class journal / portfolio for the school</td></tr>
+          <tr><td>Children (3–11)</td><td>First name only; the &ldquo;moments&rdquo; they create (photos, drawings, typed words); optional teacher-added skill tags and dates</td><td>To build the child&apos;s class journal / portfolio for the school</td></tr>
           <tr><td>Teachers / staff</td><td>Name, title, school email, hashed password, role, class assignment</td><td>To create and secure staff accounts and moderate content</td></tr>
           <tr><td>Parents / carers</td><td>Name, email, family code, link to their child(ren)</td><td>To give a read-only family view of approved moments</td></tr>
         </tbody>
