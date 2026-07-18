@@ -514,14 +514,52 @@ function NewClassForm({ onCreated }: { onCreated: () => void }) {
   }, [pending, state, onCreated]);
 
   return (
-    <form ref={ref} action={action} className="sj-card" style={{ padding: "18px 20px", marginBottom: 20, display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
-      <div style={{ flex: 1, minWidth: 220 }}>
-        <label htmlFor="className" style={{ display: "block", font: "700 14px var(--font-atkinson)", marginBottom: 6 }}>Class name</label>
-        <input id="className" name="name" placeholder="e.g. Bluebell Class" autoComplete="off" required style={INPUT} />
+    <form ref={ref} action={action} className="sj-card" style={{ padding: "18px 20px", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <label htmlFor="className" style={{ display: "block", font: "700 14px var(--font-atkinson)", marginBottom: 6 }}>Class name</label>
+          <input id="className" name="name" placeholder="e.g. Bluebell Class" autoComplete="off" required style={INPUT} />
+        </div>
+        <button type="submit" disabled={pending} style={{ ...JAM_BTN, opacity: pending ? 0.7 : 1 }}>{pending ? "Creating…" : "Create class"}</button>
       </div>
-      <button type="submit" disabled={pending} style={{ ...JAM_BTN, opacity: pending ? 0.7 : 1 }}>{pending ? "Creating…" : "Create class"}</button>
-      {state.error && <p role="alert" style={{ width: "100%", margin: 0, font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</p>}
+      <AgeModeChoice />
+      {state.error && <p role="alert" style={{ margin: "12px 0 0", font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</p>}
     </form>
+  );
+}
+
+// The one-time age-mode question. Two options, and — deliberately — NEITHER is
+// pre-selected: the ICO Children's Code forbids nudging a choice that affects
+// how a child's screen behaves, so we don't default the radio. Skipping is a
+// real answer (younger), handled server-side. Wording is even-handed: no
+// "recommended", no ordering that implies a preferred option.
+function AgeModeChoice() {
+  return (
+    <fieldset style={{ margin: "14px 0 0", padding: 0, border: "none" }}>
+      <legend style={{ font: "700 14px var(--font-atkinson)", padding: 0, marginBottom: 8 }}>
+        Which children is this class for?{" "}
+        <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+          Sets how the children&rsquo;s screens read. You can leave it — younger is used if you do.
+        </span>
+      </legend>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {[
+          { value: "KS1", label: "Younger children", hint: "Nursery to Year 2" },
+          { value: "KS2", label: "Older children", hint: "Years 3 to 6" },
+        ].map((o) => (
+          <label
+            key={o.value}
+            style={{ flex: 1, minWidth: 200, display: "flex", gap: 10, alignItems: "flex-start", padding: "12px 14px", border: "2px solid var(--sj-hairline, #E6E0D2)", borderRadius: 12, cursor: "pointer", font: "400 15px var(--font-atkinson)" }}
+          >
+            <input type="radio" name="ageMode" value={o.value} style={{ marginTop: 3, width: 18, height: 18 }} />
+            <span>
+              <span style={{ display: "block", font: "700 15px var(--font-atkinson)" }}>{o.label}</span>
+              <span style={{ color: "var(--sj-muted)" }}>{o.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 

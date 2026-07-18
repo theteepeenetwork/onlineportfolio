@@ -9,6 +9,7 @@ import { deleteMediaFiles } from "@/lib/media";
 import { gatherDraftPaths } from "@/lib/drafts";
 import { recordAudit } from "@/lib/audit";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
+import { normaliseAgeModeInput } from "@/lib/ageMode";
 
 // Teacher creates a new class. A teacher can have as many as they like.
 export async function createClass(
@@ -25,9 +26,14 @@ export async function createClass(
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Please give your class a name." };
 
+  // The register this class will show its children. Asked once, here. Skipping
+  // is fine and stores NULL → younger (KS1); nothing is pre-selected on the form
+  // so we never nudge the choice (Children's Code). See src/lib/ageMode.ts.
+  const ageMode = normaliseAgeModeInput(formData.get("ageMode"));
+
   const classCode = await uniqueClassCode();
   await db.class.create({
-    data: { name, classCode, teacherId: user.teacher.id },
+    data: { name, ageMode, classCode, teacherId: user.teacher.id },
   });
 
   revalidatePath("/teacher/class");

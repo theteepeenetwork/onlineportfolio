@@ -103,6 +103,10 @@ export function SignupWizard() {
   const [country, setCountry] = useState("England");
   const [yearGroup, setYearGroup] = useState("Year 2");
   const [className, setClassName] = useState("");
+  // Age mode is asked once, on the class step. Nothing is pre-selected (the
+  // Children's Code forbids nudging a choice about a child's screen), so the
+  // initial state is null and skipping it stores null → younger, server-side.
+  const [ageMode, setAgeMode] = useState<"KS1" | "KS2" | null>(null);
   const [childrenText, setChildrenText] = useState("");
 
   const childrenNames = childrenText.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -151,7 +155,7 @@ export function SignupWizard() {
     setError("");
     try {
       const result = await createTeacherAccount({
-        title, fullName, displayStyle, email, password, school, country, yearGroup, className,
+        title, fullName, displayStyle, email, password, school, country, yearGroup, className, ageMode,
         children: childrenNames,
       });
       if (result?.error) {
@@ -287,6 +291,41 @@ export function SignupWizard() {
             </div>
             <span style={{ font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Your jar’s label</span>
           </div>
+
+          {/* Age mode — asked once. Nothing is pre-ticked: the Children's Code
+              forbids nudging a choice that shapes a child's screen, so we don't
+              default it. Leaving it uses the younger register. */}
+          <fieldset style={{ marginTop: 28, padding: 0, border: "none" }}>
+            <legend style={{ ...FIELD_LABEL, padding: 0 }}>Which children is this class for?</legend>
+            <p style={{ margin: "4px 0 12px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+              This sets how their screens read. You can leave it — younger is used if you do.
+            </p>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {[
+                { value: "KS1" as const, label: "Younger children", hint: "Nursery to Year 2" },
+                { value: "KS2" as const, label: "Older children", hint: "Years 3 to 6" },
+              ].map((o) => (
+                <label
+                  key={o.value}
+                  style={{ flex: 1, minWidth: 220, display: "flex", gap: 12, alignItems: "flex-start", padding: "14px 16px", border: `2px solid ${ageMode === o.value ? "var(--ink)" : "#E6E0D2"}`, borderRadius: 14, cursor: "pointer" }}
+                >
+                  <input
+                    type="radio"
+                    name="su-agemode"
+                    value={o.value}
+                    checked={ageMode === o.value}
+                    onChange={() => setAgeMode(o.value)}
+                    style={{ marginTop: 4, width: 20, height: 20 }}
+                  />
+                  <span>
+                    <span style={{ display: "block", font: "700 17px var(--font-fredoka)" }}>{o.label}</span>
+                    <span style={{ font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{o.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
           <ErrorNote error={error} />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 30 }}>
             <button onClick={goBack} style={BACK}>← Back</button>
