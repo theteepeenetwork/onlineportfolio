@@ -59,6 +59,85 @@ export function clearFailures(key: string): void {
   store.delete(key);
 }
 
+// ---------------------------------------------------------------------------
+// The class-code lookup throttle — FINDINGS F16.
+//
+// `/login/student?code=…` resolves the class code in a plain GET, and a hit
+// discloses the class name plus every pupil's first name. 31^6 ≈ 887M codes
+// makes blind brute force impractical, but the lookup is otherwise unbounded:
+// an attacker can grind it. This throttles that grind WITHOUT ever locking a
+// real classroom out — and that second half is the hard part.
+//
+// The trap (see AGENTS.md / the audit): **a school is one NAT IP.** Thirty
+// children mistyping twice is 60 misses from a single IP. The auth limiter
+// above (5 fails → hard block) would lock the whole school out of the front
+// door. So this counter is deliberately different in three ways:
+//
+//   1. MISS-ONLY, and any HIT clears the count. A real classroom is a stream of
+//      mostly-correct entries; every success resets the key, so honest misses
+//      never accumulate toward the ceiling. Only a pure-miss source (an
+//      attacker, or a wrong code on the board — which no child can satisfy
+//      anyway) climbs.
+//   2. A CLASSROOM-SIZED ceiling (CODE_MAX_MISSES), well above a plausible
+//      burst of typos from one room.
+//   3. Over the ceiling it TRICKLES rather than hard-blocks: one lookup per
+//      CODE_TRICKLE_MS. A correct code is never refused for more than that
+//      window, and the instant it lands it clears the block for everyone behind
+//      the same IP. A hard block would deny a *correct* code mid-attack and
+//      leave the class shut out — the exact failure this must not have.
+//
+// Keyed on clientIp() (verified un-spoofable on this edge — see below). The key
+// is in-memory and never stored, so it starts no new data category (rule 9).
+type CodeEntry = { misses: number; firstAt: number; lastAllowed: number };
+
+const codeStore = new Map<string, CodeEntry>();
+
+const CODE_MAX_MISSES = 50; // per window; a classroom clears long before this
+const CODE_WINDOW_MS = 15 * 60 * 1000;
+const CODE_TRICKLE_MS = 5_000; // over budget: at most one lookup per 5s per key
+
+// May this key perform a class-code lookup right now? Returns false ONLY when
+// the key is over its miss budget AND inside the trickle cooldown. Under budget
+// it is always true, so a busy classroom is never gated.
+export function allowCodeLookup(key: string): boolean {
+  const now = Date.now();
+  if (codeStore.size >= 5000) {
+    for (const [k, e] of codeStore) {
+      if (e.firstAt + CODE_WINDOW_MS < now) codeStore.delete(k);
+    }
+  }
+  const e = codeStore.get(key);
+  if (!e || e.firstAt + CODE_WINDOW_MS < now) {
+    codeStore.set(key, { misses: 0, firstAt: now, lastAllowed: now });
+    return true;
+  }
+  if (e.misses < CODE_MAX_MISSES) return true;
+  // Over budget — trickle. Let one lookup through per cooldown; a correct code
+  // getting through here clears the whole block via recordCodeHit().
+  if (now - e.lastAllowed >= CODE_TRICKLE_MS) {
+    e.lastAllowed = now;
+    return true;
+  }
+  return false;
+}
+
+// A lookup that found no class. Counts toward the miss budget.
+export function recordCodeMiss(key: string): void {
+  const now = Date.now();
+  const e = codeStore.get(key);
+  if (!e || e.firstAt + CODE_WINDOW_MS < now) {
+    codeStore.set(key, { misses: 1, firstAt: now, lastAllowed: now });
+    return;
+  }
+  e.misses += 1;
+}
+
+// A lookup that found a class. Clears the key entirely — an honest classroom's
+// successes keep it perpetually fresh, and one correct entry lifts a trickle.
+export function recordCodeHit(key: string): void {
+  codeStore.delete(key);
+}
+
 // Client identifier from proxy headers, used only as a throttling key — never
 // stored, never personal data.
 //

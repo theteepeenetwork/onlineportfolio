@@ -10,15 +10,16 @@ resolved. Data-protection failures are treated as critical/high per the brief
 > delete (`deleteItem`). Findings reflect that state — F3 was narrowed to
 > `removeStudent`, which this work then fixed too.
 
-**Status: F1–F15 + F18 addressed; F16 and F17 open.** Fixes were applied after explicit sign-off
+**Status: F1–F16 + F18 addressed; F17 open.** Fixes were applied after explicit sign-off
 (the Phase-1 plan was "findings only"; the user then asked to fix them). Every
 fix is covered by a test that now passes.
 
 > **F15–F18 were found later**, while working through the July 2026 intuitiveness
-> audit — not during the original battery work. **F15 and F18 are fixed.**
-> **F16 is open**, scheduled with the class-code rotation release. **F17 is
-> open**: routed around rather than fixed, because the fix loosens a
-> deny-by-default branch and needs safeguarding review — see its section below.
+> audit — not during the original battery work. **F15, F16 and F18 are fixed.**
+> F16 shipped as the class-code rotation release's second half: rotation (the
+> remedy for a leaked code) first, then this throttle. **F17 is open**: routed
+> around rather than fixed, because the fix loosens a deny-by-default branch and
+> needs safeguarding review — see its section below.
 >
 > **F18 is the one to learn from:** a child could not read their own initial, and
 > the a11y gate passed the whole time because F11's `color-contrast` baseline
@@ -45,7 +46,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F13 | Low | Responsive | Landing scrolled horizontally at iPad-portrait | **Fixed** | `ux/responsive.spec.ts` |
 | F14 | Low | Touch target | Approval-queue buttons < 44px on tablet | **Fixed** | `ux/responsive.spec.ts` |
 | F15 | Critical | AuthZ | `createJournalItem` trusted a client `studentId` — a teacher could publish into another school's pupil's journal, past the approval queue | **Fixed** | `security/f15-cross-tenant-journal-write.spec.ts` |
-| F16 | High | Rate-limit / Enumeration | Class-code lookup is unthrottled, and a hit discloses the class name + every pupil's first name | **Open** | — (scheduled with SJ-02) |
+| F16 | High | Rate-limit / Enumeration | Class-code lookup is unthrottled, and a hit discloses the class name + every pupil's first name | **Fixed** | `security/classcode-throttle.spec.ts` (+ `findings/classcode-throttle-grind.spec.ts`) |
 | F17 | Medium | AuthZ / robustness | `/uploads` authorises **path-first**: it decides on the first journal item matching a media path and never falls through to the template branch. Two records sharing a path therefore mis-authorise each other. | **Open** (routed around, not fixed) | `findings/uploads-path-collision.spec.ts` |
 
 ---
@@ -89,23 +90,40 @@ a School A pupil; asserted against what School A's *own* teacher can see in the
 pupil's journal and in their queue. Blocking gate. Fails against the pre-fix
 code.
 
-## F16 · Class-code lookup: unthrottled, and discloses the roster — High → Open
+## F16 · Class-code lookup: unthrottled, and discloses the roster — High → Fixed
 
-**Is:** `/login/student?code=…` (`src/app/login/student/page.tsx`) validates the
+**Was:** `/login/student?code=…` (`src/app/login/student/page.tsx`) validated the
 class code with a direct Prisma lookup **in the page render** — a plain GET with
-no rate limiting. `src/lib/rateLimit.ts` is wired into `teacherLogin` and the
-family/magic-link actions only; F2 never covered this path. A hit returns the
+no rate limiting. `src/lib/rateLimit.ts` was wired into `teacherLogin` and the
+family/magic-link actions only; F2 never covered this path. A hit returned the
 class name **and every pupil's first name** in it.
+
+**Fix:** the lookup now goes through `src/lib/classCodeLookup.ts`
+(`lookupClassByCode`), the one throttled door — the login page no longer touches
+Prisma directly, so a future caller can't reintroduce an unthrottled path. The
+throttle (`src/lib/rateLimit.ts`, `allowCodeLookup` / `recordCodeMiss` /
+`recordCodeHit`) is keyed on `clientIp()` and is deliberately *not* the auth
+limiter: it is **miss-only, clears on every hit, and trickles rather than hard-
+blocks** (one lookup / 5s once over a 50-miss budget). A throttled request
+returns `null` — the same not-found screen a wrong code shows — so a grinder
+can't tell throttling from a miss, and a *correct* code is never withheld for
+more than the trickle window, then clears the block for everyone behind the IP.
 
 **Severity reasoning:** the code alphabet is 31 chars at length 6 (≈887M), so
 blind brute force is impractical — this is grinding, not instant. But it is
 unbounded, unlogged, and the response is the roster itself.
 
-**The trap for whoever fixes it:** a school is one NAT IP. The existing limiter
-is 5 failures / 15 min **per IP** — thirty children mistyping twice would lock
-out the whole school. This path needs a miss-only counter with a classroom-safe
-threshold (~40–60/15min), and *the test proving honest classrooms aren't locked
-out matters more than the one proving the throttle works.*
+**The trap this had to clear:** a school is one NAT IP. The auth limiter is 5
+failures / 15 min **per IP** — thirty children mistyping twice would lock out the
+whole school. So the counter is miss-only with a classroom-safe budget, and *the
+test proving honest classrooms aren't locked out mattered more than the one
+proving the throttle works.* Both exist: the blocking
+`security/classcode-throttle.spec.ts` runs 30 children × (2 typos + their real
+code) — 60 misses interleaved with 30 successes — from one IP and asserts every
+child still reaches the name wall (proved red by removing clear-on-success: it
+locked out at child ~26). The report-only `findings/classcode-throttle-grind.spec.ts`
+drives a pure-miss grind past the budget and shows a valid code is briefly
+withheld, then recovers.
 
 **Verified 2026-07-17 — the throttle key is NOT spoofable, so a limiter here is
 sound.** A separate worry was raised: `clientIp()` reads the *leftmost*
@@ -118,13 +136,12 @@ with a temporary diagnostic route (since removed): a forged
 forged chain. So leftmost = the real client, and the limiters (teacher login,
 family codes) are not bypassable. **Do not change `clientIp()` to the rightmost
 value** — that entry is Railway's internal hop and it *rotates* between requests,
-so keying on it would break the limiter. This de-risks *building* the F16
-throttle; it does **not** close F16, whose core is the unthrottled lookup and the
-roster disclosure. Re-verify if the hosting edge ever changes.
+so keying on it would break the limiter. This is what makes keying the F16
+throttle on `clientIp()` sound. Re-verify if the hosting edge ever changes.
 
-**Scheduled:** with the SJ-02 sign-in rework, which rewrites this same file.
 Note the child-facing PIN planned for KS2 does **not** answer this — the roster
-is disclosed before any PIN is reached.
+is disclosed before any PIN is reached, which is why the throttle sits on the
+lookup itself.
 
 **Rotation shipped (the remedy half).** `rotateClassCode` (`actions/classes.ts`)
 lets a teacher issue a new code and retire the old one — reachable from Class
@@ -134,8 +151,9 @@ was only half an answer. Scoped to the owning teacher, not write-gated (a leak
 must be revocable even in a frozen account), audited without logging the new
 code. Guards: `security/tenant-isolation.spec.ts` (School B cannot rotate School
 A's code — proved red) and `e2e/class-code-rotation.spec.ts` (old code dies, new
-works, signed-in children stay in). The **throttle half is still open** — this
-closes the "no remedy" gap, not the unthrottled-lookup/disclosure one.
+works, signed-in children stay in). Rotation closed the "no remedy" gap; the
+throttle above closes the unthrottled-lookup/disclosure one — together they
+complete F16.
 
 ---
 
