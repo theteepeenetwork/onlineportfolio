@@ -8,6 +8,7 @@ import { trialEndFromNow } from "@/lib/billing";
 import { uniqueClassCode } from "@/lib/classCode";
 import { AVATAR_PALETTE } from "@/lib/avatar";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
+import { normaliseAgeModeInput } from "@/lib/ageMode";
 import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 
 // Storyjar avatar palette — children get a colour bubble in rotation.
@@ -27,6 +28,7 @@ export async function createTeacherAccount(input: {
   country: string;
   yearGroup: string;
   className: string;
+  ageMode: string | null;
   children: string[];
 }): Promise<SignupResult> {
   const fullName = input.fullName.trim();
@@ -88,7 +90,14 @@ export async function createTeacherAccount(input: {
 
   const code = await uniqueClassCode();
   const klass = await db.class.create({
-    data: { name: className, yearGroup: input.yearGroup, classCode: code, teacherId: teacher.id },
+    data: {
+      name: className,
+      yearGroup: input.yearGroup,
+      // Asked once, on the class step. NULL (skipped) → younger; never nudged.
+      ageMode: normaliseAgeModeInput(input.ageMode),
+      classCode: code,
+      teacherId: teacher.id,
+    },
   });
 
   await db.student.createMany({

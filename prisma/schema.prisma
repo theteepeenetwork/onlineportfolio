@@ -105,7 +105,14 @@ model Class {
   id           String        @id @default(cuid())
   name         String
   yearGroup    String? // e.g. "Year 2" — captured at signup
-  classCode    String        @unique // e.g. "SUN123" — students type this to sign in
+  // Which child-facing register this class sees: "KS1" (younger) or "KS2"
+  // (older). A teacher's per-class display choice, asked once at creation — NOT
+  // data about a child. Nullable and NULL means KS1: the more protective, less
+  // grown-up default (SAFEGUARDING rule 8), never inferred from `yearGroup`
+  // (only the signup class has one, and it's free text). Resolve via
+  // src/lib/ageMode.ts, never read this column raw. Retention: RETENTION.md.
+  ageMode      String? // "KS1" | "KS2"; NULL → KS1
+  classCode    String        @unique // e.g. "SUN234" — students type this to sign in
   teacher      Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId    String
   createdAt    DateTime      @default(now())
