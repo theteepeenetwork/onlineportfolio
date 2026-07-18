@@ -91,6 +91,27 @@ test("an older class shows the older register on the jar", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Bye bye 👋" })).toHaveCount(0);
 });
 
+// The jar matures into a journal for older children (SJ-06 J1–J9): same moments,
+// no jar picture, "journal" wording.
+test("a younger class keeps the jar; an older class becomes a journal", async ({ page }) => {
+  // Younger (Sunflower / SUN234): the jar, and jar wording.
+  await page.goto("/login/student?code=SUN234");
+  await page.getByRole("button", { name: "Amara", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/student");
+  await expect(page.getByText("Amara's jar", { exact: true })).toBeVisible();
+  await expect(page.getByText("Add to my jar", { exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: /in your jar/i })).toBeVisible(); // the jar SVG
+
+  // Older (Ladybird / BUG456): a journal, journal wording, and NO jar picture.
+  await page.goto("/login/student?code=BUG456");
+  await page.getByRole("button", { name: "Grace", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/student");
+  await expect(page.getByText("Grace's journal", { exact: true })).toBeVisible();
+  await expect(page.getByText("Add to my journal", { exact: true })).toBeVisible();
+  await expect(page.getByText("Grace's jar", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: /in your jar/i })).toHaveCount(0); // no jar SVG
+});
+
 // The older register also reads ~15% tighter (SJ-06 type scale, driven by the
 // same data-ks switch). The same heading is measurably smaller on the older
 // class than the younger one, and the younger one is left exactly as it was.

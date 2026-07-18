@@ -10,6 +10,7 @@ import { avatarInk } from "@/lib/avatar";
 import { StickerArrival } from "./StickerArrival";
 import { JarStatus, JarSummary } from "./JarStatus";
 import { StatusStrip } from "./StatusStrip";
+import { MarkSeenOnView } from "./MarkSeenOnView";
 
 // Look of a moment by its kind.
 const KIND = {
@@ -108,15 +109,27 @@ export default async function StudentHome() {
       <header style={{ display: "flex", alignItems: "center", gap: 18, padding: "22px 40px", background: "var(--cream)", borderBottom: "3px solid var(--ink)", flexWrap: "wrap" }}>
         <span style={{ width: 64, height: 64, borderRadius: "50%", background: student.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 calc(30px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: avatarInk(student.avatarColor), flexShrink: 0 }}>{student.name.charAt(0).toUpperCase()}</span>
         <div>
-          <p style={{ margin: 0, font: "600 calc(28px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{student.name}&apos;s jar</p>
+          <p style={{ margin: 0, font: "600 calc(28px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{c.home.title(student.name)}</p>
           <p style={{ margin: 0, font: "400 calc(17px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>{student.className}</p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
-          {/* The jar IS the status now: what's in, what's balanced on the rim
-              waiting for the teacher, and what just went in while you were
-              away (SJ-04 / M2). */}
-          <JarStatus inJar={published.length} waiting={waitingCount} arrived={justArrivedCount} />
-          <JarSummary inJar={published.length} waiting={waitingCount} />
+          {/* Younger children get the jar: the jar IS the status — what's in,
+              what's balanced on the rim waiting, and what just dropped in while
+              they were away (SJ-04 / M2). Older children get a journal: no jar
+              picture, just a plain count; the status of each moment still reads
+              from its strip below (SJ-04's tag + sentence + read-aloud), and the
+              "dropped in" moment becomes a quiet "Added ✓" tag on the grid. */}
+          {mode === "KS2" ? (
+            <>
+              <MarkSeenOnView when={justArrivedCount > 0} />
+              <span style={{ font: "600 calc(18px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "#37796f" }}>{c.home.count(published.length)}</span>
+            </>
+          ) : (
+            <>
+              <JarStatus inJar={published.length} waiting={waitingCount} arrived={justArrivedCount} />
+              <JarSummary inJar={published.length} waiting={waitingCount} />
+            </>
+          )}
           <LogoutForm>
             <button type="submit" style={{ minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 calc(18px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>{c.home.signOut}</button>
           </LogoutForm>
@@ -209,15 +222,20 @@ export default async function StudentHome() {
         <p style={{ margin: "34px 0 16px", font: "600 calc(26px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>My moments</p>
         {published.length === 0 ? (
           <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: "50px 20px", textAlign: "center", boxShadow: "var(--pop-shadow)" }}>
-            <Icon name="jar" size={52} decorative />
-            <p style={{ margin: "10px 0 0", font: "600 calc(22px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>Your jar is empty</p>
-            <p style={{ margin: "4px 0 0", font: "400 calc(16px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>Add your first moment above!</p>
+            <Icon name={mode === "KS2" ? "add-file" : "jar"} size={52} decorative />
+            <p style={{ margin: "10px 0 0", font: "600 calc(22px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{c.home.emptyHeading}</p>
+            <p style={{ margin: "4px 0 0", font: "400 calc(16px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>{c.home.emptyHelp}</p>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 22 }}>
             {published.map((item) => {
               const k = kindOf(item.type);
               const stickers = readStickers(item.stickersJson);
+              // Older children have no jar for a moment to drop into, so an item
+              // approved while they were away wears a quiet "Added ✓" tag instead
+              // (M2). MarkSeenOnView clears it once they've looked.
+              const justArrived =
+                mode === "KS2" && !!item.approvedAt && (!seen?.jarSeenAt || item.approvedAt > seen.jarSeenAt);
               return (
                 <div key={item.id} style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, overflow: "hidden", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
                   <div style={{ height: 190, background: k.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
@@ -230,6 +248,9 @@ export default async function StudentHome() {
                       <Icon name={k.icon} size={64} decorative />
                     )}
                     <span style={{ position: "absolute", top: 12, right: 12, background: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 calc(13px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>{k.label}</span>
+                    {justArrived && (
+                      <span style={{ position: "absolute", top: 12, left: 12, background: "#37796f", color: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 calc(13px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>{c.home.arrivedBadge}</span>
+                    )}
                     {/* the teacher's stickers stay peeled onto the work */}
                     {stickers.map((s, i) => {
                       const spot = [
