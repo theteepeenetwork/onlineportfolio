@@ -10,16 +10,16 @@ resolved. Data-protection failures are treated as critical/high per the brief
 > delete (`deleteItem`). Findings reflect that state — F3 was narrowed to
 > `removeStudent`, which this work then fixed too.
 
-**Status: F1–F16 + F18 addressed; F17 open.** Fixes were applied after explicit sign-off
+**Status: all findings (F1–F18) addressed.** Fixes were applied after explicit sign-off
 (the Phase-1 plan was "findings only"; the user then asked to fix them). Every
 fix is covered by a test that now passes.
 
 > **F15–F18 were found later**, while working through the July 2026 intuitiveness
-> audit — not during the original battery work. **F15, F16 and F18 are fixed.**
-> F16 shipped as the class-code rotation release's second half: rotation (the
-> remedy for a leaked code) first, then this throttle. **F17 is open**: routed
-> around rather than fixed, because the fix loosens a deny-by-default branch and
-> needs safeguarding review — see its section below.
+> audit — not during the original battery work. All four are fixed. F16 shipped
+> as the class-code rotation release's second half (rotation first, then the
+> throttle). **F17** was fixed after safeguarding review approved loosening the
+> path-first branch: `/uploads` now authorises across ALL matching records (Option
+> A) and the fixture no longer shares a media path (Option C).
 >
 > **F18 is the one to learn from:** a child could not read their own initial, and
 > the a11y gate passed the whole time because F11's `color-contrast` baseline
@@ -47,7 +47,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F14 | Low | Touch target | Approval-queue buttons < 44px on tablet | **Fixed** | `ux/responsive.spec.ts` |
 | F15 | Critical | AuthZ | `createJournalItem` trusted a client `studentId` — a teacher could publish into another school's pupil's journal, past the approval queue | **Fixed** | `security/f15-cross-tenant-journal-write.spec.ts` |
 | F16 | High | Rate-limit / Enumeration | Class-code lookup is unthrottled, and a hit discloses the class name + every pupil's first name | **Fixed** | `security/classcode-throttle.spec.ts` (+ `findings/classcode-throttle-grind.spec.ts`) |
-| F17 | Medium | AuthZ / robustness | `/uploads` authorises **path-first**: it decides on the first journal item matching a media path and never falls through to the template branch. Two records sharing a path therefore mis-authorise each other. | **Open** (routed around, not fixed) | `findings/uploads-path-collision.spec.ts` |
+| F17 | Medium | AuthZ / robustness | `/uploads` authorised **path-first**: it decided on the first journal item matching a media path and never fell through to the draft/template branches, so two records sharing a path mis-authorised each other. Now scopes ownership into each branch and grants if any (Option A); the fixture no longer shares a path (Option C). | **Fixed** | `security/uploads-path-collision.spec.ts` |
 
 ---
 
