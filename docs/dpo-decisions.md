@@ -72,3 +72,29 @@ schedule in plain language in the customer-facing privacy notice / DPA
 (Children's Code transparency).
 
 **Decided by:** the founder/DPO. **Recorded:** 2026-07-18.
+
+---
+
+## 2026-07-18 — KS2 PIN deliberately parked (not built)
+
+**Decision:** The optional KS2 PIN permitted by the SAFEGUARDING rule 1 amendment
+is **deliberately not being built for now.** The amendment stands (the PIN
+remains a *permitted, optional* future feature); this is a decision not to
+implement it yet.
+
+**Why (the data-protection reasoning):** the PIN would be the **only** place
+Storyjar asks a child for a credential, and a PIN hash is the first per-child
+data field beyond a first name. Data minimisation says don't add that surface
+without a concrete need, and there isn't one today — every child can already
+reach their own work without it. Parking it is the more protective choice.
+
+**Consequences / what this keeps true:**
+- No PIN schema, no `pinHash`, no PIN sign-in stage exists — nothing to review or
+  secure until a real need appears.
+- The `RETENTION.md` child-PIN row and the rule 1 amendment remain as written, so
+  the ground is prepared if the decision is ever revisited.
+- **Trigger to revisit:** a concrete safeguarding request from a school to stop
+  name-borrowing between classmates. At that point the full feature review
+  (still listed open in RETENTION.md) must happen *before* any PIN reaches a child.
+
+**Decided by:** the founder/DPO. **Recorded:** 2026-07-18.
