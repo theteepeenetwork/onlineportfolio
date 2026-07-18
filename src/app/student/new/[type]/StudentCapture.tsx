@@ -34,6 +34,7 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
     <form
       action={action}
       className="sj"
+      data-ks={mode}
       style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", boxSizing: "border-box", padding: "clamp(16px, 3vw, 32px)" }}
     >
       <input type="hidden" name="type" value={type} />
@@ -43,13 +44,13 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
         <Link
           href="/student"
           className="sj-btn-outline"
-          style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 64, boxSizing: "border-box", font: "700 18px var(--font-atkinson)" }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 64, boxSizing: "border-box", font: "700 calc(18px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}
         >
           <span aria-hidden="true">←</span>
           {c.backToJar}
         </Link>
 
-        <h1 style={{ margin: "clamp(14px, 2.4vh, 22px) 0 0", font: "600 clamp(30px, 4.6vw, 44px) var(--font-fredoka)" }}>
+        <h1 style={{ margin: "clamp(14px, 2.4vh, 22px) 0 0", font: "600 calc(clamp(30px, 4.6vw, 44px) * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>
           {type === "PHOTO" ? c.photoHeading : c.wordsHeading}
         </h1>
 
@@ -58,7 +59,7 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
             <PhotoCapture />
           ) : (
             <>
-              <label htmlFor="words" style={{ display: "block", font: "700 20px var(--font-atkinson)", marginBottom: 8 }}>
+              <label htmlFor="words" style={{ display: "block", font: "700 calc(20px * var(--sj-type-scale, 1)) var(--font-atkinson)", marginBottom: 8 }}>
                 {c.wordsLabel}
               </label>
               <textarea
@@ -66,7 +67,7 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
                 name="textContent"
                 rows={7}
                 placeholder={c.wordsPlaceholder}
-                style={{ width: "100%", boxSizing: "border-box", font: "400 22px/1.6 var(--font-atkinson)", padding: "16px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
+                style={{ width: "100%", boxSizing: "border-box", font: "400 calc(22px * var(--sj-type-scale, 1))/1.6 var(--font-atkinson)", padding: "16px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
               />
             </>
           )}
@@ -76,21 +77,21 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
             after it — and keeps its label on screen while they answer. */}
         {type === "PHOTO" && (
           <div style={{ marginTop: "clamp(14px, 2.4vh, 22px)" }}>
-            <label htmlFor="caption" style={{ display: "block", font: "700 20px var(--font-atkinson)" }}>
+            <label htmlFor="caption" style={{ display: "block", font: "700 calc(20px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>
               {c.captionLabel}{" "}
-              <span style={{ font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>{c.captionOptional}</span>
+              <span style={{ font: "400 calc(17px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>{c.captionOptional}</span>
             </label>
             <input
               id="caption"
               name="caption"
               placeholder={c.captionPlaceholder}
-              style={{ width: "100%", boxSizing: "border-box", marginTop: 8, minHeight: 64, font: "400 22px var(--font-atkinson)", padding: "14px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
+              style={{ width: "100%", boxSizing: "border-box", marginTop: 8, minHeight: 64, font: "400 calc(22px * var(--sj-type-scale, 1)) var(--font-atkinson)", padding: "14px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
             />
           </div>
         )}
 
         {state?.error && (
-          <p role="alert" style={{ margin: "18px 0 0", font: "700 18px var(--font-atkinson)", color: "var(--honey-ink)", background: "var(--honey-tint)", borderRadius: 12, padding: "12px 18px" }}>
+          <p role="alert" style={{ margin: "18px 0 0", font: "700 calc(18px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--honey-ink)", background: "var(--honey-tint)", borderRadius: 12, padding: "12px 18px" }}>
             {state.error}
           </p>
         )}
@@ -99,12 +100,12 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
           <button
             type="submit"
             disabled={pending}
-            style={{ display: "inline-flex", alignItems: "center", gap: 10, minHeight: 72, font: "600 26px var(--font-fredoka)", color: "var(--paper)", background: "var(--glass)", border: "none", padding: "16px 40px", borderRadius: 999, boxShadow: "0 5px 0 #2b5f57", cursor: pending ? "default" : "pointer", opacity: pending ? 0.7 : 1 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 10, minHeight: 72, font: "600 calc(26px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--paper)", background: "var(--glass)", border: "none", padding: "16px 40px", borderRadius: 999, boxShadow: "0 5px 0 #2b5f57", cursor: pending ? "default" : "pointer", opacity: pending ? 0.7 : 1 }}
           >
             <Icon name="done" size={26} decorative />
             {pending ? c.saving : c.submit}
           </button>
-          <p style={{ margin: 0, font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>{c.teacherWillSee}</p>
+          <p style={{ margin: 0, font: "400 calc(17px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>{c.teacherWillSee}</p>
         </div>
       </div>
     </form>

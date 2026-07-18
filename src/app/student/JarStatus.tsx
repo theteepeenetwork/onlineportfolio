@@ -128,7 +128,7 @@ export function JarStatus({
 // can read it — and never says it *instead*.
 export function JarSummary({ inJar, waiting }: { inJar: number; waiting: number }) {
   return (
-    <span style={{ font: "600 18px var(--font-fredoka)", color: "#37796f" }}>
+    <span style={{ font: "600 calc(18px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "#37796f" }}>
       {inJar} {inJar === 1 ? "moment" : "moments"}
       {waiting > 0 && (
         <span style={{ color: "#8A5F1E" }}>

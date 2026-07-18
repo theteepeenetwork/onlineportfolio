@@ -103,13 +103,13 @@ export default async function StudentHome() {
   const todoCount = assignedIds.filter((id) => !respondedIds.has(id)).length;
 
   return (
-    <div className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}>
+    <div className="sj" data-ks={mode} style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}>
       {/* header */}
       <header style={{ display: "flex", alignItems: "center", gap: 18, padding: "22px 40px", background: "var(--cream)", borderBottom: "3px solid var(--ink)", flexWrap: "wrap" }}>
-        <span style={{ width: 64, height: 64, borderRadius: "50%", background: student.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 30px var(--font-fredoka)", color: avatarInk(student.avatarColor), flexShrink: 0 }}>{student.name.charAt(0).toUpperCase()}</span>
+        <span style={{ width: 64, height: 64, borderRadius: "50%", background: student.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 calc(30px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: avatarInk(student.avatarColor), flexShrink: 0 }}>{student.name.charAt(0).toUpperCase()}</span>
         <div>
-          <p style={{ margin: 0, font: "600 28px var(--font-fredoka)" }}>{student.name}&apos;s jar</p>
-          <p style={{ margin: 0, font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>{student.className}</p>
+          <p style={{ margin: 0, font: "600 calc(28px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{student.name}&apos;s jar</p>
+          <p style={{ margin: 0, font: "400 calc(17px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>{student.className}</p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
           {/* The jar IS the status now: what's in, what's balanced on the rim
@@ -118,7 +118,7 @@ export default async function StudentHome() {
           <JarStatus inJar={published.length} waiting={waitingCount} arrived={justArrivedCount} />
           <JarSummary inJar={published.length} waiting={waitingCount} />
           <LogoutForm>
-            <button type="submit" style={{ minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>{c.home.signOut}</button>
+            <button type="submit" style={{ minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 calc(18px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>{c.home.signOut}</button>
           </LogoutForm>
         </div>
       </header>
@@ -148,12 +148,12 @@ export default async function StudentHome() {
 
         {/* add to my jar */}
         <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: "24px 30px", boxShadow: "var(--pop-shadow)" }}>
-          <p style={{ margin: "0 0 16px", font: "600 30px var(--font-fredoka)" }}>{c.add.submit}</p>
+          <p style={{ margin: "0 0 16px", font: "600 calc(30px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{c.add.submit}</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
             {ADD_BUTTONS.map((b) => (
               <Link key={b.href} href={b.href} className="sj-addtile" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 88, background: b.bg, border: "3px solid var(--ink)", borderRadius: 16, textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
                 <Icon name={b.icon} size={40} decorative />
-                <span style={{ font: "600 27px var(--font-fredoka)", color: "var(--ink)" }}>{b.label}</span>
+                <span style={{ font: "600 calc(27px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--ink)" }}>{b.label}</span>
               </Link>
             ))}
           </div>
@@ -162,11 +162,11 @@ export default async function StudentHome() {
         {/* my activities (kept from the app — assigned tasks) */}
         <Link href="/student/activities" className="sj-addtile" style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 18, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 16, padding: "16px 24px", textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
           <Icon name="add-file" size={30} decorative />
-          <span style={{ flex: 1, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>My activities</span>
+          <span style={{ flex: 1, font: "600 calc(22px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--ink)" }}>My activities</span>
           {todoCount > 0 ? (
-            <span style={{ background: "#FBEED3", border: "2px solid var(--ink)", borderRadius: 999, padding: "4px 16px", font: "700 15px var(--font-atkinson)", color: "#8A5F1E" }}>{todoCount} to do</span>
+            <span style={{ background: "#FBEED3", border: "2px solid var(--ink)", borderRadius: 999, padding: "4px 16px", font: "700 calc(15px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "#8A5F1E" }}>{todoCount} to do</span>
           ) : (
-            <span style={{ font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>All done ✓</span>
+            <span style={{ font: "400 calc(16px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>All done ✓</span>
           )}
         </Link>
 
@@ -181,11 +181,11 @@ export default async function StudentHome() {
             <>
               <div style={{ width: 64, height: 64, borderRadius: 12, background: "repeating-linear-gradient(45deg, #FFFDF7, #FFFDF7 10px, #F6E4BE 10px, #F6E4BE 20px)", border: "3px solid var(--ink)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }} aria-hidden="true"><Icon name={k.icon} size={30} decorative /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
+                <p style={{ margin: 0, font: "600 calc(22px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
                 <StatusStrip returned={!waiting} mode={mode} />
               </div>
               {canRetry && (
-                <span style={{ flexShrink: 0, background: "#37796f", color: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 20px", font: "700 17px var(--font-atkinson)" }}>{c.status.tryAgain}</span>
+                <span style={{ flexShrink: 0, background: "#37796f", color: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 20px", font: "700 calc(17px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>{c.status.tryAgain}</span>
               )}
             </>
           );
@@ -206,12 +206,12 @@ export default async function StudentHome() {
         })}
 
         {/* timeline */}
-        <p style={{ margin: "34px 0 16px", font: "600 26px var(--font-fredoka)" }}>My moments</p>
+        <p style={{ margin: "34px 0 16px", font: "600 calc(26px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>My moments</p>
         {published.length === 0 ? (
           <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: "50px 20px", textAlign: "center", boxShadow: "var(--pop-shadow)" }}>
             <Icon name="jar" size={52} decorative />
-            <p style={{ margin: "10px 0 0", font: "600 22px var(--font-fredoka)" }}>Your jar is empty</p>
-            <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>Add your first moment above!</p>
+            <p style={{ margin: "10px 0 0", font: "600 calc(22px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>Your jar is empty</p>
+            <p style={{ margin: "4px 0 0", font: "400 calc(16px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>Add your first moment above!</p>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 22 }}>
@@ -225,11 +225,11 @@ export default async function StudentHome() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.mediaPath} alt={item.caption || k.fallback} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : item.textContent ? (
-                      <p style={{ margin: 0, padding: "18px 22px", font: "400 18px/1.5 var(--font-atkinson)", color: "var(--ink)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>{item.textContent}</p>
+                      <p style={{ margin: 0, padding: "18px 22px", font: "400 calc(18px * var(--sj-type-scale, 1))/1.5 var(--font-atkinson)", color: "var(--ink)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>{item.textContent}</p>
                     ) : (
                       <Icon name={k.icon} size={64} decorative />
                     )}
-                    <span style={{ position: "absolute", top: 12, right: 12, background: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 13px var(--font-atkinson)" }}>{k.label}</span>
+                    <span style={{ position: "absolute", top: 12, right: 12, background: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 calc(13px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>{k.label}</span>
                     {/* the teacher's stickers stay peeled onto the work */}
                     {stickers.map((s, i) => {
                       const spot = [
@@ -246,13 +246,13 @@ export default async function StudentHome() {
                     })}
                   </div>
                   <div style={{ padding: "14px 18px 18px" }}>
-                    <p style={{ margin: 0, font: "600 21px var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
-                    <p style={{ margin: "4px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>{formatDate(item.createdAt)}</p>
+                    <p style={{ margin: 0, font: "600 calc(21px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
+                    <p style={{ margin: "4px 0 0", font: "400 calc(15px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>{formatDate(item.createdAt)}</p>
                     {item.praiseNote && (
-                      <p style={{ margin: "8px 0 0", font: "400 15px/1.4 var(--font-atkinson)", color: "var(--ink-soft)" }}>💬 “{item.praiseNote}”</p>
+                      <p style={{ margin: "8px 0 0", font: "400 calc(15px * var(--sj-type-scale, 1))/1.4 var(--font-atkinson)", color: "var(--ink-soft)" }}>💬 “{item.praiseNote}”</p>
                     )}
                     {item.stickerReply === "HEART" && (
-                      <p style={{ margin: "6px 0 0", font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>💛 You sent a heart back</p>
+                      <p style={{ margin: "6px 0 0", font: "700 calc(14px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--jam)" }}>💛 You sent a heart back</p>
                     )}
                   </div>
                 </div>

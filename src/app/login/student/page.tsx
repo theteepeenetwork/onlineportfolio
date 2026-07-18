@@ -44,12 +44,15 @@ export default async function StudentLoginPage({
   return (
     <div
       className="sj"
+      // Only the name wall (class known) carries a register; the code screen runs
+      // before we know the class, so it stays neutral (no data-ks → scale 1).
+      data-ks={klass ? resolveAgeMode(klass.ageMode) : undefined}
       style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}
     >
       {isPreview && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap", background: "var(--honey-tint)", borderBottom: "3px solid var(--ink)", padding: "12px 20px", font: "700 15px var(--font-atkinson)", color: "var(--honey-ink)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap", background: "var(--honey-tint)", borderBottom: "3px solid var(--ink)", padding: "12px 20px", font: "700 calc(15px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--honey-ink)" }}>
           <span>👀 Teacher preview — this is exactly what your pupils see.</span>
-          <Link href="/teacher" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--ink)", color: "var(--paper)", textDecoration: "none", padding: "9px 18px", borderRadius: 999, font: "700 14px var(--font-atkinson)" }}>← Back to your dashboard</Link>
+          <Link href="/teacher" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--ink)", color: "var(--paper)", textDecoration: "none", padding: "9px 18px", borderRadius: 999, font: "700 calc(14px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>← Back to your dashboard</Link>
         </div>
       )}
       {!klass ? (
@@ -63,8 +66,8 @@ export default async function StudentLoginPage({
           <div className="sj-code-jar">
             <JarLogo width={72} height={90} />
           </div>
-          <h1 style={{ margin: "clamp(8px, 1.6vh, 16px) 0 0", font: "600 clamp(28px, 4.6vw, 44px) var(--font-fredoka)" }}>{neutral.codeHeading}</h1>
-          <p style={{ margin: "8px 0 0", font: "400 clamp(15px, 2vw, 19px) var(--font-atkinson)", color: "var(--ink-soft)" }}>{neutral.codeHelp}</p>
+          <h1 style={{ margin: "clamp(8px, 1.6vh, 16px) 0 0", font: "600 calc(clamp(28px, 4.6vw, 44px) * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{neutral.codeHeading}</h1>
+          <p style={{ margin: "8px 0 0", font: "400 calc(clamp(15px, 2vw, 19px) * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--ink-soft)" }}>{neutral.codeHelp}</p>
 
           <CodeEntry notFound={codeEntered} />
         </div>
@@ -74,14 +77,14 @@ export default async function StudentLoginPage({
           <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
             <div style={{ background: "#F3E3C3", border: "3px solid var(--ink)", borderRadius: "8px 14px 14px 8px", padding: "8px 22px 8px 26px", position: "relative", transform: "rotate(-2deg)" }}>
               <div style={{ position: "absolute", left: 8, top: "50%", width: 8, height: 8, border: "3px solid var(--ink)", borderRadius: "50%", transform: "translateY(-50%)", background: "var(--paper)" }} />
-              <span style={{ font: "600 26px var(--font-fredoka)", whiteSpace: "nowrap" }}>{klass.name}</span>
+              <span style={{ font: "600 calc(26px * var(--sj-type-scale, 1)) var(--font-fredoka)", whiteSpace: "nowrap" }}>{klass.name}</span>
             </div>
-            <h1 style={{ margin: 0, font: "600 44px var(--font-fredoka)" }}>{nameCopy.namesHeading}</h1>
-            <Link href="/login/student" style={{ marginLeft: "auto", minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 20px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "12px 26px", textDecoration: "none" }}>{nameCopy.wrongClass}</Link>
+            <h1 style={{ margin: 0, font: "600 calc(44px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{nameCopy.namesHeading}</h1>
+            <Link href="/login/student" style={{ marginLeft: "auto", minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 calc(20px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "12px 26px", textDecoration: "none" }}>{nameCopy.wrongClass}</Link>
           </div>
 
           {klass.students.length === 0 ? (
-            <p style={{ marginTop: 40, font: "400 22px var(--font-atkinson)", color: "var(--ink-soft)" }}>
+            <p style={{ marginTop: 40, font: "400 calc(22px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--ink-soft)" }}>
               {nameCopy.noNames}
             </p>
           ) : (
@@ -93,8 +96,8 @@ export default async function StudentLoginPage({
                       re-checks the pupil belongs to this class (SAFEGUARDING 4/8). */}
                   <input type="hidden" name="code" value={klass.classCode} />
                   <button type="submit" className="sj-namecard" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: "100%", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: "22px 10px", minHeight: 150, boxSizing: "border-box", boxShadow: "0 4px 0 rgba(34,48,74,0.12)", cursor: "pointer" }}>
-                    <span aria-hidden="true" style={{ width: 76, height: 76, borderRadius: "50%", background: s.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 34px var(--font-fredoka)", color: avatarInk(s.avatarColor) }}>{s.name.charAt(0).toUpperCase()}</span>
-                    <span style={{ font: "600 24px var(--font-fredoka)", color: "var(--ink)" }}>{s.name}</span>
+                    <span aria-hidden="true" style={{ width: 76, height: 76, borderRadius: "50%", background: s.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 calc(34px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: avatarInk(s.avatarColor) }}>{s.name.charAt(0).toUpperCase()}</span>
+                    <span style={{ font: "600 calc(24px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--ink)" }}>{s.name}</span>
                   </button>
                 </form>
               ))}

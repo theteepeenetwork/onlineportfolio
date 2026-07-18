@@ -299,6 +299,17 @@ h4 {
   font-family: var(--font-display);
 }
 
+/* SJ-06 — the older (KS2) type scale. Child-facing font sizes are written as
+   `calc(<size> * var(--sj-type-scale, 1))`, so they render exactly as before
+   wherever this variable is unset (KS1, and every non-child screen — the
+   fallback is 1). An older class's surfaces carry `data-ks="KS2"`, which sets
+   the multiplier once; the custom property inherits, so every size inside the
+   scope shrinks by the same ~15% together. Touch targets are px, not font
+   sizes, so the 64px child floor (rule 18) is untouched. */
+.sj[data-ks="KS2"] {
+  --sj-type-scale: 0.85;
+}
+
 /* Reusable bits of styling used across the app. In Tailwind v4 a custom class
    can't @apply another custom class, so each button variant lists its base
    utilities directly. */

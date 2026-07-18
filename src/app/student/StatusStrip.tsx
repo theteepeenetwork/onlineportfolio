@@ -27,7 +27,7 @@ export function StatusStrip({ returned, mode }: { returned: boolean; mode: AgeMo
           doesn't. Shape and icon, not just colour (WCAG 1.4.1). */}
       {returned ? (
         <span
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--kraft-tag)", border: "3px solid var(--ink)", borderRadius: 8, padding: "3px 12px", font: "600 16px var(--font-fredoka)", color: "var(--ink)" }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--kraft-tag)", border: "3px solid var(--ink)", borderRadius: 8, padding: "3px 12px", font: "600 calc(16px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--ink)" }}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 20l4-1 10-10a2.5 2.5 0 0 0-3.5-3.5L4.5 15.5 4 20z" fill="none" stroke="#22304A" strokeWidth="2.2" strokeLinejoin="round" />
@@ -36,7 +36,7 @@ export function StatusStrip({ returned, mode }: { returned: boolean; mode: AgeMo
         </span>
       ) : (
         <span
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 8, padding: "3px 12px", font: "600 16px var(--font-fredoka)", color: "var(--honey-ink)" }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 8, padding: "3px 12px", font: "600 calc(16px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--honey-ink)" }}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="12" cy="12" r="8.5" fill="none" stroke="#8A5F1E" strokeWidth="2.2" />
@@ -46,7 +46,7 @@ export function StatusStrip({ returned, mode }: { returned: boolean; mode: AgeMo
         </span>
       )}
 
-      <span style={{ font: "400 17px var(--font-atkinson)", color: "#8A5F1E" }}>{line}</span>
+      <span style={{ font: "400 calc(17px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "#8A5F1E" }}>{line}</span>
 
       {speechReady && (
         <button
@@ -62,7 +62,7 @@ export function StatusStrip({ returned, mode }: { returned: boolean; mode: AgeMo
           // 64px, not the 44px web default: this is a child's control, and it
           // is the one that exists FOR the children who can't read the line
           // beside it (SAFEGUARDING rule 18).
-          style={{ minHeight: 64, minWidth: 64, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 999, padding: "4px 14px", font: "700 14px var(--font-atkinson)", color: "var(--ink)", cursor: "pointer" }}
+          style={{ minHeight: 64, minWidth: 64, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 999, padding: "4px 14px", font: "700 calc(14px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--ink)", cursor: "pointer" }}
         >
           <span aria-hidden="true">🔊</span>
         </button>
