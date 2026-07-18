@@ -27,6 +27,7 @@ const KIND: Record<string, { bg: string; icon: IconName }> = {
   PHOTO: { bg: "#DEEAF3", icon: "camera" },
   DRAWING: { bg: "#FBEED3", icon: "draw" },
   TEXT: { bg: "#F7E0E6", icon: "write" },
+  AUDIO: { bg: "#EAF4F1", icon: "voice" },
 };
 
 // Where peeled stickers land on the preview tile, in placement order.
@@ -81,7 +82,12 @@ export function StickerSheet({ item }: { item: ItemProps }) {
       <div>
         <div style={{ position: "relative", height: 200, borderRadius: 14, background: k.bg, border: "3px solid var(--ink)" }}>
           <div style={{ position: "absolute", inset: 0, borderRadius: 11, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {item.mediaPath ? (
+            {item.type === "AUDIO" && item.mediaPath ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "0 14px" }}>
+                <Icon name="voice" size={48} decorative />
+                <audio src={item.mediaPath} controls preload="none" aria-label={`Play ${item.child}'s voice note`} style={{ width: "100%", maxWidth: 200 }} />
+              </div>
+            ) : item.type !== "AUDIO" && item.mediaPath ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={item.mediaPath} alt={`${item.child}'s work`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : item.text ? (

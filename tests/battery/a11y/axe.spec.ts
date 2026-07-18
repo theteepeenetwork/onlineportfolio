@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { SCHOOL_A, loginTeacher, loginStudent, loginParent } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, loginTeacher, loginStudent, loginParent } from "../helpers";
 
 // ===========================================================================
 // B1 — Accessibility (axe-core), gated at WCAG 2.2 AA
@@ -126,6 +126,23 @@ test("a11y (AA): student home", async ({ page }) => {
   await loginStudent(page, SCHOOL_A.classCode, SCHOOL_A.student);
   await page.goto("/student");
   assertNoSeriousViolations(await scan(page), "student home");
+});
+
+// The new voice-note capture screen — the record controls must pass AA and be
+// labelled (SAFEGUARDING rule 18). Scanned in its resting state (the record
+// button + caption + submit are all present before any recording is made).
+test("a11y (AA): student voice-note capture", async ({ page }) => {
+  await loginStudent(page, SCHOOL_A.classCode, SCHOOL_A.student);
+  await page.goto("/student/new/audio");
+  assertNoSeriousViolations(await scan(page), "student voice-note capture");
+});
+
+// The approval queue rendering an actual <audio> player (Yusuf's pending voice
+// note in School B) — proves the player itself is AA-clean in a real context.
+test("a11y (AA): approval queue with a voice note", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_B.teacher);
+  await page.goto("/teacher/queue");
+  assertNoSeriousViolations(await scan(page), "approval queue with a voice note");
 });
 
 test("a11y (AA): parent family home", async ({ page }) => {

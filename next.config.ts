@@ -32,9 +32,9 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Children capture photos on the classroom device, so camera is allowed for
-  // same-origin only; everything else is denied.
-  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), browsing-topics=()" },
+  // Children capture photos and voice notes on the classroom device, so camera
+  // and microphone are allowed for same-origin only; everything else is denied.
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(), browsing-topics=()" },
   { key: "X-DNS-Prefetch-Control", value: "off" },
 ];
 

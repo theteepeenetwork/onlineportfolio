@@ -17,7 +17,11 @@ const KIND = {
   PHOTO: { label: "photo", bg: "#D8ECE8", fallback: "My photo", icon: "camera" },
   DRAWING: { label: "drawing", bg: "#FBEED3", fallback: "My drawing", icon: "draw" },
   TEXT: { label: "my words", bg: "#F7E0E6", fallback: "My words", icon: "write" },
+  AUDIO: { label: "voice", bg: "#EAF4F1", fallback: "My voice", icon: "voice" },
 } as const satisfies Record<string, { label: string; bg: string; fallback: string; icon: IconName }>;
+
+// Which item types carry an on-screen IMAGE (vs an audio player or plain text).
+const isImageType = (type: string) => type === "PHOTO" || type === "DRAWING";
 
 function kindOf(type: string) {
   return KIND[type as keyof typeof KIND] ?? KIND.PHOTO;
@@ -35,6 +39,7 @@ function formatDate(d: Date) {
 const ADD_BUTTONS: { href: string; icon: IconName; label: string; bg: string }[] = [
   { href: "/student/new/photo", icon: "camera", label: "Photo", bg: "#D8ECE8" },
   { href: "/student/new/drawing", icon: "draw", label: "Drawing", bg: "#FBEED3" },
+  { href: "/student/new/audio", icon: "voice", label: "Voice", bg: "#EAF4F1" },
   { href: "/student/new/words", icon: "write", label: "My words", bg: "#F7E0E6" },
 ];
 
@@ -148,7 +153,10 @@ export default async function StudentHome() {
               note={arrived.praiseNote}
               stickers={readStickers(arrived.stickersJson).map((s) => s.k)}
               moment={{
-                mediaPath: arrived.mediaPath,
+                // The arrival mini-card shows an image thumbnail; a voice note
+                // has none, so it falls back to the voice icon (its player lives
+                // on the timeline card below).
+                mediaPath: isImageType(arrived.type) ? arrived.mediaPath : null,
                 text: arrived.textContent,
                 title: arrived.caption || kindOf(arrived.type).fallback,
                 dateLabel: formatDate(arrived.createdAt),
@@ -162,7 +170,7 @@ export default async function StudentHome() {
         {/* add to my jar */}
         <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: "24px 30px", boxShadow: "var(--pop-shadow)" }}>
           <p style={{ margin: "0 0 16px", font: "600 calc(30px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{c.add.submit}</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 18 }}>
             {ADD_BUTTONS.map((b) => (
               <Link key={b.href} href={b.href} className="sj-addtile" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 88, background: b.bg, border: "3px solid var(--ink)", borderRadius: 16, textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
                 <Icon name={b.icon} size={40} decorative />
@@ -239,7 +247,12 @@ export default async function StudentHome() {
               return (
                 <div key={item.id} style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, overflow: "hidden", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
                   <div style={{ height: 190, background: k.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                    {item.mediaPath ? (
+                    {item.type === "AUDIO" && item.mediaPath ? (
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "0 16px" }}>
+                        <Icon name="voice" size={44} decorative />
+                        <audio src={item.mediaPath} controls preload="none" aria-label={item.caption || k.fallback} style={{ width: "100%", maxWidth: 240 }} />
+                      </div>
+                    ) : isImageType(item.type) && item.mediaPath ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.mediaPath} alt={item.caption || k.fallback} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : item.textContent ? (

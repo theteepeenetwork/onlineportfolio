@@ -9,6 +9,7 @@ const SURFACES = {
   photo: "PHOTO",
   words: "TEXT",
   drawing: "DRAWING",
+  audio: "AUDIO",
 } as const;
 
 type Surface = keyof typeof SURFACES;

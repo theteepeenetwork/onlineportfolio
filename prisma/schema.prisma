@@ -175,10 +175,10 @@ model MagicToken {
 // A single piece of work in a student's journal.
 model JournalItem {
   id          String    @id @default(cuid())
-  type        String // PHOTO | TEXT | DRAWING
+  type        String // PHOTO | TEXT | DRAWING | AUDIO
   caption     String? // optional short caption / the child's words
   textContent String? // body text for TEXT items
-  mediaPath   String? // relative path under /public/uploads for PHOTO / DRAWING items (single / cover image)
+  mediaPath   String? // relative /uploads path: cover image (PHOTO / DRAWING) or the voice-note file (AUDIO). Served ONLY via the authorising /uploads route, never publicly — same as photos (SAFEGUARDING rule 7).
   mediaPathsJson String? // JSON array of paths for multi-page drawings; when set it supersedes mediaPath
   quizAnswersJson String? // JSON QuizAnswer[] — the child's multiple-choice selections (PENDING child content)
   quizScore   Int? // server-computed number of correct answers at submit time (null = not a quiz response)

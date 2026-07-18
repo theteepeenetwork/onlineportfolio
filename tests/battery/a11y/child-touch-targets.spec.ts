@@ -81,7 +81,7 @@ test("every control on a child's jar meets the child touch floor", async ({ page
 
 test("every control on the add-work screens meets the child touch floor", async ({ page }) => {
   await loginStudent(page, SCHOOL_A.classCode, "Chloe");
-  for (const path of ["/student/new/photo", "/student/new/words"]) {
+  for (const path of ["/student/new/photo", "/student/new/words", "/student/new/audio"]) {
     await page.goto(path);
     const small = await undersizedControls(page);
     expect(small, `${path} — controls below ${FLOOR}px: ${JSON.stringify(small)}`).toEqual([]);

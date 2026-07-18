@@ -4,15 +4,17 @@ import { useActionState, useState } from "react";
 import { createJournalItem } from "@/app/actions/journal";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { PhotoCapture } from "./PhotoCapture";
+import { AudioCapture } from "./AudioCapture";
 import { Icon, type IconName } from "./icons/Icon";
 
-type Tab = "PHOTO" | "TEXT" | "DRAWING";
+type Tab = "PHOTO" | "TEXT" | "DRAWING" | "AUDIO";
 type Skill = { id: string; name: string };
 
 const TABS: { key: Tab; label: string; icon: IconName }[] = [
   { key: "PHOTO", label: "Photo", icon: "camera" },
   { key: "TEXT", label: "Write", icon: "write" },
   { key: "DRAWING", label: "Draw", icon: "draw" },
+  { key: "AUDIO", label: "Voice", icon: "voice" },
 ];
 
 // A teacher adds work on a child's behalf. Tabs are right here: a teacher is
@@ -39,7 +41,7 @@ export function CreateForm({
       {studentId && <input type="hidden" name="studentId" value={studentId} />}
 
       {/* Choose how to respond */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -72,6 +74,9 @@ export function CreateForm({
 
       {/* Draw — inline for teachers; the child's canvas is full-screen. */}
       {tab === "DRAWING" && <DrawingCanvas name="drawingPages" />}
+
+      {/* Voice — record a short note (publishes straight away on this path). */}
+      {tab === "AUDIO" && <AudioCapture />}
 
       {/* Caption */}
       {tab !== "TEXT" && (

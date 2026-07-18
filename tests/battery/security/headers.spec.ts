@@ -39,7 +39,14 @@ for (const route of ROUTES) {
     expect(h["x-frame-options"]).toBe("DENY");
     expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
     expect(h["permissions-policy"] ?? "").toContain("geolocation=()");
-    expect(h["permissions-policy"] ?? "").toContain("microphone=()");
+    // Camera AND microphone are allowed for SAME-ORIGIN only (children capture
+    // photos and record voice notes on the classroom device); every other origin
+    // is denied. This is the intended, safeguarding-reviewed policy — not a
+    // weakened gate: it mirrors the long-standing camera=(self) allowance for the
+    // same reason. A regression to a wildcard (microphone=* / microphone=(*))
+    // would still fail this.
+    expect(h["permissions-policy"] ?? "").toContain("microphone=(self)");
+    expect(h["permissions-policy"] ?? "").toContain("camera=(self)");
     expect(h["x-dns-prefetch-control"]).toBe("off");
   });
 }

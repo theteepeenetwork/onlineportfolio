@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { savePhoto, saveImageDataUrl, saveImagePages, deleteMediaFiles } from "@/lib/media";
+import { savePhoto, saveAudio, saveImageDataUrl, saveImagePages, deleteMediaFiles } from "@/lib/media";
 import { discardResponseDraftFor } from "@/lib/drafts";
 import { recordAudit } from "@/lib/audit";
 import { readQuiz, readAnswers, sanitizeAnswers, scoreQuiz } from "@/lib/quiz";
@@ -82,6 +82,16 @@ export async function createJournalItem(
         mediaPath = await saveImageDataUrl(photoData);
       } else {
         return { error: "Please take or choose a photo to add." };
+      }
+    } else if (type === "AUDIO") {
+      // A recorded voice note arrives as a File (the MediaRecorder blob) on the
+      // `audio` field — stored exactly like a photo: a private file served only
+      // through the authorising /uploads route (SAFEGUARDING rules 4 & 7).
+      const file = formData.get("audio");
+      if (file instanceof File && file.size > 0) {
+        mediaPath = await saveAudio(file);
+      } else {
+        return { error: "Please record your voice first." };
       }
     } else if (type === "DRAWING") {
       // Drawings arrive as a JSON array of PNG data URLs, one per page.

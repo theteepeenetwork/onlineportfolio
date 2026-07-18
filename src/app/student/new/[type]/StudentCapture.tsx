@@ -6,11 +6,12 @@ import { useActionState } from "react";
 import { createJournalItem } from "@/app/actions/journal";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
 import { PhotoCapture } from "@/components/PhotoCapture";
+import { AudioCapture } from "@/components/AudioCapture";
 import { Icon } from "@/components/icons/Icon";
 import { studentCopy } from "@/lib/copy/student";
 import type { AgeMode } from "@/lib/ageMode";
 
-export type CaptureType = "PHOTO" | "TEXT" | "DRAWING";
+export type CaptureType = "PHOTO" | "TEXT" | "DRAWING" | "AUDIO";
 
 // A child taps "Photo" on their jar and lands *here* — on the camera, not on a
 // screen offering them the choice they already made.
@@ -51,12 +52,14 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
         </Link>
 
         <h1 style={{ margin: "clamp(14px, 2.4vh, 22px) 0 0", font: "600 calc(clamp(30px, 4.6vw, 44px) * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>
-          {type === "PHOTO" ? c.photoHeading : c.wordsHeading}
+          {type === "PHOTO" ? c.photoHeading : type === "AUDIO" ? c.audioHeading : c.wordsHeading}
         </h1>
 
         <div style={{ marginTop: "clamp(14px, 2.4vh, 22px)" }}>
           {type === "PHOTO" ? (
             <PhotoCapture />
+          ) : type === "AUDIO" ? (
+            <AudioCapture labels={c.audio} />
           ) : (
             <>
               <label htmlFor="words" style={{ display: "block", font: "700 calc(20px * var(--sj-type-scale, 1)) var(--font-atkinson)", marginBottom: 8 }}>
@@ -74,8 +77,9 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
         </div>
 
         {/* The caption asks about work the child has just made, so it comes
-            after it — and keeps its label on screen while they answer. */}
-        {type === "PHOTO" && (
+            after it — and keeps its label on screen while they answer. Shown for
+            a photo or a voice note; a TEXT item is already all words. */}
+        {type !== "TEXT" && (
           <div style={{ marginTop: "clamp(14px, 2.4vh, 22px)" }}>
             <label htmlFor="caption" style={{ display: "block", font: "700 calc(20px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>
               {c.captionLabel}{" "}

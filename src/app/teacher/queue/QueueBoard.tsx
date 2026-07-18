@@ -32,6 +32,7 @@ const KIND: Record<string, { label: string; bg: string; icon: IconName }> = {
   PHOTO: { label: "photo", bg: "#DEEAF3", icon: "camera" },
   DRAWING: { label: "drawing", bg: "#FBEED3", icon: "draw" },
   TEXT: { label: "their words", bg: "#F7E0E6", icon: "write" },
+  AUDIO: { label: "voice", bg: "#EAF4F1", icon: "voice" },
 };
 const kindOf = (t: string) => KIND[t] ?? KIND.PHOTO;
 
@@ -171,9 +172,11 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
               <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                 <input type="checkbox" checked={sel} onChange={() => toggleSel(it.id)} aria-label={`Select ${it.child}`} style={{ width: 20, height: 20, accentColor: "#37796f", cursor: "pointer", flexShrink: 0 }} />
                 <div style={{ width: 84, height: 64, borderRadius: 10, background: k.bg, border: "2px solid var(--calm-border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0, overflow: "hidden" }}>
-                  {it.mediaPath ? (
+                  {it.type !== "AUDIO" && it.mediaPath ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={it.mediaPath} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : it.type === "AUDIO" ? (
+                    <Icon name="voice" size={30} decorative />
                   ) : it.text ? (
                     <Icon name="write" size={28} decorative />
                   ) : (
@@ -183,6 +186,12 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                 <div style={{ flex: 1, minWidth: 160 }}>
                   <p style={{ margin: 0, font: "700 17px var(--font-atkinson)" }}>{it.child} <span style={{ fontWeight: 400, color: "var(--sj-muted)" }}>· {k.label}</span></p>
                   <p style={{ margin: "3px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{it.activity} · {it.when}</p>
+                  {it.type === "AUDIO" && it.mediaPath && (
+                    // The teacher plays the child's voice note right here before
+                    // deciding. Approval still gates it (nothing publishes until
+                    // the teacher acts) exactly like every other moment.
+                    <audio src={it.mediaPath} controls preload="none" aria-label={`Play ${it.child}'s voice note`} style={{ marginTop: 8, width: "100%", maxWidth: 280 }} />
+                  )}
                   {it.quizTotal != null && (
                     <button
                       type="button"

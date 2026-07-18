@@ -19,12 +19,20 @@ const MIME: Record<string, string> = {
   webp: "image/webp",
   gif: "image/gif",
   svg: "image/svg+xml",
+  // Voice notes (AUDIO items) — audio-only, stored via saveAudio().
+  webm: "audio/webm",
+  ogg: "audio/ogg",
+  m4a: "audio/mp4",
+  mp3: "audio/mpeg",
 };
 
 // A filename we are willing to serve: a single path segment of safe characters
-// with a known image extension. Anything else (slashes, "..", odd extensions)
-// is rejected before we touch the filesystem.
-const SAFE_NAME = /^[A-Za-z0-9._-]+\.(png|jpe?g|webp|gif|svg)$/;
+// with a known image OR audio extension. Anything else (slashes, "..", odd
+// extensions) is rejected before we touch the filesystem. Access is decided by
+// canAccess() below, which is media-type-agnostic — an audio journal item is
+// scoped exactly like a photo (its child, that child's teacher, and the linked
+// parent for approved items only).
+const SAFE_NAME = /^[A-Za-z0-9._-]+\.(png|jpe?g|webp|gif|svg|webm|ogg|m4a|mp3)$/;
 
 const notFound = () => new NextResponse("Not found", { status: 404 });
 
