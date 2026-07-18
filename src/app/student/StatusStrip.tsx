@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { studentCopy } from "@/lib/copy/student";
+import type { AgeMode } from "@/lib/ageMode";
 import { canReadAloud, readAloud } from "@/lib/readAloud";
-
-const c = studentCopy.status;
 
 // The status line, said three ways at once: a tag you can see, a sentence you
 // can read, and a button that reads it to you.
@@ -15,10 +14,11 @@ const c = studentCopy.status;
 // it, the words stay for the children who have them, and the speaker covers the
 // rest. Read-aloud only ever speaks `studentCopy`, never the child's caption or
 // a teacher's note — see src/lib/readAloud.ts.
-export function StatusStrip({ returned }: { returned: boolean }) {
+export function StatusStrip({ returned, mode }: { returned: boolean; mode: AgeMode }) {
   const [speechReady, setSpeechReady] = useState(false);
   useEffect(() => setSpeechReady(canReadAloud()), []);
 
+  const c = studentCopy(mode).status;
   const line = returned ? c.returned : c.waiting;
 
   return (

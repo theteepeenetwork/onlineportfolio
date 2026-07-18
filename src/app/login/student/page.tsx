@@ -4,7 +4,8 @@ import { JarLogo } from "@/components/storyjar/JarLogo";
 import { normaliseClassCode } from "@/lib/classCodeChars";
 import { lookupClassByCode } from "@/lib/classCodeLookup";
 import { avatarInk } from "@/lib/avatar";
-import { studentCopy } from "@/lib/copy/student";
+import { studentCopy, studentCopyNeutral } from "@/lib/copy/student";
+import { resolveAgeMode } from "@/lib/ageMode";
 import { CodeEntry } from "./CodeEntry";
 
 const TWINKLE = "M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z";
@@ -34,6 +35,12 @@ export default async function StudentLoginPage({
   // is what a child sees as the same gentle "have another go" wobble.
   const klass = await lookupClassByCode(code);
 
+  // Stage 1 (the code screen) runs before we know the class, so it uses the
+  // neutral wording. Stage 2 (the name wall) knows the class, so it speaks that
+  // class's register (SJ-06).
+  const neutral = studentCopyNeutral.signIn;
+  const nameCopy = klass ? studentCopy(resolveAgeMode(klass.ageMode)).signIn : neutral;
+
   return (
     <div
       className="sj"
@@ -56,8 +63,8 @@ export default async function StudentLoginPage({
           <div className="sj-code-jar">
             <JarLogo width={72} height={90} />
           </div>
-          <h1 style={{ margin: "clamp(8px, 1.6vh, 16px) 0 0", font: "600 clamp(28px, 4.6vw, 44px) var(--font-fredoka)" }}>{studentCopy.signIn.codeHeading}</h1>
-          <p style={{ margin: "8px 0 0", font: "400 clamp(15px, 2vw, 19px) var(--font-atkinson)", color: "var(--ink-soft)" }}>{studentCopy.signIn.codeHelp}</p>
+          <h1 style={{ margin: "clamp(8px, 1.6vh, 16px) 0 0", font: "600 clamp(28px, 4.6vw, 44px) var(--font-fredoka)" }}>{neutral.codeHeading}</h1>
+          <p style={{ margin: "8px 0 0", font: "400 clamp(15px, 2vw, 19px) var(--font-atkinson)", color: "var(--ink-soft)" }}>{neutral.codeHelp}</p>
 
           <CodeEntry notFound={codeEntered} />
         </div>
@@ -69,13 +76,13 @@ export default async function StudentLoginPage({
               <div style={{ position: "absolute", left: 8, top: "50%", width: 8, height: 8, border: "3px solid var(--ink)", borderRadius: "50%", transform: "translateY(-50%)", background: "var(--paper)" }} />
               <span style={{ font: "600 26px var(--font-fredoka)", whiteSpace: "nowrap" }}>{klass.name}</span>
             </div>
-            <h1 style={{ margin: 0, font: "600 44px var(--font-fredoka)" }}>{studentCopy.signIn.namesHeading}</h1>
-            <Link href="/login/student" style={{ marginLeft: "auto", minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 20px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "12px 26px", textDecoration: "none" }}>{studentCopy.signIn.wrongClass}</Link>
+            <h1 style={{ margin: 0, font: "600 44px var(--font-fredoka)" }}>{nameCopy.namesHeading}</h1>
+            <Link href="/login/student" style={{ marginLeft: "auto", minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 20px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "12px 26px", textDecoration: "none" }}>{nameCopy.wrongClass}</Link>
           </div>
 
           {klass.students.length === 0 ? (
             <p style={{ marginTop: 40, font: "400 22px var(--font-atkinson)", color: "var(--ink-soft)" }}>
-              {studentCopy.signIn.noNames}
+              {nameCopy.noNames}
             </p>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 20, marginTop: 34 }}>

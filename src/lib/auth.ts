@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
+import { resolveAgeMode, type AgeMode } from "@/lib/ageMode";
 
 export const COOKIE_NAME = "portfolio_session";
 const SESSION_DAYS = 30;
@@ -28,6 +29,10 @@ export type StudentSession = {
     avatarColor: string;
     classId: string;
     className: string;
+    // Which child-facing register this student's class shows (SJ-06). Already
+    // resolved (never NULL) so every student surface can read it off the session
+    // and pass it to studentCopy() without another query.
+    ageMode: AgeMode;
   };
 };
 
@@ -107,6 +112,7 @@ export async function getCurrentUser(): Promise<CurrentUser> {
         avatarColor: session.student.avatarColor,
         classId: session.student.classId,
         className: session.student.class.name,
+        ageMode: resolveAgeMode(session.student.class.ageMode),
       },
     };
   }

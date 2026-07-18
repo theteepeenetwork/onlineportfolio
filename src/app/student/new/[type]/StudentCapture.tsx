@@ -8,8 +8,7 @@ import { DrawingCanvas } from "@/components/DrawingCanvas";
 import { PhotoCapture } from "@/components/PhotoCapture";
 import { Icon } from "@/components/icons/Icon";
 import { studentCopy } from "@/lib/copy/student";
-
-const c = studentCopy.add;
+import type { AgeMode } from "@/lib/ageMode";
 
 export type CaptureType = "PHOTO" | "TEXT" | "DRAWING";
 
@@ -27,8 +26,9 @@ export type CaptureType = "PHOTO" | "TEXT" | "DRAWING";
 // So there are no tabs here, the register never breaks, and the caption keeps a
 // visible label. Drawing isn't handled by this shell at all — it was already
 // full-screen and child-led, which is what the rest of this is trying to be.
-export function StudentCapture({ type }: { type: Exclude<CaptureType, "DRAWING"> }) {
+export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRAWING">; mode: AgeMode }) {
   const [state, action, pending] = useActionState(createJournalItem, {});
+  const c = studentCopy(mode).add;
 
   return (
     <form

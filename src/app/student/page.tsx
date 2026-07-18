@@ -41,6 +41,9 @@ export default async function StudentHome() {
   const user = await getCurrentUser();
   if (user?.role !== "STUDENT") return null;
   const { student } = user;
+  // This class's register (SJ-06) — resolved once, on the session.
+  const mode = student.ageMode;
+  const c = studentCopy(mode);
 
   const items = await db.journalItem.findMany({
     where: { studentId: student.id },
@@ -115,7 +118,7 @@ export default async function StudentHome() {
           <JarStatus inJar={published.length} waiting={waitingCount} arrived={justArrivedCount} />
           <JarSummary inJar={published.length} waiting={waitingCount} />
           <LogoutForm>
-            <button type="submit" style={{ minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>Bye bye 👋</button>
+            <button type="submit" style={{ minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "8px 24px", cursor: "pointer", marginLeft: 14 }}>{c.home.signOut}</button>
           </LogoutForm>
         </div>
       </header>
@@ -145,7 +148,7 @@ export default async function StudentHome() {
 
         {/* add to my jar */}
         <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: "24px 30px", boxShadow: "var(--pop-shadow)" }}>
-          <p style={{ margin: "0 0 16px", font: "600 30px var(--font-fredoka)" }}>Add to my jar</p>
+          <p style={{ margin: "0 0 16px", font: "600 30px var(--font-fredoka)" }}>{c.add.submit}</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
             {ADD_BUTTONS.map((b) => (
               <Link key={b.href} href={b.href} className="sj-addtile" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 88, background: b.bg, border: "3px solid var(--ink)", borderRadius: 16, textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
@@ -179,10 +182,10 @@ export default async function StudentHome() {
               <div style={{ width: 64, height: 64, borderRadius: 12, background: "repeating-linear-gradient(45deg, #FFFDF7, #FFFDF7 10px, #F6E4BE 10px, #F6E4BE 20px)", border: "3px solid var(--ink)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }} aria-hidden="true"><Icon name={k.icon} size={30} decorative /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, font: "600 22px var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
-                <StatusStrip returned={!waiting} />
+                <StatusStrip returned={!waiting} mode={mode} />
               </div>
               {canRetry && (
-                <span style={{ flexShrink: 0, background: "#37796f", color: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 20px", font: "700 17px var(--font-atkinson)" }}>{studentCopy.status.tryAgain}</span>
+                <span style={{ flexShrink: 0, background: "#37796f", color: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 20px", font: "700 17px var(--font-atkinson)" }}>{c.status.tryAgain}</span>
               )}
             </>
           );

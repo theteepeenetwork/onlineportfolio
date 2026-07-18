@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { Icon } from "@/components/icons/Icon";
 import { ClearMarkedDraft } from "@/components/ClearMarkedDraft";
+import { getCurrentUser } from "@/lib/auth";
+import { studentCopy } from "@/lib/copy/student";
 
 const TWINKLE = "M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z";
 
 // The celebration shown right after a child pops a moment into the jar. Pure CSS
 // animations (data-anim), so it works as a server component and respects
 // reduced-motion. "Back to my jar" returns to their journal (where it now waits).
-export default function PoppedInPage() {
+export default async function PoppedInPage() {
+  // The child is signed in when they land here; speak their class's register
+  // (SJ-06). Fall back to the younger wording if the session can't be read.
+  const user = await getCurrentUser();
+  const c = studentCopy(user?.role === "STUDENT" ? user.student.ageMode : "KS1");
+
   return (
     <div className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "40px 20px" }}>
       <ClearMarkedDraft />
@@ -33,9 +40,9 @@ export default function PoppedInPage() {
           <g data-anim="twinkle"><path transform="translate(300,110) scale(0.6) rotate(-10)" d={TWINKLE} fill="#E08A9B" /></g>
         </svg>
       </div>
-      <h1 style={{ margin: "10px 0 0", font: "600 54px var(--font-fredoka)", color: "#37796f" }}>Popped in!</h1>
-      <p style={{ margin: "12px 0 0", font: "400 26px var(--font-atkinson)", color: "var(--ink-soft)" }}>Your teacher will see it soon.</p>
-      <Link href="/student" style={{ marginTop: 34, minHeight: 72, display: "inline-flex", alignItems: "center", font: "600 26px var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "3px solid var(--ink)", borderRadius: 999, padding: "14px 48px", textDecoration: "none", boxShadow: "0 5px 0 var(--jam-deep)", gap: 12 }}>Back to my jar <Icon name="jar" size={30} decorative /></Link>
+      <h1 style={{ margin: "10px 0 0", font: "600 54px var(--font-fredoka)", color: "#37796f" }}>{c.celebration.heading}</h1>
+      <p style={{ margin: "12px 0 0", font: "400 26px var(--font-atkinson)", color: "var(--ink-soft)" }}>{c.celebration.subtitle}</p>
+      <Link href="/student" style={{ marginTop: 34, minHeight: 72, display: "inline-flex", alignItems: "center", font: "600 26px var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "3px solid var(--ink)", borderRadius: 999, padding: "14px 48px", textDecoration: "none", boxShadow: "0 5px 0 var(--jam-deep)", gap: 12 }}>{c.add.backToJar} <Icon name="jar" size={30} decorative /></Link>
     </div>
   );
 }
