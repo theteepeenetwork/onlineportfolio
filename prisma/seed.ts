@@ -131,10 +131,18 @@ async function main() {
     ),
   );
 
-  // Children's work.
-  const sunPath = writeSvg("seed-sun.svg", SUN);
-  const housePath = writeSvg("seed-house.svg", HOUSE);
-  const bugPath = writeSvg("seed-bug.svg", BUG);
+  // Children's work. Each response gets its OWN media file, even when the picture
+  // is the same — a real upload mints a random name per file (savePhoto), so two
+  // records never share a media path. The route authorises across ALL matching
+  // records now (route.ts canAccess, F17), but the fixture must still not model a
+  // collision production can't produce, or the `no shared media path` invariant
+  // (Option C) would fail on demo data. Same reasoning as the template files below.
+  let childMediaSeq = 0;
+  const childMedia = (svg: string) => writeSvg(`seed-child-${++childMediaSeq}.svg`, svg);
+  // One stable, single-owner file the media-authorisation tests anchor on
+  // (SCHOOL_A.approvedMedia): Amara's approved "3 apples" below, and nothing else,
+  // references it — so it is owned, approved, and NOT shared (Option C).
+  const sunApprovedPath = writeSvg("seed-sun.svg", SUN);
 
   // Teachers' template backgrounds — SEPARATE FILES, even though the pictures
   // are the same. A template background and a child's response must never share
@@ -205,8 +213,8 @@ async function main() {
       templateSnapshotJson: apples.templatePathsJson,
     },
   });
-  await response({ studentId: sun[0].id, classId: sunflower.id, assignmentId: applesRun.id, status: "APPROVED", caption: "3 apples", media: sunPath, skillIds: [skills[0].id] });
-  await response({ studentId: sun[1].id, classId: sunflower.id, assignmentId: applesRun.id, status: "PENDING", caption: "I count 4", media: sunPath });
+  await response({ studentId: sun[0].id, classId: sunflower.id, assignmentId: applesRun.id, status: "APPROVED", caption: "3 apples", media: sunApprovedPath, skillIds: [skills[0].id] });
+  await response({ studentId: sun[1].id, classId: sunflower.id, assignmentId: applesRun.id, status: "PENDING", caption: "I count 4", media: childMedia(SUN) });
   await response({ studentId: sun[2].id, classId: sunflower.id, assignmentId: applesRun.id, status: "PENDING", type: "TEXT", text: "There are 5 apples" });
 
   // --- Template 2: Minibeast hunt (Science, Outdoors) — several runs ---
@@ -234,7 +242,7 @@ async function main() {
   // Keep the pending responses on Ben & Chloe so the demo has "waiting" work
   // without cluttering the children used by the automated tests.
   for (const st of [sun[1], sun[2]]) {
-    await response({ studentId: st.id, classId: sunflower.id, assignmentId: mbRun.id, status: "PENDING", caption: "A ladybird", media: bugPath });
+    await response({ studentId: st.id, classId: sunflower.id, assignmentId: mbRun.id, status: "PENDING", caption: "A ladybird", media: childMedia(BUG) });
   }
   // Live run to chosen Ladybird children.
   await db.assignment.create({
@@ -262,7 +270,7 @@ async function main() {
       createdAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000),
     },
   });
-  await response({ studentId: sun[0].id, classId: sunflower.id, assignmentId: closed.id, status: "APPROVED", caption: "A snail", media: bugPath });
+  await response({ studentId: sun[0].id, classId: sunflower.id, assignmentId: closed.id, status: "APPROVED", caption: "A snail", media: childMedia(BUG) });
 
   // --- Dated runs with due dates, so the calendar shows due-soon / overdue /
   //     complete states across the current month. ---
@@ -279,8 +287,8 @@ async function main() {
   // Ben & Chloe already carry seeded work, so responses here don't disturb the
   // "clean" children (Dev/Ella/Finn) the canvas specs rely on, nor the demo
   // parent's children (Amara/Grace).
-  await response({ studentId: sun[1].id, classId: sunflower.id, assignmentId: dueSoonRun.id, status: "APPROVED", caption: "6 apples", media: sunPath });
-  await response({ studentId: sun[2].id, classId: sunflower.id, assignmentId: dueSoonRun.id, status: "PENDING", caption: "lots!", media: sunPath });
+  await response({ studentId: sun[1].id, classId: sunflower.id, assignmentId: dueSoonRun.id, status: "APPROVED", caption: "6 apples", media: childMedia(SUN) });
+  await response({ studentId: sun[2].id, classId: sunflower.id, assignmentId: dueSoonRun.id, status: "PENDING", caption: "lots!", media: childMedia(SUN) });
 
   // Due yesterday, still incomplete, LIVE → "overdue".
   const overdueRun = await db.assignment.create({
@@ -290,7 +298,7 @@ async function main() {
       createdAt: days(-6), dueDate: days(-1),
     },
   });
-  await response({ studentId: sun[1].id, classId: sunflower.id, assignmentId: overdueRun.id, status: "APPROVED", caption: "A beetle", media: bugPath });
+  await response({ studentId: sun[1].id, classId: sunflower.id, assignmentId: overdueRun.id, status: "APPROVED", caption: "A beetle", media: childMedia(BUG) });
 
   // No due date, everyone's in the jar → "complete", plots on its assigned day.
   const completeRun = await db.assignment.create({
@@ -301,8 +309,8 @@ async function main() {
       students: { create: [{ studentId: lady[1].id }, { studentId: lady[2].id }] },
     },
   });
-  await response({ studentId: lady[1].id, classId: ladybird.id, assignmentId: completeRun.id, status: "APPROVED", caption: "A worm", media: bugPath });
-  await response({ studentId: lady[2].id, classId: ladybird.id, assignmentId: completeRun.id, status: "APPROVED", caption: "A ladybird", media: bugPath });
+  await response({ studentId: lady[1].id, classId: ladybird.id, assignmentId: completeRun.id, status: "APPROVED", caption: "A worm", media: childMedia(BUG) });
+  await response({ studentId: lady[2].id, classId: ladybird.id, assignmentId: completeRun.id, status: "APPROVED", caption: "A ladybird", media: childMedia(BUG) });
 
   // --- Template 3: Draw your family (Writing) — never run ---
   await db.activityTemplate.create({
@@ -319,7 +327,7 @@ async function main() {
     data: {
       type: "DRAWING",
       caption: "My sunshine picture",
-      mediaPath: sunPath,
+      mediaPath: childMedia(SUN),
       status: "APPROVED",
       approvedAt: new Date(),
       authorRole: "STUDENT",
@@ -335,7 +343,7 @@ async function main() {
     data: {
       type: "PHOTO",
       caption: "My junk-model rocket",
-      mediaPath: housePath,
+      mediaPath: childMedia(HOUSE),
       status: "APPROVED",
       approvedAt: new Date(),
       authorRole: "STUDENT",

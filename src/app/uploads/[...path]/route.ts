@@ -65,37 +65,64 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
 
 // The access decision. Returns true only if the current requester is entitled to
 // see this media path. Deny by default.
+//
+// A media file may be referenced by more than one record. We must never let the
+// FIRST matching record decide for the others (FINDINGS F17): a shared path
+// would then authorise one owner against another — a false denial at best, a
+// cross-child disclosure at worst. So every check below is scoped to the
+// REQUESTER — "is there a record *I* own that references this path?" — and we
+// grant if ANY branch says yes, falling through otherwise. Because each branch
+// only ever matches the requester's own records, OR-ing them stays
+// deny-by-default (rule 8): no branch can grant on someone else's record, and a
+// miss still 404s without revealing whether the file exists.
 async function canAccess(urlPath: string): Promise<boolean> {
   const user = await getCurrentUser(); // TEACHER | STUDENT | null
   const parent = user ? null : await getCurrentParent(); // only check parent if not a teacher/student
   if (!user && !parent) return false; // never serve to the unauthenticated
 
-  // 1) Is it a child's journal item (a photo/drawing/response)? The most
-  //    sensitive case — strict rules.
-  const item = await db.journalItem.findFirst({
-    where: { OR: [{ mediaPath: urlPath }, { mediaPathsJson: { contains: urlPath } }] },
-    select: { studentId: true, status: true, class: { select: { teacherId: true } } },
-  });
-  if (item) {
-    if (user?.role === "TEACHER") return item.class.teacherId === user.teacher.id;
-    if (user?.role === "STUDENT") return item.studentId === user.student.id;
-    if (parent) return item.status === "APPROVED" && parent.children.some((c) => c.id === item.studentId);
-    return false;
+  const pathMatch = { OR: [{ mediaPath: urlPath }, { mediaPathsJson: { contains: urlPath } }] };
+
+  // 1) A child's journal item (a photo/drawing/response) the requester is
+  //    entitled to — the most sensitive case, scoped straight into the query so
+  //    a colliding stranger's row can never decide.
+  if (user?.role === "TEACHER") {
+    const mine = await db.journalItem.findFirst({
+      where: { AND: [pathMatch, { class: { teacherId: user.teacher.id } }] },
+      select: { id: true },
+    });
+    if (mine) return true;
+  } else if (user?.role === "STUDENT") {
+    const mine = await db.journalItem.findFirst({
+      where: { AND: [pathMatch, { studentId: user.student.id }] },
+      select: { id: true },
+    });
+    if (mine) return true;
+  } else if (parent) {
+    // Parents see only APPROVED work of their own children — and nothing else on
+    // this route (never a draft, never teacher activity material).
+    const childIds = parent.children.map((c) => c.id);
+    const theirs = await db.journalItem.findFirst({
+      where: { AND: [pathMatch, { status: "APPROVED", studentId: { in: childIds } }] },
+      select: { id: true },
+    });
+    return !!theirs;
   }
 
-  // 2) A cross-device DRAFT page (Stage 2). Owner-only: a child's unsubmitted
-  //    draft is their private unfinished work — visible to that child only,
-  //    never to a parent, another child, another tenant, or even their teacher.
-  if (user) {
-    const draft = await db.draft.findFirst({
-      where: { pagesJson: { contains: urlPath } },
-      select: { teacherId: true, studentId: true },
+  // 2) The requester's OWN cross-device DRAFT page (Stage 2). A child's
+  //    unsubmitted draft is their private unfinished work — visible to that child
+  //    only, never to a parent, another child, another tenant, or their teacher.
+  if (user?.role === "TEACHER") {
+    const mine = await db.draft.findFirst({
+      where: { AND: [{ pagesJson: { contains: urlPath } }, { teacherId: user.teacher.id }] },
+      select: { id: true },
     });
-    if (draft) {
-      if (user.role === "TEACHER") return draft.teacherId === user.teacher.id;
-      if (user.role === "STUDENT") return draft.studentId === user.student.id;
-      return false;
-    }
+    if (mine) return true;
+  } else if (user?.role === "STUDENT") {
+    const mine = await db.draft.findFirst({
+      where: { AND: [{ pagesJson: { contains: urlPath } }, { studentId: user.student.id }] },
+      select: { id: true },
+    });
+    if (mine) return true;
   }
 
   // 3) Otherwise it may be a teacher-authored activity background (template pages
