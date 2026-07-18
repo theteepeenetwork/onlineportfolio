@@ -13,10 +13,11 @@ export default async function PoppedInPage() {
   // The child is signed in when they land here; speak their class's register
   // (SJ-06). Fall back to the younger wording if the session can't be read.
   const user = await getCurrentUser();
-  const c = studentCopy(user?.role === "STUDENT" ? user.student.ageMode : "KS1");
+  const mode = user?.role === "STUDENT" ? user.student.ageMode : "KS1";
+  const c = studentCopy(mode);
 
   return (
-    <div className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "40px 20px" }}>
+    <div className="sj" data-ks={mode} style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "40px 20px" }}>
       <ClearMarkedDraft />
       <div data-anim="jar" style={{ position: "relative" }}>
         <svg width="300" height="380" viewBox="0 0 380 480" style={{ overflow: "visible" }} aria-label="Your moment dropping into your jar">
@@ -40,9 +41,9 @@ export default async function PoppedInPage() {
           <g data-anim="twinkle"><path transform="translate(300,110) scale(0.6) rotate(-10)" d={TWINKLE} fill="#E08A9B" /></g>
         </svg>
       </div>
-      <h1 style={{ margin: "10px 0 0", font: "600 54px var(--font-fredoka)", color: "#37796f" }}>{c.celebration.heading}</h1>
-      <p style={{ margin: "12px 0 0", font: "400 26px var(--font-atkinson)", color: "var(--ink-soft)" }}>{c.celebration.subtitle}</p>
-      <Link href="/student" style={{ marginTop: 34, minHeight: 72, display: "inline-flex", alignItems: "center", font: "600 26px var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "3px solid var(--ink)", borderRadius: 999, padding: "14px 48px", textDecoration: "none", boxShadow: "0 5px 0 var(--jam-deep)", gap: 12 }}>{c.add.backToJar} <Icon name="jar" size={30} decorative /></Link>
+      <h1 style={{ margin: "10px 0 0", font: "600 calc(54px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "#37796f" }}>{c.celebration.heading}</h1>
+      <p style={{ margin: "12px 0 0", font: "400 calc(26px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--ink-soft)" }}>{c.celebration.subtitle}</p>
+      <Link href="/student" style={{ marginTop: 34, minHeight: 72, display: "inline-flex", alignItems: "center", font: "600 calc(26px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "3px solid var(--ink)", borderRadius: 999, padding: "14px 48px", textDecoration: "none", boxShadow: "0 5px 0 var(--jam-deep)", gap: 12 }}>{c.add.backToJar} <Icon name="jar" size={30} decorative /></Link>
     </div>
   );
 }

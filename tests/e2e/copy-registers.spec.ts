@@ -90,3 +90,17 @@ test("an older class shows the older register on the jar", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Bye bye 👋" })).toHaveCount(0);
 });
+
+// The older register also reads ~15% tighter (SJ-06 type scale, driven by the
+// same data-ks switch). The same heading is measurably smaller on the older
+// class than the younger one, and the younger one is left exactly as it was.
+test("the older register renders a tighter type scale", async ({ page }) => {
+  const h1Size = async (code: string) => {
+    await page.goto(`/login/student?code=${code}`);
+    return page.locator("h1").first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  };
+  const younger = await h1Size("SUN234"); // KS1
+  const older = await h1Size("BUG456"); // KS2
+  expect(older).toBeLessThan(younger);
+  expect(older / younger).toBeCloseTo(0.85, 1); // ~15% tighter, off the switch
+});
