@@ -1,0 +1,96 @@
+# Age-mode copy — the older-child register (SJ-06)
+
+> **This is a draft for you to redline.** The **Younger** column is what ships
+> today and does not change. The **Older (draft)** column is my suggested KS2
+> wording — **mark it up**: cross out, rewrite, or write "same" to keep the
+> younger version. When it's settled, PR 11 builds `studentCopy(mode)` from it.
+
+## How to read it
+
+Every child-facing string is one of three kinds:
+
+- **🔒 Locked** — five strings carry a safeguarding promise. You may *reword*
+  them for an older child, but the meaning must survive and they must never
+  become jargon ("Pending review", "Invalid"). They are called out inline.
+- **= Neutral** — same words for every age. Mostly the sign-in **code** screen,
+  which runs *before* we know which class (and therefore which register) is
+  coming, so it can't be age-aware. Listed once, at the end.
+- **↔ Swaps** — the ones that actually change between registers. This is the
+  work: about 15 strings. The table below.
+
+**The brief for "Older":** calm, not corporate. A Year 6 disowns "Bye bye 👋",
+but they also disown "Submission received". Aim for how you'd speak to an
+eleven-year-old you respect — plainer and a touch drier than the younger voice,
+never babyish, never a form. Roughly 15% terser reads as respect.
+
+---
+
+## ↔ The strings that swap
+
+| # | Where | Younger (ships today) | Older (draft — **redline me**) | Note |
+|---|-------|-----------------------|--------------------------------|------|
+| 1 | Sign out button (home) | `Bye bye 👋` | `Sign out` | The audit's own example. |
+| 2 | Name wall heading | `Tap your name!` | `Tap your name` | Older loses the exclamation, keeps the instruction. |
+| 3 | "It saved" celebration | `Popped in!` | `Added ✓` | |
+| 4 | …its subtitle | `Your teacher will see it soon.` | `Your teacher will see it first.` | Aligns with the locked promise 🔒#1 below; calmer. |
+| 5 | Saving spinner | `Popping it in…` | `Adding…` | |
+| 6 | Just-arrived tile | `This went in your jar!` | `Added to your jar` | Statement, not a cheer. |
+| 7 | Returned strip | `Have another go — your teacher sent it back` | `Sent back — have another go` | Same words, older leads with the fact. |
+| 8 | Returned tag (short) | `Have another go` | `Redo` | The tiny kraft tag; older can be terser. |
+| 9 | Submit button (add work) | `Add to my jar` | `Add to my jar` | Draft: keep. Or `Add to my journal` if "jar" reads young to a Y6 — **your call.** |
+| 10 | Waiting status | `Waiting for your teacher to see it` | `Waiting for your teacher` | Already calm; older just trims. |
+| 11 | Words-capture heading | `My words` | `My words` | Draft: keep. `Your words`? |
+| 12 | Photo caption example | `I made a tower with the big blocks…` | `What is this? Where were you?` | A prompt, not a toddler's example. |
+| 13 | Words example | `Today I…` | `Today I…` | Draft: keep — works at any age. |
+| 14 | Activities: handed-in state | `Handed in` → becoming `In the jar ✓` (SJ-08) | `Handed in ✓` | SJ-08 already restyles this; older keeps the plainer word. |
+| 15 | "Wrong class" link | `← Wrong class?` | `← Not your class?` | Draft; both fine. |
+
+**Anything you'd add or split?** e.g. if "jar" itself should become "journal"
+for KS2, that's one find-and-replace and I'll wire it — say the word and I'll add
+a row for every "jar".
+
+---
+
+## 🔒 Locked — reword for age, but the meaning must survive
+
+These five carry the safeguarding promise. **Redline the wording, not the
+substance.** If a rewrite loses the meaning, I'll flag it back rather than ship.
+
+| # | Where | Current (both ages today) | Must always mean | Older (draft) |
+|---|-------|---------------------------|------------------|----------------|
+| 🔒1 | Before you hand work in | `Your teacher will see it first.` | *nothing is public until your teacher approves it* | `Your teacher checks it first.` |
+| 🔒2 | Caption is optional | `You don't have to.` | *you are not stuck; this field is skippable* | `Optional.` |
+| 🔒3 | Empty name wall | `No names here yet — ask your teacher to add you.` | *not your fault; the fix is to ask the teacher* | `No names here yet — ask your teacher.` |
+| 🔒4 | Wrong class code | `We couldn't find that class code. Have another go!` | *you did nothing wrong; try again, no blame* | `We couldn't find that code. Try again.` |
+| 🔒5 | Disabled keypad key | `{X} is never in a class code` | *this key is intentionally dead, here's why* | `{X} isn't used in codes` |
+
+---
+
+## = Neutral — same for every age (no redline needed)
+
+The sign-in **code** screen runs before the class (and its register) is known,
+so it stays one voice for everyone. Also a few labels that read fine at any age.
+
+`What's your class code?` · `Your teacher will show you.` · `Next` ·
+`Delete the last letter` · `Hear it` · `Take a photo` · `Tell us about your
+work` · `Back to my jar` · `My activities` · `My moments` · `All done ✓` ·
+`{n} to do` · `Add {letter}` · `Letter {i} of {total}`
+
+*(If any of these strike you as too young for a Y6, move them up into the swap
+table and I'll make them age-aware.)*
+
+---
+
+## What happens after you redline
+
+1. You mark up the **Older** columns above.
+2. I turn `studentCopy` into `studentCopy(mode)` — one object per register,
+   sharing the neutral strings — and thread the class's `ageMode` through.
+   (This is PR 11; it also seeds the `data-ks` attribute that drives the ~15%
+   type-scale tightening and the halved motion durations, so the register,
+   the size and the pace all move together off one switch.)
+3. The five 🔒 strings get a test asserting both registers still contain the
+   promised meaning, so a future copy edit can't quietly drop it.
+
+**Nothing here is built yet** — this doc is the input, and it's the artefact a
+reviewer (and a DPO, for the 🔒 five) will want anyway.
