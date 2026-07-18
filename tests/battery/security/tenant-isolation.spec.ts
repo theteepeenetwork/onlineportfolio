@@ -334,7 +334,7 @@ test.describe("A1 · Class-code rotation is scoped to the owning teacher", () =>
   // printable-code and export links carry it — same as obtaining a pupil id
   // from the login card in the F1 test).
   async function schoolAClassId(page: import("@playwright/test").Page): Promise<string> {
-    await loginTeacher(page, SCHOOL_A.admin); // owns Sunflower (SUN123)
+    await loginTeacher(page, SCHOOL_A.admin); // owns Sunflower (SUN234)
     await page.goto("/teacher/class");
     await page.getByText("Sunflower Class", { exact: true }).first().click();
     // The "Printable code" link in the class header carries the class id.

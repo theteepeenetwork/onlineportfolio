@@ -16,7 +16,7 @@ const VIEWPORTS = [
   { label: "low-end laptop", width: 1280, height: 720 },
 ];
 
-const PAGES = ["/", "/login/teacher", "/login/student?code=SUN123", "/family"];
+const PAGES = ["/", "/login/teacher", "/login/student?code=SUN234", "/family"];
 
 for (const vp of VIEWPORTS) {
   for (const url of PAGES) {

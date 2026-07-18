@@ -13,10 +13,10 @@ import { SCHOOL_A, SCHOOL_B, studentIdFromLogin } from "../helpers";
 // ===========================================================================
 
 test("a pupil id from another class cannot be used to sign in [F1]", async ({ page }) => {
-  // A real School B pupil id (Zara, class OAK111), obtained honestly.
+  // A real School B pupil id (Zara, class ACRN22), obtained honestly.
   const zaraId = await studentIdFromLogin(page, SCHOOL_B.classCode, SCHOOL_B.student);
 
-  // Now go to School A's login for a DIFFERENT class (SUN123) and tamper with a
+  // Now go to School A's login for a DIFFERENT class (SUN234) and tamper with a
   // name-card's hidden studentId so it points at the School B pupil.
   await page.goto(`/login/student?code=${SCHOOL_A.classCode}`);
   const firstForm = page.locator('form:has(input[name="studentId"])').first();

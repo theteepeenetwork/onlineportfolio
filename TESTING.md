@@ -102,7 +102,7 @@ with `npm run dev` and open http://localhost:3000.
 2. **Make an activity** — Activities → New activity → give it a title → Build a
    template → add a PDF or draw something → ✓ Done → assign to Whole class →
    Save. It appears in the list.
-3. **Sign out**, then **student sign-in** — class code `SUN123`, tap a name.
+3. **Sign out**, then **student sign-in** — class code `SUN234`, tap a name.
 4. **Do the activity** — My activities → open it. **The template should be on
    the canvas.** Draw on it, tap the green ✓.
 5. **Add to journal** — ＋ Add to my journal → Draw → scribble → ✓. It shows as

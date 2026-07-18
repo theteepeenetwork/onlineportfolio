@@ -7,7 +7,7 @@ import { teacherLogin } from "./helpers";
 // is that the OLD code stops working and a NEW one starts.
 //
 // This runs against a THROWAWAY class it creates itself, never the shared seed:
-// rotating SUN123 would break every later spec that signs a child in with it
+// rotating SUN234 would break every later spec that signs a child in with it
 // (the classic test-pollution trap — see the memory note).
 
 // Create an isolated class with one pupil; return its code and open detail.

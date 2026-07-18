@@ -17,7 +17,7 @@ misread, or get stuck — the things automated tests can't feel.
 
 ## Before you start (moderator checklist)
 
-- [ ] App running and reset to demo data (`teacher@school.uk` / `password`, class code `SUN123`).
+- [ ] App running and reset to demo data (`teacher@school.uk` / `password`, class code `SUN234`).
 - [ ] Both devices open to the Storyjar sign-in page.
 - [ ] Recording consent agreed (if recording). Screen + audio only; no faces.
 - [ ] Remind the participant: **"We're testing the software, not you. There are
