@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { studentLogin } from "@/app/actions/auth";
 import { JarLogo } from "@/components/storyjar/JarLogo";
 import { normaliseClassCode } from "@/lib/classCodeChars";
+import { avatarInk } from "@/lib/avatar";
 import { studentCopy } from "@/lib/copy/student";
 import { CodeEntry } from "./CodeEntry";
 
@@ -84,7 +85,7 @@ export default async function StudentLoginPage({
                       re-checks the pupil belongs to this class (SAFEGUARDING 4/8). */}
                   <input type="hidden" name="code" value={klass.classCode} />
                   <button type="submit" className="sj-namecard" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: "100%", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: "22px 10px", minHeight: 150, boxSizing: "border-box", boxShadow: "0 4px 0 rgba(34,48,74,0.12)", cursor: "pointer" }}>
-                    <span aria-hidden="true" style={{ width: 76, height: 76, borderRadius: "50%", background: s.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 34px var(--font-fredoka)", color: "#FFFDF7" }}>{s.name.charAt(0).toUpperCase()}</span>
+                    <span aria-hidden="true" style={{ width: 76, height: 76, borderRadius: "50%", background: s.avatarColor, display: "flex", alignItems: "center", justifyContent: "center", font: "600 34px var(--font-fredoka)", color: avatarInk(s.avatarColor) }}>{s.name.charAt(0).toUpperCase()}</span>
                     <span style={{ font: "600 24px var(--font-fredoka)", color: "var(--ink)" }}>{s.name}</span>
                   </button>
                 </form>
