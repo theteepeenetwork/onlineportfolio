@@ -1,9 +1,10 @@
 # Age-mode copy — the older-child register (SJ-06)
 
-> **This is a draft for you to redline.** The **Younger** column is what ships
-> today and does not change. The **Older (draft)** column is my suggested KS2
-> wording — **mark it up**: cross out, rewrite, or write "same" to keep the
-> younger version. When it's settled, PR 11 builds `studentCopy(mode)` from it.
+> **✅ APPROVED by the product owner 2026-07-18 — no changes requested.** Every
+> "Older" value below (including "journal", the "Added ✓" celebration, and the
+> five locked strings) is signed off as written. This is the build spec for PR 11:
+> `studentCopy(mode)` is built from these tables verbatim. The **Younger** column
+> is unchanged from what ships today.
 
 ## How to read it
 
