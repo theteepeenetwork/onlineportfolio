@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { createClass, deleteClass } from "@/app/actions/classes";
+import { createClass, deleteClass, rotateClassCode } from "@/app/actions/classes";
 import { addStudents, removeStudent } from "@/app/actions/roster";
 import { Icon } from "@/components/icons/Icon";
 
@@ -299,6 +299,8 @@ function SettingsStrip({ klass }: { klass: ClassCard }) {
       <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>
         Class code <strong style={{ letterSpacing: "0.12em" }}>{klass.code}</strong> · settings mode: use <strong>Remove</strong> beside a pupil to take them off the register.
       </p>
+      {/* Issue a new class code — the remedy for a leaked code (F16). */}
+      <RotateCodeZone klass={klass} />
       {/* Data export (F4) — download the whole class as JSON at any time. */}
       <a
         href={`/teacher/export/${klass.id}`}
@@ -308,6 +310,97 @@ function SettingsStrip({ klass }: { klass: ClassCard }) {
         <Icon name="download" size={18} decorative /> Export class data
       </a>
       <DeleteClassZone klass={klass} />
+    </div>
+  );
+}
+
+// Issue a NEW class code, retiring the current one. The point is to be reachable
+// the moment a code leaks (an excluded parent, a code shared too widely) — until
+// this existed, the only remedy was deleting the class and rebuilding it by hand.
+//
+// Not destructive (no data lost, nobody signed out), so a single clear confirm
+// rather than delete's typed-name friction — but the confirm MUST spell out the
+// real consequence, because it's easy to miss: the printed sheet and QR stop
+// working and need reprinting, and every child now uses the new code.
+function RotateCodeZone({ klass }: { klass: ClassCard }) {
+  const [open, setOpen] = useState(false);
+  const [state, action, pending] = useActionState(rotateClassCode, {});
+
+  const close = () => setOpen(false);
+  const done = Boolean(state.code); // a new code came back
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <div>
+      <button onClick={() => setOpen(true)} style={{ ...OUTLINE_BTN, display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <Icon name="redo" size={18} decorative /> New class code…
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`New class code for ${klass.name}`}
+          onClick={close}
+          style={{ position: "fixed", inset: 0, background: "rgba(34,48,74,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 100 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="sj-card" style={{ maxWidth: 470, width: "100%", padding: "26px 26px 24px", textAlign: "left" }}>
+            {!done ? (
+              <>
+                <h3 style={{ margin: "0 0 8px", font: "600 24px var(--font-fredoka)", color: "var(--ink)" }}>Get a new code for “{klass.name}”?</h3>
+                <p style={{ margin: "0 0 12px", font: "400 15px/1.55 var(--font-atkinson)", color: "var(--ink-soft)" }}>
+                  This gives your class a brand-new code and <strong>turns off the current one straight away</strong>. Use it if the code has been shared too widely, or with someone who shouldn’t have it.
+                </p>
+                <ul style={{ margin: "0 0 18px", paddingLeft: 20, font: "400 15px/1.6 var(--font-atkinson)", color: "var(--ink-soft)" }}>
+                  <li>The printed sheet and its QR code will need <strong>reprinting</strong>.</li>
+                  <li>Children sign in with the <strong>new code</strong> from now on.</li>
+                  <li>Anyone with the old code can no longer use it.</li>
+                  <li>Children already signed in <strong>stay signed in</strong>.</li>
+                </ul>
+                {state.error && (
+                  <p role="alert" style={{ margin: "0 0 12px", font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</p>
+                )}
+                <form action={action} style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  {/* Uncontrolled (defaultValue): the id never changes while the
+                      dialog is open, and a controlled value would be reset by
+                      useActionState's pending re-render at submit time — which
+                      silently defeats the cross-tenant tamper test. */}
+                  <input type="hidden" name="classId" defaultValue={klass.id} />
+                  <button type="button" onClick={close} style={OUTLINE_BTN}>Cancel</button>
+                  <button type="submit" disabled={pending} style={{ ...JAM_BTN, opacity: pending ? 0.7 : 1 }}>
+                    {pending ? "Making a new code…" : "Yes, new code"}
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <h3 style={{ margin: "0 0 8px", font: "600 24px var(--font-fredoka)", color: "var(--glass-ink)" }}>New code ready ✓</h3>
+                <p style={{ margin: "0 0 14px", font: "400 15px/1.55 var(--font-atkinson)", color: "var(--ink-soft)" }}>
+                  {klass.name}’s new class code is:
+                </p>
+                <p style={{ margin: "0 0 18px", font: "700 40px var(--font-fredoka)", letterSpacing: "0.14em", color: "var(--ink)", textAlign: "center" }}>{state.code}</p>
+                <p style={{ margin: "0 0 18px", font: "400 15px/1.55 var(--font-atkinson)", color: "var(--ink-soft)" }}>
+                  Reprint the sign-in sheet so the children have the new code and QR.
+                </p>
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <Link href={`/signup/teacher/welcome?class=${klass.id}`} style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <Icon name="print" size={18} decorative /> Print the new code
+                  </Link>
+                  <button onClick={close} style={JAM_BTN}>Done</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
