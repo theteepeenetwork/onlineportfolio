@@ -41,6 +41,67 @@ export async function createClass(
   return {};
 }
 
+// Teacher changes a class's age mode (younger / older) after it was created.
+//
+// Age mode is a per-class DISPLAY choice — it sets how that class's children's
+// screens read (jar vs journal, copy, type scale, motion). It is NOT data about
+// a child and carries no personal data (see src/lib/ageMode.ts, RETENTION.md).
+// The choice is made once at creation, but a teacher can get it wrong — a class
+// moves up a year, or it was skipped — so this lets them correct it.
+//
+// Like createClass it is a normal edit, so it is:
+//   - scoped to a class THIS teacher owns (deny by default otherwise — rule 4/8);
+//   - write-gated (blocked in a frozen account, exactly like creating a class);
+//   - audited (rule 16): it changes how children's screens behave, so we record
+//     who changed it and to which register — but never any child data.
+// Unlike creation, an explicit value is always chosen here (we are reflecting a
+// stored setting, not asking a fresh unnudged question), so we store "KS1"/"KS2"
+// rather than NULL.
+export async function updateAgeMode(
+  _prev: { error?: string; saved?: boolean; mode?: "KS1" | "KS2" } | undefined,
+  formData: FormData,
+): Promise<{ error?: string; saved?: boolean; mode?: "KS1" | "KS2" }> {
+  const user = await getCurrentUser();
+  if (user?.role !== "TEACHER") redirect("/");
+
+  const gate = await requireWritableAccount();
+  if (!gate.ok) return { error: FROZEN_TEACHER_MESSAGE };
+
+  const ageMode = normaliseAgeModeInput(formData.get("ageMode"));
+  if (ageMode !== "KS1" && ageMode !== "KS2") {
+    return { error: "Please choose which children this class is for." };
+  }
+
+  const classId = String(formData.get("classId") ?? "");
+
+  // Ownership-scoped: only a class this teacher owns is visible here.
+  const klass = await db.class.findFirst({
+    where: { id: classId, teacherId: user.teacher.id },
+    select: { id: true, name: true },
+  });
+  // Deny by default: not found / not theirs → do nothing, leak nothing.
+  if (!klass) return { error: "That class isn't available." };
+
+  await db.class.update({ where: { id: klass.id }, data: { ageMode } });
+
+  await recordAudit({
+    action: "CLASS_AGE_MODE_CHANGED",
+    actorType: "TEACHER",
+    actorId: user.teacher.id,
+    actorName: user.teacher.displayName,
+    schoolId: user.teacher.schoolId,
+    subjectType: "CLASS",
+    subjectId: klass.id,
+    detail: `Set "${klass.name}" to ${ageMode === "KS2" ? "older" : "younger"} children (${ageMode})`,
+  });
+
+  revalidatePath("/teacher/class");
+  revalidatePath("/teacher");
+  // Echo the saved register back so the form knows the new stored value without
+  // waiting on the surrounding page to re-render.
+  return { saved: true, mode: ageMode };
+}
+
 // Teacher issues a NEW class code, retiring the current one.
 //
 // The remedy for a leaked code. Until now a code was set once at class creation

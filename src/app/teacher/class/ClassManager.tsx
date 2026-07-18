@@ -2,9 +2,11 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { createClass, deleteClass, rotateClassCode } from "@/app/actions/classes";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClass, deleteClass, rotateClassCode, updateAgeMode } from "@/app/actions/classes";
 import { addStudents, removeStudent } from "@/app/actions/roster";
 import { Icon } from "@/components/icons/Icon";
+import type { AgeMode } from "@/lib/ageMode";
 
 export type RosterChild = {
   id: string;
@@ -20,6 +22,7 @@ export type ClassCard = {
   id: string;
   name: string;
   year: string;
+  ageMode: AgeMode;
   code: string;
   color: string;
   jarFill: string;
@@ -91,51 +94,42 @@ const DANGER_OUTLINE_BTN: React.CSSProperties = {
 };
 
 export function ClassManager({ classes }: { classes: ClassCard[] }) {
-  const [openId, setOpenId] = useState<string | null>(null);
+  const router = useRouter();
+  const params = useSearchParams();
   const [creating, setCreating] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
   const [settings, setSettings] = useState(false);
 
-  // Interruption resilience (FINDINGS F12): a *reload* shouldn't lose your place.
-  // Restore the open class (and add-child panel) from sessionStorage ONLY when
-  // the page was reloaded — not on normal navigation, so clicking "Classes" in
-  // the nav still lands on the grid as expected. Transient storage (cleared on
-  // tab close) keeps nothing on the device longer than the working session.
+  // The open class lives in the URL (?class=<id>), not in component state. That
+  // makes the URL the single source of truth: landing on /teacher/class — via
+  // the "My classes" nav, a bookmark, or a typed URL — has no ?class, so it
+  // ALWAYS shows the grid, never the last class you had open. Reload keeps you
+  // where you were only because the id is in the URL you reloaded.
+  const openId = params.get("class");
+  const open = classes.find((c) => c.id === openId) ?? null;
+
+  // Interruption resilience (FINDINGS F12): a half-typed register must not be
+  // lost to a reload. The draft text itself is kept by AddChildForm in
+  // sessionStorage; here we simply re-open the Add-pupil panel on a reload when
+  // a draft survives for the open class, so that recovered text is visible
+  // again. Reload-only (Navigation Timing), so normal navigation stays clean.
   useEffect(() => {
     try {
       const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-      if (nav?.type !== "reload") return;
-      const saved = JSON.parse(sessionStorage.getItem("sj-class-place") || "null");
-      if (saved && classes.some((c) => c.id === saved.openId)) {
-        setOpenId(saved.openId);
-        setAddingChild(!!saved.addingChild);
-      }
+      if (nav?.type !== "reload" || !openId) return;
+      const draft = sessionStorage.getItem(`sj-draft-add-${openId}`);
+      if (draft && draft.trim()) setAddingChild(true);
     } catch {
       /* ignore malformed state / missing API */
     }
     // Mount only — restore once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => {
-    try {
-      if (openId) sessionStorage.setItem("sj-class-place", JSON.stringify({ openId, addingChild }));
-      else sessionStorage.removeItem("sj-class-place");
-    } catch {
-      /* storage unavailable — non-fatal */
-    }
-  }, [openId, addingChild]);
-
-  const open = classes.find((c) => c.id === openId) ?? null;
-
-  // If the open class disappears (e.g. deleted), fall back to the grid.
-  useEffect(() => {
-    if (openId && !open) setOpenId(null);
-  }, [openId, open]);
 
   const openClass = (id: string) => {
-    setOpenId(id);
     setAddingChild(false);
     setSettings(false);
+    router.push(`/teacher/class?class=${encodeURIComponent(id)}`);
   };
 
   if (open) {
@@ -144,7 +138,7 @@ export function ClassManager({ classes }: { classes: ClassCard[] }) {
         klass={open}
         addingChild={addingChild}
         settings={settings}
-        onBack={() => setOpenId(null)}
+        onBack={() => router.push("/teacher/class")}
         onToggleAdd={() => setAddingChild((v) => !v)}
         onToggleSettings={() => setSettings((v) => !v)}
       />
@@ -295,22 +289,103 @@ function RosterView({
 
 function SettingsStrip({ klass }: { klass: ClassCard }) {
   return (
-    <div className="sj-card" style={{ marginTop: 14, padding: "16px 20px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-      <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>
-        Class code <strong style={{ letterSpacing: "0.12em" }}>{klass.code}</strong> · settings mode: use <strong>Remove</strong> beside a pupil to take them off the register.
-      </p>
-      {/* Issue a new class code — the remedy for a leaked code (F16). */}
-      <RotateCodeZone klass={klass} />
-      {/* Data export (F4) — download the whole class as JSON at any time. */}
-      <a
-        href={`/teacher/export/${klass.id}`}
-        download
-        style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}
-      >
-        <Icon name="download" size={18} decorative /> Export class data
-      </a>
-      <DeleteClassZone klass={klass} />
+    <div className="sj-card" style={{ marginTop: 14, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>
+          Class code <strong style={{ letterSpacing: "0.12em" }}>{klass.code}</strong> · settings mode: use <strong>Remove</strong> beside a pupil to take them off the register.
+        </p>
+        {/* Issue a new class code — the remedy for a leaked code (F16). */}
+        <RotateCodeZone klass={klass} />
+        {/* Data export (F4) — download the whole class as JSON at any time. */}
+        <a
+          href={`/teacher/export/${klass.id}`}
+          download
+          style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}
+        >
+          <Icon name="download" size={18} decorative /> Export class data
+        </a>
+        <DeleteClassZone klass={klass} />
+      </div>
+      {/* Change which children the class is for (SJ-06 age mode). */}
+      <AgeModeSwitch klass={klass} />
     </div>
+  );
+}
+
+// Change a class's age mode (younger / older) after creation. Unlike the
+// creation form — which deliberately pre-selects NOTHING so it can't nudge a
+// fresh choice (Children's Code) — here we are editing a setting that already
+// has a value, so the current register is shown selected. Nothing is saved
+// until the teacher presses Save, and picking the option already in force is a
+// no-op the button reflects (nothing to save).
+function AgeModeSwitch({ klass }: { klass: ClassCard }) {
+  const [state, action, pending] = useActionState(updateAgeMode, {});
+  const [choice, setChoice] = useState<AgeMode>(klass.ageMode);
+
+  // The stored register. After a save the action echoes it back (`state.mode`),
+  // so we know the new baseline immediately — no dependence on the surrounding
+  // page re-rendering. `changed` then flips back to false on its own once the
+  // selection matches what was just saved, showing the "Saved ✓" note.
+  const baseline: AgeMode = state.saved && state.mode ? state.mode : klass.ageMode;
+  const changed = choice !== baseline;
+
+  // A real radiogroup, but built from buttons rather than <input type="radio">:
+  // a native radio group manages its own checked state in the DOM, which fights
+  // React's controlled `checked` across the Server Action re-render and can
+  // leave the wrong option visually selected. Buttons are driven purely by
+  // `choice`, so what you see always matches what will be saved.
+  const OPTIONS = [
+    { value: "KS1" as const, label: "Younger children", hint: "Nursery to Year 2" },
+    { value: "KS2" as const, label: "Older children", hint: "Years 3 to 6" },
+  ];
+
+  return (
+    <form action={action} style={{ borderTop: "2px dashed #EDE4D2", paddingTop: 14 }}>
+      <input type="hidden" name="classId" value={klass.id} />
+      <input type="hidden" name="ageMode" value={choice} />
+      <p style={{ margin: "0 0 8px", font: "700 14px var(--font-atkinson)", color: "var(--ink)" }}>
+        Which children is this class for?{" "}
+        <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+          Sets how the children&rsquo;s screens read.
+        </span>
+      </p>
+      <div role="radiogroup" aria-label="Which children is this class for?" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
+        {OPTIONS.map((o) => {
+          const active = choice === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setChoice(o.value)}
+              style={{ flex: 1, minWidth: 200, display: "flex", gap: 10, alignItems: "flex-start", textAlign: "left", padding: "12px 14px", border: `2px solid ${active ? "var(--ink)" : "var(--sj-hairline, #E6E0D2)"}`, borderRadius: 12, cursor: "pointer", background: active ? "var(--paper)" : "transparent", font: "400 15px var(--font-atkinson)", color: "var(--ink)" }}
+            >
+              <span aria-hidden="true" style={{ marginTop: 2, width: 18, height: 18, borderRadius: "50%", border: `2px solid ${active ? "var(--jam)" : "var(--sj-muted)"}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {active && <span style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--jam)" }} />}
+              </span>
+              <span>
+                <span style={{ display: "block", font: "700 15px var(--font-atkinson)" }}>{o.label}</span>
+                <span style={{ color: "var(--sj-muted)" }}>{o.hint}</span>
+              </span>
+            </button>
+          );
+        })}
+        <button
+          type="submit"
+          disabled={!changed || pending}
+          style={{ ...JAM_BTN, alignSelf: "center", opacity: !changed || pending ? 0.5 : 1, cursor: !changed || pending ? "default" : "pointer" }}
+        >
+          {pending ? "Saving…" : "Save"}
+        </button>
+      </div>
+      <div aria-live="polite" style={{ minHeight: 20, marginTop: 8 }}>
+        {state.error && <span role="alert" style={{ font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</span>}
+        {!state.error && state.saved && !changed && (
+          <span style={{ font: "700 14px var(--font-atkinson)", color: "var(--glass-ink)" }}>Saved ✓</span>
+        )}
+      </div>
+    </form>
   );
 }
 
