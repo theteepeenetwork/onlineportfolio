@@ -126,6 +126,17 @@ roster disclosure. Re-verify if the hosting edge ever changes.
 Note the child-facing PIN planned for KS2 does **not** answer this — the roster
 is disclosed before any PIN is reached.
 
+**Rotation shipped (the remedy half).** `rotateClassCode` (`actions/classes.ts`)
+lets a teacher issue a new code and retire the old one — reachable from Class
+settings the moment a code leaks. Until this existed, a leaked code had no fix
+short of rebuilding the class by hand, so hardening a code nobody could change
+was only half an answer. Scoped to the owning teacher, not write-gated (a leak
+must be revocable even in a frozen account), audited without logging the new
+code. Guards: `security/tenant-isolation.spec.ts` (School B cannot rotate School
+A's code — proved red) and `e2e/class-code-rotation.spec.ts` (old code dies, new
+works, signed-in children stay in). The **throttle half is still open** — this
+closes the "no remedy" gap, not the unthrottled-lookup/disclosure one.
+
 ---
 
 ## F1 · Student session from a client-supplied `studentId` — High → Fixed

@@ -325,3 +325,50 @@ test.describe("A1 · Admin console is school-scoped", () => {
     await expect(page).not.toHaveURL(/\/admin$/);
   });
 });
+
+// A teacher can issue a new class code (F16 remedy). It takes a `classId`, so —
+// like every id-taking action — it must be scoped to a class THIS teacher owns.
+// A crafted classId from another school must change nothing.
+test.describe("A1 · Class-code rotation is scoped to the owning teacher", () => {
+  // School A's class id, read honestly from School A's own class page (the
+  // printable-code and export links carry it — same as obtaining a pupil id
+  // from the login card in the F1 test).
+  async function schoolAClassId(page: import("@playwright/test").Page): Promise<string> {
+    await loginTeacher(page, SCHOOL_A.admin); // owns Sunflower (SUN123)
+    await page.goto("/teacher/class");
+    await page.getByText("Sunflower Class", { exact: true }).first().click();
+    // The "Printable code" link in the class header carries the class id.
+    const href = await page.locator('a[href*="/signup/teacher/welcome?class="]').first().getAttribute("href");
+    const id = new URL(href ?? "", "http://x").searchParams.get("class") ?? "";
+    expect(id).toBeTruthy();
+    return id;
+  }
+
+  test("School B teacher cannot rotate School A's class code", async ({ page }) => {
+    const schoolAId = await schoolAClassId(page);
+    await clearSession(page);
+
+    // School B teacher, on their OWN class settings — a page they're entitled to.
+    await loginTeacher(page, SCHOOL_B.teacher);
+    await page.goto("/teacher/class");
+    await page.getByText(/Acorn/).first().click();
+    await page.getByRole("button", { name: /Class settings/ }).click();
+    await page.getByRole("button", { name: /New class code/ }).click();
+
+    // Tamper the hidden classId to point at School A's class, then submit.
+    await page.locator('[role="dialog"] input[name="classId"]').evaluate((el, id) => {
+      (el as HTMLInputElement).value = id as string;
+    }, schoolAId);
+    await page.locator('[role="dialog"]').getByRole("button", { name: /Yes, new code/ }).click();
+
+    // Deny by default: no "new code ready", and — the real assertion — School A's
+    // code is UNCHANGED. Its own pupils can still sign in with it.
+    await expect(page.getByRole("heading", { name: /new code ready/i })).toHaveCount(0);
+    await clearSession(page);
+    await page.goto(`/login/student?code=${SCHOOL_A.classCode}`);
+    await expect(
+      page.getByRole("heading", { name: /tap your name/i }),
+      "School A's code must still work — a School B teacher could not rotate it",
+    ).toBeVisible();
+  });
+});
