@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
 import { studentLogin } from "@/app/actions/auth";
 import { JarLogo } from "@/components/storyjar/JarLogo";
 import { normaliseClassCode } from "@/lib/classCodeChars";
+import { lookupClassByCode } from "@/lib/classCodeLookup";
 import { avatarInk } from "@/lib/avatar";
 import { studentCopy } from "@/lib/copy/student";
 import { CodeEntry } from "./CodeEntry";
@@ -21,17 +21,18 @@ export default async function StudentLoginPage({
 }) {
   const { code, preview } = await searchParams;
   const isPreview = preview === "1";
-  // Strip ALL whitespace, not just the ends: the old screen modelled the code as
-  // "ABC 123" in its placeholder and allowed 7 characters, but only trimmed —
-  // so a child who typed exactly what they were shown could never match.
-  const normalised = code === undefined ? "" : normaliseClassCode(code);
+  // Whether a real code was typed at all, for the not-found wobble below.
+  // normaliseClassCode strips ALL whitespace (not just the ends: the old screen
+  // modelled the code as "ABC 123" and allowed 7 characters but only trimmed, so
+  // a child who typed exactly what they were shown could never match) and drops
+  // impossible characters, so an all-junk entry normalises away to nothing.
+  const codeEntered = code !== undefined && normaliseClassCode(code) !== "";
 
-  const klass = normalised
-    ? await db.class.findUnique({
-        where: { classCode: normalised },
-        include: { students: { orderBy: { name: "asc" } } },
-      })
-    : null;
+  // Resolve the code through the throttled helper (FINDINGS F16): the lookup is
+  // rate-limited so this plain GET can't be ground for the roster, and a
+  // throttled request returns null — indistinguishable from a wrong code, which
+  // is what a child sees as the same gentle "have another go" wobble.
+  const klass = await lookupClassByCode(code);
 
   return (
     <div
@@ -58,7 +59,7 @@ export default async function StudentLoginPage({
           <h1 style={{ margin: "clamp(8px, 1.6vh, 16px) 0 0", font: "600 clamp(28px, 4.6vw, 44px) var(--font-fredoka)" }}>{studentCopy.signIn.codeHeading}</h1>
           <p style={{ margin: "8px 0 0", font: "400 clamp(15px, 2vw, 19px) var(--font-atkinson)", color: "var(--ink-soft)" }}>{studentCopy.signIn.codeHelp}</p>
 
-          <CodeEntry notFound={Boolean(normalised)} />
+          <CodeEntry notFound={codeEntered} />
         </div>
       ) : (
         /* ── Stage 2: tap your name ── */
