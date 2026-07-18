@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { markJarSeen } from "@/app/actions/journal";
-import { studentCopy } from "@/lib/copy/student";
+import { studentCopyNeutral } from "@/lib/copy/student";
 
-const c = studentCopy.status;
+// Only the register-independent "Waiting" is read here (see JarSummary), so the
+// neutral pack is enough — this component needs no age mode.
+const c = studentCopyNeutral.status;
 
 // The jar, doing the job the sentences were doing badly.
 //

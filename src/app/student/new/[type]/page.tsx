@@ -25,5 +25,5 @@ export default async function StudentCapturePage({
   if (!(type in SURFACES)) notFound();
 
   const kind = SURFACES[type as Surface];
-  return kind === "DRAWING" ? <StudentDrawCapture /> : <StudentCapture type={kind} />;
+  return kind === "DRAWING" ? <StudentDrawCapture /> : <StudentCapture type={kind} mode={user.student.ageMode} />;
 }

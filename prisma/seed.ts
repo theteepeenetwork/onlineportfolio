@@ -100,8 +100,11 @@ async function main() {
   const sunflower = await db.class.create({
     data: { name: "Sunflower Class", classCode: "SUN234", teacherId: teacher.id },
   });
+  // Ladybird is the demo's OLDER class (SJ-06 KS2 register), so the two
+  // registers are both visible in the demo and testable. Sunflower stays
+  // younger (ageMode null → KS1).
   const ladybird = await db.class.create({
-    data: { name: "Ladybird Class", classCode: "BUG456", teacherId: teacher.id },
+    data: { name: "Ladybird Class", classCode: "BUG456", ageMode: "KS2", teacherId: teacher.id },
   });
 
   // The REAL palette, not a lookalike. This used to be six hardcoded Tailwind

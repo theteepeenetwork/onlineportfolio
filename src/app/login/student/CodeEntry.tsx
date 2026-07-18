@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { studentCopy } from "@/lib/copy/student";
+import { studentCopyNeutral } from "@/lib/copy/student";
 import { CODE_LENGTH, KEYPAD_DIGITS, KEYPAD_LETTERS, isCodeChar } from "@/lib/classCodeChars";
 import { canReadAloud, readAloud } from "@/lib/readAloud";
 
-const c = studentCopy.signIn;
+// The code screen runs before we know the class, so its register is unknown —
+// it always uses the neutral (younger, gentlest) wording. See studentCopyNeutral.
+const c = studentCopyNeutral.signIn;
 
 // The full alphabet and 0–9, in the order a child expects. Rows of nine keep it
 // inside an iPad's width. Keys the code alphabet excludes are shown but inert —
