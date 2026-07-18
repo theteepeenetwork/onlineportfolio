@@ -107,6 +107,21 @@ out the whole school. This path needs a miss-only counter with a classroom-safe
 threshold (~40–60/15min), and *the test proving honest classrooms aren't locked
 out matters more than the one proving the throttle works.*
 
+**Verified 2026-07-17 — the throttle key is NOT spoofable, so a limiter here is
+sound.** A separate worry was raised: `clientIp()` reads the *leftmost*
+`x-forwarded-for` value, which is attacker-controlled on any edge that *appends*
+to a client-supplied header — that would let anyone mint a fresh key per request
+and walk around every limiter in the app. Tested against the live Railway edge
+with a temporary diagnostic route (since removed): a forged
+`X-Forwarded-For: 1.1.1.1, 2.2.2.2` reached the app as `<real client IP>,
+<railway internal hop>` — Railway **overwrites** the header, discarding the
+forged chain. So leftmost = the real client, and the limiters (teacher login,
+family codes) are not bypassable. **Do not change `clientIp()` to the rightmost
+value** — that entry is Railway's internal hop and it *rotates* between requests,
+so keying on it would break the limiter. This de-risks *building* the F16
+throttle; it does **not** close F16, whose core is the unthrottled lookup and the
+roster disclosure. Re-verify if the hosting edge ever changes.
+
 **Scheduled:** with the SJ-02 sign-in rework, which rewrites this same file.
 Note the child-facing PIN planned for KS2 does **not** answer this — the roster
 is disclosed before any PIN is reached.

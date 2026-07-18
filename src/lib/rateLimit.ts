@@ -59,9 +59,27 @@ export function clearFailures(key: string): void {
   store.delete(key);
 }
 
-// Best-effort client identifier from proxy headers (Railway sets these). Falls
-// back to a constant so the limiter still works locally. Never used for storage
-// of personal data — only as a throttling key.
+// Client identifier from proxy headers, used only as a throttling key — never
+// stored, never personal data.
+//
+// The LEFTMOST value is deliberate and verified safe on this deployment. The
+// usual danger with `x-forwarded-for` is that an edge which APPENDS to a
+// client-supplied header leaves the attacker's value leftmost, so anyone can
+// mint a fresh throttle key per request by setting the header. That is NOT how
+// Railway behaves here.
+//
+// Verified against the live edge (2026-07-17, via a temporary diagnostic route,
+// since removed). A request arriving with a forged `X-Forwarded-For: 1.1.1.1,
+// 2.2.2.2` reached the app as `<real client IP>, <railway internal hop>` — the
+// forged chain discarded entirely. So:
+//   • leftmost  = the true client IP (also mirrored in `x-real-ip`) — correct.
+//   • rightmost = Railway's internal hop, which ROTATES between requests
+//                 (.1 / .4 / .2 seen across three calls) — keying on it would
+//                 throw unrelated clients together and break the limiter.
+//
+// Do NOT "harden" this to the rightmost value: on this infrastructure that is a
+// regression, not a fix. If the hosting edge ever changes, re-verify before
+// touching this line. See FINDINGS.md F16.
 export async function clientIp(): Promise<string> {
   const h = await headers();
   const fwd = h.get("x-forwarded-for");
