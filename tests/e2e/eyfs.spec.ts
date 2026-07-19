@@ -65,3 +65,18 @@ test("the jar bar unfolds the child's approved moments", async ({ page }) => {
   await expect(page.getByText("My rainbow dragon")).toBeVisible();
   await expect(page.getByText("My words", { exact: true })).toBeVisible();
 });
+
+test("EYFS keeps the sticker/praise payoff and the one-tap heart back", async ({ page }) => {
+  await signInAcorns(page, "Ava");
+  await page.getByRole("button", { name: /in your jar/i }).click();
+
+  // The teacher's praise note rides along on the moment (owner decision: EYFS
+  // keeps the feedback loop).
+  await expect(page.getByText(/What a bright dragon/)).toBeVisible();
+
+  // The child can send exactly one fixed heart back — never free text (rule 2).
+  const heart = page.getByRole("button", { name: /send a heart back/i });
+  await expect(heart).toBeVisible();
+  await heart.click();
+  await expect(page.getByText(/you sent a heart back/i)).toBeVisible();
+});

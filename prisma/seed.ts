@@ -368,7 +368,9 @@ async function main() {
   // Acorns (EYFS) — a few moments for Ava so the jar bar unfolds onto real work,
   // plus one PENDING so the waiting chip shows. Free (non-activity) moments.
   await db.journalItem.create({
-    data: { type: "DRAWING", caption: "My rainbow dragon", mediaPath: childMedia(SUN), status: "APPROVED", approvedAt: new Date(), authorRole: "STUDENT", studentId: acorn[0].id, classId: acorns.id },
+    // Carries the teacher's stickers + a praise note so the EYFS sticker/heart
+    // payoff (owner decision 2026-07-19) is visible in the demo and testable.
+    data: { type: "DRAWING", caption: "My rainbow dragon", mediaPath: childMedia(SUN), status: "APPROVED", approvedAt: new Date(), authorRole: "STUDENT", studentId: acorn[0].id, classId: acorns.id, stickersJson: JSON.stringify(["star", "love"]), praiseNote: "What a bright dragon, Ava!" },
   });
   await db.journalItem.create({
     data: { type: "TEXT", textContent: "Today I built a big tower", status: "APPROVED", approvedAt: new Date(), authorRole: "STUDENT", studentId: acorn[0].id, classId: acorns.id },

@@ -119,6 +119,12 @@ export default async function StudentHome() {
           mediaPath: isImageType(i.type) ? i.mediaPath : null,
           textContent: i.textContent,
           bandBg: kindOf(i.type).bg,
+          // The teacher's feedback the child gets to see (owner decision: EYFS
+          // keeps the sticker/praise payoff). Same scoping as every field here —
+          // this child's own approved moment only.
+          stickers: readStickers(i.stickersJson).map((s) => s.k),
+          praiseNote: i.praiseNote,
+          heartedBack: i.stickerReply === "HEART",
         }))}
         jarCount={published.length}
         waitingCount={waitingCount}

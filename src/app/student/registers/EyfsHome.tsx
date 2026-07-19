@@ -3,7 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Icon, type IconName } from "@/components/icons/Icon";
+import { Sticker } from "@/components/stickers/Sticker";
 import { LogoutForm } from "@/components/LogoutForm";
+import { sendStickerBack } from "@/app/actions/journal";
 import { studentCopy } from "@/lib/copy/student";
 import { avatarInk } from "@/lib/avatar";
 import type { AgeMode } from "@/lib/ageMode";
@@ -32,7 +34,21 @@ export type EyfsMoment = {
   mediaPath: string | null;
   textContent: string | null;
   bandBg: string;
+  // The teacher's feedback the child sees on their approved work (owner decision
+  // 2026-07-19: EYFS keeps the sticker/praise payoff). Sticker catalog keys, the
+  // kind note, and whether the child has already sent their one fixed heart back.
+  stickers: string[];
+  praiseNote: string | null;
+  heartedBack: boolean;
 };
+
+// Where the teacher's stickers land, peeled onto the moment's picture.
+const STICKER_SPOTS: React.CSSProperties[] = [
+  { top: 6, left: 6, transform: "rotate(-8deg)" },
+  { top: 8, right: 8, transform: "rotate(7deg)" },
+  { top: 72, left: 10, transform: "rotate(6deg)" },
+  { top: 70, right: 12, transform: "rotate(-6deg)" },
+];
 
 type Surface = "photo" | "draw" | "voice" | "words";
 type Open = Surface | "jar" | null;
@@ -277,7 +293,7 @@ function MomentCard({ m }: { m: EyfsMoment }) {
   const isImage = m.type === "PHOTO" || m.type === "DRAWING";
   return (
     <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 14, overflow: "hidden", boxShadow: "0 3px 0 rgba(34,48,74,0.12)" }}>
-      <div style={{ height: 130, background: m.bandBg, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+      <div style={{ position: "relative", height: 130, background: m.bandBg, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
         {isImage && m.mediaPath ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={m.mediaPath} alt={m.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -288,12 +304,53 @@ function MomentCard({ m }: { m: EyfsMoment }) {
         ) : (
           <Icon name="write" size={40} decorative />
         )}
+        {/* The teacher's stickers, peeled onto the picture (title = child caption,
+            React-escaped, never read aloud). */}
+        {m.stickers.map((k, i) => (
+          <span key={k} title={k} style={{ position: "absolute", ...(STICKER_SPOTS[i] ?? STICKER_SPOTS[0]) }}>
+            <Sticker k={k} size={38} />
+          </span>
+        ))}
       </div>
       <div style={{ padding: "8px 12px 10px" }}>
         <p style={{ margin: 0, font: "600 17px var(--font-fredoka)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.title}</p>
         <p style={{ margin: "2px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>{m.dateLabel}</p>
+        {m.praiseNote && (
+          <p style={{ margin: "6px 0 0", font: "400 13px/1.4 var(--font-atkinson)", color: "var(--ink-soft)" }}>💬 “{m.praiseNote}”</p>
+        )}
+        {m.stickers.length > 0 && <HeartBack itemId={m.id} hearted={m.heartedBack} />}
       </div>
     </div>
+  );
+}
+
+// The child's one reply to their teacher's stickers: a single fixed heart, never
+// free text (SAFEGUARDING rule 2). Mirrors StickerArrival's reply, sized for the
+// small jar-window card.
+function HeartBack({ itemId, hearted }: { itemId: string; hearted: boolean }) {
+  const [replied, setReplied] = useState(hearted);
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    if (replied || busy) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set("itemId", itemId);
+      await sendStickerBack(fd);
+      setReplied(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={send}
+      disabled={replied || busy}
+      style={{ marginTop: 8, minHeight: 56, font: "700 14px var(--font-atkinson)", color: replied ? "var(--jam)" : "var(--paper)", background: replied ? "none" : "var(--jam)", border: replied ? "none" : "3px solid var(--ink)", borderRadius: 999, padding: replied ? 0 : "6px 16px", cursor: replied ? "default" : "pointer", boxShadow: replied ? "none" : "0 3px 0 var(--jam-deep)", opacity: busy ? 0.7 : 1 }}
+    >
+      {replied ? "💛 You sent a heart back" : "Send a heart back 💛"}
+    </button>
   );
 }
 
