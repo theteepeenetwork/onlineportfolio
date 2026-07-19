@@ -11,6 +11,8 @@ import { StickerArrival } from "./StickerArrival";
 import { JarStatus, JarSummary } from "./JarStatus";
 import { StatusStrip } from "./StatusStrip";
 import { MarkSeenOnView } from "./MarkSeenOnView";
+import { AddToJar } from "./AddToJar";
+import { MyActivities } from "./MyActivities";
 
 // Look of a moment by its kind.
 const KIND = {
@@ -30,18 +32,6 @@ function kindOf(type: string) {
 function formatDate(d: Date) {
   return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 }
-
-// Each tile deep-links to the capture surface it names — no screen in between
-// asking the child to choose again (SJ-03). The labels are the ones a child
-// reads on their own jar, so the capture screens use the same words: the old
-// add screen called these "Photo / Write / Draw" while the jar called them
-// "Photo / Drawing / My words", which is two names for the same three things.
-const ADD_BUTTONS: { href: string; icon: IconName; label: string; bg: string }[] = [
-  { href: "/student/new/photo", icon: "camera", label: "Photo", bg: "#D8ECE8" },
-  { href: "/student/new/drawing", icon: "draw", label: "Drawing", bg: "#FBEED3" },
-  { href: "/student/new/audio", icon: "voice", label: "Voice", bg: "#EAF4F1" },
-  { href: "/student/new/words", icon: "write", label: "My words", bg: "#F7E0E6" },
-];
 
 export default async function StudentHome() {
   const user = await getCurrentUser();
@@ -84,19 +74,19 @@ export default async function StudentHome() {
       )?.teacher.displayName ?? "your teacher"
     : null;
 
-  // How many assigned activities are still to do?
-  const assignedIds = (
-    await db.assignment.findMany({
-      where: {
-        status: "LIVE",
-        OR: [
-          { wholeClass: true, classId: student.classId },
-          { wholeClass: false, students: { some: { studentId: student.id } } },
-        ],
-      },
-      select: { id: true },
-    })
-  ).map((a) => a.id);
+  // Assigned activities, newest first — carrying enough to render each as a
+  // preview card (title + instructions), not just a count.
+  const assigned = await db.assignment.findMany({
+    where: {
+      status: "LIVE",
+      OR: [
+        { wholeClass: true, classId: student.classId },
+        { wholeClass: false, students: { some: { studentId: student.id } } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, title: true, instructions: true },
+  });
   const respondedIds = new Set(
     (
       await db.journalItem.findMany({
@@ -106,7 +96,9 @@ export default async function StudentHome() {
       })
     ).map((r) => r.assignmentId),
   );
-  const todoCount = assignedIds.filter((id) => !respondedIds.has(id)).length;
+  // The still-to-do list (assigned and not handed in), newest first. The home
+  // shows the 3 most recent as cards and hides the rest behind a toggle.
+  const todoActivities = assigned.filter((a) => !respondedIds.has(a.id));
 
   return (
     <div className="sj" data-ks={mode} style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}>
@@ -167,29 +159,13 @@ export default async function StudentHome() {
           </div>
         )}
 
-        {/* add to my jar */}
-        <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: "24px 30px", boxShadow: "var(--pop-shadow)" }}>
-          <p style={{ margin: "0 0 16px", font: "600 calc(30px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{c.add.submit}</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 18 }}>
-            {ADD_BUTTONS.map((b) => (
-              <Link key={b.href} href={b.href} className="sj-addtile" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, minHeight: 88, background: b.bg, border: "3px solid var(--ink)", borderRadius: 16, textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
-                <Icon name={b.icon} size={40} decorative />
-                <span style={{ font: "600 calc(27px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--ink)" }}>{b.label}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
+        {/* add to my jar — tiles open their capture surface inline (accordion);
+            Drawing keeps its dedicated full-screen canvas. */}
+        <AddToJar mode={mode} />
 
-        {/* my activities (kept from the app — assigned tasks) */}
-        <Link href="/student/activities" className="sj-addtile" style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 18, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 16, padding: "16px 24px", textDecoration: "none", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
-          <Icon name="add-file" size={30} decorative />
-          <span style={{ flex: 1, font: "600 calc(22px * var(--sj-type-scale, 1)) var(--font-fredoka)", color: "var(--ink)" }}>My activities</span>
-          {todoCount > 0 ? (
-            <span style={{ background: "#FBEED3", border: "2px solid var(--ink)", borderRadius: 999, padding: "4px 16px", font: "700 calc(15px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "#8A5F1E" }}>{todoCount} to do</span>
-          ) : (
-            <span style={{ font: "400 calc(16px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>All done ✓</span>
-          )}
-        </Link>
+        {/* my activities — the 3 most recent to-do as preview cards, with a
+            "Show more" toggle for the rest. */}
+        <MyActivities activities={todoActivities} />
 
         {/* waiting strips */}
         {inProgress.map((item) => {
