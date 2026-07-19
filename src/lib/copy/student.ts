@@ -1,6 +1,6 @@
 import type { AgeMode } from "@/lib/ageMode";
 
-// Every word a child reads, in one place — now in two registers.
+// Every word a child reads, in one place — now in three registers.
 //
 // Why this exists, beyond tidiness:
 //
@@ -11,10 +11,12 @@ import type { AgeMode } from "@/lib/ageMode";
 //     parties). Keeping the speakable strings in one static module is what makes
 //     "we only ever speak our own copy" a rule you can check, rather than a
 //     promise. See `src/lib/readAloud.ts`.
-//  2. **Two registers (SJ-06).** Storyjar is for ages 3–11. A Year 6 should not
-//     be told "Bye bye 👋". `studentCopy(mode)` returns the younger (KS1) or
-//     older (KS2) register for a class; the register is chosen once at class
-//     creation (`Class.ageMode`) and resolved via `src/lib/ageMode.ts`.
+//  2. **Three registers (SJ-06).** Storyjar is for ages 3–11. A Year 6 should
+//     not be told "Bye bye 👋", and a pre-reader in Reception should not be made
+//     to read at all. `studentCopy(mode)` returns the EYFS (3–5), KS1 (5–7) or
+//     KS2 (7–11) register for a class; the register is chosen once at class
+//     creation (`Class.ageMode`) and resolved via `src/lib/ageMode.ts`. EYFS
+//     shares the younger (KS1) wording unless a string overrides it — see `p`.
 //
 // The wording below is the owner-approved SJ-06 copy spec, verbatim. "Older" is
 // calmer and ~15% terser — plainer, never babyish, never a form. Five strings
@@ -30,9 +32,14 @@ import type { AgeMode } from "@/lib/ageMode";
 // or teacher content), and it says what happened rather than what went wrong.
 
 function reg(mode: AgeMode) {
-  const older = mode === "KS2";
-  // pick(younger, older) — the one place a string forks by register.
-  const p = <T>(ks1: T, ks2: T): T => (older ? ks2 : ks1);
+  // pick by register — the one place a string forks. `p(ks1, ks2)` keeps the
+  // original younger/older fork; EYFS is the youngest and reads almost exactly
+  // like KS1 (its 6a design uses the younger wording — "Bye bye 👋", "Add to my
+  // jar", "Popped in!"), so it FALLS BACK to the KS1 string unless a third arg
+  // gives it its own. That keeps every existing `p(a, b)` call correct for EYFS
+  // and lets the handful of genuinely EYFS-specific strings override in place.
+  const p = <T>(ks1: T, ks2: T, eyfs: T = ks1): T =>
+    mode === "KS2" ? ks2 : mode === "EYFS" ? eyfs : ks1;
 
   return {
     signIn: {

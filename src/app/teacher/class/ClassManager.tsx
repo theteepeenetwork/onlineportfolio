@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClass, deleteClass, rotateClassCode, updateAgeMode } from "@/app/actions/classes";
 import { addStudents, removeStudent } from "@/app/actions/roster";
 import { Icon } from "@/components/icons/Icon";
-import type { AgeMode } from "@/lib/ageMode";
+import { AGE_MODE_OPTIONS, type AgeMode } from "@/lib/ageMode";
 
 export type RosterChild = {
   id: string;
@@ -312,7 +312,7 @@ function SettingsStrip({ klass }: { klass: ClassCard }) {
   );
 }
 
-// Change a class's age mode (younger / older) after creation. Unlike the
+// Change a class's age mode after creation. Unlike the
 // creation form — which deliberately pre-selects NOTHING so it can't nudge a
 // fresh choice (Children's Code) — here we are editing a setting that already
 // has a value, so the current register is shown selected. Nothing is saved
@@ -334,10 +334,7 @@ function AgeModeSwitch({ klass }: { klass: ClassCard }) {
   // React's controlled `checked` across the Server Action re-render and can
   // leave the wrong option visually selected. Buttons are driven purely by
   // `choice`, so what you see always matches what will be saved.
-  const OPTIONS = [
-    { value: "KS1" as const, label: "Younger children", hint: "Nursery to Year 2" },
-    { value: "KS2" as const, label: "Older children", hint: "Years 3 to 6" },
-  ];
+  const OPTIONS = AGE_MODE_OPTIONS;
 
   return (
     <form action={action} style={{ borderTop: "2px dashed #EDE4D2", paddingTop: 14 }}>
@@ -603,25 +600,23 @@ function NewClassForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-// The one-time age-mode question. Two options, and — deliberately — NEITHER is
+// The one-time age-mode question. Three options, and — deliberately — NEITHER is
 // pre-selected: the ICO Children's Code forbids nudging a choice that affects
 // how a child's screen behaves, so we don't default the radio. Skipping is a
-// real answer (younger), handled server-side. Wording is even-handed: no
-// "recommended", no ordering that implies a preferred option.
+// real answer (NULL → EYFS, the youngest/most protective), handled server-side.
+// Wording is even-handed: no "recommended", no ordering that implies a preferred
+// option.
 function AgeModeChoice() {
   return (
     <fieldset style={{ margin: "14px 0 0", padding: 0, border: "none" }}>
       <legend style={{ font: "700 14px var(--font-atkinson)", padding: 0, marginBottom: 8 }}>
         Which children is this class for?{" "}
         <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-          Sets how the children&rsquo;s screens read. You can leave it — younger is used if you do.
+          Sets how the children&rsquo;s screens read. You can leave it — early years is used if you do.
         </span>
       </legend>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {[
-          { value: "KS1", label: "Younger children", hint: "Nursery to Year 2" },
-          { value: "KS2", label: "Older children", hint: "Years 3 to 6" },
-        ].map((o) => (
+        {AGE_MODE_OPTIONS.map((o) => (
           <label
             key={o.value}
             style={{ flex: 1, minWidth: 200, display: "flex", gap: 10, alignItems: "flex-start", padding: "12px 14px", border: "2px solid var(--sj-hairline, #E6E0D2)", borderRadius: 12, cursor: "pointer", font: "400 15px var(--font-atkinson)" }}
