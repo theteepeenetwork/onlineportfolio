@@ -116,8 +116,8 @@ html {
 @keyframes sj-star-burst {
   0%   { transform: translate(0, 0) scale(0); opacity: 0; }
   35%  { opacity: 1; }
-  65%  { transform: translate(var(--bx, 0), var(--by, 0)) scale(1.35); opacity: 1; }
-  100% { transform: translate(var(--bx, 0), var(--by, 0)) scale(1); opacity: 1; }
+  65%  { transform: translate(var(--bx, 0), var(--by, 0)) scale(1.7); opacity: 1; }
+  100% { transform: translate(var(--bx, 0), var(--by, 0)) scale(1.3); opacity: 1; }
 }
 /* Order the steps by delay: square drops while the lid is held open, the lid
    seats, then the jar jiggles and the stars burst. fill-box keeps each element
@@ -126,6 +126,16 @@ html {
 [data-anim="lid"] { animation: sj-lid 1.05s cubic-bezier(.45,0,.2,1) 0.05s both; transform-box: fill-box; transform-origin: center; }
 [data-anim="jar"] { animation: sj-pop-jiggle 0.7s ease-in-out 1s both; transform-origin: 50% 92%; }
 [data-anim="star"] { animation: sj-star-burst 0.7s cubic-bezier(.3,1.3,.6,1) 1.15s both; transform-box: fill-box; transform-origin: center; }
+/* After the burst has flown each star out (~1.85s), it keeps gently growing and
+   shrinking. Nested inside the burst group so this scale composes with the
+   burst's translate rather than overwriting it. Per-star duration is set inline
+   so they drift out of sync. Infinite, so the reduced-motion catch-all below
+   (iteration-count: 1) stops it — it can never flicker. */
+@keyframes sj-star-twinkle {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.16); }
+}
+[data-anim="twinkle"] { animation: sj-star-twinkle 1.9s ease-in-out 1.85s infinite; transform-box: fill-box; transform-origin: center; }
 
 /* M3 — class-code feedback. A filled slot pops softly, so a pre-reader can see
    their tap landed; a code we can't find gets a neutral side-wobble. Never a red
