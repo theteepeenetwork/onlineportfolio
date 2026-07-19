@@ -75,6 +75,18 @@ function reg(mode: AgeMode) {
       signOut: p("Bye bye 👋", "Sign out"),
       // J6 — the header title.
       title: (name: string) => p(`${name}'s jar`, `${name}'s journal`),
+      // EYFS has no header — a warm spoken greeting IS the top of the screen
+      // (design 6a). Defined for every register but only EYFS renders it.
+      greeting: (name: string) => `Hello, ${name}!`,
+      // What the greeting's 🔊 speaks. Deliberately name-FREE: read-aloud may
+      // only ever voice fixed copy, never a child's own name — on some platforms
+      // speechSynthesis ships the text to a cloud voice, and a child's first name
+      // must not leave the device (SAFEGUARDING rules 10 & 11; see readAloud.ts).
+      greetingSpoken: "Hello!",
+      // The activities strip's call to action. Pre-readers (EYFS) get just the
+      // one word beside the icon + count; older registers pair it with a
+      // sentence built from `count` above.
+      startActivities: "Start",
       // J7 — the count line. Younger gets the warm "moments" beside the jar;
       // older gets a plain "in your journal" (and no jar drawing).
       count: (n: number) => p(`${n} ${n === 1 ? "moment" : "moments"}`, `${n} in your journal`),
@@ -120,6 +132,12 @@ function reg(mode: AgeMode) {
       captionPlaceholder: p("I made a tower with the big blocks…", "What is this? Where were you?"),
       wordsLabel: "Write your words here",
       wordsPlaceholder: "Today I…",
+      // Drawing never opens inline — it hands off to the full-screen canvas. The
+      // capture surface for it is a single line + a button that opens the canvas.
+      drawInline: p("Drawing opens your big full-screen canvas", "Drawing opens the full-screen canvas"),
+      drawOpen: p("Open my canvas", "Open canvas"),
+      // The circular ✕ that closes an open capture surface (design 6a/5a/3c).
+      close: "Close",
       submit: p("Add to my jar", "Add to my journal"), // J1
       // 🔒1 — the approval promise, in the child's own words, at the moment they
       // hand it over. (Meaning: nothing is public until the teacher approves.)
