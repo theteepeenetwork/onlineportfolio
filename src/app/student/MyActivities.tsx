@@ -62,7 +62,9 @@ export function MyActivities({ activities }: { activities: TodoActivity[] }) {
                   focusable behind a collapsed panel — a keyboard or
                   screen-reader user can't tab into invisible activities. */}
               {open && (
-                <div style={{ ...gridStyle, paddingTop: 22 }}>
+                // paddingBottom leaves room for the cards' drop shadow, which
+                // the accordion's overflow:hidden would otherwise clip.
+                <div style={{ ...gridStyle, paddingTop: 22, paddingBottom: 8 }}>
                   {rest.map((a, i) => (
                     <ActivityCard key={a.id} activity={a} tint={TINTS[(i + top.length) % TINTS.length]} />
                   ))}

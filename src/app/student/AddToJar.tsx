@@ -114,7 +114,10 @@ function CaptureSurface({ type, mode }: { type: "PHOTO" | "AUDIO" | "TEXT"; mode
   const c = studentCopy(mode).add;
 
   return (
-    <form action={action} style={{ paddingTop: 22, borderTop: "2px dashed #e4dcc8", marginTop: 22 }}>
+    // paddingBottom leaves room for the submit button's 5px drop shadow: a
+    // box-shadow adds no layout height, so without it the accordion's
+    // overflow:hidden wrapper clips the last few pixels of the shadow.
+    <form action={action} style={{ paddingTop: 22, paddingBottom: 8, borderTop: "2px dashed #e4dcc8", marginTop: 22 }}>
       <input type="hidden" name="type" value={type} />
 
       {type === "PHOTO" ? (
