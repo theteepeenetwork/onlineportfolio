@@ -40,15 +40,24 @@ test("a student's drawing goes through approval into their journal", async ({ pa
 test.describe("Adding work stays in the child's world", () => {
   test.use({ viewport: { width: 1024, height: 768 } }); // classroom iPad, landscape
 
-  for (const [tile, path, heading] of [
-    ["Photo", "/student/new/photo", /take a photo/i],
-    ["My words", "/student/new/words", /my words/i],
+  // The Photo / Voice / My words tiles now open their capture surface INLINE
+  // (an accordion on the jar) rather than navigating to a separate page — the
+  // child never leaves the landmark they know, and one tile opens at a time.
+  for (const [tile, reveal] of [
+    ["Photo", /use camera/i],
+    ["My words", /write your words here/i],
   ] as const) {
-    test(`the ${tile} tile goes straight to its capture surface`, async ({ page }) => {
+    test(`the ${tile} tile opens its capture surface inline`, async ({ page }) => {
       await studentLogin(page, "Finn");
-      await page.getByRole("link", { name: tile, exact: true }).click();
-      await expect(page).toHaveURL(new RegExp(`${path}$`));
-      await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+      const tileButton = page.getByRole("button", { name: tile, exact: true });
+      await expect(tileButton).toHaveAttribute("aria-expanded", "false");
+      await tileButton.click();
+
+      // No navigation — the child stays on their jar, and the tile reports open.
+      await expect(page).toHaveURL(/\/student$/);
+      await expect(tileButton).toHaveAttribute("aria-expanded", "true");
+      // The capture surface is revealed right there.
+      await expect(page.getByText(reveal)).toBeVisible();
 
       // The choice was already made on the jar — nothing here re-asks it.
       for (const tab of ["Write", "Draw"]) {
@@ -56,6 +65,21 @@ test.describe("Adding work stays in the child's world", () => {
       }
     });
   }
+
+  test("opening a second tile closes the first — only one surface at a time", async ({ page }) => {
+    await studentLogin(page, "Finn");
+    const photo = page.getByRole("button", { name: "Photo", exact: true });
+    const words = page.getByRole("button", { name: "My words", exact: true });
+
+    await photo.click();
+    await expect(page.getByText(/use camera/i)).toBeVisible();
+
+    await words.click();
+    await expect(page.getByText(/write your words here/i)).toBeVisible();
+    // The photo surface has closed and the photo tile reports collapsed.
+    await expect(page.getByText(/use camera/i)).toHaveCount(0);
+    await expect(photo).toHaveAttribute("aria-expanded", "false");
+  });
 
   test("the way back is a real button a child can hit, not a 14px link", async ({ page }) => {
     await studentLogin(page, "Finn");
@@ -89,7 +113,7 @@ test.describe("Adding work stays in the child's world", () => {
     const waiting = page.getByText(/Waiting for your teacher/);
     const before = await waiting.count();
 
-    await page.getByRole("link", { name: "My words", exact: true }).click();
+    await page.getByRole("button", { name: "My words", exact: true }).click();
     await page.getByRole("textbox", { name: /write your words here/i }).fill("Today I built a rocket.");
     await page.getByRole("button", { name: /add to my jar/i }).click();
     await page.waitForURL((url) => url.pathname === "/student/popped");
