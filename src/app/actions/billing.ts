@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
 import { governingSubscription } from "@/lib/billing";
-import { priceIdFor, isPlanKey, type PlanKey } from "@/lib/billing-plans";
+import { priceIdFor, isPlanKey, bandFor, type PlanKey } from "@/lib/billing-plans";
 import { recordAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
@@ -74,9 +74,10 @@ async function ensureCustomer(sub: Subscription, actor: Actor): Promise<string> 
 
 // Start a hosted Checkout session and redirect the admin to Stripe.
 //
-// There is exactly one purchasable plan — School, £299/year FLAT — so there is no
-// quantity to choose and no seat count to agree. A teacher never checks out at
-// all: their plan is free (docs/pricing-decisions.md).
+// The only purchasable plan is School, in one of four bands by pupils on roll
+// (docs/pricing-decisions.md). The band is a PRICE choice, not a quantity: every
+// band is quantity 1 and carries every feature, so nothing here meters pupils.
+// A teacher never checks out at all — their plan is free.
 export async function startCheckout(
   _prev: { error?: string } | undefined,
   formData: FormData,
@@ -107,8 +108,8 @@ export async function startCheckout(
       mode: "subscription",
       customer: customerId,
       client_reference_id: sub.id,
-      // Flat price — quantity is always 1. Nothing here scales with teachers or
-      // pupils, which is the whole point (docs/pricing-decisions.md).
+      // Quantity is always 1 — the band IS the price. Nothing multiplies by
+      // pupils or teachers, which is the whole point (docs/pricing-decisions.md).
       line_items: [{ price: priceIdFor(plan), quantity: 1 }],
       // Payment methods (incl. Apple Pay / Google Pay) are chosen automatically
       // from the Stripe dashboard config — we don't pin payment_method_types.
@@ -119,7 +120,7 @@ export async function startCheckout(
       subscription_data: {
         metadata: { storyjar_subscription_id: sub.id, storyjar_kind: sub.kind },
       },
-      metadata: { storyjar_subscription_id: sub.id, storyjar_plan: plan },
+      metadata: { storyjar_subscription_id: sub.id, storyjar_plan: plan, storyjar_band: bandFor(plan).label },
     });
     url = session.url;
   } catch (e) {
@@ -133,9 +134,8 @@ export async function startCheckout(
 // School plan paid by invoice / PO (BACS) — most UK primaries can't do recurring
 // cards. Creates a subscription billed by emailed invoice with 30-day terms.
 //
-// Flat pricing makes this route materially simpler: there is no seat count to
-// agree before a PO can be raised, so the number on the purchase order is just
-// £299 and never changes when staff join or leave.
+// Banded (not per-seat) pricing keeps this simple: the PO carries ONE number,
+// fixed for the year, that never changes when staff join or leave.
 export async function requestSchoolInvoice(
   _prev: { error?: string; sent?: boolean } | undefined,
   formData: FormData,
@@ -147,13 +147,17 @@ export async function requestSchoolInvoice(
   const sub = await governingSubscription({ id: actor.teacherId, schoolId: actor.schoolId });
   if (!sub || sub.kind !== "SCHOOL") return { error: "This school doesn’t have a school plan set up." };
 
+  const planRaw = String(formData.get("plan") ?? "");
+  if (!isPlanKey(planRaw)) return { error: "Please choose the size of your school." };
+  const band = bandFor(planRaw);
+
   const stripe = getStripe();
   const customerId = await ensureCustomer(sub, actor);
 
   try {
     await stripe.subscriptions.create({
       customer: customerId,
-      items: [{ price: priceIdFor("school_annual"), quantity: 1 }],
+      items: [{ price: priceIdFor(planRaw), quantity: 1 }],
       collection_method: "send_invoice",
       days_until_due: 30,
       metadata: { storyjar_subscription_id: sub.id, storyjar_kind: "SCHOOL" },
@@ -166,7 +170,7 @@ export async function requestSchoolInvoice(
   await recordAudit({
     action: "BILLING_INVOICE_REQUESTED", actorType: "ADMIN", actorId: actor.teacherId, actorName: actor.name,
     schoolId: actor.schoolId, subjectType: "SUBSCRIPTION", subjectId: sub.id,
-    detail: "Requested invoice for the school plan (£299/year)",
+    detail: `Requested invoice for the school plan (${band.label}, £${band.price}/year)`,
   });
   return { sent: true };
 }
