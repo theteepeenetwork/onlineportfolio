@@ -14,10 +14,17 @@ import { recordAudit } from "@/lib/audit";
 //   Full access:  TRIAL | ACTIVE | PAST_DUE   (PAST_DUE = Stripe smart-retry grace)
 //   Read-only:    FROZEN                       (viewing/downloading/export stay open)
 //
-// "The account" is either a single teacher (INDIVIDUAL plan) or the whole school
+// "The account" is either a single teacher (FREE plan) or the whole school
 // (SCHOOL plan). A teacher who belongs to a school with a subscription is
-// governed by the SCHOOL subscription; otherwise by their own INDIVIDUAL one.
+// governed by the SCHOOL subscription; otherwise by their own FREE one.
 // The school is always the data controller regardless of who pays (RETENTION.md).
+//
+// Storyjar has two plans (docs/pricing-decisions.md): a permanently free teacher
+// plan covering all of that teacher's own classes, and a flat £299/yr school
+// plan. A FREE plan is ACTIVE from signup and has NOTHING TO LAPSE — no trial
+// clock, no payment, so no route to FROZEN. Only a SCHOOL plan can be evaluated
+// on trial and only a SCHOOL plan can freeze. That means children's work in a
+// free teacher account is never on a billing deletion clock (RETENTION.md).
 // ---------------------------------------------------------------------------
 
 export type AccountStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "FROZEN";
@@ -25,13 +32,34 @@ export type AccountStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "FROZEN";
 // The states in which mutations are allowed. FROZEN is deliberately excluded.
 export const WRITABLE_STATUSES: readonly AccountStatus[] = ["TRIAL", "ACTIVE", "PAST_DUE"];
 
-// The free "half term" every new account gets from signup. Tracked locally — we
-// do NOT use Stripe trials (the Stripe subscription is created only at first
-// payment). See RETENTION.md.
+// The plan a subscription row represents.
+export type PlanKind = "FREE" | "SCHOOL";
+
+export function planKindOf(kind: string): PlanKind {
+  return kind === "SCHOOL" ? "SCHOOL" : "FREE";
+}
+
+// The free "half term" a SCHOOL gets to evaluate Storyjar before raising a PO.
+// Tracked locally — we do NOT use Stripe trials (the Stripe subscription is
+// created only at first payment). See RETENTION.md.
+//
+// This is deliberately NOT applied to a teacher's free plan: a teacher account is
+// never on a countdown, because a trial expiring mid-October is the single most
+// avoidable way to lose a September adopter (docs/pricing-decisions.md).
 export const TRIAL_DAYS = 42;
 
 export function trialEndFromNow(now: number = Date.now()): Date {
   return new Date(now + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+}
+
+// Launch day. An account created before this was promised free, unlimited access
+// permanently ("Founding teacher"). Evaluated ONCE, at signup, and stored on the
+// teacher row — never re-derived from `createdAt` later. See
+// docs/pricing-decisions.md for why the mark is stored rather than computed.
+export const LAUNCH_DAY = new Date("2026-09-01T00:00:00Z");
+
+export function isFoundingSignup(now: number = Date.now()): boolean {
+  return now < LAUNCH_DAY.getTime();
 }
 
 // User-facing refusal copy. Plain English (no jargon — error-string audit).
@@ -84,8 +112,16 @@ export async function freezeSubscription(
 // that complements the daily freeze job — either path reaches the same state.
 export async function settleStatus(sub: Subscription): Promise<AccountStatus> {
   const status = sub.status as AccountStatus;
+  // Only a SCHOOL plan on trial can lapse. A FREE teacher plan has no trial end
+  // (`trialEndsAt` is NULL) and nothing to pay, so there is no route from here to
+  // FROZEN — see the module header. The NULL check is the enforcement, not a
+  // convenience: if a free row ever acquired a TRIAL status by mistake it still
+  // could not be frozen by a missing payment that was never owed.
   const trialLapsed =
-    status === "TRIAL" && !sub.stripeSubscriptionId && sub.trialEndsAt.getTime() <= Date.now();
+    status === "TRIAL" &&
+    !sub.stripeSubscriptionId &&
+    sub.trialEndsAt !== null &&
+    sub.trialEndsAt.getTime() <= Date.now();
   if (trialLapsed) {
     await freezeSubscription(sub, "Trial ended without a subscription");
     return "FROZEN";
@@ -146,43 +182,44 @@ export async function requireWritableAccount(): Promise<
 
 export type AccountState = {
   status: AccountStatus | "NONE";
-  kind: "INDIVIDUAL" | "SCHOOL" | null;
-  trialDaysLeft: number | null; // whole days remaining while on trial
+  kind: PlanKind | null;
+  trialDaysLeft: number | null; // whole days remaining while a SCHOOL evaluates
   frozenAt: Date | null;
   currentPeriodEnd: Date | null;
-  seatLimit: number | null;
   writable: boolean;
 };
 
 export async function accountStateForTeacher(teacher: TeacherContext): Promise<AccountState> {
   const sub = await governingSubscription(teacher);
   if (!sub) {
-    return { status: "NONE", kind: null, trialDaysLeft: null, frozenAt: null, currentPeriodEnd: null, seatLimit: null, writable: false };
+    return { status: "NONE", kind: null, trialDaysLeft: null, frozenAt: null, currentPeriodEnd: null, writable: false };
   }
   const status = await settleStatus(sub);
   const trialDaysLeft =
-    status === "TRIAL"
+    status === "TRIAL" && sub.trialEndsAt !== null
       ? Math.max(0, Math.ceil((sub.trialEndsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
       : null;
   return {
     status,
-    kind: sub.kind === "SCHOOL" ? "SCHOOL" : "INDIVIDUAL",
+    kind: planKindOf(sub.kind),
     trialDaysLeft,
     frozenAt: sub.frozenAt,
     currentPeriodEnd: sub.currentPeriodEnd,
-    seatLimit: sub.seatLimit,
     writable: WRITABLE_STATUSES.includes(status),
   };
 }
 
 // Short plan label for the admin console / billing page.
+//
+// A free teacher plan says "Free plan" with no qualifier — no countdown, no
+// "upgrade" nag in the label itself. It is a finished state, not a waiting room.
 export function planLabel(state: Pick<AccountState, "status" | "kind" | "trialDaysLeft">): string {
   if (state.status === "NONE") return "No plan yet";
+  if (state.kind === "FREE") return "Free plan";
   if (state.status === "TRIAL") {
     const d = state.trialDaysLeft ?? 0;
-    return `Free trial — ${d} day${d === 1 ? "" : "s"} left`;
+    return `School plan — ${d} day${d === 1 ? "" : "s"} left to try`;
   }
   if (state.status === "FROZEN") return "Paused (read-only)";
-  const base = state.kind === "SCHOOL" ? "School plan" : "Individual plan";
-  return state.status === "PAST_DUE" ? `${base} — payment retrying` : base;
+  return state.status === "PAST_DUE" ? "School plan — payment retrying" : "School plan";
 }

@@ -23,7 +23,7 @@ export default function Terms() {
       <p>Use of Storyjar must comply with the <a href="/legal/acceptable-use">Acceptable Use Policy</a>. We may suspend access to protect children or the service.</p>
 
       <h2>5. Fees</h2>
-      <p>Paid plans are billed as set out at sign-up (e.g. per teacher / month, billed annually). <em>[Confirm commercial terms, trial and cancellation.]</em></p>
+      <p>A teacher account is free, permanently — there is nothing to pay and no trial that expires. A school plan is £299 a year, a single flat price covering every teacher and pupil at the school, billed annually by card or by invoice / purchase order. A school may cancel at any time; access continues to the end of the paid year. <em>[Confirm cancellation and refund wording.]</em></p>
 
       <h2>6. Data protection</h2>
       <p>We process personal data as your processor under the <a href="/legal/data-processing">Data Processing Agreement</a> and our <a href="/legal/privacy">Privacy Policy</a>. Data is held in the UK/EU.</p>

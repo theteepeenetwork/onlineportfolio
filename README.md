@@ -153,38 +153,39 @@ extra code and no Stripe.js on any page. **No child data is ever sent to Stripe.
 
 Plans (GBP, VAT-inclusive):
 
-- **Individual** — £3.99/month or £40/year (a teacher pays personally).
-- **School** — £40 per teacher/year, seat-based; card or invoice/PO (BACS).
-- **Trial** — every account gets 42 days free from signup (no card), tracked
-  locally; a Stripe subscription is created only at first payment.
+- **Teacher** — **free, permanently**. One teacher, *all* of their own classes,
+  every feature. No card and no trial clock, so nothing ever expires mid-term.
+  A free plan never reaches Stripe at all.
+- **School** — **£299/year, flat**. Every teacher, every class, every pupil. No
+  seats and no quantity to reconcile. Card or invoice/PO (BACS).
+- **Trial** — 42 days, and only for a **school** evaluating the plan before a PO
+  is raised. Tracked locally; a Stripe subscription is created at first payment.
+
+The retired Individual plan (£3.99/mo, £40/yr) and the old per-seat school price
+are gone — see [`docs/pricing-decisions.md`](docs/pricing-decisions.md) for why.
 
 Account states (`Subscription.status`): `TRIAL`, `ACTIVE`, `PAST_DUE` all have
 full access; `FROZEN` is read-only (view/download/export only). The single
 server-side gate `requireWritableAccount()` (`src/lib/billing.ts`) enforces this
 on every mutating action.
 
+A **free teacher plan is `ACTIVE` with no `trialEndsAt`, so it has nothing to
+lapse** — there is no route from a free account to `FROZEN`. Only a school plan
+can be on trial and only a school plan can freeze, which means children's work in
+a free account is never on a billing deletion clock.
+
 ### One-time Stripe setup (test mode)
 
 1. Set `STRIPE_SECRET_KEY` in `.env` (see `.env.example`).
 
-2. Create the three prices with the [Stripe CLI](https://stripe.com/docs/stripe-cli)
-   and copy each returned `price_…` id into `.env`:
+2. Create the one price with the [Stripe CLI](https://stripe.com/docs/stripe-cli)
+   and copy the returned `price_…` id into `.env`:
 
    ```bash
-   # Individual — £3.99 / month  → STRIPE_PRICE_INDIVIDUAL_MONTHLY
-   stripe prices create --currency=gbp --unit-amount=399 \
-     -d "recurring[interval]=month" \
-     -d "product_data[name]=Storyjar Individual (monthly)"
-
-   # Individual — £40 / year  → STRIPE_PRICE_INDIVIDUAL_ANNUAL
-   stripe prices create --currency=gbp --unit-amount=4000 \
+   # School — £299 / year, flat (quantity is always 1)  → STRIPE_PRICE_SCHOOL_ANNUAL
+   stripe prices create --currency=gbp --unit-amount=29900 \
      -d "recurring[interval]=year" \
-     -d "product_data[name]=Storyjar Individual (annual)"
-
-   # School — £40 / seat / year (quantity = seats)  → STRIPE_PRICE_SCHOOL_SEAT_ANNUAL
-   stripe prices create --currency=gbp --unit-amount=4000 \
-     -d "recurring[interval]=year" \
-     -d "product_data[name]=Storyjar School seat (annual)"
+     -d "product_data[name]=Storyjar School (annual)"
    ```
 
 3. Forward webhooks to the dev server and copy the printed `whsec_…` into

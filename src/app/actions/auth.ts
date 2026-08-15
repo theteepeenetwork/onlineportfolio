@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
-import { trialEndFromNow } from "@/lib/billing";
+import { isFoundingSignup } from "@/lib/billing";
 import { uniqueClassCode } from "@/lib/classCode";
 import { AVATAR_PALETTE } from "@/lib/avatar";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
@@ -77,15 +77,21 @@ export async function createTeacherAccount(input: {
       passwordHash: await bcrypt.hash(password, 10),
       schoolName: school,
       country: input.country,
+      // Signed up before launch day → a Founding teacher, promised free
+      // unlimited access permanently. Decided once, here, and stored — never
+      // re-derived from `createdAt` (docs/pricing-decisions.md).
+      foundingMember: isFoundingSignup(),
     },
   });
 
-  // Every new account starts on the 42-day free trial with full access. This is
-  // an INDIVIDUAL subscription tracked locally (no card, no Stripe trial); the
-  // Stripe subscription is created only at first payment. Without this row the
-  // write gate would (correctly) deny by default, so it must exist from signup.
+  // Every new teacher account is on the permanently FREE plan: one teacher, all
+  // of their own classes, full write access, no card and no countdown
+  // (docs/pricing-decisions.md). ACTIVE with a NULL `trialEndsAt` is what encodes
+  // "nothing to lapse" — there is no route from here to FROZEN. Without this row
+  // the write gate would (correctly) deny by default, so it must exist from
+  // signup.
   await db.subscription.create({
-    data: { kind: "INDIVIDUAL", status: "TRIAL", trialEndsAt: trialEndFromNow(), teacherId: teacher.id },
+    data: { kind: "FREE", status: "ACTIVE", trialEndsAt: null, teacherId: teacher.id },
   });
 
   const code = await uniqueClassCode();

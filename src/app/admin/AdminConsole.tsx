@@ -89,7 +89,6 @@ const INPUT: React.CSSProperties = {
 export function AdminConsole({
   schoolName,
   plan,
-  seatLimit,
   meId,
   staff,
   classes,
@@ -98,7 +97,6 @@ export function AdminConsole({
 }: {
   schoolName: string;
   plan: string;
-  seatLimit: number;
   meId: string;
   staff: StaffRow[];
   classes: SchoolClass[];
@@ -117,7 +115,7 @@ export function AdminConsole({
     { value: `${staff.length}`, label: "Staff", sub: invited > 0 ? `${invited} invite${invited === 1 ? "" : "s"} pending` : "all active", color: "#22304A" },
     { value: `${classes.length}`, label: "Classes", sub: "across the school", color: "#37796f" },
     { value: `${childrenCount}`, label: "Pupils", sub: "no pupil logins", color: "#C2476B" },
-    { value: `${staff.length} / ${seatLimit}`, label: "Seats used", sub: plan.toLowerCase(), color: "#B07A1E" },
+    { value: `${staff.length}`, label: staff.length === 1 ? "Staff member" : "Staff", sub: plan.toLowerCase(), color: "#B07A1E" },
   ];
 
   return (
@@ -156,7 +154,7 @@ export function AdminConsole({
           <div>
             <p style={{ margin: 0, font: "700 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{schoolName}</p>
             <h1 style={{ margin: "4px 0 0", font: "600 32px var(--font-fredoka)" }}>
-              {tab === "staff" ? "Staff & whole-school" : tab === "overview" ? "School overview" : tab === "classes" ? "Classes" : tab === "safeguarding" ? "Safeguarding" : tab === "audit" ? "Audit log" : "Billing & seats"}
+              {tab === "staff" ? "Staff & whole-school" : tab === "overview" ? "School overview" : tab === "classes" ? "Classes" : tab === "safeguarding" ? "Safeguarding" : tab === "audit" ? "Audit log" : "Billing"}
             </h1>
           </div>
           {tab === "staff" && (
@@ -198,7 +196,7 @@ export function AdminConsole({
           <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
             <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Welcome to {schoolName} on Storyjar</h2>
             <p style={{ margin: "10px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
-              You have {staff.length} staff across {classes.length} classes and {childrenCount} pupils. Use <strong>Staff</strong> to invite colleagues and set roles, <strong>Classes</strong> to see who teaches what, and <strong>Billing</strong> for your seats.
+              You have {staff.length} staff across {classes.length} classes and {childrenCount} pupils. Use <strong>Staff</strong> to invite colleagues and set roles, <strong>Classes</strong> to see who teaches what, and <strong>Billing</strong> for your plan.
             </p>
           </div>
         )}
@@ -255,7 +253,7 @@ export function AdminConsole({
         {tab === "billing" && (
           <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
             <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Seats &amp; plan</h2>
-            <p style={{ margin: "10px 0 0", font: "600 40px var(--font-fredoka)" }}>{staff.length} <span style={{ font: "400 18px var(--font-atkinson)", color: "var(--sj-muted)" }}>of {seatLimit} seats used</span></p>
+            <p style={{ margin: "10px 0 0", font: "600 40px var(--font-fredoka)" }}>{staff.length} <span style={{ font: "400 18px var(--font-atkinson)", color: "var(--sj-muted)" }}>{staff.length === 1 ? "staff member" : "staff members"} — the school plan covers every one</span></p>
             <p style={{ margin: "4px 0 0", font: "400 15px var(--font-atkinson)", color: "#43506B" }}>{plan}{invited > 0 ? ` · ${invited} invited and not yet active` : ""}.</p>
           </div>
         )}

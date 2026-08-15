@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
 import { governingSubscription } from "@/lib/billing";
-import { priceIdFor, isPlanKey, INDIVIDUAL_PLANS, type PlanKey } from "@/lib/billing-plans";
+import { priceIdFor, isPlanKey, type PlanKey } from "@/lib/billing-plans";
 import { recordAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
@@ -53,8 +53,8 @@ async function ensureCustomer(sub: Subscription, actor: Actor): Promise<string> 
   if (sub.stripeCustomerId) return sub.stripeCustomerId;
   const stripe = getStripe();
 
-  // School plan → the customer is the school (name only). Individual plan → the
-  // teacher (their own name/email). Never any child data.
+  // Only a SCHOOL plan is ever bought, so the customer is the school (name only)
+  // with the arranging admin as billing contact. Never any child data.
   let name = actor.name;
   let email: string | undefined = actor.email;
   if (sub.kind === "SCHOOL" && sub.schoolId) {
@@ -72,8 +72,11 @@ async function ensureCustomer(sub: Subscription, actor: Actor): Promise<string> 
   return customer.id;
 }
 
-// Start a hosted Checkout session and redirect the teacher to Stripe.
-// `plan` chooses the price; `seats` is the quantity for the school seat plan.
+// Start a hosted Checkout session and redirect the admin to Stripe.
+//
+// There is exactly one purchasable plan — School, £299/year FLAT — so there is no
+// quantity to choose and no seat count to agree. A teacher never checks out at
+// all: their plan is free (docs/pricing-decisions.md).
 export async function startCheckout(
   _prev: { error?: string } | undefined,
   formData: FormData,
@@ -85,20 +88,14 @@ export async function startCheckout(
   if (!isPlanKey(planRaw)) return { error: "Please choose a plan." };
   const plan: PlanKey = planRaw;
 
-  // School plan is bought by an admin; individual plans by the teacher for
-  // themselves (deny-by-default on mismatch).
-  const schoolPlan = plan === "school_seat_annual";
-  if (schoolPlan && (!actor.isAdmin || !actor.schoolId)) {
+  // The school plan is bought by a school admin, and only by one
+  // (deny-by-default on mismatch).
+  if (!actor.isAdmin || !actor.schoolId) {
     return { error: "Only a school admin can buy the school plan." };
   }
 
   const sub = await governingSubscription({ id: actor.teacherId, schoolId: actor.schoolId });
   if (!sub) return { error: "We couldn’t find your account’s plan. Please refresh and try again." };
-
-  let seats = 1;
-  if (schoolPlan) {
-    seats = Math.max(1, Math.min(1000, Number(formData.get("seats") ?? sub.seatLimit ?? 1) || 1));
-  }
 
   const stripe = getStripe();
   const customerId = await ensureCustomer(sub, actor);
@@ -110,7 +107,9 @@ export async function startCheckout(
       mode: "subscription",
       customer: customerId,
       client_reference_id: sub.id,
-      line_items: [{ price: priceIdFor(plan), quantity: seats }],
+      // Flat price — quantity is always 1. Nothing here scales with teachers or
+      // pupils, which is the whole point (docs/pricing-decisions.md).
+      line_items: [{ price: priceIdFor(plan), quantity: 1 }],
       // Payment methods (incl. Apple Pay / Google Pay) are chosen automatically
       // from the Stripe dashboard config — we don't pin payment_method_types.
       allow_promotion_codes: true,
@@ -133,6 +132,10 @@ export async function startCheckout(
 
 // School plan paid by invoice / PO (BACS) — most UK primaries can't do recurring
 // cards. Creates a subscription billed by emailed invoice with 30-day terms.
+//
+// Flat pricing makes this route materially simpler: there is no seat count to
+// agree before a PO can be raised, so the number on the purchase order is just
+// £299 and never changes when staff join or leave.
 export async function requestSchoolInvoice(
   _prev: { error?: string; sent?: boolean } | undefined,
   formData: FormData,
@@ -144,14 +147,13 @@ export async function requestSchoolInvoice(
   const sub = await governingSubscription({ id: actor.teacherId, schoolId: actor.schoolId });
   if (!sub || sub.kind !== "SCHOOL") return { error: "This school doesn’t have a school plan set up." };
 
-  const seats = Math.max(1, Math.min(1000, Number(formData.get("seats") ?? sub.seatLimit ?? 1) || 1));
   const stripe = getStripe();
   const customerId = await ensureCustomer(sub, actor);
 
   try {
     await stripe.subscriptions.create({
       customer: customerId,
-      items: [{ price: priceIdFor("school_seat_annual"), quantity: seats }],
+      items: [{ price: priceIdFor("school_annual"), quantity: 1 }],
       collection_method: "send_invoice",
       days_until_due: 30,
       metadata: { storyjar_subscription_id: sub.id, storyjar_kind: "SCHOOL" },
@@ -164,7 +166,7 @@ export async function requestSchoolInvoice(
   await recordAudit({
     action: "BILLING_INVOICE_REQUESTED", actorType: "ADMIN", actorId: actor.teacherId, actorName: actor.name,
     schoolId: actor.schoolId, subjectType: "SUBSCRIPTION", subjectId: sub.id,
-    detail: `Requested invoice for ${seats} seat${seats === 1 ? "" : "s"}`,
+    detail: "Requested invoice for the school plan (£299/year)",
   });
   return { sent: true };
 }
@@ -198,13 +200,17 @@ export async function openCustomerPortal(
   redirect(url);
 }
 
-// Convert an individual teacher's subscription to a school seat with pro-rata
-// credit: cancel the individual Stripe subscription with proration (Stripe issues
-// the unused-time credit to the customer balance / a credit note), attach the
-// teacher to the school, and retire the local individual subscription. The school
-// must already run a school plan and the teacher must assert the school's
-// authority to process its pupils' data (RETENTION.md "Individual vs school").
-export async function convertIndividualToSchoolSeat(
+// A free teacher joins their school's plan: attach the teacher to the school (so
+// the school subscription governs their writes) and retire their own free row so
+// exactly one plan governs. The school must already run a school plan, and the
+// teacher asserts the school's authority to process its pupils' data
+// (RETENTION.md "Individual vs school").
+//
+// No money moves and nothing is cancelled or refunded — the teacher was on the
+// free plan, so there is no Stripe subscription to pro-rate. This is the whole
+// simplification that flat, seatless school pricing buys us: joining a school is
+// an attachment, not a billing event (docs/pricing-decisions.md).
+export async function joinSchoolPlan(
   _prev: { error?: string; ok?: boolean } | undefined,
   formData: FormData,
 ): Promise<{ error?: string; ok?: boolean }> {
@@ -212,38 +218,23 @@ export async function convertIndividualToSchoolSeat(
   const schoolId = String(formData.get("schoolId") ?? "").trim();
   if (!schoolId) return { error: "Choose the school to join." };
 
-  // The teacher must currently be on an individual plan (not already in a school).
-  const individual = await db.subscription.findUnique({ where: { teacherId: actor.teacherId } });
-  if (!individual || individual.kind !== "INDIVIDUAL" || actor.schoolId) {
-    return { error: "This account isn’t on an individual plan." };
+  // The teacher must currently be on their own plan, not already in a school.
+  const own = await db.subscription.findUnique({ where: { teacherId: actor.teacherId } });
+  if (!own || actor.schoolId) {
+    return { error: "This account is already part of a school." };
   }
   const schoolSub = await db.subscription.findUnique({ where: { schoolId } });
   if (!schoolSub || schoolSub.kind !== "SCHOOL") {
     return { error: "That school isn’t running a school plan yet." };
   }
 
-  // Cancel the individual Stripe subscription with pro-rata credit, if one exists.
-  if (stripeConfigured() && individual.stripeSubscriptionId) {
-    try {
-      const stripe = getStripe();
-      await stripe.subscriptions.cancel(individual.stripeSubscriptionId, {
-        prorate: true, // credit unused time back to the customer balance
-      });
-    } catch (e) {
-      console.error("[billing] individual cancel (convert) failed", e);
-      return { error: "We couldn’t transfer your plan just now. Please try again." };
-    }
-  }
-
-  // Attach the teacher to the school (the school subscription now governs writes)
-  // and retire the local individual subscription so only one plan governs.
   await db.teacher.update({ where: { id: actor.teacherId }, data: { schoolId } });
-  await db.subscription.delete({ where: { id: individual.id } });
+  await db.subscription.delete({ where: { id: own.id } });
 
   await recordAudit({
-    action: "BILLING_CONVERTED_TO_SCHOOL", actorType: "TEACHER", actorId: actor.teacherId, actorName: actor.name,
+    action: "BILLING_JOINED_SCHOOL", actorType: "TEACHER", actorId: actor.teacherId, actorName: actor.name,
     schoolId, subjectType: "SUBSCRIPTION", subjectId: schoolSub.id,
-    detail: "Individual plan converted to a school seat (pro-rata credit applied)",
+    detail: "Free teacher plan superseded by the school plan",
   });
   return { ok: true };
 }

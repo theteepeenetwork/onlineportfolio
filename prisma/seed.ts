@@ -50,19 +50,19 @@ async function main() {
   // The demo teacher is also the admin of their school, so the /admin space is
   // reachable from the seeded login.
   const school = await db.school.create({
-    data: { name: "St Bede’s Primary", seatLimit: 10 },
+    data: { name: "St Bede’s Primary" },
   });
 
-  // Demo accounts start on the 42-day free trial ("free half term"), so the
-  // seeded login has full access. Tracked locally — no Stripe trial (RETENTION.md
-  // account states). Full access states: TRIAL | ACTIVE | PAST_DUE.
+  // The demo school is evaluating the school plan on its 42-day trial, so the
+  // seeded login has full access. Tracked locally — no Stripe trial
+  // (RETENTION.md account states). Full access states: TRIAL | ACTIVE | PAST_DUE.
+  // Only a SCHOOL plan is ever on a trial; a teacher's free plan never is.
   const TRIAL_DAYS = 42;
   await db.subscription.create({
     data: {
       kind: "SCHOOL",
       status: "TRIAL",
       trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
-      seatLimit: school.seatLimit,
       schoolId: school.id,
     },
   });

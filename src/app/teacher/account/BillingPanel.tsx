@@ -2,15 +2,15 @@
 
 import { useActionState } from "react";
 import { startCheckout, requestSchoolInvoice, openCustomerPortal } from "@/app/actions/billing";
-import type { AccountStatus } from "@/lib/billing";
+import type { AccountStatus, PlanKind } from "@/lib/billing";
 
 type Props = {
   status: AccountStatus | "NONE";
-  kind: "INDIVIDUAL" | "SCHOOL" | null;
+  kind: PlanKind | null;
   trialDaysLeft: number | null;
   currentPeriodEndISO: string | null;
-  seatLimit: number | null;
   isAdmin: boolean;
+  foundingMember: boolean;
   hasSchool: boolean;
   hasCustomer: boolean;
   configured: boolean;
@@ -31,7 +31,7 @@ function Notice({ tone, children }: { tone: "good" | "warn" | "info"; children: 
 }
 
 export function BillingPanel(props: Props) {
-  const { status, trialDaysLeft, currentPeriodEndISO, isAdmin, hasSchool, hasCustomer, configured } = props;
+  const { status, kind, trialDaysLeft, currentPeriodEndISO, isAdmin, hasSchool, hasCustomer, configured, foundingMember } = props;
   const [checkoutState, checkoutAction, checkoutPending] = useActionState(startCheckout, {});
   const [invoiceState, invoiceAction, invoicePending] = useActionState(requestSchoolInvoice, {});
   const [portalState, portalAction, portalPending] = useActionState(openCustomerPortal, {});
@@ -51,10 +51,13 @@ export function BillingPanel(props: Props) {
       <section style={box} aria-labelledby="plan-heading">
         <h2 id="plan-heading" style={{ margin: 0, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>Your plan</h2>
         <p style={{ margin: "8px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-          {status === "TRIAL" && `You’re on the free trial — ${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} left. No card needed until you subscribe.`}
-          {status === "ACTIVE" && (periodEnd ? `Active — renews ${periodEnd}.` : "Your subscription is active.")}
-          {status === "PAST_DUE" && "A payment didn’t go through. We’re retrying it — your access stays on for now. Please update your card."}
-          {status === "FROZEN" && "Your plan has paused, so the jar is read-only. Viewing and downloading still work. Renew to add or change work."}
+          {kind === "FREE" && (foundingMember
+            ? "You’re a Founding teacher — free, unlimited, permanently. All your classes, every feature, no card and no end date. Thank you for backing Storyjar early."
+            : "You’re on the free teacher plan — all your own classes, every feature, no card and no end date.")}
+          {kind !== "FREE" && status === "TRIAL" && `Your school is trying the school plan — ${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} left. No card needed until you subscribe.`}
+          {kind !== "FREE" && status === "ACTIVE" && (periodEnd ? `School plan — renews ${periodEnd}.` : "Your school plan is active.")}
+          {kind !== "FREE" && status === "PAST_DUE" && "A payment didn’t go through. We’re retrying it — your access stays on for now. Please update your card."}
+          {kind !== "FREE" && status === "FROZEN" && "Your plan has paused, so the jar is read-only. Viewing and downloading still work. Renew to add or change work."}
           {status === "NONE" && "No plan is set up on this account yet."}
         </p>
       </section>
@@ -63,23 +66,23 @@ export function BillingPanel(props: Props) {
         <Notice tone="info">Billing isn’t connected in this environment yet. Once Stripe keys are set, the plan options below become live.</Notice>
       )}
 
-      {/* Individual plans (any teacher buys for themselves) */}
+      {/* A free teacher: nothing to buy. The school plan is the only upgrade, and
+          it is framed as what a SCHOOL needs — oversight, continuity, the data
+          relationship — never as a capacity limit the teacher has hit. */}
       {!hasSchool && (
-        <section style={box} aria-labelledby="individual-heading">
-          <h2 id="individual-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>Individual plan</h2>
+        <section style={box} aria-labelledby="school-upgrade-heading">
+          <h2 id="school-upgrade-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>Thinking about your whole school?</h2>
           <p style={{ margin: "6px 0 14px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-            You pay personally; your journals stay part of your school’s account. Pay by card, Apple&nbsp;Pay or Google&nbsp;Pay.
+            Your own classes stay free for as long as you want them. The school plan is
+            £299 a year, flat — for every teacher, however many pupils — and adds the
+            things a school needs rather than a teacher: oversight for leadership, work
+            that stays with the school when staff move on, year-end transfer, and a data
+            agreement naming the school as the data controller.
           </p>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <form action={checkoutAction}>
-              <input type="hidden" name="plan" value="individual_monthly" />
-              <button className="btn-brand" type="submit" disabled={checkoutPending || !configured}>£3.99 / month</button>
-            </form>
-            <form action={checkoutAction}>
-              <input type="hidden" name="plan" value="individual_annual" />
-              <button className="btn-brand" type="submit" disabled={checkoutPending || !configured}>£40 / year</button>
-            </form>
-          </div>
+          <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+            Ask your head or business manager to get in touch and we’ll set it up — or
+            we can send a one-page summary you can forward.
+          </p>
         </section>
       )}
 
@@ -88,18 +91,15 @@ export function BillingPanel(props: Props) {
         <section style={box} aria-labelledby="school-heading">
           <h2 id="school-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>School plan</h2>
           <p style={{ margin: "6px 0 14px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-            £40 per teacher, per year. Pay by card or by invoice / purchase order (BACS).
+            £299 a year, flat — every teacher, every class, every pupil, every feature.
+            No seat counts to keep up to date and nothing to recalculate when staff join
+            or leave. Pay by card or by invoice / purchase order (BACS).
           </p>
           <form action={checkoutAction} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <input type="hidden" name="plan" value="school_seat_annual" />
-            <div>
-              <label className="label" htmlFor="seats">Number of teachers (seats)</label>
-              <input className="input" id="seats" name="seats" type="number" min={1} max={1000} defaultValue={props.seatLimit ?? 1} style={{ width: 140 }} />
-            </div>
-            <button className="btn-brand" type="submit" disabled={checkoutPending || !configured}>Pay by card</button>
+            <input type="hidden" name="plan" value="school_annual" />
+            <button className="btn-brand" type="submit" disabled={checkoutPending || !configured}>Pay £299 by card</button>
           </form>
           <form action={invoiceAction} style={{ marginTop: 10 }}>
-            <input type="hidden" name="seats" value={props.seatLimit ?? 1} />
             <button className="sj-btn-outline" type="submit" disabled={invoicePending || !configured}>Request an invoice / PO instead</button>
           </form>
         </section>

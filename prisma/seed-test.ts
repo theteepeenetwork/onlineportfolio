@@ -55,11 +55,11 @@ async function main() {
   const DAY = 24 * 60 * 60 * 1000;
 
   const oak = await db.school.create({
-    data: { name: "Oakfield Primary", seatLimit: 10 },
+    data: { name: "Oakfield Primary" },
   });
   // Oakfield is on the free trial (full access) — mirrors School A.
   await db.subscription.create({
-    data: { kind: "SCHOOL", status: "TRIAL", trialEndsAt: new Date(Date.now() + 42 * DAY), seatLimit: oak.seatLimit, schoolId: oak.id },
+    data: { kind: "SCHOOL", status: "TRIAL", trialEndsAt: new Date(Date.now() + 42 * DAY), schoolId: oak.id },
   });
 
   const oakAdmin = await db.teacher.create({
@@ -291,7 +291,7 @@ async function main() {
   //    moment lets us assert the frozen teacher can still read/download work.
   console.log("[seed-test] Appending School C (Larchwood, FROZEN) …");
   const larch = await db.school.create({
-    data: { name: "Larchwood Primary", seatLimit: 10 },
+    data: { name: "Larchwood Primary" },
   });
   await db.subscription.create({
     data: {
@@ -299,7 +299,6 @@ async function main() {
       status: "FROZEN",
       trialEndsAt: new Date(Date.now() - 10 * DAY), // trial lapsed 10 days ago
       frozenAt: new Date(Date.now() - 3 * DAY), // read-only for 3 days (12-month clock running)
-      seatLimit: larch.seatLimit,
       schoolId: larch.id,
     },
   });

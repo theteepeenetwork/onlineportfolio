@@ -1,29 +1,33 @@
 // The fixed Storyjar plan catalogue. Prices are created in Stripe (test/live)
-// and referenced here only by env var — we never hard-code Stripe price ids or
-// amounts that could drift from Stripe. Currency is GBP only.
+// and referenced here only by env var — we never hard-code Stripe price ids, so
+// nothing here can drift from what Stripe actually charges. Currency is GBP only.
+//
+// Storyjar has TWO plans (docs/pricing-decisions.md):
+//
+//   • Teacher — FREE, permanently. One teacher, ALL of their own classes. No
+//     card, no trial clock, nothing to buy. It has no entry here precisely
+//     because there is no price: a free plan never reaches Stripe at all.
+//   • School — £299 / year, FLAT. No seats, no quantity, no per-pupil creep.
+//
+// The retired Individual plan (£3.99/mo, £40/yr) is deliberately absent. If an
+// old price id is still set in the environment it is simply never read.
 //
 // See the README for the Stripe CLI commands that create these prices.
 
-export type PlanKey = "individual_monthly" | "individual_annual" | "school_seat_annual";
+export type PlanKey = "school_annual";
 
 // Which env var holds each plan's Stripe price id.
 export const PLAN_PRICE_ENV: Record<PlanKey, string> = {
-  individual_monthly: "STRIPE_PRICE_INDIVIDUAL_MONTHLY", // £3.99 / month
-  individual_annual: "STRIPE_PRICE_INDIVIDUAL_ANNUAL", // £40 / year
-  school_seat_annual: "STRIPE_PRICE_SCHOOL_SEAT_ANNUAL", // £40 / seat / year (quantity = seats)
+  school_annual: "STRIPE_PRICE_SCHOOL_ANNUAL", // £299 / year, flat (quantity is always 1)
 };
 
 // Human labels for the billing UI (VAT-inclusive, GBP).
 export const PLAN_LABELS: Record<PlanKey, string> = {
-  individual_monthly: "Individual — £3.99 / month",
-  individual_annual: "Individual — £40 / year",
-  school_seat_annual: "School — £40 per teacher / year",
+  school_annual: "School — £299 / year",
 };
 
-export const INDIVIDUAL_PLANS: PlanKey[] = ["individual_monthly", "individual_annual"];
-
 export function isPlanKey(v: string): v is PlanKey {
-  return v === "individual_monthly" || v === "individual_annual" || v === "school_seat_annual";
+  return v === "school_annual";
 }
 
 // Resolve a plan's Stripe price id from env. Throws (deny) if it isn't set, so a
