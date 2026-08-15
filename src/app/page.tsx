@@ -368,8 +368,16 @@ export default async function Home() {
           <div style={{ background: "#22304A", color: "#FAF6EE", border: "3px solid #22304A", borderRadius: 20, padding: "42px 40px", position: "relative", boxShadow: "0 4px 0 rgba(34,48,74,0.3)" }}>
             <div style={{ position: "absolute", top: -16, right: 32, background: "#F0B441", color: "#22304A", border: "3px solid #22304A", borderRadius: 999, padding: "5px 16px", font: "600 14px var(--font-fredoka)", transform: "rotate(2deg)" }}>Launch pricing</div>
             <h3 style={{ margin: 0, font: "600 28px var(--font-fredoka)", color: "#FAF6EE" }}>School plan</h3>
-            <p style={{ margin: "16px 0 0", font: "600 clamp(38px, 5.4vw, 46px) var(--font-fredoka)", color: "#FAF6EE" }}>£299 <span style={{ font: "400 17px var(--font-atkinson)", color: "#A9B4C9" }}>a year</span></p>
-            <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "#A9B4C9" }}>flat · however many teachers, however many pupils</p>
+            <p style={{ margin: "16px 0 0", font: "600 clamp(38px, 5.4vw, 46px) var(--font-fredoka)", color: "#FAF6EE" }}>from £199 <span style={{ font: "400 17px var(--font-atkinson)", color: "#A9B4C9" }}>a year</span></p>
+            <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "#A9B4C9" }}>by pupils on roll · no VAT to add</p>
+            <ul style={{ margin: "16px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6, font: "400 15px var(--font-atkinson)", color: "#C4CDDD" }}>
+              {[["Up to 105 pupils", "£199"], ["Up to 210 pupils", "£299"], ["Up to 420 pupils", "£449"], ["Over 420 pupils", "£649"]].map(([band, price]) => (
+                <li key={band} style={{ display: "flex", justifyContent: "space-between", gap: 12, borderBottom: "1px solid rgba(196,205,221,0.22)", paddingBottom: 5 }}>
+                  <span>{band}</span><strong style={{ color: "#FAF6EE" }}>{price}</strong>
+                </li>
+              ))}
+            </ul>
+            <p style={{ margin: "12px 0 0", font: "400 14px var(--font-atkinson)", color: "#A9B4C9" }}>Your band is set when you join and fixed for the year — growing mid-year costs nothing extra. Every feature is in every band.</p>
             <ul style={{ margin: "26px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12, font: "400 17px var(--font-atkinson)", color: "#C4CDDD" }}>
               {["Everything in the teacher plan, for all your staff", "Oversight for leadership across the school", "Work stays with the school when staff move on", "Year-end transfer & whole-school export", "A data agreement naming the school as controller", "Pay by card or invoice / PO"].map((f) => (
                 <li key={f} style={{ display: "flex", gap: 10 }}><span style={{ color: "#F0B441", fontWeight: 700 }}>✓</span> {f}</li>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { startCheckout, requestSchoolInvoice, openCustomerPortal } from "@/app/actions/billing";
 import type { AccountStatus, PlanKind } from "@/lib/billing";
+import { SCHOOL_BANDS, CHEAPEST_SCHOOL_PRICE, priceNote, formatPrice, type PlanKey } from "@/lib/billing-plans";
 
 type Props = {
   status: AccountStatus | "NONE";
@@ -35,6 +36,10 @@ export function BillingPanel(props: Props) {
   const [checkoutState, checkoutAction, checkoutPending] = useActionState(startCheckout, {});
   const [invoiceState, invoiceAction, invoicePending] = useActionState(requestSchoolInvoice, {});
   const [portalState, portalAction, portalPending] = useActionState(openCustomerPortal, {});
+  // The chosen band, held here so BOTH routes to purchase — card checkout and
+  // invoice/PO — send the same one. (An earlier shape put the radios inside the
+  // checkout form only, which silently billed the default band by invoice.)
+  const [band, setBand] = useState<PlanKey>(SCHOOL_BANDS[1].key);
 
   const periodEnd = currentPeriodEndISO ? new Date(currentPeriodEndISO).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : null;
   const err = checkoutState?.error || invoiceState?.error || portalState?.error;
@@ -73,11 +78,12 @@ export function BillingPanel(props: Props) {
         <section style={box} aria-labelledby="school-upgrade-heading">
           <h2 id="school-upgrade-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>Thinking about your whole school?</h2>
           <p style={{ margin: "6px 0 14px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-            Your own classes stay free for as long as you want them. The school plan is
-            £299 a year, flat — for every teacher, however many pupils — and adds the
-            things a school needs rather than a teacher: oversight for leadership, work
-            that stays with the school when staff move on, year-end transfer, and a data
-            agreement naming the school as the data controller.
+            Your own classes stay free for as long as you want them. The school plan starts
+            at {formatPrice(CHEAPEST_SCHOOL_PRICE)} a year ({priceNote().toLowerCase()}), priced by how many pupils
+            are on roll — and it adds the things a school needs rather than a teacher:
+            oversight for leadership, work that stays with the school when staff move on,
+            year-end transfer, and a data agreement naming the school as the data
+            controller.
           </p>
           <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
             Ask your head or business manager to get in touch and we’ll set it up — or
@@ -91,15 +97,37 @@ export function BillingPanel(props: Props) {
         <section style={box} aria-labelledby="school-heading">
           <h2 id="school-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>School plan</h2>
           <p style={{ margin: "6px 0 14px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-            £299 a year, flat — every teacher, every class, every pupil, every feature.
-            No seat counts to keep up to date and nothing to recalculate when staff join
-            or leave. Pay by card or by invoice / purchase order (BACS).
+            One price for the whole school, by pupils on roll. Every teacher, every class,
+            every feature — in every band. Your band is set once when you buy and is fixed
+            for the year, so growing mid-year costs nothing extra. {priceNote()}.
+            Pay by card or by invoice / purchase order (BACS).
           </p>
-          <form action={checkoutAction} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <input type="hidden" name="plan" value="school_annual" />
-            <button className="btn-brand" type="submit" disabled={checkoutPending || !configured}>Pay £299 by card</button>
+          <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
+            <legend className="label" style={{ padding: 0 }}>How many pupils are on roll?</legend>
+            <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+              {SCHOOL_BANDS.map((b) => (
+                <label key={b.key} htmlFor={`band-${b.key}`} style={{ display: "flex", gap: 10, alignItems: "baseline", minHeight: 44, font: "400 15px var(--font-atkinson)" }}>
+                  <input
+                    type="radio"
+                    id={`band-${b.key}`}
+                    name="band"
+                    value={b.key}
+                    checked={band === b.key}
+                    onChange={() => setBand(b.key)}
+                  />
+                  <span><strong>{b.label}</strong> — {formatPrice(b.price)} a year<br />
+                    <span style={{ color: "var(--sj-muted)" }}>{b.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <form action={checkoutAction} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginTop: 14 }}>
+            <input type="hidden" name="plan" value={band} />
+            <button className="btn-brand" type="submit" disabled={checkoutPending || !configured}>Pay by card</button>
           </form>
           <form action={invoiceAction} style={{ marginTop: 10 }}>
+            <input type="hidden" name="plan" value={band} />
             <button className="sj-btn-outline" type="submit" disabled={invoicePending || !configured}>Request an invoice / PO instead</button>
           </form>
         </section>

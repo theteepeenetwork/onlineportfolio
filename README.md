@@ -156,8 +156,14 @@ Plans (GBP, VAT-inclusive):
 - **Teacher** — **free, permanently**. One teacher, *all* of their own classes,
   every feature. No card and no trial clock, so nothing ever expires mid-term.
   A free plan never reaches Stripe at all.
-- **School** — **£299/year, flat**. Every teacher, every class, every pupil. No
-  seats and no quantity to reconcile. Card or invoice/PO (BACS).
+- **School** — **£199–£649/year, banded by pupils on roll** (£199 up to 105 ·
+  £299 up to 210 · £449 up to 420 · £649 over 420). Every feature is in every
+  band; the band is set once at purchase and fixed for the year, so growing
+  mid-year costs nothing extra. No seats and no per-pupil metering. Card or
+  invoice/PO (BACS).
+- **VAT** — Storyjar is **not VAT registered**, so prices are the price. Do not
+  add "+ VAT" anywhere: `VAT_REGISTERED` in `src/lib/billing-plans.ts` is the one
+  switch to flip if that changes.
 - **Trial** — 42 days, and only for a **school** evaluating the plan before a PO
   is raised. Tracked locally; a Stripe subscription is created at first payment.
 
@@ -178,14 +184,29 @@ a free account is never on a billing deletion clock.
 
 1. Set `STRIPE_SECRET_KEY` in `.env` (see `.env.example`).
 
-2. Create the one price with the [Stripe CLI](https://stripe.com/docs/stripe-cli)
-   and copy the returned `price_…` id into `.env`:
+2. Create the four band prices with the [Stripe CLI](https://stripe.com/docs/stripe-cli)
+   and copy each returned `price_…` id into `.env`:
 
    ```bash
-   # School — £299 / year, flat (quantity is always 1)  → STRIPE_PRICE_SCHOOL_ANNUAL
+   # Up to 105 pupils — £199 / year  → STRIPE_PRICE_SCHOOL_SMALL
+   stripe prices create --currency=gbp --unit-amount=19900 \
+     -d "recurring[interval]=year" \
+     -d "product_data[name]=Storyjar School — up to 105 pupils"
+
+   # Up to 210 pupils — £299 / year  → STRIPE_PRICE_SCHOOL_1FE
    stripe prices create --currency=gbp --unit-amount=29900 \
      -d "recurring[interval]=year" \
-     -d "product_data[name]=Storyjar School (annual)"
+     -d "product_data[name]=Storyjar School — up to 210 pupils"
+
+   # Up to 420 pupils — £449 / year  → STRIPE_PRICE_SCHOOL_2FE
+   stripe prices create --currency=gbp --unit-amount=44900 \
+     -d "recurring[interval]=year" \
+     -d "product_data[name]=Storyjar School — up to 420 pupils"
+
+   # Over 420 pupils — £649 / year  → STRIPE_PRICE_SCHOOL_LARGE
+   stripe prices create --currency=gbp --unit-amount=64900 \
+     -d "recurring[interval]=year" \
+     -d "product_data[name]=Storyjar School — over 420 pupils"
    ```
 
 3. Forward webhooks to the dev server and copy the printed `whsec_…` into
