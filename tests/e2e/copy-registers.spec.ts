@@ -2,23 +2,27 @@ import { test, expect } from "@playwright/test";
 import { studentCopy } from "@/lib/copy/student";
 import { resolveAgeMode, type AgeMode } from "@/lib/ageMode";
 
-// SJ-06 — the two child-facing registers (KS1 younger / KS2 older).
+// SJ-06 — the three child-facing registers (EYFS 3–5 / KS1 5–7 / KS2 7–11).
 //
 // Two things are guarded here:
 //  1. The register actually SWAPS — an older child isn't spoken to like a
 //     toddler (the audit's whole complaint).
-//  2. The FIVE safeguarding-locked strings keep their promised meaning in BOTH
-//     registers. The wording may age up, but the meaning must survive — a future
+//  2. The FIVE safeguarding-locked strings keep their promised meaning in EVERY
+//     register. The wording may age up, but the meaning must survive — a future
 //     copy edit can't quietly turn "your teacher checks it first" into something
-//     that no longer promises the approval gate. (Copy spec, 🔒 table.)
+//     that no longer promises the approval gate. (Copy spec, 🔒 table.) EYFS
+//     shares the younger (KS1) wording, so the locks must hold there too.
 
-const MODES: AgeMode[] = ["KS1", "KS2"];
+const MODES: AgeMode[] = ["EYFS", "KS1", "KS2"];
 
-test("NULL / unknown age mode resolves to KS1 (the protective default)", () => {
-  expect(resolveAgeMode(null)).toBe("KS1");
-  expect(resolveAgeMode(undefined)).toBe("KS1");
-  expect(resolveAgeMode("")).toBe("KS1");
-  expect(resolveAgeMode("nonsense")).toBe("KS1");
+test("NULL / unknown age mode resolves to EYFS (the most protective default)", () => {
+  // Owner/DPO decision 2026-07-19: NULL now resolves to EYFS, the youngest and
+  // most locked-down register (was KS1). Only an explicit "KS1"/"KS2" leaves it.
+  expect(resolveAgeMode(null)).toBe("EYFS");
+  expect(resolveAgeMode(undefined)).toBe("EYFS");
+  expect(resolveAgeMode("")).toBe("EYFS");
+  expect(resolveAgeMode("nonsense")).toBe("EYFS");
+  expect(resolveAgeMode("KS1")).toBe("KS1");
   expect(resolveAgeMode("KS2")).toBe("KS2");
 });
 
@@ -32,6 +36,16 @@ test("the register genuinely swaps between younger and older", () => {
   // The younger name wall cheers; the older one just instructs.
   expect(y.signIn.namesHeading.endsWith("!")).toBe(true);
   expect(o.signIn.namesHeading.endsWith("!")).toBe(false);
+});
+
+test("EYFS reads like the younger register (falls back to KS1 wording)", () => {
+  // EYFS is the youngest; its 6a design uses the younger wording, so it must
+  // share KS1's strings unless one is deliberately overridden for EYFS.
+  const e = studentCopy("EYFS");
+  const y = studentCopy("KS1");
+  expect(e.home.signOut).toBe("Bye bye 👋");
+  expect(e.add.submit).toBe(y.add.submit); // "Add to my jar", not "…journal"
+  expect(e.celebration.heading).toBe("Popped in!");
 });
 
 // The five locked strings, checked in EVERY register.

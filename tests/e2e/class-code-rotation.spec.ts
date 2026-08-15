@@ -110,6 +110,12 @@ test("rotating a code does not sign an already-logged-in child out", async ({ pa
   // is already in.
   await child.reload();
   await expect(child).toHaveURL((u) => u.pathname === "/student");
-  await expect(child.getByText("Sam's jar")).toBeVisible();
+  // `makeClassWithPupil` doesn't answer the age-mode question, so this class
+  // stores NULL → the EYFS register (src/lib/ageMode.ts: default to the most
+  // protective). That register is icon-only and has no "<name>'s jar" header —
+  // its greeting IS the top of the screen. Asserting the greeting keeps the
+  // claim identical (Sam is still signed in, still on their own home) and
+  // deliberately trips if the protective NULL default is ever moved.
+  await expect(child.getByRole("heading", { name: "Hello, Sam!" })).toBeVisible();
   await childCtx.close();
 });

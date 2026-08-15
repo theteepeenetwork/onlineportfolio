@@ -26,7 +26,7 @@ export default async function AccountPage({
   const [profile, account, sub, pending] = await Promise.all([
     db.teacher.findUnique({
       where: { id: user.teacher.id },
-      select: { name: true, title: true, displayStyle: true, email: true, schoolName: true, country: true },
+      select: { name: true, title: true, displayStyle: true, email: true, schoolName: true, country: true, foundingMember: true },
     }),
     accountStateForTeacher(teacher),
     governingSubscription(teacher),
@@ -58,7 +58,7 @@ export default async function AccountPage({
             kind={account.kind}
             trialDaysLeft={account.trialDaysLeft}
             currentPeriodEndISO={account.currentPeriodEnd ? account.currentPeriodEnd.toISOString() : null}
-            seatLimit={account.seatLimit}
+            foundingMember={profile.foundingMember}
             isAdmin={user.teacher.staffRole === "ADMIN"}
             hasSchool={Boolean(user.teacher.schoolId)}
             hasCustomer={Boolean(sub?.stripeCustomerId)}

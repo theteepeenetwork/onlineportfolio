@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createTeacherAccount } from "@/app/actions/auth";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
+import { AGE_MODE_OPTIONS, type AgeMode } from "@/lib/ageMode";
 
 const CARD: React.CSSProperties = {
   background: "var(--cream)",
@@ -105,8 +106,8 @@ export function SignupWizard() {
   const [className, setClassName] = useState("");
   // Age mode is asked once, on the class step. Nothing is pre-selected (the
   // Children's Code forbids nudging a choice about a child's screen), so the
-  // initial state is null and skipping it stores null → younger, server-side.
-  const [ageMode, setAgeMode] = useState<"KS1" | "KS2" | null>(null);
+  // initial state is null and skipping it stores null → EYFS, server-side.
+  const [ageMode, setAgeMode] = useState<AgeMode | null>(null);
   const [childrenText, setChildrenText] = useState("");
 
   const childrenNames = childrenText.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -294,17 +295,15 @@ export function SignupWizard() {
 
           {/* Age mode — asked once. Nothing is pre-ticked: the Children's Code
               forbids nudging a choice that shapes a child's screen, so we don't
-              default it. Leaving it uses the younger register. */}
+              default it. Leaving it uses the EYFS register (the youngest, most
+              protective). */}
           <fieldset style={{ marginTop: 28, padding: 0, border: "none" }}>
             <legend style={{ ...FIELD_LABEL, padding: 0 }}>Which children is this class for?</legend>
             <p style={{ margin: "4px 0 12px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-              This sets how their screens read. You can leave it — younger is used if you do.
+              This sets how their screens read. You can leave it — early years is used if you do.
             </p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              {[
-                { value: "KS1" as const, label: "Younger children", hint: "Nursery to Year 2" },
-                { value: "KS2" as const, label: "Older children", hint: "Years 3 to 6" },
-              ].map((o) => (
+              {AGE_MODE_OPTIONS.map((o) => (
                 <label
                   key={o.value}
                   style={{ flex: 1, minWidth: 220, display: "flex", gap: 12, alignItems: "flex-start", padding: "14px 16px", border: `2px solid ${ageMode === o.value ? "var(--ink)" : "#E6E0D2"}`, borderRadius: 14, cursor: "pointer" }}

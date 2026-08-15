@@ -65,20 +65,19 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
         stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null,
       });
       if (!sub) return;
-      // Pull the created subscription for period end + seat count.
+      // Pull the created subscription for its period end. There is no seat
+      // count to read: the school plan is a flat price with quantity 1
+      // (docs/pricing-decisions.md).
       let currentPeriodEnd: Date | null = null;
-      let seatLimit: number | null = sub.seatLimit;
       const stripeSubId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
       if (stripeSubId) {
         const stripeSub = await getStripe().subscriptions.retrieve(stripeSubId);
         currentPeriodEnd = periodEndOf(stripeSub);
-        seatLimit = seatCountOf(stripeSub) ?? seatLimit;
       }
       await transition(sub.id, "ACTIVE", {
         stripeSubscriptionId: stripeSubId ?? undefined,
         stripeCustomerId: (typeof session.customer === "string" ? session.customer : session.customer?.id) ?? undefined,
         currentPeriodEnd,
-        seatLimit,
       });
       return;
     }
@@ -122,7 +121,6 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
       await transition(sub.id, mapped, {
         stripeSubscriptionId: stripeSub.id,
         currentPeriodEnd: periodEndOf(stripeSub),
-        seatLimit: seatCountOf(stripeSub) ?? sub.seatLimit,
       });
       return;
     }
@@ -169,7 +167,7 @@ async function resolveLocalSub(r: Resolver) {
 async function transition(
   localSubId: string,
   status: AccountStatus,
-  fields: { stripeSubscriptionId?: string; stripeCustomerId?: string; currentPeriodEnd?: Date | null; seatLimit?: number | null },
+  fields: { stripeSubscriptionId?: string; stripeCustomerId?: string; currentPeriodEnd?: Date | null },
 ): Promise<void> {
   const before = await db.subscription.findUnique({ where: { id: localSubId } });
   if (!before) return;
@@ -180,7 +178,6 @@ async function transition(
       stripeSubscriptionId: fields.stripeSubscriptionId ?? before.stripeSubscriptionId,
       stripeCustomerId: fields.stripeCustomerId ?? before.stripeCustomerId,
       currentPeriodEnd: fields.currentPeriodEnd ?? before.currentPeriodEnd,
-      seatLimit: fields.seatLimit ?? before.seatLimit,
       // Clearing frozenAt on re-activation stops the deletion clock.
       frozenAt: status === "FROZEN" ? before.frozenAt : null,
     },
@@ -216,11 +213,6 @@ function periodEndOf(sub: Stripe.Subscription): Date | null {
   const topEnd = (sub as unknown as { current_period_end?: number }).current_period_end;
   const secs = itemEnd ?? topEnd;
   return typeof secs === "number" ? new Date(secs * 1000) : null;
-}
-
-function seatCountOf(sub: Stripe.Subscription): number | null {
-  const q = sub.items?.data?.[0]?.quantity;
-  return typeof q === "number" ? q : null;
 }
 
 function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {

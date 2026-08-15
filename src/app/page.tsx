@@ -352,14 +352,14 @@ export default async function Home() {
       {/* ═══════════ PRICING ═══════════ */}
       <section id="pricing" style={{ padding: `${SECTION_PAD} ${GUTTER} 0`, maxWidth: 1100, margin: "0 auto", boxSizing: "border-box" }}>
         <h2 style={SECTION_H2}>Simple, honest launch pricing</h2>
-        <p style={{ margin: "14px auto 0", font: "400 18px var(--font-atkinson)", color: "var(--ink-soft)", textAlign: "center", maxWidth: "32em" }}>Start free with one class. Grow when your school does.</p>
+        <p style={{ margin: "14px auto 0", font: "400 18px var(--font-atkinson)", color: "var(--ink-soft)", textAlign: "center", maxWidth: "32em" }}>Free for a teacher. One flat price for a school. Every feature included in both.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 32, marginTop: 52 }}>
           <div style={{ background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 20, padding: "42px 40px", boxShadow: "var(--pop-shadow)" }}>
-            <h3 style={{ margin: 0, font: "600 28px var(--font-fredoka)" }}>One class jar</h3>
+            <h3 style={{ margin: 0, font: "600 28px var(--font-fredoka)" }}>Teacher</h3>
             <p style={{ margin: "16px 0 0", font: "600 clamp(38px, 5.4vw, 46px) var(--font-fredoka)" }}>Free</p>
-            <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>forever, for one class</p>
+            <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>permanently · no card, no trial clock</p>
             <ul style={{ margin: "26px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12, font: "400 17px var(--font-atkinson)", color: "var(--ink-soft)" }}>
-              {["One teacher, one class", "Unlimited moments & approvals", "Drawing canvas, photos & words", "Class code sign-in for children"].map((f) => (
+              {["Every class you teach", "Unlimited moments & approvals", "Drawing canvas, photos, voice & words", "Parents see approved work", "Export your data whenever you like"].map((f) => (
                 <li key={f} style={{ display: "flex", gap: 10 }}><span style={{ color: "#2E6B64", fontWeight: 700 }}>✓</span> {f}</li>
               ))}
             </ul>
@@ -368,10 +368,10 @@ export default async function Home() {
           <div style={{ background: "#22304A", color: "#FAF6EE", border: "3px solid #22304A", borderRadius: 20, padding: "42px 40px", position: "relative", boxShadow: "0 4px 0 rgba(34,48,74,0.3)" }}>
             <div style={{ position: "absolute", top: -16, right: 32, background: "#F0B441", color: "#22304A", border: "3px solid #22304A", borderRadius: 999, padding: "5px 16px", font: "600 14px var(--font-fredoka)", transform: "rotate(2deg)" }}>Launch pricing</div>
             <h3 style={{ margin: 0, font: "600 28px var(--font-fredoka)", color: "#FAF6EE" }}>School plan</h3>
-            <p style={{ margin: "16px 0 0", font: "600 clamp(38px, 5.4vw, 46px) var(--font-fredoka)", color: "#FAF6EE" }}>£4.99 <span style={{ font: "400 17px var(--font-atkinson)", color: "#A9B4C9" }}>per teacher / month</span></p>
-            <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "#A9B4C9" }}>billed annually · final pricing confirmed at launch</p>
+            <p style={{ margin: "16px 0 0", font: "600 clamp(38px, 5.4vw, 46px) var(--font-fredoka)", color: "#FAF6EE" }}>£299 <span style={{ font: "400 17px var(--font-atkinson)", color: "#A9B4C9" }}>a year</span></p>
+            <p style={{ margin: "4px 0 0", font: "400 16px var(--font-atkinson)", color: "#A9B4C9" }}>flat · however many teachers, however many pupils</p>
             <ul style={{ margin: "26px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12, font: "400 17px var(--font-atkinson)", color: "#C4CDDD" }}>
-              {["Every class you teach, one roof", "Reusable activity library & worksheets", "Skill tagging & evidence reports", "Priority support from a real teacher"].map((f) => (
+              {["Everything in the teacher plan, for all your staff", "Oversight for leadership across the school", "Work stays with the school when staff move on", "Year-end transfer & whole-school export", "A data agreement naming the school as controller", "Pay by card or invoice / PO"].map((f) => (
                 <li key={f} style={{ display: "flex", gap: 10 }}><span style={{ color: "#F0B441", fontWeight: 700 }}>✓</span> {f}</li>
               ))}
             </ul>

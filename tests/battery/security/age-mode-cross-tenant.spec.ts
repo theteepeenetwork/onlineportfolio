@@ -24,7 +24,7 @@ test.afterAll(async () => {
 });
 
 test("a teacher cannot change another school's class age mode", async ({ page }) => {
-  // School A's class, and its register as seeded (NULL → younger).
+  // School A's class, and its register as seeded (NULL → EYFS).
   const before = await db.class.findFirst({
     where: { classCode: SCHOOL_A.classCode },
     select: { id: true, ageMode: true },

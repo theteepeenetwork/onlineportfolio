@@ -29,9 +29,10 @@
 
 | State | Meaning | Can upload | Can view/download |
 |---|---|---|---|
-| **Trial** | Free half term (42 days from signup) | Yes | Yes |
-| **Active** | Paid — individual (£3.99/mo or £40/yr) or school seat | Yes | Yes |
-| **Frozen** | Trial or subscription lapsed | No | Yes (read-only) |
+| **Free (teacher)** | The permanent teacher plan — one teacher, all their own classes. **No trial clock and nothing to pay, so it cannot lapse.** | Yes | Yes |
+| **Trial** | 42-day evaluation — **schools only**, before a PO is raised | Yes | Yes |
+| **Active** | Paid — school plan (£299/yr flat) | Yes | Yes |
+| **Frozen** | A **school** trial or subscription lapsed. A free teacher account never reaches this state. | No | Yes (read-only) |
 | **Scheduled for deletion** | Frozen 12 months, warnings sent | No | Yes, until deletion date |
 
 ## Retention schedule
@@ -43,7 +44,7 @@
 | Children's quiz answers + scores | **Not a separate category** — stored as fields on the journal item (`quizAnswersJson`, `quizScore`, `quizTotal`); no separate files | Deleted with their journal item (rows removed by the same cascade/erasure paths) |
 | Teacher-authored activity media — template background pages **and** quiz answer-option pictures (`quizJson` / `quizSnapshotJson`) | Template/assignment exists | Deleted with the template/account like other teacher-authored template media; served only via the authorising `/uploads` route, never to parents |
 | Child records (first name, class link) | As above | Deleted with the class/school, or on school instruction |
-| **Class age mode** — one value per class (`Class.ageMode`: `"KS1"`, `"KS2"`, or NULL): the register a teacher picked once when creating the class, which decides whether its children see the younger or older wording, type size and pace. | The class exists | Deleted with the class by the same cascade. **Not personal data about a child** — it is a teacher's per-class display setting, holds nothing about any individual, and is never attributed to, aggregated across, exported for, or shown to a child or parent. NULL means the younger register (the more protective default, SAFEGUARDING rule 8); it is never inferred from a child's year group. Listed here because rule 9 requires every new field to have a retention line, not because it carries child data. |
+| **Class age mode** — one value per class (`Class.ageMode`: `"EYFS"`, `"KS1"`, `"KS2"`, or NULL): the register a teacher picked once when creating the class, which decides whether its children see the younger or older wording, type size and pace. | The class exists | Deleted with the class by the same cascade. **Not personal data about a child** — it is a teacher's per-class display setting, holds nothing about any individual, and is never attributed to, aggregated across, exported for, or shown to a child or parent. NULL means EYFS, the youngest and most protective register (SAFEGUARDING rule 8); it is never inferred from a child's year group. Listed here because rule 9 requires every new field to have a retention line, not because it carries child data. |
 | **Child PIN** — bcrypt hash + the date it was set (`pinHash`, `pinSetAt`), optional and only on classes where a teacher switched PINs on (see SAFEGUARDING rule 1) | The class has PINs switched on **and** the child exists | Deleted **immediately** when a teacher switches PINs off for the class — the hash is removed, not just ignored — and otherwise with the child/class/school by the same cascade. Never exported, never shown to any teacher, admin, parent or child, never included in a data export or a parent view. A PIN is not an account and does not outlive the class. |
 | **Jar last-seen marker** — one timestamp per child (`jarSeenAt`): when they last opened their own jar. Exists so a moment approved while the child was away can visibly drop into the jar the next time they look (the approval reward otherwise lands in an empty room). | The child exists | Deleted with the child by the same cascade. **Wayfinding only.** It is one timestamp, overwritten each visit — not a history, not a log of visits, and never a measure of how often or how long a child uses Storyjar. It must never be aggregated, reported, exported, shown to a parent, or used to compare children: that would be profiling, which rule 11 forbids outright. **It is not shown to teachers in any form.** *(Corrected 2026-07-16: this row previously said a teacher "may see that returned work has been reopened, so they know their note landed". `jarSeenAt` cannot honestly support that — it records that the child opened their jar page, not that they opened, read or understood the returned work. A surface built on it would tell a teacher their note had landed for a child who never saw it, and a safeguarding judgement would then run on the false version. Any future "seen by child" signal needs its own field, its own row here, and its own purpose test — not this one stretched to fit.)* |
 | In-progress drafts — the template builder + a child's activity response (server copy for cross-device resume; composite pages stored as media, owner-scoped) | Last edited within **30 days** | Deleted (rows **and** media files) — lazily purged on access (no cron); erased immediately on submit/publish/discard and on class/student/school deletion. A child's draft is never visible to anyone but that child. |
@@ -71,23 +72,28 @@
 
 ## On-demand deletion (right to erasure, Art. 17)
 
-A verified instruction from the school — or, for individual subscriptions, the
-subscribing teacher acting with the school's authority — is executed **without
+A verified instruction from the school — or, for a free teacher account, the
+teacher acting with the school's authority — is executed **without
 undue delay and within 30 days**: rows and media removed, backup propagation
 within the 35-day cycle, deletion record kept.
 
-## Individual vs school subscriptions
+## Free teacher plan vs school plan
 
 The school remains the data controller regardless of who pays. Consequences:
 
-- An individually subscribing teacher must have the school's authority to
+- A teacher on the free plan must have the school's authority to
   process its pupils' data (asserted in terms at signup).
 - If a teacher leaves the school, the journals belong to the school context.
   The school may claim them onto a school plan; they do not travel with the
   teacher's personal account to a new school.
-- If an individual account is frozen and the school wishes to preserve the
-  data, the school may take over the account onto a school seat at any point
-  before deletion.
+- A **free teacher account is never frozen for non-payment** — there is nothing
+  to pay, so the billing route into the 12-month deletion clock does not exist
+  for it. Children's work in a free account is therefore only ever deleted on
+  request, on school instruction, or when the teacher deletes the class or
+  account themselves. This *narrows* the circumstances in which data is deleted
+  for billing reasons; it changes no period in the schedule above.
+- If a **school** account is frozen and the school wishes to preserve the data,
+  it may reactivate the school plan at any point before deletion.
 
 ## Open items
 

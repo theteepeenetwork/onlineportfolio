@@ -13,6 +13,7 @@ import { StatusStrip } from "./StatusStrip";
 import { MarkSeenOnView } from "./MarkSeenOnView";
 import { AddToJar } from "./AddToJar";
 import { MyActivities } from "./MyActivities";
+import { EyfsHome } from "./registers/EyfsHome";
 
 // Look of a moment by its kind.
 const KIND = {
@@ -99,6 +100,38 @@ export default async function StudentHome() {
   // The still-to-do list (assigned and not handed in), newest first. The home
   // shows the 3 most recent as cards and hides the rest behind a toggle.
   const todoActivities = assigned.filter((a) => !respondedIds.has(a.id));
+
+  // EYFS (3–5) gets its own icon-only register (design 6a). It renders the same
+  // server data — approved moments, waiting count, to-do count — through the
+  // pre-reader shell (EyfsHome). Only serialisable, this-child-only fields cross
+  // to the client; no teacher or other-child data (SAFEGUARDING rule 4). KS1/KS2
+  // keep the layout below.
+  if (mode === "EYFS") {
+    return (
+      <EyfsHome
+        mode={mode}
+        student={{ name: student.name, avatarColor: student.avatarColor, className: student.className }}
+        moments={published.map((i) => ({
+          id: i.id,
+          type: i.type,
+          title: i.caption || kindOf(i.type).fallback,
+          dateLabel: formatDate(i.createdAt),
+          mediaPath: isImageType(i.type) ? i.mediaPath : null,
+          textContent: i.textContent,
+          bandBg: kindOf(i.type).bg,
+          // The teacher's feedback the child gets to see (owner decision: EYFS
+          // keeps the sticker/praise payoff). Same scoping as every field here —
+          // this child's own approved moment only.
+          stickers: readStickers(i.stickersJson).map((s) => s.k),
+          praiseNote: i.praiseNote,
+          heartedBack: i.stickerReply === "HEART",
+        }))}
+        jarCount={published.length}
+        waitingCount={waitingCount}
+        activitiesCount={todoActivities.length}
+      />
+    );
+  }
 
   return (
     <div className="sj" data-ks={mode} style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}>

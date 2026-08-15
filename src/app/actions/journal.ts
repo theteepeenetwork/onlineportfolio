@@ -20,9 +20,9 @@ import {
 // Student-created items always start life in the approval queue (PENDING);
 // teacher-created items are published straight away.
 export async function createJournalItem(
-  _prev: { error?: string } | undefined,
+  _prev: { error?: string; ok?: boolean } | undefined,
   formData: FormData,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; ok?: boolean }> {
   const user = await getCurrentUser();
   if (!user) redirect("/");
 
@@ -222,6 +222,15 @@ export async function createJournalItem(
 
   if (user.role === "STUDENT") {
     revalidatePath("/student");
+    // The new age registers (EYFS/KS1/KS2 student home) capture inline and show
+    // the "Popped in!" celebration in place, then fold the surface shut — so
+    // they ask NOT to be redirected to the standalone /popped page by sending
+    // `inline=1`. Nothing about the safeguarding path changes: the item was
+    // created above and still lands PENDING (SAFEGUARDING rule 3); only the
+    // post-success navigation differs. Every other capture flow (the standalone
+    // /student/new/* pages, the drawing canvas, quizzes) omits the flag and
+    // keeps the full-page celebration + "Back to my jar" return.
+    if (String(formData.get("inline") ?? "") === "1") return { ok: true };
     redirect("/student/popped");
   } else {
     revalidatePath("/teacher/queue");

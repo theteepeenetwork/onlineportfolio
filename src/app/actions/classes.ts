@@ -9,7 +9,15 @@ import { deleteMediaFiles } from "@/lib/media";
 import { gatherDraftPaths } from "@/lib/drafts";
 import { recordAudit } from "@/lib/audit";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
-import { normaliseAgeModeInput } from "@/lib/ageMode";
+import { normaliseAgeModeInput, type AgeMode } from "@/lib/ageMode";
+
+// Plain-English word for each register, used only in the human-readable audit
+// detail (never shown to a child). Mirrors the form option labels.
+const AGE_MODE_WORD: Record<AgeMode, string> = {
+  EYFS: "early years",
+  KS1: "younger",
+  KS2: "older",
+};
 
 // Teacher creates a new class. A teacher can have as many as they like.
 export async function createClass(
@@ -27,8 +35,9 @@ export async function createClass(
   if (!name) return { error: "Please give your class a name." };
 
   // The register this class will show its children. Asked once, here. Skipping
-  // is fine and stores NULL → younger (KS1); nothing is pre-selected on the form
-  // so we never nudge the choice (Children's Code). See src/lib/ageMode.ts.
+  // is fine and stores NULL → EYFS (the youngest, most protective register);
+  // nothing is pre-selected on the form so we never nudge the choice (Children's
+  // Code). See src/lib/ageMode.ts.
   const ageMode = normaliseAgeModeInput(formData.get("ageMode"));
 
   const classCode = await uniqueClassCode();
@@ -55,12 +64,12 @@ export async function createClass(
 //   - audited (rule 16): it changes how children's screens behave, so we record
 //     who changed it and to which register — but never any child data.
 // Unlike creation, an explicit value is always chosen here (we are reflecting a
-// stored setting, not asking a fresh unnudged question), so we store "KS1"/"KS2"
-// rather than NULL.
+// stored setting, not asking a fresh unnudged question), so we store one of
+// "EYFS"/"KS1"/"KS2" rather than NULL.
 export async function updateAgeMode(
-  _prev: { error?: string; saved?: boolean; mode?: "KS1" | "KS2" } | undefined,
+  _prev: { error?: string; saved?: boolean; mode?: AgeMode } | undefined,
   formData: FormData,
-): Promise<{ error?: string; saved?: boolean; mode?: "KS1" | "KS2" }> {
+): Promise<{ error?: string; saved?: boolean; mode?: AgeMode }> {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
 
@@ -68,7 +77,7 @@ export async function updateAgeMode(
   if (!gate.ok) return { error: FROZEN_TEACHER_MESSAGE };
 
   const ageMode = normaliseAgeModeInput(formData.get("ageMode"));
-  if (ageMode !== "KS1" && ageMode !== "KS2") {
+  if (ageMode === null) {
     return { error: "Please choose which children this class is for." };
   }
 
@@ -92,7 +101,7 @@ export async function updateAgeMode(
     schoolId: user.teacher.schoolId,
     subjectType: "CLASS",
     subjectId: klass.id,
-    detail: `Set "${klass.name}" to ${ageMode === "KS2" ? "older" : "younger"} children (${ageMode})`,
+    detail: `Set "${klass.name}" to ${AGE_MODE_WORD[ageMode]} children (${ageMode})`,
   });
 
   revalidatePath("/teacher/class");

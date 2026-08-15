@@ -137,6 +137,19 @@ html {
 }
 [data-anim="twinkle"] { animation: sj-star-twinkle 1.9s ease-in-out 1.85s infinite; transform-box: fill-box; transform-origin: center; }
 
+/* Inline capture celebration (age registers 6a/5a/3c). When a child submits a
+   moment from the new student home, the capture surface swaps its contents to a
+   small "Popped in!" / "Added ✓" card that pops in, holds, then folds shut. A
+   single scale keyframe — the reduced-motion catch-all below collapses it to the
+   final frame, so a child who needs stillness just sees the finished card
+   (SAFEGUARDING rule 18). Do NOT add a second reduced-motion block. */
+@keyframes sj-cap-pop {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.sj-cap-pop { animation: sj-cap-pop 0.5s cubic-bezier(.34, 1.4, .64, 1) both; transform-origin: center; }
+
 /* M3 — class-code feedback. A filled slot pops softly, so a pre-reader can see
    their tap landed; a code we can't find gets a neutral side-wobble. Never a red
    flash and never a sad face: a child who mistypes has done nothing wrong, and

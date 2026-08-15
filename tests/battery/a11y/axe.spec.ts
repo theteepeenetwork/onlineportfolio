@@ -128,6 +128,16 @@ test("a11y (AA): student home", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "student home");
 });
 
+// The EYFS (3–5) register — design 6a, the icon-only student home. It is the
+// most locked-down register and the one a child least able to read depends on,
+// so its icon-only tiles, greeting and jar bar must pass AA and be labelled
+// (SAFEGUARDING rule 18). Acorns (ACO789 / Ava) is School A's EYFS class.
+test("a11y (AA): EYFS student home", async ({ page }) => {
+  await loginStudent(page, "ACO789", "Ava");
+  await page.goto("/student");
+  assertNoSeriousViolations(await scan(page), "EYFS student home");
+});
+
 // The new voice-note capture screen — the record controls must pass AA and be
 // labelled (SAFEGUARDING rule 18). Scanned in its resting state (the record
 // button + caption + submit are all present before any recording is made).

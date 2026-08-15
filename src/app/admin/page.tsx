@@ -67,7 +67,6 @@ export default async function AdminPage() {
     <AdminConsole
       schoolName={school.name}
       plan={planLabel(account)}
-      seatLimit={school.seatLimit}
       meId={user.teacher.id}
       staff={staff}
       classes={classes}

@@ -29,8 +29,9 @@ async function openNewClassForm(page: import("@playwright/test").Page) {
   await expect(page.getByRole("radio", { name: /younger children/i })).toBeVisible();
 }
 
-test("neither age option is pre-selected (Children's Code: no nudge)", async ({ page }) => {
+test("no age option is pre-selected (Children's Code: no nudge)", async ({ page }) => {
   await openNewClassForm(page);
+  await expect(page.getByRole("radio", { name: /early years/i })).not.toBeChecked();
   await expect(page.getByRole("radio", { name: /younger children/i })).not.toBeChecked();
   await expect(page.getByRole("radio", { name: /older children/i })).not.toBeChecked();
 });
@@ -50,7 +51,21 @@ test("choosing 'older children' stores KS2 on the class", async ({ page }) => {
     .toBe("KS2");
 });
 
-test("skipping the question stores NULL (→ younger by default)", async ({ page }) => {
+test("choosing 'early years' stores EYFS on the class", async ({ page }) => {
+  const name = `EYFS Test ${Date.now()}`;
+  CREATED.push(name);
+  await openNewClassForm(page);
+  await page.getByLabel("Class name").fill(name);
+  await page.getByRole("radio", { name: /early years/i }).check();
+  await page.getByRole("button", { name: "Create class" }).click();
+
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect
+    .poll(async () => (await db.class.findFirst({ where: { name } }))?.ageMode)
+    .toBe("EYFS");
+});
+
+test("skipping the question stores NULL (→ EYFS by default)", async ({ page }) => {
   const name = `Skipped Test ${Date.now()}`;
   CREATED.push(name);
   await openNewClassForm(page);
@@ -68,13 +83,13 @@ test("skipping the question stores NULL (→ younger by default)", async ({ page
 });
 
 // A teacher can correct the register after creation, from Class settings. A
-// class made without an answer shows "younger" (the protective default); the
-// teacher switches it to "older" and it persists as KS2.
+// class made without an answer shows "early years" (the protective default,
+// NULL → EYFS); the teacher switches it to "older" and it persists as KS2.
 test("changing age mode in Class settings persists the new register", async ({ page }) => {
   const name = `Settings Age ${Date.now()}`;
   CREATED.push(name);
 
-  // Make a class, skipping the age question (stored NULL → younger).
+  // Make a class, skipping the age question (stored NULL → EYFS).
   await openNewClassForm(page);
   await page.getByLabel("Class name").fill(name);
   await page.getByRole("button", { name: "Create class" }).click();
@@ -84,8 +99,9 @@ test("changing age mode in Class settings persists the new register", async ({ p
   await page.getByRole("button", { name: new RegExp(name) }).click();
   await page.getByRole("button", { name: /Class settings/ }).click();
 
-  // Younger is the current register, so Save is disabled until something changes.
-  await expect(page.getByRole("radio", { name: /younger children/i })).toBeChecked();
+  // Early years is the current register (NULL → EYFS), so Save is disabled until
+  // something changes.
+  await expect(page.getByRole("radio", { name: /early years/i })).toBeChecked();
   const save = page.getByRole("button", { name: /^Save$/ });
   await expect(save).toBeDisabled();
 

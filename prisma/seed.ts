@@ -50,19 +50,19 @@ async function main() {
   // The demo teacher is also the admin of their school, so the /admin space is
   // reachable from the seeded login.
   const school = await db.school.create({
-    data: { name: "St Bede’s Primary", seatLimit: 10 },
+    data: { name: "St Bede’s Primary" },
   });
 
-  // Demo accounts start on the 42-day free trial ("free half term"), so the
-  // seeded login has full access. Tracked locally — no Stripe trial (RETENTION.md
-  // account states). Full access states: TRIAL | ACTIVE | PAST_DUE.
+  // The demo school is evaluating the school plan on its 42-day trial, so the
+  // seeded login has full access. Tracked locally — no Stripe trial
+  // (RETENTION.md account states). Full access states: TRIAL | ACTIVE | PAST_DUE.
+  // Only a SCHOOL plan is ever on a trial; a teacher's free plan never is.
   const TRIAL_DAYS = 42;
   await db.subscription.create({
     data: {
       kind: "SCHOOL",
       status: "TRIAL",
       trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
-      seatLimit: school.seatLimit,
       schoolId: school.id,
     },
   });
@@ -97,14 +97,20 @@ async function main() {
     data: { name: "Butterflies", yearGroup: "Reception", classCode: "BTF789", teacherId: malik.id },
   });
 
+  // Sunflower is the demo's KS1 (younger) class. Set EXPLICITLY to "KS1": the
+  // NULL default is now EYFS (SJ-06, owner/DPO 2026-07-19), so a class that must
+  // read as KS1 has to say so — leaving it null would now render the EYFS shell.
   const sunflower = await db.class.create({
-    data: { name: "Sunflower Class", classCode: "SUN234", teacherId: teacher.id },
+    data: { name: "Sunflower Class", classCode: "SUN234", ageMode: "KS1", teacherId: teacher.id },
   });
-  // Ladybird is the demo's OLDER class (SJ-06 KS2 register), so the two
-  // registers are both visible in the demo and testable. Sunflower stays
-  // younger (ageMode null → KS1).
+  // Ladybird is the demo's OLDER class (KS2 register) and Acorns (below) is the
+  // EYFS one, so all three registers are visible in the demo and testable.
   const ladybird = await db.class.create({
     data: { name: "Ladybird Class", classCode: "BUG456", ageMode: "KS2", teacherId: teacher.id },
+  });
+  // Acorns is the demo's EYFS (3–5) class — the icon-only register (design 6a).
+  const acorns = await db.class.create({
+    data: { name: "Acorns Class", classCode: "ACO789", ageMode: "EYFS", teacherId: teacher.id },
   });
 
   // The REAL palette, not a lookalike. This used to be six hardcoded Tailwind
@@ -122,6 +128,13 @@ async function main() {
   const lady = await Promise.all(
     ["Grace", "Harry", "Isla"].map((name, i) =>
       db.student.create({ data: { name, classId: ladybird.id, avatarColor: colors[(i + 3) % colors.length] } }),
+    ),
+  );
+  // Acorns (EYFS). Ava matches the design's example child. She has a couple of
+  // approved moments (so the jar window has something in it) and one waiting.
+  const acorn = await Promise.all(
+    ["Ava", "Theo", "Mia"].map((name, i) =>
+      db.student.create({ data: { name, classId: acorns.id, avatarColor: colors[(i + 1) % colors.length] } }),
     ),
   );
 
@@ -352,6 +365,20 @@ async function main() {
     },
   });
 
+  // Acorns (EYFS) — a few moments for Ava so the jar bar unfolds onto real work,
+  // plus one PENDING so the waiting chip shows. Free (non-activity) moments.
+  await db.journalItem.create({
+    // Carries the teacher's stickers + a praise note so the EYFS sticker/heart
+    // payoff (owner decision 2026-07-19) is visible in the demo and testable.
+    data: { type: "DRAWING", caption: "My rainbow dragon", mediaPath: childMedia(SUN), status: "APPROVED", approvedAt: new Date(), authorRole: "STUDENT", studentId: acorn[0].id, classId: acorns.id, stickersJson: JSON.stringify(["star", "love"]), praiseNote: "What a bright dragon, Ava!" },
+  });
+  await db.journalItem.create({
+    data: { type: "TEXT", textContent: "Today I built a big tower", status: "APPROVED", approvedAt: new Date(), authorRole: "STUDENT", studentId: acorn[0].id, classId: acorns.id },
+  });
+  await db.journalItem.create({
+    data: { type: "PHOTO", caption: "Our bean plant", mediaPath: childMedia(HOUSE), status: "PENDING", authorRole: "STUDENT", studentId: acorn[0].id, classId: acorns.id },
+  });
+
   // A parent/carer linked to two children (Amara in Sunflower, Grace in
   // Ladybird) — demonstrates the read-only family view + sibling switcher.
   // Signs in with family code FAM123 or a magic link to parent@home.com.
@@ -366,7 +393,7 @@ async function main() {
 
   console.log("✅ Seeded demo data (library-first activities).");
   console.log("   Teacher: teacher@school.uk / password");
-  console.log("   Class codes: SUN234 (Sunflower), BUG456 (Ladybird)");
+  console.log("   Class codes: SUN234 (Sunflower · KS1), BUG456 (Ladybird · KS2), ACO789 (Acorns · EYFS)");
   console.log("   Parent: family code FAM123 / magic link parent@home.com");
 }
 
