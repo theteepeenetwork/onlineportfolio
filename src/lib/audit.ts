@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { errorLabel } from "@/lib/safeLog";
 
 // Record a safeguarding-relevant action for accountability (SAFEGUARDING.md
 // rule 16). Auditing must never break the user's action, so failures are logged
@@ -28,6 +29,11 @@ export async function recordAudit(input: {
       },
     });
   } catch (e) {
-    console.error("[audit] failed to record", input.action, e);
+    // The action name and a label, never the error object. A Prisma validation
+    // error prints the whole rejected argument object, and the argument object
+    // here holds `detail`, which routinely contains a child's first name, and
+    // `actorName`. That would put both in Railway's log store, which is the one
+    // place erasure cannot reach.
+    console.error("[audit] failed to record", input.action, errorLabel(e));
   }
 }

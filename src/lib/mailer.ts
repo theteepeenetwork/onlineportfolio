@@ -45,8 +45,15 @@ import "server-only";
 //    tests/battery/security/email-templates.spec.ts. That module drops
 //    `server-only` so the test can read it; its header says why, and what
 //    would put the guard back.
-//  • **Tokens are never logged.** Failures log the recipient's domain and the
-//    provider's status, never the address in full and never the link.
+//  • **Nothing about the recipient is logged.** A failure writes the provider's
+//    status class and nothing else: not the address, not its domain, not the
+//    subject, not the body, and never the link, which carries a live sign-in
+//    token. The domain used to be logged and no longer is. On its own a domain
+//    is weak, but stdout goes to Railway's log store with a timestamp beside
+//    it, and across a ten-school pilot "a send to this domain failed at 08:41"
+//    is close enough to naming the family. Diagnosis belongs in per-day, per
+//    template counters, which say the same operational thing without holding a
+//    row about a person.
 //  • Mailjet is a sub-processor holding adult email addresses only. It is
 //    listed on /legal/sub-processors, in the DPA, and in docs/DPIA.md.
 // ---------------------------------------------------------------------------
@@ -136,8 +143,9 @@ export async function sendMail({ to, subject, text, html }: SendArgs): Promise<M
     });
 
     if (!res.ok) {
-      // Log the domain only — never the full address, never the body.
-      console.error(`[mailer] send failed (${res.status}) to domain ${domainOf(to)}`);
+      // A status class, and nothing about who the message was for. See the
+      // logging note in this file's header.
+      console.error(`[mailer] send failed (${statusClass(res.status)})`);
       return { ok: false, reason: `http-${res.status}` };
     }
 
@@ -149,21 +157,24 @@ export async function sendMail({ to, subject, text, html }: SendArgs): Promise<M
       | null;
     const status = body?.Messages?.[0]?.Status;
     if (status !== "success") {
-      console.error(`[mailer] rejected (${status ?? "unknown"}) for domain ${domainOf(to)}`);
+      console.error("[mailer] provider rejected the message");
       return { ok: false, reason: `rejected-${status ?? "unknown"}` };
     }
 
     return { ok: true };
   } catch (e) {
     const reason = e instanceof Error && e.name === "AbortError" ? "timeout" : "network";
-    console.error(`[mailer] send ${reason} to domain ${domainOf(to)}`);
+    console.error(`[mailer] send ${reason}`);
     return { ok: false, reason };
   } finally {
     clearTimeout(timer);
   }
 }
 
-function domainOf(address: string): string {
-  const at = address.lastIndexOf("@");
-  return at === -1 ? "(malformed)" : address.slice(at + 1);
+/**
+ * "2xx" / "4xx" / "5xx". The shape the eventual per-day counters want, and the
+ * most that may be said about one send in a log line.
+ */
+function statusClass(status: number): string {
+  return `${Math.floor(status / 100)}xx`;
 }

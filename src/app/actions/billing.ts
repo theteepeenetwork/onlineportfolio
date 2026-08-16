@@ -9,6 +9,9 @@ import { getStripe, stripeConfigured } from "@/lib/stripe";
 import { governingSubscription } from "@/lib/billing";
 import { priceIdFor, isPlanKey, bandFor, type PlanKey } from "@/lib/billing-plans";
 import { recordAudit } from "@/lib/audit";
+// A Stripe error echoes back the parameter it objected to, and on customer
+// creation that parameter is the school admin's email address.
+import { errorLabel } from "@/lib/safeLog";
 
 // ---------------------------------------------------------------------------
 // Billing actions: Stripe Checkout (hosted) for purchase and the Stripe Customer
@@ -124,7 +127,7 @@ export async function startCheckout(
     });
     url = session.url;
   } catch (e) {
-    console.error("[billing] checkout create failed", e);
+    console.error("[billing] checkout create failed", errorLabel(e));
     return { error: "We couldn’t start checkout just now. Please try again in a moment." };
   }
   if (!url) return { error: "We couldn’t start checkout just now. Please try again." };
@@ -163,7 +166,7 @@ export async function requestSchoolInvoice(
       metadata: { storyjar_subscription_id: sub.id, storyjar_kind: "SCHOOL" },
     });
   } catch (e) {
-    console.error("[billing] invoice subscription create failed", e);
+    console.error("[billing] invoice subscription create failed", errorLabel(e));
     return { error: "We couldn’t raise the invoice just now. Please try again." };
   }
 
@@ -198,7 +201,7 @@ export async function openCustomerPortal(
     });
     url = session.url;
   } catch (e) {
-    console.error("[billing] portal create failed", e);
+    console.error("[billing] portal create failed", errorLabel(e));
     return { error: "We couldn’t open the billing portal just now. Please try again." };
   }
   redirect(url);

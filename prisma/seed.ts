@@ -5,6 +5,30 @@ import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { AVATAR_PALETTE } from "../src/lib/avatar";
 
+// ---------------------------------------------------------------------------
+// This script deletes every row below and then writes demo teachers, demo class
+// codes and demo drawings. In production that is not a seed, it is data loss,
+// and on a volume with no backups it is permanent.
+//
+// The guard is here, at the top of the file, rather than in whatever invoked
+// it, so that it travels with the script: `railway-start.sh` no longer calls
+// the seed at all, but a hand-typed `npx tsx prisma/seed.ts` in a Railway shell
+// at the wrong moment is exactly the mistake worth making impossible.
+//
+// It runs BEFORE the Prisma client is constructed and before MEDIA_DIR is
+// created, so a refused run touches neither the database nor the disk.
+//
+// FORCE_SEED deliberately does not override it. FORCE_SEED means "yes, reseed
+// my local database"; it must never mean "yes, wipe the children's work".
+// Covered by tests/battery/security/seed-refuses-in-production.spec.ts.
+// ---------------------------------------------------------------------------
+if (process.env.NODE_ENV === "production") {
+  console.error("[seed] refusing to run: NODE_ENV is production.");
+  console.error("[seed] This script deletes every row and writes demo data over it.");
+  console.error("[seed] FORCE_SEED does not override this. Nothing was read or written.");
+  process.exit(1);
+}
+
 const db = new PrismaClient();
 
 // Media lives in a private directory (not public/) and is served only through
