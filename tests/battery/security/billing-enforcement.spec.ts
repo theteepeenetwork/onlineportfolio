@@ -48,6 +48,45 @@ test.describe("A8 · Frozen account is blocked from mutations (server-side)", ()
     await expect(page.locator("body")).not.toContainText("FrozenShouldFail");
   });
 
+  test("a frozen teacher cannot hand out new family access, but can take it away", async ({ page }) => {
+    // Granting a NEW route into a child's work is a write, so it is gated like
+    // creating a class. Removing access is the opposite: an erasure operation
+    // that must stay available when the account is read-only, exactly as class
+    // deletion does (RETENTION.md right-to-erasure exception). Both halves are
+    // asserted here, because gating the wrong one is the dangerous mistake.
+    const db = new (await import("@prisma/client")).PrismaClient();
+    try {
+      const pupil = await db.student.findFirst({
+        where: { name: SCHOOL_C.student, class: { classCode: SCHOOL_C.classCode } },
+        select: { id: true },
+      });
+      expect(pupil, "the frozen school's fixture pupil").not.toBeNull();
+
+      await loginTeacher(page, SCHOOL_C.teacher);
+      await page.goto(`/teacher/students/${pupil!.id}`);
+      await page.getByRole("button", { name: /Add family access/ }).click();
+      await expect(page.getByRole("alert").filter({ hasText: /read-only|paused/i })).toBeVisible();
+      expect(
+        await db.parent.count({ where: { children: { some: { id: pupil!.id } } } }),
+        "a frozen account handed out family access",
+      ).toBe(0);
+
+      // The removal half: give the frozen school a family directly (the UI
+      // cannot, which is the point of the check above), then prove the frozen
+      // teacher can still take it away.
+      const family = await db.parent.create({
+        data: { familyCode: `FROZEN${Date.now()}`.slice(0, 12), children: { connect: { id: pupil!.id } } },
+        select: { id: true },
+      });
+      await page.reload();
+      await page.locator("li").filter({ hasText: "FROZEN" }).getByRole("button", { name: "Remove" }).click();
+      await page.getByRole("button", { name: /Yes, remove access/ }).click();
+      await expect.poll(async () => db.parent.count({ where: { id: family.id } })).toBe(0);
+    } finally {
+      await db.$disconnect();
+    }
+  });
+
   test("a frozen pupil cannot add a moment — the server refuses", async ({ page }) => {
     await loginStudent(page, SCHOOL_C.classCode, SCHOOL_C.student);
     await page.goto("/student/new?type=TEXT");

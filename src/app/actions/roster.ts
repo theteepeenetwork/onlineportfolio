@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { deriveChildNames } from "@/lib/childNames";
 import { deleteMediaFiles } from "@/lib/media";
 import { gatherDraftPaths } from "@/lib/drafts";
+import { deleteOrphanedParents } from "@/lib/familyLinks";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 
 const AVATAR_COLORS = [
@@ -82,6 +83,9 @@ export async function removeStudent(formData: FormData) {
     include: {
       journalItems: { select: { mediaPath: true, mediaPathsJson: true } },
       drafts: { select: { pagesJson: true } }, // in-progress response drafts
+      // Gathered BEFORE the delete: once the pupil goes, so do the link rows
+      // that would tell us which families were reading this child.
+      parents: { select: { id: true } },
     },
   });
   if (student) {
@@ -103,6 +107,9 @@ export async function removeStudent(formData: FormData) {
     // Delete the row (cascades the pupil's journal items + drafts), then erase files.
     await db.student.delete({ where: { id: studentId } });
     await deleteMediaFiles(mediaUrls);
+    // A family linked to nobody is a working code and a live session belonging
+    // to no child. RETENTION.md: deleted when the last linked child is deleted.
+    await deleteOrphanedParents(student.parents.map((p) => p.id));
   }
 
   revalidatePath("/teacher/class");

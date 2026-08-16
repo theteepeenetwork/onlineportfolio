@@ -164,10 +164,22 @@ model Student {
 // A parent/carer with a read-only family view of their own child(ren)'s jar.
 // They sign in with a teacher-issued family code or an emailed magic link — no
 // password — and can only ever see approved moments for their linked children.
+//
+// A teacher NEVER types a parent's name or email. They create a family place for
+// one child and hand the code to the school office to post home; the row exists
+// from that moment with `name` and `email` both NULL. The parent fills either in
+// themselves, and only if they want to (an email is needed solely for magic
+// links). So Storyjar holds no contact detail for a parent unless that parent
+// chose to give it. See docs/DPIA.md and RETENTION.md.
+//
+// `email` is nullable AND unique: SQLite treats every NULL as distinct, so any
+// number of parents may have no address while a given address still belongs to
+// at most one family. Never look a parent up by an empty/absent address — see
+// requestMagicLink, which rejects a blank input before it reaches the database.
 model Parent {
   id          String       @id @default(cuid())
-  name        String
-  email       String       @unique
+  name        String?
+  email       String?      @unique
   familyCode  String       @unique // the code printed on the school's letter
   createdAt   DateTime     @default(now())
   children    Student[]    @relation("ParentChildren")
@@ -338,7 +350,7 @@ model AuditLog {
   id          String   @id @default(cuid())
   at          DateTime @default(now())
   schoolId    String? // for school-scoped viewing (from the actor's school)
-  actorType   String // TEACHER | ADMIN | SYSTEM
+  actorType   String // TEACHER | ADMIN | SYSTEM | PARENT (a parent linking their own second child, or adding their own email)
   actorId     String?
   actorName   String?
   action      String // e.g. MOMENT_APPROVED | MOMENT_RETURNED | STAFF_ROLE_CHANGED

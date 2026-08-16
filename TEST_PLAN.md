@@ -30,7 +30,7 @@
 ### 1.2 Routes (pages)
 
 - **Public:** `/`, `/login/teacher`, `/login/student`, `/signup/teacher`, `/signup/teacher/welcome`, `/family`, `/legal/*` (11 pages)
-- **Teacher (auth = TEACHER):** `/teacher`, `/teacher/queue`, `/teacher/class`, `/teacher/calendar`, `/teacher/activities` (+ `/new`, `/[id]`), `/teacher/students/[studentId]` (+ `/new`)
+- **Teacher (auth = TEACHER):** `/teacher`, `/teacher/queue`, `/teacher/class`, `/teacher/calendar`, `/teacher/activities` (+ `/new`, `/[id]`), `/teacher/students/[studentId]` (+ `/new`, `/letter`)
 - **Student (auth = STUDENT):** `/student`, `/student/new`, `/student/popped`, `/student/activities` (+ `/[id]`)
 - **Admin (auth = TEACHER + role ADMIN):** `/admin`
 - **Family (auth = PARENT):** `/family` (ParentHome)
@@ -51,6 +51,8 @@
 | `actions/roster.ts` | roster/pupil management | TEACHER (to verify) |
 | `actions/activities.ts` | templates + assignments | TEACHER (to verify) |
 | `actions/family.ts` | `requestMagicLink`, `signInWithFamilyCode`, `parentLogout` | public → parent session |
+| `actions/family.ts` | `addChildWithFamilyCode`, `saveFamilyDetails` | PARENT; self only (`getCurrentParent()`), code entry throttled on the shared `family:` key |
+| `actions/familyAccess.ts` | `createFamilyCode`, `rotateFamilyCode`, `removeFamilyAccess` | TEACHER; every one scoped through a pupil in the acting teacher's own classes (`ownPupil()`), then the family scoped through that pupil |
 
 ### 1.5 Auth & access-control model (the thing under test)
 

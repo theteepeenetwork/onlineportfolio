@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { parentLogout } from "@/app/actions/family";
+import { FamilySettings } from "./FamilySettings";
 import { relativeDay } from "@/lib/relativeDay";
 import type { ParentChild, ParentMoment, ParentSession } from "@/lib/parentAuth";
 import { Icon, type IconName } from "@/components/icons/Icon";
@@ -51,12 +52,27 @@ export function ParentHome({ parent }: { parent: ParentSession }) {
         </form>
       </header>
 
-      {child && <ChildView child={child} />}
+      {child ? (
+        <ChildView child={child} parent={parent} />
+      ) : (
+        // A family space with nobody in it. It should not outlive its last link
+        // (removing the last child deletes the row), but if one is ever reached
+        // it must say something kind rather than render an empty page.
+        <main style={{ maxWidth: 940, margin: "0 auto", padding: "30px 32px 60px" }}>
+          <div style={{ background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 16, padding: "40px 28px", textAlign: "center" }}>
+            <Icon name="jar" size={44} decorative />
+            <p style={{ margin: "10px 0 0", font: "600 18px var(--font-fredoka)" }}>There is nothing here to show you</p>
+            <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+              Please ask at the school office, who can set this up again for you.
+            </p>
+          </div>
+        </main>
+      )}
     </div>
   );
 }
 
-function ChildView({ child }: { child: ParentChild }) {
+function ChildView({ child, parent }: { child: ParentChild; parent: ParentSession }) {
   return (
     <main style={{ maxWidth: 940, margin: "0 auto", padding: "30px 32px 60px" }}>
       {/* jar hero */}
@@ -92,6 +108,8 @@ function ChildView({ child }: { child: ParentChild }) {
       <p style={{ margin: "26px 2px 0", font: "400 14px/1.55 var(--font-atkinson)", color: "var(--sj-muted)" }}>
         Your child&apos;s storyjar is managed by their school. You can view it, but only their teacher can add or change what&apos;s inside. Questions? Speak to the school office.
       </p>
+
+      <FamilySettings parent={parent} />
     </main>
   );
 }

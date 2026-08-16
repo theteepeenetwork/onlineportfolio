@@ -51,7 +51,8 @@ with worksheet templates and quizzes.
 | Optional teacher-added skill tags and dates | Child | Teacher's professional judgement about a piece of work. Not a score, not a profile. |
 | In-progress drafts | Child | Transient; 30-day retention. |
 | Name, email, password hash, title, school name, country | Staff | Adults. |
-| Family code / magic-link email | Parent/carer | Adults; the link between a parent and their own child(ren). The address is disclosed to **Mailjet (Sinch)** (EU storage only) when a sign-in link is sent (see R14). |
+| Family code, and the link to their own child(ren) | Parent/carer | Adults. Created by the teacher as a code and a link, and **nothing else**: no name, no address. |
+| **Optional** parent name and email | Parent/carer | Adults, and **volunteered by that parent about themselves**. A teacher is never asked for either and has nowhere to type them; the email exists only so a parent who would rather not keep the letter can be sent a sign-in link, and can be cleared again by the parent at any time. The address is disclosed to **Mailjet (Sinch)** (EU storage only) when a link is sent (see R14). See §4. |
 | Billing contact name and email, or school name | Adult | Held by Stripe. **No child data ever reaches Stripe.** |
 | Audit log entries | Staff actions | Who did what, never child content. |
 
@@ -114,6 +115,48 @@ disclosure to any third party.
   rule 1 amendment is **not built**, precisely because a PIN hash would be the
   first per-child credential and the first per-child data field beyond a first
   name (`docs/dpo-decisions.md`, 2026-07-18).
+- **A second deliberate decision not to collect: a parent's contact details.**
+  Family access is the mechanism that decides which adult sees a child's
+  photographs, so how it is set up is a data-protection question, not a
+  convenience one. The obvious build is the one every comparable product ships:
+  the teacher types the parent's email address and the system emails them an
+  invitation. Storyjar does not do that. A teacher creates a family space for one
+  child and gets a **code**, which reaches the household on paper, from the
+  school. The parent redeems it, and only then, and only if they want a sign-in
+  link in future, do they add their own address.
+
+  The position this produces is worth stating plainly, because it is unusually
+  strong for a children's product: **Storyjar holds no contact detail for any
+  parent unless that parent chose to give it, about themselves, after they were
+  already signed in.** Three things follow, and each of them is a risk that does
+  not exist rather than one that is managed:
+
+  - **No adult contact database accumulates as a side effect of use.** A school
+    with 300 pupils generates 300 codes and zero addresses. Under the obvious
+    build it would generate 300 addresses on day one, whether or not a single
+    parent ever signed in.
+  - **Storyjar never sends an unsolicited message to a parent.** There is no "you
+    have been added" email anywhere in the feature. The only message a parent can
+    ever receive is a sign-in link they personally asked for, at an address they
+    personally typed. A mistyped address entered by a busy school cannot therefore
+    send a stranger anything (see R14).
+  - **Nothing is asked of a parent who does not want to be known.** A family can
+    use Storyjar for years having told it only that they hold a code.
+
+  The cost is real and was accepted knowingly: delivery depends on the school
+  putting a letter in a bag, there is no way to reach a family whose letter went
+  astray except through the school, and the code is a bearer credential until it
+  is redeemed. Those are the reasons the code is generated with the crypto RNG,
+  is revocable and re-issuable by the teacher in one tap, is never written to the
+  audit log, and is destroyed with the family space when access is removed
+  (`RETENTION.md`).
+
+  **Siblings follow from the same decision.** Two children in one family may be
+  taught by two teachers who must never see each other's classes, so neither
+  teacher can be the one to join the two records up. The parent does it: signed
+  in, they enter the second code themselves. It is the only route that puts two
+  children behind one sign-in, and it discloses nothing about either class to
+  anyone.
 
 ## 5. Children's Code — how each standard is met
 
@@ -126,10 +169,10 @@ disclosure to any third party.
 | 5. Detrimental use of data | Data is used only to show a child's work to their teacher and their own family. | — |
 | 6. Policies and community standards | `SAFEGUARDING.md` is enforced by an automated test battery, not just asserted. | — |
 | 7. Default settings | Deny by default (rule 8). Nothing is shared until a teacher approves it. Age mode defaults to the youngest register. | — |
-| 8. Data minimisation | First name only; no schema field exists for banned data. | — |
+| 8. Data minimisation | First name only; no schema field exists for banned data. The same test is applied to the adults: a parent's name and email are optional, self-supplied and clearable, and the teacher's screens have nowhere to enter either (§4). | — |
 | 9. Data sharing | No child data is shared with any third party. Stripe receives adult billing data only. | — |
 | 10. Geolocation | Not collected at all. | — |
-| 11. Parental controls | Parents see their own child's approved work, read-only. No covert monitoring of the child by anyone. | — |
+| 11. Parental controls | Parents see their own child's approved work, read-only. No covert monitoring of the child by anyone. Access is granted by the school one child at a time, and the school can re-issue or withdraw it in one tap; the parent controls their own contact details and can remove them. | — |
 | 12. Profiling | **Off, and not built.** No behaviour points, no rankings, no cohort scoring, no recommendation engine, no AI processing of children's work. | — |
 | 13. Nudge techniques | No streaks, no pressure to share, no engagement mechanics. The celebration on submission rewards the act of making work, not frequency of use. | — |
 | 14. Connected toys/devices | Not applicable. | — |
@@ -153,7 +196,7 @@ rating that remains.
 | **R8** | Children profiled, scored or tracked | Structurally absent: no analytics provider, no advertising network, no social pixels, no behaviour points, no AI processing of children's work. A static audit gate blocks new third-party script use. | **Low** |
 | **R9** | A child cannot reach their own work — exclusion as a privacy harm | WCAG 2.2 AA is a safeguarding rule (18), gated by axe in CI. F18 (six children in eight could not read their own initial on their name card) was found and fixed, with an arithmetic test over the whole palette. | **Medium** — ~30 contrast nodes remain baselined in `BASELINE_RULES` pending a palette decision. **A baselined rule is how F18 hid for weeks.** |
 | **R10** | Staff account compromise exposes a class | bcrypt password hashing; failure-count rate limiting per account+IP; session cookies HttpOnly, SameSite, Secure in production; server-side session invalidation on logout. | **Medium** — no multi-factor authentication for staff. Proportionate at current scale; revisit as schools scale. |
-| **R11** | A parent sees another family's child | Parent↔child link scoping, read-only, approved items only; covered by tenant-isolation tests. | **Low** |
+| **R11** | A parent sees another family's child | Parent↔child link scoping, read-only, approved items only; covered by tenant-isolation tests. Extended 2026-08-16 when family access became something a teacher can actually set up: a family code is scoped to the child it was made for and to no other, **including another child in the same class**, and a link removed by the teacher ends access on the parent's very next request rather than at the end of their session. Both are blocking tests in `family-access-cross-tenant.spec.ts`, alongside paired positive controls so a route that has simply stopped working cannot pass the negative. The one way two children reach one sign-in is the parent entering the second code themselves, which cannot reach a child no one sent them a letter for. | **Low** |
 | **R12** | A breach is mishandled or notified late | Incident response process exists in `SAFEGUARDING.md`: contain, assess, notify the school as controller without undue delay so it can meet its 72-hour ICO duty, route child-safety concerns to the school's DSL, record, remediate. | **Medium** — the process is a starter with **no named contacts and no school-facing template**, and has never been rehearsed. |
 | **R13** | A child is asked for a credential, creating an identity to compromise | No child logins, emails or passwords exist. The optional KS2 PIN is permitted by rule 1 but **deliberately not built**. | **Low** |
 

@@ -108,6 +108,28 @@ export async function studentIdFromLogin(page: Page, code: string, name: string)
   return id;
 }
 
+// Headers that give a browser context its OWN rate-limit key.
+//
+// The auth limiters key on `clientIp()`, which reads the leftmost
+// `x-forwarded-for`. A spec that deliberately trips a limiter would otherwise
+// leave a real 15-minute block on the key every other spec shares, which is why
+// the throttle specs that grind the shared key live in the report-only
+// `findings` project. Nominating a key lets a spec prove the same behaviour in
+// the blocking gate without contaminating anything.
+//
+// The key is unique PER RUN, and that part is not decoration: the dev server is
+// reused between runs locally (see TESTING.md on warm vs cold servers), so a
+// fixed key would hand the next run the block the last one left behind, and the
+// spec would fail on its first attempt for a reason that has nothing to do with
+// the code.
+//
+// `clientIp()` treats the value as an opaque string, so the suffix is harmless.
+// This is a local test seam only: the live edge discards a client-supplied
+// `x-forwarded-for` before the app sees it (verified, see src/lib/rateLimit.ts).
+export function ownThrottleKey(label: string): Record<string, string> {
+  return { "x-forwarded-for": `203.0.113.${label}-${Date.now()}` };
+}
+
 // Clear cookies to become anonymous.
 export async function clearSession(page: Page) {
   await page.context().clearCookies();
