@@ -7,9 +7,11 @@ export default function Privacy() {
     <LegalShell title="Privacy Policy" intro="This policy explains what personal data Storyjar processes, why, on whose behalf, and the rights people have. A short plain-English version for families is also available.">
       <h2>1. Who is responsible for your data</h2>
       <p>
-        Storyjar is provided by <strong>[Legal entity name], [company number], [registered address]</strong>
-        {" "}(&ldquo;Storyjar&rdquo;, &ldquo;we&rdquo;). Our Data Protection Officer is <strong>[DPO name / email]</strong>.
-        We are registered with the Information Commissioner&apos;s Office (ICO) under <strong>[registration number]</strong>.
+        Storyjar is a service provided by <strong>[Full name]</strong>, a sole trader trading as
+        &ldquo;Storyjar&rdquo;, of <strong>[business address]</strong> (&ldquo;Storyjar&rdquo;, &ldquo;we&rdquo;).
+        Storyjar is a one-person business: the founder is also the person responsible for data protection, and can be
+        reached at <strong>hello@storyjar.co.uk</strong>. We are registered with the Information Commissioner&apos;s
+        Office (ICO) under <strong>[registration number]</strong>.
       </p>
       <p>
         For the data of <strong>children, parents and staff</strong>, the <strong>school is the data controller</strong>
@@ -85,7 +87,7 @@ export default function Privacy() {
         Because the school is the controller for children&apos;s data, <strong>requests to access, correct, delete or
         export a child&apos;s data are made to the school</strong>, and we support the school in fulfilling them. Parents
         and pupils can raise requests with the school; the school can also contact us. For account-holder data you can
-        contact us directly at <strong>[privacy contact]</strong>. You may complain to the ICO (ico.org.uk).
+        contact us directly at <strong>hello@storyjar.co.uk</strong>. You may complain to the ICO (ico.org.uk).
       </p>
 
       <h2>10. Children&apos;s Code</h2>

@@ -23,13 +23,13 @@ export default function Terms() {
       <p>Use of Storyjar must comply with the <a href="/legal/acceptable-use">Acceptable Use Policy</a>. We may suspend access to protect children or the service.</p>
 
       <h2>5. Fees</h2>
-      <p>A teacher account is free, permanently — there is nothing to pay and no trial that expires. A school plan is priced by the number of pupils on roll (£199, £299, £449 or £649 a year), covering every teacher and pupil at the school, billed annually by card or by invoice / purchase order. Storyjar is not VAT registered, so no VAT is added. Your band is set when the plan starts and does not change during the paid year, even if the school roll grows. A school may cancel at any time; access continues to the end of the paid year. <em>[Confirm cancellation and refund wording.]</em></p>
+      <p>A teacher account is free, permanently — there is nothing to pay and no trial that expires. A school plan is priced by the number of pupils on roll (£199, £299, £449 or £649 a year), covering every teacher and pupil at the school, billed annually by card or by invoice / purchase order. Storyjar is not VAT registered, so no VAT is added. Your band is set when the plan starts and does not change during the paid year, even if the school roll grows. A school may cancel at any time and will not be charged again; access continues in full until the end of the year already paid for, after which the plan simply does not renew. We do not refund part of a paid year. Nothing is deleted at cancellation — a school can export everything, and the retention schedule in our Privacy Policy then applies.</p>
 
       <h2>6. Data protection</h2>
       <p>We process personal data as your processor under the <a href="/legal/data-processing">Data Processing Agreement</a> and our <a href="/legal/privacy">Privacy Policy</a>. Data is held in the EU (Amsterdam, the Netherlands).</p>
 
       <h2>7. Availability &amp; support</h2>
-      <p>We aim to keep Storyjar available and to support schools, but the service is provided &ldquo;as is&rdquo; without warranties beyond those that cannot be excluded by law. <em>[Confirm SLA/support commitments.]</em></p>
+      <p>We aim to keep Storyjar available and to support schools, but the service is provided &ldquo;as is&rdquo; without warranties beyond those that cannot be excluded by law. <strong>Storyjar is a one-person business and does not offer a contractual service-level agreement or guaranteed response times.</strong> In practice we aim to answer schools within one working day and to fix anything that stops a class working as a priority — but we would rather set that expectation honestly than promise a response time we cannot always meet in a school holiday. <em>[Reviewed with a solicitor before publication.]</em></p>
 
       <h2>8. Liability</h2>
       <p><em>[Liability provisions to be drafted by a solicitor — nothing here limits liability that cannot be limited in law, including for death or personal injury caused by negligence.]</em></p>

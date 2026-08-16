@@ -34,7 +34,7 @@ export default function Safeguarding() {
       <p>
         If you have a <strong>child-safety concern</strong>, contact your school&apos;s <strong>Designated Safeguarding
         Lead (DSL)</strong> in the first instance. If you believe there is a problem with how Storyjar itself is handling
-        content or data, contact us at <strong>[safeguarding@storyjar.co.uk]</strong> and we will work with the school.
+        content or data, contact us at <strong>hello@storyjar.co.uk</strong> and we will work with the school.
         In an emergency where a child is at immediate risk, contact the police or your local authority&apos;s children&apos;s
         services.
       </p>
@@ -43,7 +43,10 @@ export default function Safeguarding() {
       <p>
         If we become aware of a personal-data breach or a safeguarding issue, we notify the affected school(s) without
         undue delay so they can meet their statutory duties (including the ICO&apos;s 72-hour reporting requirement where
-        applicable). <em>[Named contacts and the full incident procedure to be confirmed with the DPO/DSL.]</em>
+        applicable). Storyjar is a one-person business, so the single point of contact for both data-protection and
+        safeguarding matters is <strong>[Full name]</strong> at <strong>hello@storyjar.co.uk</strong>. We do not contact
+        children or the public directly about an incident — we go to the school, because the school is the data
+        controller and holds the safeguarding relationship with the family.
       </p>
     </LegalShell>
   );

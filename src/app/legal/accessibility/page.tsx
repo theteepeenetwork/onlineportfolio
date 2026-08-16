@@ -19,10 +19,28 @@ export default function Accessibility() {
       </ul>
 
       <h2>Known limitations</h2>
-      <p><em>[List any known issues here as they are found, with target fix dates.]</em></p>
+      <p>
+        We publish what we know rather than claim we are finished. As at August 2026:
+      </p>
+      <ul>
+        <li>
+          <strong>A small number of colour-contrast shortfalls remain on adult-facing surfaces</strong> — some status
+          badges and role labels in the teacher and admin areas fall just below the AA contrast ratio. Around thirty
+          elements are affected. Every child-facing screen meets AA, and this is being fixed as part of settling the
+          brand palette.
+        </li>
+        <li>
+          <strong>Voice notes have no automatic transcript.</strong> A recording made by a child is not captioned, so a
+          Deaf parent cannot read what was said. A teacher can add a written caption to any moment, and we would rather
+          say this plainly than let a family discover it.
+        </li>
+      </ul>
+      <p>
+        If something here affects you, please tell us — a known issue that is blocking a real person moves up the list.
+      </p>
 
       <h2>Feedback</h2>
-      <p>If you have trouble using any part of Storyjar, tell us at <strong>[accessibility@storyjar.co.uk]</strong> and we will help and fix it. We welcome feedback that helps us do better.</p>
+      <p>If you have trouble using any part of Storyjar, tell us at <strong>hello@storyjar.co.uk</strong> and we will help and fix it. We welcome feedback that helps us do better.</p>
     </LegalShell>
   );
 }
