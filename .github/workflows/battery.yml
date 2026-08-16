@@ -23,8 +23,8 @@ jobs:
     name: Static security gates (blocking)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
       - name: No unsafe raw queries / dangerouslySetInnerHTML
@@ -43,8 +43,8 @@ jobs:
     name: Security tests (blocking)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -60,8 +60,8 @@ jobs:
     name: Accessibility tests (blocking)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -74,8 +74,8 @@ jobs:
     name: Functional E2E (blocking)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -88,8 +88,8 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
       - run: npx playwright install --with-deps chromium
