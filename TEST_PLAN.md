@@ -107,6 +107,7 @@ Legend: ✅ build now · 🟡 build now, forward-looking (feature not yet in cod
 | A9 | **Dependencies** | `npm audit --audit-level=high` gated in CI; `npm ci` lockfile-integrity check. | ✅ |
 | A10 | **Rate limiting & enumeration** | Login brute force, magic-link/family-code abuse, class-code + pupil/class ID enumeration. | ⏸ **No rate limiting exists** (F2). Tests will document current behaviour and fail against the intended limit — needs decision on whether to add limiting or mark as accepted-risk findings. |
 | A11 | **Data protection** | No child data in logs; no PII in URLs/analytics (there are no analytics — assert none added); deletion cascade + **media-file erasure** (rule 9); data export works. | ✅ (export & per-item media erasure — see **F3**, **F4**) |
+| A12 | **Email templates** | Assert on the rendered output of `magicLinkEmail` and `staffInviteEmail`: no `<img>` anywhere (an image is how open tracking works), no URL other than the one passed in, no `<style>` or `<link>`, the plain-text part carries the link, the school name is escaped, and nothing but those parameters reaches the output. Blocking. `scripts/verify-mail.ts` covers the other half, which no test can see: what the provider does to the message on its way out. | ✅ Templates moved to `src/lib/emailTemplates.ts` (no `server-only`) so the gate can read them. |
 
 ### B. Usability & UX
 

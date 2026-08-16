@@ -248,12 +248,12 @@ reason nobody reinstates it in six months. Read it before evaluating any
 replacement provider: the disqualifying behaviour was link rewriting, not
 tracking as such.
 
-Three rules hold this together, and each one is load-bearing:
+Four rules hold this together, and each one is load-bearing:
 
 - **No child's name and no child content ever appears in an email.** The school
   holds the parent's address, not us, and addresses get mistyped. Every template
-  in `src/lib/emails.ts` is written so a misdirected message tells a stranger
-  nothing about any child.
+  in `src/lib/emailTemplates.ts` is written so a misdirected message tells a
+  stranger nothing about any child.
 - **We cannot tell whether a particular parent opened an email, or clicked its
   link.** Tracking is off three ways: Mailjet's account-level *Track openers*
   and *Track clicks* are both switched off, which covers transactional mail and
@@ -261,12 +261,18 @@ Three rules hold this together, and each one is load-bearing:
   (`TrackOpens` / `TrackClicks`, plus the `X-MJ-TrackOpen` / `X-MJ-TrackClick`
   headers). Three switches is not three times the confidence. Brevo ignored the
   one flag its API accepted, so treat all three as claims about configuration
-  and check the behaviour: `node scripts/verify-mail.mjs <a mailbox you
-  control>` sends a probe and tells you what to look for in the delivered raw
-  source, and `node scripts/mail-events.mjs` shows what the provider actually
-  recorded. Click-tracking in particular must never happen, because rewriting
-  the sign-in link would break the token and hand a third party the means to
-  use it.
+  and check the behaviour: `npx tsx scripts/verify-mail.ts <a mailbox you
+  control>` sends the real sign-in template with a fake token and tells you what
+  to look for in the delivered raw source, and `node scripts/mail-events.mjs`
+  shows what the provider actually recorded. Click-tracking in particular must
+  never happen, because rewriting the sign-in link would break the token and
+  hand a third party the means to use it.
+- **The templates themselves contain no image, no external URL and no
+  stylesheet**, so "no tracking pixel" is a property of the message rather than
+  a promise about a provider's settings. That is a blocking test
+  (`tests/battery/security/email-templates.spec.ts`), not a comment. It is why
+  `src/lib/emailTemplates.ts` has no `server-only` import, and its header
+  records what would put that guard back.
 - **Mailjet holds a delivery record for 90 days** on the free plan (13 months
   on paid plans, so an upgrade lengthens it). That is longer than the 1 month
   the previous provider allowed, and it was accepted deliberately: see the email

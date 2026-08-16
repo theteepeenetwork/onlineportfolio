@@ -83,7 +83,7 @@ correct decision for a build that could not send email, and it was never revised
 when the code moved toward deployment. **A convenience justified by a temporary
 limitation needs a guard that expires with the limitation, not a comment.**
 
-**Fix:** the link is emailed (`src/lib/mailer.ts`, `src/lib/emails.ts`). The
+**Fix:** the link is emailed (`src/lib/mailer.ts`, `src/lib/emailTemplates.ts`). The
 on-screen version is gated behind `signInLinkMayBeShown()` in
 `src/lib/signInLinkPolicy.ts` — a pure function of `NODE_ENV`, kept in its own
 tiny module precisely so a test can assert it rather than trusting an `if`
