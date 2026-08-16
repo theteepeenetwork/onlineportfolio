@@ -1,6 +1,6 @@
 # Data Protection Impact Assessment — Storyjar
 
-**Version:** 1.0 (draft for DPO sign-off) · **Written:** 15 August 2026
+**Version:** 1.1 (draft for DPO sign-off) · **Written:** 15 August 2026 · **Updated:** 15 August 2026 (R6 — hosting region confirmed)
 **Assessed by:** the founder, acting as DPO · **Status:** *Not yet signed off*
 
 > **This is an internal assessment, not legal advice, and it has not been reviewed
@@ -147,7 +147,7 @@ rating that remains.
 | **R3** | Photos or voice notes served from guessable URLs | Every `/uploads` request is authorised against the same ownership rules before bytes are served; hardened content type and CSP; SVG rejected on upload. F5/F17 addressed. | **Low** |
 | **R4** | A leaked class code discloses a class roster (every child's first name) | Lookup throttled per IP, miss-only and classroom-safe (F16); a teacher can rotate a leaked code, scoped to the owning teacher. Roster disclosure is limited to first names — no surname exists to leak. | **Medium** — a valid code in the wrong hands still shows first names. Accepted as inherent to a no-login child sign-in; the alternative (child credentials) was judged more intrusive. |
 | **R5** | Children's data kept longer than necessary | `RETENTION.md` defines every category; deletion removes rows **and** files across all delete paths (rule 9), covered by tests. A free teacher account can never be frozen, so it never enters a billing deletion clock at all. | **Medium** — the frozen→deletion pipeline for lapsed *school* accounts is **not automated**; it is carried out manually. Tracked as a P2 gap. |
-| **R6** | Personal data processed outside the UK/EU | Rule 10 requires UK/EU for all personal data. Stripe holds **adult billing data only**; no child data ever reaches it. | **HIGH — UNRESOLVED.** The **Railway hosting region is not confirmed pinned to UK/EU**, and Stripe's billing-data residency has not been assessed. Both are flagged as open on the public sub-processors page. **This must be closed before any real child data is stored.** See §8. |
+| **R6** | Personal data processed outside the UK/EEA | **Hosting region confirmed 2026-08-15: EU West (Amsterdam, Netherlands)**, with the data volume in the same region — so children's moments, media and account data are held in the EEA, satisfying rule 10. UK→EEA transfers are covered by the UK's adequacy regulations, so no IDTA or SCCs are required for the storage location. Stripe holds **adult billing data only**; no child data ever reaches it. | **Medium.** Two residuals: (a) Railway is **US-incorporated**, so its personnel may access systems for support from outside the EEA — its DPA and onward-transfer terms have not been obtained and recorded; (b) **Stripe's billing-data residency is still unassessed**. Neither involves children's data at rest leaving the EEA. |
 | **R7** | A child's name or work sent to a third party by read-aloud | `speechSynthesis` may transmit spoken text to a cloud voice on some platforms, so **only fixed UI copy is ever spoken** — never a child's name, caption, or a teacher's instructions. The EYFS greeting displays "Hello, Ava!" but speaks a name-free string. All speakable strings live in one module so the rule is checkable. | **Low** |
 | **R8** | Children profiled, scored or tracked | Structurally absent: no analytics provider, no advertising network, no social pixels, no behaviour points, no AI processing of children's work. A static audit gate blocks new third-party script use. | **Low** |
 | **R9** | A child cannot reach their own work — exclusion as a privacy harm | WCAG 2.2 AA is a safeguarding rule (18), gated by axe in CI. F18 (six children in eight could not read their own initial on their name card) was found and fixed, with an arithmetic test over the whole palette. | **Medium** — ~30 contrast nodes remain baselined in `BASELINE_RULES` pending a palette decision. **A baselined rule is how F18 hid for weeks.** |
@@ -160,7 +160,8 @@ rating that remains.
 
 | Risk | Measure | Effect | Owner | When |
 |---|---|---|---|---|
-| R6 | **Confirm and pin the Railway region to UK/EU**; record the region in the sub-processors table | Eliminated | Founder | **Before any real child data — blocking for launch** |
+| R6 | ~~Confirm and pin the Railway region~~ — **done 2026-08-15: EU West (Amsterdam)**, recorded in the sub-processors table and the privacy notice | Closed | Founder | Complete |
+| R6 | Obtain Railway's DPA and record its onward-transfer / support-access terms | Reduced to Low | Founder/DPO | Before launch |
 | R6 | Complete the Stripe residency assessment and record the conclusion | Reduced to Low | Founder/DPO | Before first live payment |
 | R5 | Build the frozen→deletion automation | Reduced to Low | Founder | Post-launch; until then, a documented manual diary check |
 | R9 | Settle the badge palette and empty `BASELINE_RULES` so the a11y gate is strict | Reduced to Low | Founder | Before launch |
@@ -174,9 +175,10 @@ rating that remains.
 
 This DPIA **cannot be signed off** until:
 
-1. **The Railway hosting region is confirmed as UK/EU and recorded.** This is the
-   single highest-rated residual risk and it is unresolved. Everything else in this
-   document assumes UK/EU hosting.
+1. ~~The Railway hosting region is confirmed and recorded.~~ **Done 2026-08-15 —
+   EU West (Amsterdam, Netherlands), volume in the same region.** Remaining under
+   this heading: obtain **Railway's DPA and onward-transfer terms**, since Railway
+   is US-incorporated and may support the service from outside the EEA.
 2. **Stripe's billing-data residency is assessed** and the conclusion recorded.
 3. **An incident contact is named** and the school-facing breach template written.
 4. **A qualified data-protection professional reviews** this assessment and the
@@ -192,7 +194,7 @@ This DPIA **cannot be signed off** until:
 |---|---|---|---|
 | Assessed by | *(founder, acting DPO)* | 2026-08-15 | Draft |
 | Reviewed by (external) | *(not yet engaged)* | — | **Outstanding** |
-| Residual risk accepted by | *(founder, acting DPO)* | — | **Not yet — R6 must close first** |
+| Residual risk accepted by | *(founder, acting DPO)* | — | **Not yet — see §8** |
 
 **Review cycle:** at least annually, and immediately on any change to hosting,
 sub-processors, the age range served, the categories of data held, or any feature
