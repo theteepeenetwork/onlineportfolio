@@ -51,7 +51,7 @@ with worksheet templates and quizzes.
 | Optional teacher-added skill tags and dates | Child | Teacher's professional judgement about a piece of work. Not a score, not a profile. |
 | In-progress drafts | Child | Transient; 30-day retention. |
 | Name, email, password hash, title, school name, country | Staff | Adults. |
-| Family code / magic-link email | Parent/carer | Adults; the link between a parent and their own child(ren). |
+| Family code / magic-link email | Parent/carer | Adults; the link between a parent and their own child(ren). The address is disclosed to **Brevo** (EU) when a sign-in link is sent — see R14. |
 | Billing contact name and email, or school name | Adult | Held by Stripe. **No child data ever reaches Stripe.** |
 | Audit log entries | Staff actions | Who did what, never child content. |
 
@@ -89,7 +89,7 @@ disclosure to any third party.
 | Teachers / schools | Informal design input from classroom practice. A moderated usability kit exists (`docs/MANUAL_USABILITY_KIT.md`) but **has not yet been run**. |
 | Children | Not directly consulted. Age-appropriateness has been addressed through design (three age registers, icon-only pre-reader interface, read-aloud) rather than consultation. **A gap worth closing with pilot schools.** |
 | Parents | Not yet consulted. The family-facing privacy notice (`/legal/privacy-for-families`) is written for them but untested with them. |
-| Processors | Terms reviewed; residency questions open (§6, R6). |
+| Processors | Terms reviewed; residency questions open (§6, R6). Brevo added as a transactional-email sub-processor 2026-08-15 (EU-hosted, adult addresses only) — its DPA is an open item alongside Railway's. |
 
 ## 4. Necessity and proportionality
 
@@ -148,6 +148,7 @@ rating that remains.
 | **R4** | A leaked class code discloses a class roster (every child's first name) | Lookup throttled per IP, miss-only and classroom-safe (F16); a teacher can rotate a leaked code, scoped to the owning teacher. Roster disclosure is limited to first names — no surname exists to leak. | **Medium** — a valid code in the wrong hands still shows first names. Accepted as inherent to a no-login child sign-in; the alternative (child credentials) was judged more intrusive. |
 | **R5** | Children's data kept longer than necessary | `RETENTION.md` defines every category; deletion removes rows **and** files across all delete paths (rule 9), covered by tests. A free teacher account can never be frozen, so it never enters a billing deletion clock at all. | **Medium** — the frozen→deletion pipeline for lapsed *school* accounts is **not automated**; it is carried out manually. Tracked as a P2 gap. |
 | **R6** | Personal data processed outside the UK/EEA | **Hosting region confirmed 2026-08-15: EU West (Amsterdam, Netherlands)**, with the data volume in the same region — so children's moments, media and account data are held in the EEA, satisfying rule 10. UK→EEA transfers are covered by the UK's adequacy regulations, so no IDTA or SCCs are required for the storage location. Stripe holds **adult billing data only**; no child data ever reaches it. | **Medium.** Two residuals: (a) Railway is **US-incorporated**, so its personnel may access systems for support from outside the EEA — its DPA and onward-transfer terms have not been obtained and recorded; (b) **Stripe's billing-data residency is still unassessed**. Neither involves children's data at rest leaving the EEA. |
+| **R14** | A parent's sign-in link reaches the wrong person, or an email discloses a child | Sending is via **Brevo** (EU: France/Germany), which receives the adult address only. **No child's name and no child content appears in any email** — templates are written so a misdirected message tells a stranger nothing about a child, which matters because the *school* holds the address and schools mistype them. Links are not click-tracked (tracking would both rewrite the token and hand a third party the means to use it), opens are not tracked, and tokens are never logged. Tokens are single-use and expire in 30 minutes. | **Low** |
 | **R7** | A child's name or work sent to a third party by read-aloud | `speechSynthesis` may transmit spoken text to a cloud voice on some platforms, so **only fixed UI copy is ever spoken** — never a child's name, caption, or a teacher's instructions. The EYFS greeting displays "Hello, Ava!" but speaks a name-free string. All speakable strings live in one module so the rule is checkable. | **Low** |
 | **R8** | Children profiled, scored or tracked | Structurally absent: no analytics provider, no advertising network, no social pixels, no behaviour points, no AI processing of children's work. A static audit gate blocks new third-party script use. | **Low** |
 | **R9** | A child cannot reach their own work — exclusion as a privacy harm | WCAG 2.2 AA is a safeguarding rule (18), gated by axe in CI. F18 (six children in eight could not read their own initial on their name card) was found and fixed, with an arithmetic test over the whole palette. | **Medium** — ~30 contrast nodes remain baselined in `BASELINE_RULES` pending a palette decision. **A baselined rule is how F18 hid for weeks.** |
@@ -161,7 +162,7 @@ rating that remains.
 | Risk | Measure | Effect | Owner | When |
 |---|---|---|---|---|
 | R6 | ~~Confirm and pin the Railway region~~ — **done 2026-08-15: EU West (Amsterdam)**, recorded in the sub-processors table and the privacy notice | Closed | Founder | Complete |
-| R6 | Obtain Railway's DPA and record its onward-transfer / support-access terms | Reduced to Low | Founder | Before launch |
+| R6 | Obtain **Railway's and Brevo's** DPAs and record their onward-transfer / support-access terms | Reduced to Low | Founder | Before launch |
 | R6 | Complete the Stripe residency assessment and record the conclusion | Reduced to Low | Founder | Before first live payment |
 | R5 | Build the frozen→deletion automation | Reduced to Low | Founder | Post-launch; until then, a documented manual diary check |
 | R9 | Settle the badge palette and empty `BASELINE_RULES` so the a11y gate is strict | Reduced to Low | Founder | Before launch |
@@ -177,7 +178,7 @@ This DPIA **cannot be signed off** until:
 
 1. ~~The Railway hosting region is confirmed and recorded.~~ **Done 2026-08-15 —
    EU West (Amsterdam, Netherlands), volume in the same region.** Remaining under
-   this heading: obtain **Railway's DPA and onward-transfer terms**, since Railway
+   this heading: obtain **Railway's and Brevo's DPAs and onward-transfer terms**, since Railway
    is US-incorporated and may support the service from outside the EEA.
 2. **Stripe's billing-data residency is assessed** and the conclusion recorded.
 3. **An incident contact is named** and the school-facing breach template written.

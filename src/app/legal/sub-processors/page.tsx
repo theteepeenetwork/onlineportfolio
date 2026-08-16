@@ -23,6 +23,12 @@ export default function SubProcessors() {
             <td>Adult billing data only. <strong>[Residency assessment pending review]</strong></td>
           </tr>
           <tr>
+            <td><strong>Brevo</strong></td>
+            <td>Transactional email — the sign-in link we send a parent, and staff notifications</td>
+            <td><strong>Adult email addresses only</strong> — a parent&apos;s or staff member&apos;s address. <strong>No child&apos;s name, and no child&apos;s work, ever appears in an email</strong>: our messages are written so that if one reached the wrong person by a mistyped address, it would tell them nothing about any child. Opens and clicks are not tracked.</td>
+            <td>EU — France and Germany</td>
+          </tr>
+          <tr>
             <td><strong>GitHub</strong></td>
             <td>Source-code hosting (no personal/customer data)</td>
             <td>None (code only)</td>

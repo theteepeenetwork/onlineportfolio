@@ -5,12 +5,23 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
 import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
+import { sendMail } from "@/lib/mailer";
+import { signInLinkMayBeShown } from "@/lib/signInLinkPolicy";
+import { magicLinkEmail } from "@/lib/emails";
+import { headers } from "next/headers";
 
-// Parent asks for a magic link. In a real deployment this emails a one-tap link;
-// here (no mail server) we mint the same single-use token and hand back the URL
-// so the UI can offer an "Open it now →" affordance — exactly what tapping the
-// emailed link would do. We don't reveal whether an email is on file beyond a
-// gentle nudge toward the family code.
+// Parent asks for a magic link: we mint a single-use token and EMAIL it.
+//
+// The URL is never returned to the browser in production. It used to be —
+// rendered as an "Open it now →" link — which meant anyone who typed a parent's
+// address into this public form was handed a working session for that family.
+// No tampering, no guessing: a complete authentication bypass (FINDINGS F19,
+// SAFEGUARDING rules 4 and 6). Outside production the link is still returned so
+// local development doesn't need a mail server, and `signInLinkMayBeShown()` is
+// the single place that decides — a pure function a test can pin down.
+//
+// We don't reveal whether an email is on file (F6): the response is identical
+// for a known address, an unknown address, and a send that failed.
 export async function requestMagicLink(
   _prev: { openUrl?: string; sent?: boolean; error?: string } | undefined,
   formData: FormData,
@@ -40,9 +51,30 @@ export async function requestMagicLink(
     await db.magicToken.create({
       data: { token, parentId: parent.id, expiresAt: new Date(Date.now() + 30 * 60 * 1000) },
     });
-    return { sent: true, openUrl: `/family/enter?token=${token}` };
+
+    const path = `/family/enter?token=${token}`;
+    const mail = magicLinkEmail(`${await originUrl()}${path}`);
+    // Fire and await, but ignore the outcome for the RESPONSE: telling the user
+    // that sending failed would leak that their address is on file (F6). A
+    // failure is logged server-side by the mailer instead.
+    await sendMail({ to: email, subject: mail.subject, text: mail.text, html: mail.html });
+
+    // Development convenience only — never in production.
+    if (signInLinkMayBeShown()) return { sent: true, openUrl: path };
   }
   return { sent: true };
+}
+
+// Absolute base URL for links inside emails. APP_URL wins where set (it is, in
+// production); otherwise derive it from the request so local development and
+// preview deploys produce links that actually resolve.
+async function originUrl(): Promise<string> {
+  const explicit = process.env.APP_URL;
+  if (explicit) return explicit.replace(/\/$/, "");
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
 }
 
 // Parent signs in with the family code from their school's letter.

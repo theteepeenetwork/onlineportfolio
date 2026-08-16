@@ -235,6 +235,38 @@ the next request.
 
 ---
 
+## Transactional email (Brevo)
+
+Storyjar sends exactly one email today: the **sign-in link a parent asks for**.
+It goes through [Brevo](https://www.brevo.com) over its REST API — no SDK, no
+SMTP library, just a `fetch` (`src/lib/mailer.ts`).
+
+Three rules hold this together, and each one is load-bearing:
+
+- **No child's name and no child content ever appears in an email.** The school
+  holds the parent's address, not us, and addresses get mistyped. Every template
+  in `src/lib/emails.ts` is written so a misdirected message tells a stranger
+  nothing about any child.
+- **No tracking.** Opens and clicks are disabled on every send. Click-tracking
+  would rewrite the sign-in link through a third party — breaking the token and
+  handing that third party the means to use it.
+- **The link is never returned to the browser in production.** See
+  `src/lib/signInLinkPolicy.ts` and FINDINGS **F19**; development keeps the
+  on-screen link because local work has no mail server.
+
+Setup: create a Brevo account, authenticate a **sending subdomain**
+(`mail.storyjar.co.uk`) with DKIM and DMARC — not the root domain, so outbound
+authentication mail never shares reputation with inbound forwarding — add a
+verified sender on it, then set `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`,
+`EMAIL_FROM_NAME` and `EMAIL_REPLY_TO` (see `.env.example`).
+
+> **Staff invitations do not send yet, deliberately.** There is no
+> accept-invite flow at all — invited staff are created with an empty password
+> hash and have no route to set one — so an invitation email would link nowhere.
+> Sending one would be worse than sending none. Tracked as a gap.
+
+---
+
 ## Roadmap: what's next
 
 The next milestones, in a sensible order to build them:
