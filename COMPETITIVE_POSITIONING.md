@@ -59,9 +59,11 @@ are a product *philosophy*, not just compliance — say so out loud.
 
 > **Say Europe, not the UK.** Storyjar is hosted in Amsterdam (Railway has no UK
 > region). "Your data stays in the UK" was in this document and it was wrong. The
-> honest line is just as strong against the US incumbents: *never leaves Europe,
-> never goes to the United States.* A business manager who checks and finds we
-> overstated it costs us far more than the word "Europe" ever will.
+> honest line is just as strong against the US incumbents: *your data never leaves
+> Europe.* Say where the data **is**, not where it isn't — a claim about where it
+> never goes is one you'd have to caveat, since Railway is US-incorporated and may
+> support the service from outside the EEA. A business manager who checks and finds
+> we overstated it costs us far more than the word "Europe" ever will.
 
 ## Where AI fits — and where it doesn't
 
@@ -125,10 +127,9 @@ is no upsell and no fluff, **not** no intelligence. Better slogan than "no AI":
 
 **"Where's our data stored?"**
 > In Europe — Amsterdam, in the EU. StoryJar is UK-built and UK-GDPR-first, your
-> children's data never leaves Europe and never goes to the United States,
-> deletion is real (rows *and* files), and no child's data ever touches our payment
-> processor. We publish a plain-English privacy notice, a sub-processor list, and a
-> DPA your DPO can read in five minutes.
+> children's data never leaves Europe, deletion is real (rows *and* files), and no
+> child's data ever touches our payment processor. We publish a plain-English
+> privacy notice, a sub-processor list, and a DPA your DPO can read in five minutes.
 
 **"Can it do video?"** *(honest, for now)*
 > Voice is in today — a child can record themselves explaining their thinking,

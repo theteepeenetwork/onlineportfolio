@@ -36,7 +36,7 @@ const FEATURE_P: React.CSSProperties = {
 const PROMISES = [
   { chip: "Promise one", chipBg: "#F0B441", tilt: "-1.5deg", h: "No child emails or passwords. Ever.", p: "Children sign in with a class code and by tapping their own name. First names only — no surnames, no accounts, nothing to forget or leak." },
   { chip: "Promise two", chipBg: "#E08A9B", tilt: "1deg", h: "Nothing exists until you approve it", p: "Every single moment passes through your approval queue before it joins a child's jar. You are the gatekeeper, by design, always." },
-  { chip: "Promise three", chipBg: "#7FC4BB", tilt: "-1deg", h: "UK GDPR, and your data never leaves Europe", p: "Built for UK schools' obligations from day one: UK GDPR compliant, data stored in Europe and never sent to the United States, and a DPA ready for your office." },
+  { chip: "Promise three", chipBg: "#7FC4BB", tilt: "-1deg", h: "UK GDPR, and your data never leaves Europe", p: "Built for UK schools' obligations from day one: UK GDPR compliant, your data never leaves Europe, and a DPA ready for your office." },
   { chip: "Promise four", chipBg: "#C9A87C", tilt: "1.5deg", h: "Built by a serving UK primary teacher", p: "Storyjar is made by someone who does the school run, the marking and the moderation meetings. It exists because the classroom needed it." },
 ];
 
@@ -45,7 +45,7 @@ const FAQS = [
   { q: "Can anything go into a child's jar without me seeing it?", a: "No. Every moment a child makes waits in your approval queue. You approve it, tag it, or send it back with a note — nothing is kept without your say-so." },
   { q: "Does it count as assessment evidence?", a: "That's the point of it. Every approved moment is dated and can be tagged against skills, building a per-child evidence base across the year you can show leadership, moderators, or Ofsted." },
   { q: "What devices does it work on?", a: "Anything with a browser. Child screens are designed for classroom iPads in landscape first; the teacher side works beautifully on a laptop — including at 8pm on the sofa." },
-  { q: "Where is the data stored?", a: "In Europe — Amsterdam, in the Netherlands — under UK GDPR. It never goes to the United States. A data processing agreement and a full sub-processor list are available for your school office, and you can export or delete your class's data at any time." },
+  { q: "Where is the data stored?", a: "In Europe — Amsterdam, in the Netherlands — under UK GDPR. A data processing agreement and a full sub-processor list are available for your school office, and you can export or delete your class's data at any time." },
   { q: "When can parents see the jar?", a: "A read-only family view is on the roadmap. Parents will only ever see their own child's approved moments — and you'll switch it on when you're ready." },
 ];
 
