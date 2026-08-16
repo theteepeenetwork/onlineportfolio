@@ -25,7 +25,7 @@ export default function SubProcessors() {
           <tr>
             <td><strong>Brevo</strong></td>
             <td>Transactional email — the sign-in link we send a parent, and staff notifications</td>
-            <td><strong>Adult email addresses only</strong> — a parent&apos;s or staff member&apos;s address. <strong>No child&apos;s name, and no child&apos;s work, ever appears in an email</strong>: our messages are written so that if one reached the wrong person by a mistyped address, it would tell them nothing about any child. Opens and clicks are not tracked.</td>
+            <td><strong>Adult email addresses only</strong> — a parent&apos;s or staff member&apos;s address. <strong>No child&apos;s name, and no child&apos;s work, ever appears in an email</strong>: our messages are written so that if one reached the wrong person by a mistyped address, it would tell them nothing about any child. <strong>We cannot tell whether a particular parent opened an email.</strong> We ask Brevo to switch tracking off on every message, and Brevo&apos;s account-wide anonymous-tracking setting is on, so any open or click it does still record is not linked to a named person. Brevo deletes its delivery records after <strong>one month</strong> and keeps <strong>no stored copies of the messages themselves</strong>.</td>
             <td>EU — France and Germany</td>
           </tr>
           <tr>

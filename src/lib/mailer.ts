@@ -14,10 +14,28 @@ import "server-only";
 //    a message lands with a stranger it must reveal nothing about a child —
 //    not a name, not a class, not a photo. Every template below is deliberately
 //    written so it would be meaningless to the wrong recipient (rule 2, rule 4).
-//  • **No tracking.** Opens and clicks are switched off explicitly on every
-//    send. We do not record whether a parent opened an email, and a sign-in link
-//    must not be rewritten through a click-tracker — that would both break the
-//    token and hand a third party the means to use it.
+//  • **We cannot tell whether a particular parent opened an email.** That is
+//    the claim, and it is narrower than the one this comment used to make.
+//    Every send below asks Brevo to disable tracking, and Brevo's account-level
+//    "anonymous email tracking" is switched on, so any open or click event it
+//    does record is not associated with an individual.
+//
+//    Be precise here, because the obvious stronger claim is false. On
+//    16 August 2026 Brevo's transactional log recorded a "First opening"
+//    against a magic-link email that this module sent with
+//    `disableTracking: true`. Whatever that flag governs, it did not stop an
+//    open being recorded and attributed to the recipient. The account-level
+//    anonymity setting, not the flag, is what carries the promise now. Do not
+//    let anyone restore a blanket "no tracking" to this file.
+//  • **A sign-in link must never be rewritten through a click-tracker.** That
+//    would both break the token and hand a third party the means to use it. It
+//    is a functional requirement of the parent sign-in path, not a preference.
+//    `scripts/verify-mail.mjs` exists to check it against a real delivered
+//    message rather than trusting the flag, which we now know can be ignored.
+//  • **Brevo's own log is short-lived and holds no message bodies.** Delivery
+//    logs are deleted after 1 month (Brevo's floor) and message previews are
+//    switched off, so a live, working sign-in link never sits in a third
+//    party's web interface. Both are recorded in RETENTION.md.
 //  • **Tokens are never logged.** Failures log the recipient's domain and the
 //    provider's status, never the address in full and never the link.
 //  • Brevo is a sub-processor holding adult email addresses only. It is listed
@@ -86,7 +104,10 @@ export async function sendMail({ to, subject, text, html }: SendArgs): Promise<M
         subject,
         textContent: text,
         htmlContent: html,
-        // No open pixel, no link rewriting. See the safeguarding note above.
+        // We ask for no open pixel and no link rewriting. Brevo has been
+        // observed to record an open anyway, so this flag is necessary but not
+        // sufficient: the account-level anonymous-tracking setting is what
+        // keeps an open from being tied to a person. See the note above.
         disableTracking: true,
       }),
       signal: controller.signal,

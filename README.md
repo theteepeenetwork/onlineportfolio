@@ -247,9 +247,16 @@ Three rules hold this together, and each one is load-bearing:
   holds the parent's address, not us, and addresses get mistyped. Every template
   in `src/lib/emails.ts` is written so a misdirected message tells a stranger
   nothing about any child.
-- **No tracking.** Opens and clicks are disabled on every send. Click-tracking
-  would rewrite the sign-in link through a third party — breaking the token and
-  handing that third party the means to use it.
+- **We cannot tell whether a particular parent opened an email.** Every send
+  asks Brevo to disable tracking, and Brevo's account-level anonymous tracking
+  is switched on, so any open or click it does record is not tied to an
+  individual. Note the shape of that claim. It is not "no tracking": on
+  16 August 2026 Brevo recorded an open against a magic-link email that we sent
+  with tracking disabled, which is why the wording here changed. Click-tracking
+  in particular must never happen, because rewriting the sign-in link would
+  break the token and hand a third party the means to use it. Check it with
+  `node scripts/verify-mail.mjs <a mailbox you control>` rather than trusting
+  the flag; `node scripts/brevo-events.mjs` shows what the provider recorded.
 - **The link is never returned to the browser in production.** See
   `src/lib/signInLinkPolicy.ts` and FINDINGS **F19**; development keeps the
   on-screen link because local work has no mail server.

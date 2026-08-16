@@ -11,9 +11,14 @@ import "server-only";
 // asked to sign in to a service, and nothing about any child.
 //
 // Plain text is written first and carries the whole message. The HTML is a thin
-// wrapper: no images, no tracking pixel, no web fonts, no external CSS. School
-// mail filters are aggressive and an authentication email that lands in junk is
-// the same as no email at all.
+// wrapper: no images, no web fonts, no external CSS, and no open pixel of our
+// own. School mail filters are aggressive and an authentication email that
+// lands in junk is the same as no email at all.
+//
+// "Of our own" is doing real work in that sentence. What we generate here is
+// clean, but Brevo has been observed adding an open pixel to a message sent
+// with tracking disabled, so nothing in this file can promise that the message
+// which reaches a parent contains no pixel at all. See the note in mailer.ts.
 // ---------------------------------------------------------------------------
 
 const REPLY_HINT = "If you didn't ask for this, you can ignore this email — nothing will happen.";
