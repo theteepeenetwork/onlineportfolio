@@ -16,9 +16,16 @@ import "server-only";
 // lands in junk is the same as no email at all.
 //
 // "Of our own" is doing real work in that sentence. What we generate here is
-// clean, but Brevo has been observed adding an open pixel to a message sent
-// with tracking disabled, so nothing in this file can promise that the message
-// which reaches a parent contains no pixel at all. See the note in mailer.ts.
+// clean. What a parent receives is whatever the sending provider chose to make
+// of it, and a provider has already been observed adding an open pixel to a
+// message sent with tracking explicitly disabled. So nothing in this file can
+// promise what reaches a parent, whoever is sending: the templates below are
+// evidence about our own output only.
+//
+// That holds for every provider, not the one that did it. Do not soften this
+// note when the provider changes; the only thing that would justify softening
+// it is reading the raw source of a delivered message. See the note in
+// mailer.ts, and scripts/verify-mail.mjs.
 // ---------------------------------------------------------------------------
 
 const REPLY_HINT = "If you didn't ask for this, you can ignore this email — nothing will happen.";
