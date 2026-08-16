@@ -1,7 +1,31 @@
-import "server-only";
-
 // ---------------------------------------------------------------------------
 // The emails Storyjar sends. Two of them.
+//
+// **This module deliberately does NOT import `server-only`.** Its predecessor,
+// `src/lib/emails.ts`, did, and the cost of that guard was that nothing outside
+// a server component could read these templates. Two things followed, both bad:
+// `scripts/verify-mail.mjs` had to carry a hand-written copy of an email, so the
+// delivery probe proved the transport worked while saying nothing about the
+// message a parent actually receives; and no test could assert anything about
+// the templates, so "no images, ever" lived only in the comment below.
+//
+// The guard is safe to drop here because these are pure functions of a URL (and,
+// for the staff invite, a school name). They hold no secret, read no
+// environment variable, touch no database, and reach no network. There is
+// nothing in this file that would harm anyone if it were bundled into a browser.
+// The template that a blocking test can read is worth more than an import that
+// only stops a mistake nobody has made.
+//
+// **What would reverse that decision.** If a template ever needs an API key, an
+// environment value, a database read, or anything else that must not reach a
+// client bundle, it belongs back behind `server-only` and the test has to find
+// another way in. The same reasoning, and the same escape hatch, is written up
+// in `src/lib/signInLinkPolicy.ts`, which was extracted for exactly this reason.
+//
+// The sending side stays where it was: `src/lib/mailer.ts` keeps `server-only`,
+// because that is the file holding the credentials.
+//
+// ---------------------------------------------------------------------------
 //
 // **Every word here is fixed copy.** Nothing a child wrote, nothing a teacher
 // typed, and no child's name is ever interpolated into an email. A school holds
@@ -14,7 +38,9 @@ import "server-only";
 // importance:
 //   1. An <img> is how open tracking works. Sending none means "no pixel" is a
 //      property of the message we can prove by reading its source, rather than a
-//      promise about a provider's settings. `scripts/verify-mail.mjs` checks it.
+//      promise about a provider's settings. `scripts/verify-mail.ts` checks the
+//      delivered message; `tests/battery/security/email-templates.spec.ts`
+//      checks what we generate, and blocks the build if an image appears.
 //   2. Most mail clients block remote images by default, so a logo-led design
 //      arrives broken for the majority of recipients anyway.
 //   3. Image-heavy mail with little text scores badly with spam filters. A

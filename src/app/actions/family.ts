@@ -8,10 +8,7 @@ import { createSession, destroySession } from "@/lib/auth";
 import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 import { sendMail } from "@/lib/mailer";
 import { signInLinkMayBeShown } from "@/lib/signInLinkPolicy";
-import { magicLinkEmail } from "@/lib/emails";
-import { normaliseFamilyCode } from "@/lib/familyCodeChars";
-import { getCurrentParent } from "@/lib/parentAuth";
-import { recordAudit } from "@/lib/audit";
+import { magicLinkEmail } from "@/lib/emailTemplates";
 import { headers } from "next/headers";
 
 // One throttle budget for every family-code entry, wherever it is typed: the
