@@ -235,11 +235,18 @@ the next request.
 
 ---
 
-## Transactional email (Brevo)
+## Transactional email (Mailjet)
 
 Storyjar sends exactly one email today: the **sign-in link a parent asks for**.
-It goes through [Brevo](https://www.brevo.com) over its REST API — no SDK, no
-SMTP library, just a `fetch` (`src/lib/mailer.ts`).
+It goes through [Mailjet](https://www.mailjet.com) (Sinch) over its Send API
+v3.1. No SDK, no mail library, just a `fetch` (`src/lib/mailer.ts`). Mailjet
+stores in the EU only.
+
+It went through Brevo until August 2026. The `WHY NOT BREVO` comment at the top
+of `src/lib/mailer.ts` records why it does not any more, and that comment is the
+reason nobody reinstates it in six months. Read it before evaluating any
+replacement provider: the disqualifying behaviour was link rewriting, not
+tracking as such.
 
 Three rules hold this together, and each one is load-bearing:
 
@@ -247,24 +254,34 @@ Three rules hold this together, and each one is load-bearing:
   holds the parent's address, not us, and addresses get mistyped. Every template
   in `src/lib/emails.ts` is written so a misdirected message tells a stranger
   nothing about any child.
-- **We cannot tell whether a particular parent opened an email.** Every send
-  asks Brevo to disable tracking, and Brevo's account-level anonymous tracking
-  is switched on, so any open or click it does record is not tied to an
-  individual. Note the shape of that claim. It is not "no tracking": on
-  16 August 2026 Brevo recorded an open against a magic-link email that we sent
-  with tracking disabled, which is why the wording here changed. Click-tracking
-  in particular must never happen, because rewriting the sign-in link would
-  break the token and hand a third party the means to use it. Check it with
-  `node scripts/verify-mail.mjs <a mailbox you control>` rather than trusting
-  the flag; `node scripts/brevo-events.mjs` shows what the provider recorded.
+- **We cannot tell whether a particular parent opened an email, or clicked its
+  link.** Tracking is off three ways: Mailjet's account-level *Track openers*
+  and *Track clicks* are both switched off, which covers transactional mail and
+  not campaigns alone, and every send disables both again per message
+  (`TrackOpens` / `TrackClicks`, plus the `X-MJ-TrackOpen` / `X-MJ-TrackClick`
+  headers). Three switches is not three times the confidence. Brevo ignored the
+  one flag its API accepted, so treat all three as claims about configuration
+  and check the behaviour: `node scripts/verify-mail.mjs <a mailbox you
+  control>` sends a probe and tells you what to look for in the delivered raw
+  source, and `node scripts/mail-events.mjs` shows what the provider actually
+  recorded. Click-tracking in particular must never happen, because rewriting
+  the sign-in link would break the token and hand a third party the means to
+  use it.
+- **Mailjet holds a delivery record for 90 days** on the free plan (13 months
+  on paid plans, so an upgrade lengthens it). That is longer than the 1 month
+  the previous provider allowed, and it was accepted deliberately: see the email
+  row in [`RETENTION.md`](./RETENTION.md), which also records what Mailjet's
+  documentation does **not** say about message-level data. Do not quote a
+  tighter figure than that row does.
 - **The link is never returned to the browser in production.** See
   `src/lib/signInLinkPolicy.ts` and FINDINGS **F19**; development keeps the
   on-screen link because local work has no mail server.
 
-Setup: create a Brevo account, authenticate a **sending subdomain**
-(`mail.storyjar.co.uk`) with DKIM and DMARC — not the root domain, so outbound
-authentication mail never shares reputation with inbound forwarding — add a
-verified sender on it, then set `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`,
+Setup: create a Mailjet account, add and validate the **sending subdomain**
+`mail.storyjar.co.uk` with SPF and DKIM (not the root domain, so outbound
+authentication mail never shares reputation with inbound forwarding), switch
+*Track openers* and *Track clicks* off at account level, then set
+`MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `EMAIL_FROM_ADDRESS`,
 `EMAIL_FROM_NAME` and `EMAIL_REPLY_TO` (see `.env.example`).
 
 **Also required: the demo parent's mailbox must exist.** `prisma/seed.ts` runs on

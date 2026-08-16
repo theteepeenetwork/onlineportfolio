@@ -23,10 +23,10 @@ export default function SubProcessors() {
             <td>Adult billing data only. <strong>[Residency assessment pending review]</strong></td>
           </tr>
           <tr>
-            <td><strong>Brevo</strong></td>
+            <td><strong>Mailjet (Sinch)</strong></td>
             <td>Transactional email — the sign-in link we send a parent, and staff notifications</td>
-            <td><strong>Adult email addresses only</strong> — a parent&apos;s or staff member&apos;s address. <strong>No child&apos;s name, and no child&apos;s work, ever appears in an email</strong>: our messages are written so that if one reached the wrong person by a mistyped address, it would tell them nothing about any child. <strong>We cannot tell whether a particular parent opened an email.</strong> We ask Brevo to switch tracking off on every message, and Brevo&apos;s account-wide anonymous-tracking setting is on, so any open or click it does still record is not linked to a named person. Brevo deletes its delivery records after <strong>one month</strong> and keeps <strong>no stored copies of the messages themselves</strong>.</td>
-            <td>EU — France and Germany</td>
+            <td><strong>Adult email addresses only</strong> — a parent&apos;s or staff member&apos;s address. <strong>No child&apos;s name, and no child&apos;s work, ever appears in an email</strong>: our messages are written so that if one reached the wrong person by a mistyped address, it would tell them nothing about any child. <strong>We cannot tell whether a particular parent opened an email, or whether they clicked the link in it.</strong> Open tracking and click tracking are switched off across the whole account, which covers every message we send, and switched off again on each individual message. Mailjet keeps a record of the messages it sent for us (who each one went to, when, the subject line, and whether it arrived) for <strong>90 days</strong> on the plan we are on. Mailjet&apos;s published documentation does not say separately how long it holds the individual delivery events, or whether it holds a copy of the message itself, so <strong>we are not going to quote you a figure for those</strong>; getting that confirmed in writing is a recorded open item. What we can say is that a sign-in link works <strong>once</strong> and stops working after <strong>30 minutes</strong>, so a stored copy would not be a lasting way into a family&apos;s account.</td>
+            <td>EU only (Google Cloud, EU data centres)</td>
           </tr>
           <tr>
             <td><strong>GitHub</strong></td>

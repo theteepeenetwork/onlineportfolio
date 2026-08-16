@@ -5,36 +5,90 @@ import "server-only";
 //
 // **Every word here is fixed copy.** Nothing a child wrote, nothing a teacher
 // typed, and no child's name is ever interpolated into an email. A school holds
-// the parent's address, not us, and schools mistype addresses — so a message
-// that lands with the wrong person must give away nothing about a child. Read
-// each template below as if a stranger opened it: they learn only that someone
-// asked to sign in to a service, and nothing about any child.
+// the parent's address, not us, and schools mistype addresses, so a message that
+// lands with the wrong person must give away nothing about a child. Read each
+// template below as if a stranger opened it: they learn only that someone asked
+// to sign in to a service for primary schools, and nothing about any child.
 //
-// Plain text is written first and carries the whole message. The HTML is a thin
-// wrapper: no images, no web fonts, no external CSS, and no open pixel of our
-// own. School mail filters are aggressive and an authentication email that
-// lands in junk is the same as no email at all.
+// **There are no images. Not one, not even a logo.** Three reasons, in order of
+// importance:
+//   1. An <img> is how open tracking works. Sending none means "no pixel" is a
+//      property of the message we can prove by reading its source, rather than a
+//      promise about a provider's settings. `scripts/verify-mail.mjs` checks it.
+//   2. Most mail clients block remote images by default, so a logo-led design
+//      arrives broken for the majority of recipients anyway.
+//   3. Image-heavy mail with little text scores badly with spam filters. A
+//      sign-in link in a junk folder is the same as no sign-in link.
 //
-// "Of our own" is doing real work in that sentence. What we generate here is
-// clean, but Brevo has been observed adding an open pixel to a message sent
-// with tracking disabled, so nothing in this file can promise that the message
-// which reaches a parent contains no pixel at all. See the note in mailer.ts.
+// Plain text is written first and carries the whole message. The HTML mirrors
+// it: inline styles only, no web fonts, no external CSS, table layout so it
+// survives Outlook. School mail filters are aggressive and an authentication
+// email that lands in junk is the same as no email at all.
 // ---------------------------------------------------------------------------
 
-const REPLY_HINT = "If you didn't ask for this, you can ignore this email — nothing will happen.";
+const CREAM_PAGE = "#F5EFE3";
+const CREAM_CARD = "#FFFDF7";
+const INK = "#22304A";
+const BODY = "#3D4A63";
+const MUTED = "#6E7889";
+const RASPBERRY = "#BD3F63";
+const RULE = "#E8DECB";
 
-function wrap(bodyHtml: string): string {
-  return `<!doctype html><html lang="en"><body style="margin:0;padding:24px;background:#FFFDF7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#22304A;line-height:1.55;">
-<div style="max-width:520px;margin:0 auto;">
-<p style="font-size:20px;font-weight:700;margin:0 0 18px;">Storyjar</p>
-${bodyHtml}
-<p style="margin:28px 0 0;font-size:13px;color:#5b6379;">Storyjar — a learning journal for primary schools. You can reply to this email and a real person will read it.</p>
-</div></body></html>`;
+const FONT =
+  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+const FOOTER_TEXT =
+  "Storyjar is a learning journal for primary schools. A child's work is only ever seen by their teacher and their own family.";
+const REPLY_TEXT = "You can reply to this email and a real person will read it.";
+
+/**
+ * The shared shell: hidden preheader, wordmark, cream card, footer.
+ *
+ * `preheader` is the grey line a phone shows under the subject in the inbox
+ * list. Left unset, clients scrape the first words of the body instead, which
+ * looks careless. It is hidden in the message itself.
+ */
+function shell(preheader: string, cardHtml: string): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Storyjar</title>
+</head>
+<body style="margin:0;padding:0;background:${CREAM_PAGE};">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;height:0;width:0;">${preheader}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CREAM_PAGE};">
+<tr><td align="center" style="padding:32px 16px;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+<tr><td style="padding:0 4px 16px;font-family:${FONT};font-size:21px;font-weight:700;letter-spacing:-0.2px;color:${RASPBERRY};">Storyjar</td></tr>
+
+<tr><td style="background:${CREAM_CARD};border:1px solid ${RULE};border-radius:16px;padding:32px 28px;font-family:${FONT};">
+${cardHtml}
+</td></tr>
+
+<tr><td style="padding:20px 4px 0;font-family:${FONT};font-size:13px;line-height:1.6;color:${MUTED};">
+<p style="margin:0 0 6px;">${FOOTER_TEXT}</p>
+<p style="margin:0;">${REPLY_TEXT}</p>
+</td></tr>
+</table>
+
+</td></tr>
+</table>
+</body>
+</html>`;
 }
 
+/** A table-based button. Renders as a real filled shape in Outlook too. */
 function button(href: string, label: string): string {
-  return `<p style="margin:24px 0;"><a href="${href}" style="display:inline-block;background:#bd3f63;color:#FFFDF7;text-decoration:none;font-weight:700;padding:14px 26px;border-radius:999px;">${label}</a></p>
-<p style="margin:0;font-size:13px;color:#5b6379;">If the button doesn't work, copy this link into your browser:<br><span style="word-break:break-all;">${href}</span></p>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 22px;">
+<tr><td align="center" bgcolor="${RASPBERRY}" style="border-radius:999px;">
+<a href="${href}" style="display:inline-block;padding:15px 34px;font-family:${FONT};font-size:16px;font-weight:700;color:${CREAM_CARD};text-decoration:none;border-radius:999px;">${label}</a>
+</td></tr>
+</table>`;
 }
 
 /**
@@ -45,24 +99,36 @@ function button(href: string, label: string): string {
  */
 export function magicLinkEmail(url: string): { subject: string; text: string; html: string } {
   const subject = "Your Storyjar sign-in link";
+  const preheader = "Tap to sign in. The link works once and lasts 30 minutes.";
+
   const text = [
-    "Here's your link to sign in to Storyjar and see your child's work.",
+    "Here's your sign-in link",
+    "",
+    "Tap the link below to sign in to Storyjar and see your child's latest work.",
     "",
     url,
     "",
-    "The link works once and lasts 30 minutes. If it expires, just ask for another one.",
+    "The link works once and lasts 30 minutes. If it runs out, just ask for a new",
+    "one from the sign-in page and we'll send another straight away.",
     "",
-    REPLY_HINT,
+    "Didn't ask for this? You can ignore this email. Nothing will happen, and",
+    "nobody has been given access to anything.",
     "",
-    "Storyjar — a learning journal for primary schools.",
-    "You can reply to this email and a real person will read it.",
+    "---",
+    FOOTER_TEXT,
+    REPLY_TEXT,
   ].join("\n");
 
-  const html = wrap(
-    `<p style="margin:0;font-size:17px;">Here's your link to sign in to Storyjar and see your child's work.</p>
+  const html = shell(
+    preheader,
+    `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">Here's your sign-in link</h1>
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">Tap the button below to sign in to Storyjar and see your child's latest work.</p>
 ${button(url, "Sign in to Storyjar")}
-<p style="margin:20px 0 0;font-size:15px;">The link works once and lasts 30 minutes. If it expires, just ask for another one.</p>
-<p style="margin:12px 0 0;font-size:15px;color:#5b6379;">${REPLY_HINT}</p>`,
+<p style="margin:0;font-size:15px;line-height:1.6;color:${BODY};">The link works once and lasts 30 minutes. If it runs out, just ask for a new one from the sign-in page and we'll send another straight away.</p>
+<div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
+<p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>
+<p style="margin:0 0 18px;font-size:13px;line-height:1.6;color:${MUTED};word-break:break-all;">${url}</p>
+<p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};">Didn't ask for this? You can ignore this email. Nothing will happen, and nobody has been given access to anything.</p>`,
   );
 
   return { subject, text, html };
@@ -72,24 +138,38 @@ ${button(url, "Sign in to Storyjar")}
  * A staff invitation. Adults only, and it names the school (which the recipient
  * works at) but never a class roster or any child.
  */
-export function staffInviteEmail(schoolName: string, url: string): { subject: string; text: string; html: string } {
-  const subject = `You've been invited to Storyjar`;
+export function staffInviteEmail(
+  schoolName: string,
+  url: string,
+): { subject: string; text: string; html: string } {
+  const subject = "You've been invited to Storyjar";
+  const preheader = "Set your password and you're in. Takes about a minute.";
+
   const text = [
-    `You've been added to ${schoolName}'s Storyjar account by a colleague.`,
+    "You've been invited to Storyjar",
     "",
-    "Set your password and get started here:",
+    `A colleague has added you to ${schoolName}'s Storyjar account.`,
+    "",
+    "Set your password here and you're in:",
     url,
     "",
-    REPLY_HINT,
+    "Didn't expect this? You can ignore this email. Nothing will happen, and",
+    "nobody has been given access to anything.",
     "",
-    "Storyjar — a learning journal for primary schools.",
-    "You can reply to this email and a real person will read it.",
+    "---",
+    FOOTER_TEXT,
+    REPLY_TEXT,
   ].join("\n");
 
-  const html = wrap(
-    `<p style="margin:0;font-size:17px;">You've been added to <strong>${escapeHtml(schoolName)}</strong>'s Storyjar account by a colleague.</p>
+  const html = shell(
+    preheader,
+    `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">You've been invited to Storyjar</h1>
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">A colleague has added you to <strong style="color:${INK};">${escapeHtml(schoolName)}</strong>'s Storyjar account.</p>
 ${button(url, "Set your password")}
-<p style="margin:20px 0 0;font-size:15px;color:#5b6379;">${REPLY_HINT}</p>`,
+<div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
+<p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>
+<p style="margin:0 0 18px;font-size:13px;line-height:1.6;color:${MUTED};word-break:break-all;">${url}</p>
+<p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};">Didn't expect this? You can ignore this email. Nothing will happen, and nobody has been given access to anything.</p>`,
   );
 
   return { subject, text, html };
@@ -98,5 +178,9 @@ ${button(url, "Set your password")}
 // The school name is the one piece of caller-supplied text that reaches an
 // email body, so it is escaped rather than trusted.
 function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
+  return s.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
+  );
 }

@@ -89,7 +89,8 @@ on-screen version is gated behind `signInLinkMayBeShown()` in
 tiny module precisely so a test can assert it rather than trusting an `if`
 buried in a server action. Development keeps the affordance, because local work
 still has no mail server. Send failures are logged server-side and never change
-what the user is told, so F6's neutrality holds even when Brevo is down.
+what the user is told, so F6's neutrality holds even when the mail provider is
+down.
 
 **Guards:** `security/f19-magic-link-never-on-screen.spec.ts` — blocking.
 Asserts production returns no link, that development still does, and states
