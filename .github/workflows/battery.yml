@@ -27,6 +27,15 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
+      # The cheapest gate in the file, and the one whose absence let a broken
+      # merge reach main on 16 August 2026. A conflict resolution dropped three
+      # import lines from a server action; every gate we had runs the app
+      # through `next dev`, which compiles lazily and only fails when a request
+      # reaches the broken path, so three suites went red for one cause and
+      # nothing said why. `tsc` names it in about a second. It runs FIRST for
+      # that reason: a type error means nothing below it is worth running.
+      - name: Typecheck (catches broken merges before any suite runs)
+        run: npx tsc --noEmit
       - name: No unsafe raw queries / dangerouslySetInnerHTML
         run: node scripts/audit-static.mjs
       - name: Reduced-motion guard (rule 18)

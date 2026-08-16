@@ -58,6 +58,26 @@ That's it. The tests will:
 > ⚠️ Running the tests **wipes the database back to the demo data**. Don't run
 > them against real class data — they're for checking the app works.
 
+### Before you open a PR: run it once from cold
+
+The tests reuse a dev server that is already running, which is what makes them
+quick. It also means a warm server can hide a real fault: it has already compiled
+the old version of a file and will happily keep serving it. CI always starts from
+nothing, so CI sees faults your machine does not.
+
+Once, before opening a PR:
+
+```bash
+pkill -f "next dev"; rm -rf .next; npm run test:battery
+```
+
+This is not belt and braces. On 16 August 2026 a merge dropped three `import`
+lines from a server action; every local run passed against a warm server and a
+production build, and three blocking suites went red the moment CI compiled it
+cold. `npm run test:battery` now runs `tsc --noEmit` first, which catches that
+particular class of fault in about a second, but the cold run is what catches the
+rest.
+
 Useful variants:
 
 ```bash

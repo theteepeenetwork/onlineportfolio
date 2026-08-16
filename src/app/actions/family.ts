@@ -9,6 +9,9 @@ import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MES
 import { sendMail } from "@/lib/mailer";
 import { signInLinkMayBeShown } from "@/lib/signInLinkPolicy";
 import { magicLinkEmail } from "@/lib/emailTemplates";
+import { normaliseFamilyCode } from "@/lib/familyCodeChars";
+import { getCurrentParent } from "@/lib/parentAuth";
+import { recordAudit } from "@/lib/audit";
 import { headers } from "next/headers";
 
 // One throttle budget for every family-code entry, wherever it is typed: the
