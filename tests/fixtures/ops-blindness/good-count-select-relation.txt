@@ -1,0 +1,15 @@
+// @path: src/lib/ops/reads.ts
+// The one legitimate shape for a relation name inside a projection: a direct
+// key of _count.select with the value true. It counts rows and names nobody.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function teachersWithClassCounts() {
+  return db.teacher.findMany({
+    select: {
+      id: true,
+      email: true,
+      _count: { select: { classes: true } },
+    },
+  });
+}

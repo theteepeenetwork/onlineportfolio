@@ -1,0 +1,16 @@
+// @path: src/app/ops/schools/page.tsx
+// @expect: OPS-REQUIRE-OPERATOR
+// An inline Server Action compiles to its own POST endpoint with its own action
+// id, reachable with a crafted request. The guard on the page that rendered it
+// is a guard on an ancestor, which is exactly what this rule exists to refuse.
+import { requireOperator } from "@/lib/ops/session";
+import { freezeSchool } from "@/lib/ops/operations";
+
+export default async function OpsSchools({ schoolId }) {
+  await requireOperator();
+  async function freeze(formData) {
+    "use server";
+    return freezeSchool(schoolId, formData.get("reason"));
+  }
+  return <form action={freeze} />;
+}

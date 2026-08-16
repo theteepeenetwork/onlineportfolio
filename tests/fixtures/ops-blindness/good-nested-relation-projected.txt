@@ -1,0 +1,17 @@
+// @path: src/lib/ops/reads.ts
+// The passing half of bad-nested-relation-unprojected.txt: a nested relation
+// needs its own select: exactly as much as the outer call does. This is the
+// shape the schools screen actually wants, and it proves the rule can be
+// satisfied rather than only avoided.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function schoolsWithStaff() {
+  return db.school.findMany({
+    select: {
+      id: true,
+      name: true,
+      staff: { select: { id: true, name: true, email: true, role: true, status: true } },
+    },
+  });
+}

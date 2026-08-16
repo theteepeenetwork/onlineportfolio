@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-PARENT-CHILD-LINK
+// Owner amendment C2 would permit this count. Handbook ruling R11 does not, and
+// the gate implements R11 until the owner says otherwise. See the gate header.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function parentByEmail(email) {
+  return db.parent.findUnique({
+    where: { email },
+    select: { id: true, createdAt: true, _count: { select: { children: true } } },
+  });
+}

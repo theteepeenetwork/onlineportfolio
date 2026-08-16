@@ -1,0 +1,8 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-DB-REEXPORT
+// The chokepoint is only a chokepoint if it does not hand the client on. The
+// named forms were caught and the default export was not.
+import "server-only";
+import { db } from "@/lib/db";
+
+export default db;

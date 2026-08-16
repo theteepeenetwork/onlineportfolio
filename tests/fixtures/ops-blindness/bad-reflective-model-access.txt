@@ -1,0 +1,9 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-DYNAMIC-MODEL
+// Computed access with no square brackets anywhere.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function anyCount(model) {
+  return Reflect.get(db, model).count();
+}

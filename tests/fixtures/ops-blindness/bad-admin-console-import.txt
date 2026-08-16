@@ -1,0 +1,12 @@
+// @path: src/app/ops/schools/page.tsx
+// @expect: OPS-IMPORT-ALLOWLIST
+// src/app/admin/ is the SCHOOL console: a different trust level, tenant scoped,
+// deliberately not scanned by this gate. Rendering it from ops would put every
+// school's child-bearing console behind an operator login.
+import { requireOperator } from "@/lib/ops/session";
+import { AdminConsole } from "@/app/admin/AdminConsole";
+
+export default async function OpsSchools() {
+  await requireOperator();
+  return <AdminConsole />;
+}

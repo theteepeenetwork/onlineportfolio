@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-COMPUTED-SELECTION
+// Assembled at runtime, so no amount of literal matching can decode it. This is
+// why an unreadable key is refused rather than analysed: the gate cannot know
+// what this selects, and neither can a reviewer.
+import "server-only";
+import { db } from "@/lib/db";
+
+const FIELD = ["family", "Code"].join("");
+
+export async function parentByEmail(email) {
+  return db.parent.findUnique({ where: { email }, select: { id: true, [FIELD]: true } });
+}

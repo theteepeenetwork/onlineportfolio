@@ -1,0 +1,11 @@
+// @path: src/lib/schoolStats.ts
+// @expect: OPS-MODEL-METHOD
+// @expect: OPS-PRISMA-IMPORT
+// A shared helper an ops screen imported. It is not under an ops root, and the
+// transitive local import walk scans it anyway. This is the one-hop laundering
+// route the gate exists to close.
+import { db } from "@/lib/db";
+
+export async function itemsForClass(classId) {
+  return db.journalItem.findMany({ where: { classId } });
+}

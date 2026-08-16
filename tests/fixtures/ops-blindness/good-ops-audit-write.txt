@@ -1,0 +1,13 @@
+// @path: src/lib/ops/audit.ts
+// Ruling R4: the single write-only helper, and the one permitted auditLog call
+// shape, so a platform action appears in the affected school's own transparency
+// feed. Reading AuditLog from anywhere in ops is refused; writing one row from
+// exactly here is not.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function recordPlatformAction({ schoolId, action, reason }) {
+  return db.auditLog.create({
+    data: { schoolId, actorType: "PLATFORM", action, detail: reason },
+  });
+}

@@ -1,0 +1,16 @@
+// @path: src/app/ops/schools/page.tsx
+// Ops may import ops, by any spelling. The import allowlist resolves relative
+// specifiers now rather than skipping them, so this fixture proves the
+// resolution allows a sibling module instead of failing every ops tree that
+// uses one.
+import { requireOperator } from "../../../lib/ops/session";
+import { listSchoolsForOps } from "@/lib/ops/reads";
+import { SchoolTable } from "./SchoolTable";
+
+export const dynamic = "force-dynamic";
+
+export default async function OpsSchools() {
+  await requireOperator();
+  const schools = await listSchoolsForOps();
+  return <SchoolTable schools={schools} />;
+}

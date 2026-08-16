@@ -1,0 +1,10 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-DYNAMIC-MODEL
+// One character away from the caught form. db["journalItem"] failed and
+// db?.["journalItem"] passed, which is a full bypass of every model rule.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function anyCount(model) {
+  return db?.["journalItem"].count();
+}

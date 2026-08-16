@@ -1,0 +1,9 @@
+// @path: src/app/ops/page.tsx
+import { requireOperator } from "@/lib/ops/session";
+
+export const dynamic = "force-dynamic";
+
+export default async function OpsHome() {
+  await requireOperator();
+  return <main><h1>Operator</h1></main>;
+}

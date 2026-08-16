@@ -1,0 +1,10 @@
+// @path: src/app/actions/ops/billing.ts
+// @expect: OPS-REQUIRE-OPERATOR
+// A function expression rather than an arrow. Same POST endpoint, no guard.
+"use server";
+
+import { freezeSchool } from "@/lib/ops/operations";
+
+export const freeze = async function (schoolId, reason) {
+  return freezeSchool(schoolId, reason);
+};

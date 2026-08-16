@@ -1,0 +1,9 @@
+// @path: src/app/ops/page.tsx
+// @expect: OPS-IMPORT-ALLOWLIST
+import { requireOperator } from "@/lib/ops/session";
+import { teacherNav } from "@/lib/teacherNav";
+
+export default async function OpsHome() {
+  await requireOperator();
+  return <nav>{teacherNav(0).length}</nav>;
+}

@@ -1,0 +1,8 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-GROUP-KEY
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function pupilsPerClass() {
+  return db.student.groupBy({ by: ["classId"], _count: true });
+}

@@ -1,0 +1,10 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-UNPROJECTED-READ
+// include: adds relations to a full row; it does not narrow the columns. The
+// password hash is still in the result.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function teacherWithSchool(id) {
+  return db.teacher.findUnique({ where: { id }, include: { school: true } });
+}

@@ -1,0 +1,12 @@
+// @path: src/app/ops/page.tsx
+// @expect: OPS-IMPORT-ALLOWLIST
+// The deny-by-default import allowlist used to skip every specifier starting
+// with a dot. "@/lib/teacherNav" failed and "../../lib/teacherNav" passed, so
+// the allowlist was bypassable by typing a different path separator.
+import { requireOperator } from "@/lib/ops/session";
+import { teacherNav } from "../../lib/teacherNav";
+
+export default async function OpsHome() {
+  await requireOperator();
+  return <nav>{teacherNav(0).length}</nav>;
+}

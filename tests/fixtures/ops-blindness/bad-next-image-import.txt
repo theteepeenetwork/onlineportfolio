@@ -1,0 +1,13 @@
+// @path: src/app/ops/gallery/page.tsx
+// @expect: OPS-MEDIA-ELEMENT
+// next/image was doubly invisible: "next/" is on the package prefix allowlist,
+// so the import rule waved it through and there was no media rule at all.
+import Image from "next/image";
+import { requireOperator } from "@/lib/ops/session";
+import { latest } from "@/lib/ops/reads";
+
+export default async function OpsGallery() {
+  await requireOperator();
+  const p = await latest();
+  return <Image src={p.path} width={200} height={200} alt="" />;
+}

@@ -1,0 +1,12 @@
+// @path: src/app/actions/ops/schools.ts
+// A clean ops server action: guarded first, reads through the facade, imports
+// nothing outside the ops allowlist.
+"use server";
+
+import { requireOperator } from "@/lib/ops/session";
+import { listSchoolsForOps } from "@/lib/ops/reads";
+
+export async function schoolsForOps() {
+  await requireOperator();
+  return listSchoolsForOps();
+}

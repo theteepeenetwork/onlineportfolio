@@ -1,0 +1,8 @@
+// @path: src/lib/ops/reads.ts
+// Impersonation is forbidden permanently. There is no "sign in as this teacher",
+// no shadow session and no read-only preview of a teacher's account. This
+// comment must not trip the gate: comments are stripped before identifiers are
+// matched, so the rule can be explained next to the code it governs.
+import "server-only";
+
+export const OPS_READS_NOTE = "adult and billing reads live in this module";

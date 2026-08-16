@@ -1,0 +1,15 @@
+// @path: src/lib/ops/reads.ts
+// School-granularity and billing-attribute aggregation, which is the whole of
+// what R10 permits. No having:, no _max, no _min, keys written inline.
+import "server-only";
+import { db } from "@/lib/db";
+
+export const MIN_CELL = 10;
+
+export async function subscriptionMix() {
+  return db.subscription.groupBy({ by: ["kind", "status"], _count: true });
+}
+
+export async function seatsBySchool() {
+  return db.teacher.groupBy({ by: ["schoolId", "role"], _count: true });
+}

@@ -1,0 +1,13 @@
+// @path: src/app/ops/page.tsx
+// @expect: OPS-SAME-ORIGIN-FETCH
+// The same-origin rule matched only a URL beginning with a literal slash, so a
+// template literal read child data through the front door and passed. Ops has
+// no legitimate outbound call: R19 requires the health pane to render the
+// internal result rather than fetch the public endpoint.
+import { requireOperator } from "@/lib/ops/session";
+
+export default async function OpsHome() {
+  await requireOperator();
+  const r = await fetch(`${process.env.APP_URL}/api/drafts`);
+  return <main>{(await r.json()).length}</main>;
+}

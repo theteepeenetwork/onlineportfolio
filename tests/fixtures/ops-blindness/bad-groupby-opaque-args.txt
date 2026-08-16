@@ -1,0 +1,9 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-GROUP-KEY
+// The whole argument arrives from the caller. Unreadable means denied.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function tally(args) {
+  return db.subscription.groupBy(args);
+}

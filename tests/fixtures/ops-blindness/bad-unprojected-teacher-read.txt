@@ -1,0 +1,10 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-UNPROJECTED-READ
+// A permitted method on a permitted model, and it returns fifty password
+// hashes, because a Prisma read with no select: returns every scalar column.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function allTeachers() {
+  return db.teacher.findMany({ take: 50 });
+}

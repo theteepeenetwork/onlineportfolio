@@ -1,0 +1,8 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-RELATION
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function schoolTree() {
+  return db.teacher.findMany({ include: { classes: { include: { students: true } } } });
+}

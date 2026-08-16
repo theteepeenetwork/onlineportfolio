@@ -1,0 +1,8 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-DYNAMIC-MODEL
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function anyCount(model) {
+  return db[model].count();
+}

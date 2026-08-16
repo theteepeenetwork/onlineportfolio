@@ -1,0 +1,17 @@
+// @path: src/lib/ops/reads.ts
+// The read the schools list is actually for. Named columns only, a school-level
+// relation count of adult records, and nothing that reaches a child.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function listSchoolsForOps() {
+  return db.school.findMany({
+    select: {
+      id: true,
+      name: true,
+      createdAt: true,
+      _count: { select: { staff: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}

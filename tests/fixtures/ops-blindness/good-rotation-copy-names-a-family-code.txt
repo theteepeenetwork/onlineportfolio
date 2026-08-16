@@ -1,0 +1,18 @@
+// @path: src/app/ops/families/RotatePanel.tsx
+// Amendment C1 says rotating a leaked code never requires displaying it: the
+// operator triggers a rotation and the teacher sees the new code in their own
+// interface. So the WORDS "family code" must appear on this button, in ordinary
+// copy, while the identifier stays unreachable.
+//
+// This fixture exists because the banned-identifier match was made
+// case-insensitive during the QA corpus pass. It is the proof that the change
+// did not turn every honest label into a build failure: whole-word matching
+// means the two English words never spell the identifier.
+export function RotatePanel({ onRotate }) {
+  return (
+    <form action={onRotate}>
+      <p>The family code goes home on paper. Rotating it here issues a new one; the class teacher sees it in their own class settings.</p>
+      <button type="submit">Rotate this family code</button>
+    </form>
+  );
+}

@@ -1,0 +1,13 @@
+// @path: src/lib/ops/operations.ts
+// @expect: OPS-IMPERSONATION
+// The pattern list named the words the gate's author thought of. Under deadline
+// pressure nobody writes assumeIdentity; they write this.
+import "server-only";
+
+export async function support(teacherId) {
+  return masqueradeAs(teacherId);
+}
+
+export async function support2(teacherId) {
+  return loginAs(teacherId);
+}
