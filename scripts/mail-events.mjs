@@ -2,7 +2,7 @@
 // ---------------------------------------------------------------------------
 // mail-events: print what Mailjet recorded about Storyjar's recent sends.
 //
-// The companion to scripts/verify-mail.mjs. verify-mail proves what arrives in
+// The companion to scripts/verify-mail.ts. verify-mail proves what arrives in
 // one mailbox on one occasion; this prints what the provider recorded about
 // every send in a window, which is the other half of the same question.
 //
@@ -144,7 +144,7 @@ if (tracked.length > 0) {
   console.log("!! A `clicked` event means the href was rewritten to route through the");
   console.log("!! provider. On a sign-in email that is a blocking defect, not a");
   console.log("!! statistic: a single-use token is consumed by anything that follows");
-  console.log("!! the link first. Run scripts/verify-mail.mjs, read the delivered raw");
+  console.log("!! the link first. Run scripts/verify-mail.ts, read the delivered raw");
   console.log("!! source, and open a finding in FINDINGS.md.");
   console.log("!!");
   console.log("!! An `opened` event alone means the pixel is being injected. That is a");

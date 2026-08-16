@@ -27,7 +27,7 @@ import "server-only";
 // Tracking is switched off three ways below (per-message properties, per-message
 // headers, and the account setting) because one silent failure already cost us
 // a live authentication defect. None of them is trusted: the acceptance test is
-// `scripts/verify-mail.mjs` plus reading the delivered raw source. If an <a
+// `scripts/verify-mail.ts` plus reading the delivered raw source. If an <a
 // href> ever points anywhere other than storyjar.co.uk, this module is broken
 // no matter what the provider's documentation claims.
 //
@@ -36,11 +36,15 @@ import "server-only";
 //  • **No child's name, and no child content, ever leaves in an email.** The
 //    school holds the parent's address, not us, and a school can mistype it. If
 //    a message lands with a stranger it must reveal nothing about a child —
-//    not a name, not a class, not a photo. Every template in emails.ts is
-//    deliberately written so it would be meaningless to the wrong recipient
+//    not a name, not a class, not a photo. Every template in emailTemplates.ts
+//    is deliberately written so it would be meaningless to the wrong recipient
 //    (rule 2, rule 4).
 //  • **No tracking.** See above. Opens and clicks are switched off explicitly,
-//    and the link a parent receives is never rewritten.
+//    and the link a parent receives is never rewritten. The templates carry no
+//    image, no external URL and no stylesheet, which is asserted by
+//    tests/battery/security/email-templates.spec.ts. That module drops
+//    `server-only` so the test can read it; its header says why, and what
+//    would put the guard back.
 //  • **Tokens are never logged.** Failures log the recipient's domain and the
 //    provider's status, never the address in full and never the link.
 //  • Mailjet is a sub-processor holding adult email addresses only. It is

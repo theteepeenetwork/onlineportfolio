@@ -7,7 +7,7 @@ import { createSession, destroySession } from "@/lib/auth";
 import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 import { sendMail } from "@/lib/mailer";
 import { signInLinkMayBeShown } from "@/lib/signInLinkPolicy";
-import { magicLinkEmail } from "@/lib/emails";
+import { magicLinkEmail } from "@/lib/emailTemplates";
 import { headers } from "next/headers";
 
 // Parent asks for a magic link: we mint a single-use token and EMAIL it.
