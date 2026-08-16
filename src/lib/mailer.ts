@@ -1,53 +1,58 @@
 import "server-only";
 
 // ---------------------------------------------------------------------------
-// Transactional email — Brevo (EU: France/Germany), via its REST API.
+// Transactional email — Mailjet (Sinch), EU storage, via its Send API v3.1.
 //
-// Deliberately dependency-free: a single `fetch` to Brevo's HTTPS endpoint, no
-// SDK, no SMTP library. Fewer moving parts in the one path a parent depends on
-// to reach their child's work.
+// Deliberately dependency-free: a single `fetch` to Mailjet's HTTPS endpoint,
+// no SDK, no SMTP library. Fewer moving parts in the one path a parent depends
+// on to reach their child's work.
+//
+// WHY NOT BREVO. Storyjar sent transactional mail through Brevo until August
+// 2026. Brevo rewrites every link in every message through its own redirect
+// domain and injects an open-tracking pixel, and it does not let non-Enterprise
+// accounts turn either off. Their API has no tracking parameter at all: the
+// `disableTracking: true` this file used to send was silently discarded.
+//
+// That is disqualifying here, and not mainly for privacy reasons. A parent's
+// sign-in token works ONCE. Routed through a third-party redirect, anything
+// that prefetches the link consumes the token before the parent taps it, and
+// the parent is told their link has expired. School mail gateways prefetch
+// links as a matter of course. See FINDINGS (link-rewriting) for the evidence,
+// including the delivered raw source that proved it.
+//
+// So the rule this module exists to enforce:
+//
+//   **A sign-in link must arrive exactly as Storyjar wrote it.**
+//
+// Tracking is switched off three ways below (per-message properties, per-message
+// headers, and the account setting) because one silent failure already cost us
+// a live authentication defect. None of them is trusted: the acceptance test is
+// `scripts/verify-mail.mjs` plus reading the delivered raw source. If an <a
+// href> ever points anywhere other than storyjar.co.uk, this module is broken
+// no matter what the provider's documentation claims.
 //
 // SAFEGUARDING notes — this module sends mail ABOUT children to adults, so:
 //
 //  • **No child's name, and no child content, ever leaves in an email.** The
 //    school holds the parent's address, not us, and a school can mistype it. If
 //    a message lands with a stranger it must reveal nothing about a child —
-//    not a name, not a class, not a photo. Every template below is deliberately
-//    written so it would be meaningless to the wrong recipient (rule 2, rule 4).
-//  • **We cannot tell whether a particular parent opened an email.** That is
-//    the claim, and it is narrower than the one this comment used to make.
-//    Every send below asks Brevo to disable tracking, and Brevo's account-level
-//    "anonymous email tracking" is switched on, so any open or click event it
-//    does record is not associated with an individual.
-//
-//    Be precise here, because the obvious stronger claim is false. On
-//    16 August 2026 Brevo's transactional log recorded a "First opening"
-//    against a magic-link email that this module sent with
-//    `disableTracking: true`. Whatever that flag governs, it did not stop an
-//    open being recorded and attributed to the recipient. The account-level
-//    anonymity setting, not the flag, is what carries the promise now. Do not
-//    let anyone restore a blanket "no tracking" to this file.
-//  • **A sign-in link must never be rewritten through a click-tracker.** That
-//    would both break the token and hand a third party the means to use it. It
-//    is a functional requirement of the parent sign-in path, not a preference.
-//    `scripts/verify-mail.mjs` exists to check it against a real delivered
-//    message rather than trusting the flag, which we now know can be ignored.
-//  • **Brevo's own log is short-lived and holds no message bodies.** Delivery
-//    logs are deleted after 1 month (Brevo's floor) and message previews are
-//    switched off, so a live, working sign-in link never sits in a third
-//    party's web interface. Both are recorded in RETENTION.md.
+//    not a name, not a class, not a photo. Every template in emails.ts is
+//    deliberately written so it would be meaningless to the wrong recipient
+//    (rule 2, rule 4).
+//  • **No tracking.** See above. Opens and clicks are switched off explicitly,
+//    and the link a parent receives is never rewritten.
 //  • **Tokens are never logged.** Failures log the recipient's domain and the
 //    provider's status, never the address in full and never the link.
-//  • Brevo is a sub-processor holding adult email addresses only. It is listed
-//    on /legal/sub-processors, in the DPA, and in docs/DPIA.md.
+//  • Mailjet is a sub-processor holding adult email addresses only. It is
+//    listed on /legal/sub-processors, in the DPA, and in docs/DPIA.md.
 // ---------------------------------------------------------------------------
 
-const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
+const MAILJET_ENDPOINT = "https://api.mailjet.com/v3.1/send";
 const SEND_TIMEOUT_MS = 8000;
 
 /** Is transactional email configured in this environment? */
 export function mailerConfigured(): boolean {
-  return Boolean(process.env.BREVO_API_KEY && senderEmail());
+  return Boolean(process.env.MAILJET_API_KEY && process.env.MAILJET_SECRET_KEY && senderEmail());
 }
 
 function senderEmail(): string {
@@ -59,6 +64,11 @@ function senderName(): string {
 /** Where a human reply actually lands — a real, monitored mailbox. */
 function replyTo(): string {
   return process.env.EMAIL_REPLY_TO ?? "hello@storyjar.co.uk";
+}
+
+function authHeader(): string {
+  const pair = `${process.env.MAILJET_API_KEY}:${process.env.MAILJET_SECRET_KEY}`;
+  return `Basic ${Buffer.from(pair).toString("base64")}`;
 }
 
 // The on-screen sign-in link rule lives in `src/lib/signInLinkPolicy.ts` —
@@ -83,32 +93,40 @@ export async function sendMail({ to, subject, text, html }: SendArgs): Promise<M
   if (!mailerConfigured()) {
     // Loud in development, silent-but-reported in production. Deliberately not
     // an exception: an unconfigured environment should degrade, not crash.
-    console.warn("[mailer] not configured — no BREVO_API_KEY; email not sent");
+    console.warn("[mailer] not configured — no Mailjet credentials; email not sent");
     return { ok: false, reason: "not-configured" };
   }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
   try {
-    const res = await fetch(BREVO_ENDPOINT, {
+    const res = await fetch(MAILJET_ENDPOINT, {
       method: "POST",
       headers: {
-        "api-key": process.env.BREVO_API_KEY as string,
+        authorization: authHeader(),
         "content-type": "application/json",
         accept: "application/json",
       },
       body: JSON.stringify({
-        sender: { name: senderName(), email: senderEmail() },
-        replyTo: { email: replyTo(), name: senderName() },
-        to: [{ email: to }],
-        subject,
-        textContent: text,
-        htmlContent: html,
-        // We ask for no open pixel and no link rewriting. Brevo has been
-        // observed to record an open anyway, so this flag is necessary but not
-        // sufficient: the account-level anonymous-tracking setting is what
-        // keeps an open from being tied to a person. See the note above.
-        disableTracking: true,
+        Messages: [
+          {
+            From: { Email: senderEmail(), Name: senderName() },
+            ReplyTo: { Email: replyTo(), Name: senderName() },
+            To: [{ Email: to }],
+            Subject: subject,
+            TextPart: text,
+            HTMLPart: html,
+            // No open pixel, no link rewriting. Set as message properties AND
+            // as the SMTP-style headers, because a provider silently ignoring
+            // one of these is exactly how the Brevo defect went unnoticed.
+            TrackOpens: "disabled",
+            TrackClicks: "disabled",
+            Headers: {
+              "X-MJ-TrackOpen": "0",
+              "X-MJ-TrackClick": "0",
+            },
+          },
+        ],
       }),
       signal: controller.signal,
     });
@@ -118,6 +136,19 @@ export async function sendMail({ to, subject, text, html }: SendArgs): Promise<M
       console.error(`[mailer] send failed (${res.status}) to domain ${domainOf(to)}`);
       return { ok: false, reason: `http-${res.status}` };
     }
+
+    // Mailjet returns HTTP 200 even when an individual message was rejected, so
+    // the per-message status has to be read. Treating 200 as success is how you
+    // end up believing mail is going out when it is not.
+    const body = (await res.json().catch(() => null)) as
+      | { Messages?: Array<{ Status?: string }> }
+      | null;
+    const status = body?.Messages?.[0]?.Status;
+    if (status !== "success") {
+      console.error(`[mailer] rejected (${status ?? "unknown"}) for domain ${domainOf(to)}`);
+      return { ok: false, reason: `rejected-${status ?? "unknown"}` };
+    }
+
     return { ok: true };
   } catch (e) {
     const reason = e instanceof Error && e.name === "AbortError" ? "timeout" : "network";
