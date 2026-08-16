@@ -1,0 +1,8 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-RAW-SQL
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function tally() {
+  return db.$queryRaw`SELECT count(*) FROM Student`;
+}

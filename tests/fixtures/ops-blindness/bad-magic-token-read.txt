@@ -1,0 +1,10 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-MODEL-METHOD
+// A magic token value is a sign-in link. Reading one is signing in as that
+// parent (amendment C1).
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function pendingLinks(parentId) {
+  return db.magicToken.findMany({ where: { parentId }, select: { expiresAt: true } });
+}

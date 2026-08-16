@@ -1,0 +1,7 @@
+// @path: src/lib/ops/operations.ts
+// @expect: OPS-IMPERSONATION
+import "server-only";
+
+export async function viewAsTeacher(teacherId) {
+  return signInAs(teacherId);
+}

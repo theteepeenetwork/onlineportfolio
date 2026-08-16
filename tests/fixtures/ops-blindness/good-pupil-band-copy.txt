@@ -1,0 +1,24 @@
+// @path: src/app/ops/schools/SchoolTable.tsx
+// R10: ops renders the price band computed server-side from bandForPupils, and
+// an exact headcount only at or above the suppression threshold. The numbers
+// and the word "pupils" are the correct output of this area, not a leak, and a
+// DTO field holding a number is named for the number rather than for the
+// relation it was counted from.
+import { bandForPupils } from "@/lib/billing-plans";
+
+export function SchoolTable({ schools }) {
+  return (
+    <table>
+      <tbody>
+        {schools.map((s) => (
+          <tr key={s.id}>
+            <td>{s.name}</td>
+            <td>{s.staffCount} staff</td>
+            <td>{bandForPupils(s.pupilCount)}</td>
+            <td>{s.pupilCount >= 10 ? `${s.pupilCount} pupils` : "fewer than 10 pupils"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}

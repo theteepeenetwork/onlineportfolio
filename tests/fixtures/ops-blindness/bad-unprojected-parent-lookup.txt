@@ -1,0 +1,11 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-UNPROJECTED-READ
+// The exact-match parent lookup R11 permits, written without a projection. It
+// returns Parent.familyCode, and reading a family code is signing in as that
+// family (amendment C1).
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function parentByEmail(email) {
+  return db.parent.findUnique({ where: { email } });
+}

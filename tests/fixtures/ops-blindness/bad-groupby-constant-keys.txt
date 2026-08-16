@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-GROUP-KEY
+// A key list behind a constant is a key list nobody reviews, and one import
+// away it is a key list nobody can even read.
+import "server-only";
+import { db } from "@/lib/db";
+
+const KEYS = ["classId"];
+
+export async function pupilsPerClass() {
+  return db.student.groupBy({ by: KEYS, _count: true });
+}

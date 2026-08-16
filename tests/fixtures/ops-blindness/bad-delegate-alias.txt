@@ -1,0 +1,10 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-DB-HANDLE
+// The same evasion in one statement fewer.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function recentWork() {
+  const items = db.journalItem;
+  return items.findMany({ take: 20 });
+}

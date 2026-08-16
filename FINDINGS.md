@@ -18,6 +18,11 @@ fix is covered by a test that now passes.
 0d). F20 is not fixable by an agent: it is owner decision D2, and it is the most
 serious entry in this file.
 
+**F23 and F24 were opened on 16 August 2026** by the QA half of PR0, doing to
+the new ops blindness gate what handbook ruling R3 exists to make someone do:
+the author of a gate is the worst person to certify it fires. F23 is the reason
+that ruling is worth having.
+
 > **F15–F18 were found later**, while working through the July 2026 intuitiveness
 > audit — not during the original battery work. All four are fixed. F16 shipped
 > as the class-code rotation release's second half (rotation first, then the
@@ -56,6 +61,8 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | **F20** | **Critical** | **Availability / Claims** | There are no backups of the volume holding every child's photograph, drawing and voice note, and three documents schools read say there are | **Open, blocked on owner decision D2** | none possible; options in `docs/ops-backup-options.md` |
 | F21 | Medium | Schema / deploy | Production applies schema changes with `prisma migrate deploy`; local setup and CI still use `prisma db push`, so a schema edit made the usual way ships without a migration | **Mitigated, not closed** | `security/migrations-match-schema.spec.ts` |
 | F22 | Low | Log hygiene | The stdout static check scans `src/` only; scripts run against production with `railway run` are audited by hand | **Accepted** | `security/log-hygiene.spec.ts` (scope stated in its header) |
+| F23 | High | Ops blindness gate | Twenty-nine of forty-two attempted evasions got past the gate as first written, including three that handed over password hashes and family codes through a *permitted* call on a *permitted* model | **Fixed** (28 closed, 1 accepted in F24) | `security/ops-blindness-gate.spec.ts` + the 69-file corpus behind `--self-test` |
+| F24 | Info | Ops blindness gate | What the gate still cannot see: runtime-assembled identifiers, and `scripts/ops/` being deliberately out of scope | **Accepted** | scope stated in the gate header and in A15 |
 
 ---
 
@@ -153,6 +160,136 @@ instead:
 **Accepted**, not fixed: a script added tomorrow is protected by nothing here.
 The durable answer is the mail alerting and `JobRun` work, where an operator
 reads counters rather than log lines.
+
+---
+
+## F23 · The blindness gate missed twenty-eight ways past it · High → Fixed
+
+Found on 16 August 2026 by the QA half of PR0, under handbook ruling R3: the
+gate's author does not certify that it fires, so QA tries to defeat it before
+writing a single fixture. Forty-two evasions were written across four waves,
+each wave aimed at the rules the previous one had just added. **Twenty-nine got
+through.** The first wave alone was twenty-five attempts of which twenty passed
+clean. Twenty-eight of the twenty-nine are now a rule in
+`scripts/check-ops-blindness.mjs` and a canary in
+`tests/fixtures/ops-blindness/`; the twenty-ninth was judged permitted and is
+recorded in F24.
+
+The pattern across all of them is the same, and it is worth naming because the
+next person will hit it too: **each original rule was correct about the shape it
+was written for, and every miss was one spelling away from a shape it caught.**
+
+- `db["journalItem"]` was caught; `db?.["journalItem"]` and
+  `Reflect.get(db, name)` were not.
+- `db.journalItem.findMany()` was caught; `const { journalItem } = db` and
+  `const items = db.journalItem` were not, because every model rule matches the
+  three-part shape `<client>.<delegate>.<method>(`.
+- `select: { familyCode: true }` was caught; `familycode`, `["family" + "Code"]`,
+  `` [`family${"Code"}`] `` and `[["family","Code"].join("")]` were not.
+- `groupBy({ by: ["classId"] })` was caught; `by: "classId"` (Prisma accepts a
+  bare string), `by: KEYS` and `db.student.count({ where: { classId } })` were
+  not. The last of those is the same per-class number R10 refuses, by a route
+  the rule never looked at.
+- `import { teacherNav } from "@/lib/teacherNav"` was caught;
+  `"../../lib/teacherNav"` was not, because the allowlist skipped every relative
+  specifier. The same hole silenced the session-reuse rule, which compared
+  specifier strings by equality, and the reverse-membership test, which was a
+  substring search for `"@/lib/ops/"`.
+- `export { db }` was caught; `export default db` and `export const client = db`
+  were not.
+- `export function` and `export const f = () => {}` were guard-checked;
+  `export default async (props) => {}`, `export const f = async function () {}`,
+  `export { handler as GET }`, `export const GET = handler`, an inline
+  `"use server"` action inside a component, and an entire `"use server"` module
+  parked at `src/app/ops/mutations.ts` instead of `src/app/actions/ops/` were
+  not.
+- `signInAs` was caught; `masqueradeAs` and `loginAs` were not.
+- `fetch("/api/drafts")` was caught; `` fetch(`${process.env.APP_URL}/api/drafts`) ``
+  was not.
+
+Three of the misses were not variations on a caught shape at all, and these are
+the ones worth reading twice:
+
+1. **A permitted read of a permitted model handed over credentials.** A Prisma
+   read with no `select:` returns every scalar column, so
+   `db.teacher.findMany({ take: 50 })` was a clean pass that returned fifty
+   password hashes, and `db.parent.findUnique({ where: { email } })` returned the
+   family code that signs an operator in as that family (amendment C1). Nothing
+   in the gate was wrong; the gate simply had no rule about projection.
+   `OPS-UNPROJECTED-READ` now requires an explicit `select:` on any row-returning
+   call against a model that owns a denied column, and the model list is derived
+   from the schema so a new credential column joins it the day it lands.
+2. **The same hole one level down.** `select: { id: true, staff: true }` on a
+   school returns whole Teacher rows through the relation. `staff` points at an
+   adult model, so it is not a child relation and nothing looked at it.
+3. **`_count: true` inside a select** counts every relation on the row. On a
+   Parent that is the linked-children count ruling R11 refuses, obtained without
+   naming the relation the gate was watching for.
+
+Also fixed here: shared definition-of-done item 9 ("no img, next/image, video,
+audio, source, picture, object, embed, iframe, CSS `url()` or `data:` media
+anywhere under ops") had no gate behind it at all. `next/image` was doubly
+invisible, because `next/` is on the package prefix allowlist. Every byte of
+media in this product is a child's photograph, drawing or voice note, and an
+`<img src={dto.path} />` renders one while satisfying every data rule in the
+file.
+
+**Fixed.** Seven new rules (`OPS-UNPROJECTED-READ`, `OPS-DB-HANDLE`,
+`OPS-ASSEMBLED-IDENTIFIER`, `OPS-COMPUTED-SELECTION`, `OPS-COUNT-WILDCARD`,
+`OPS-CHILD-SCOPE-KEY`, `OPS-MEDIA-ELEMENT`) and widenings to ten existing rules
+and to reverse membership. Nothing was removed or relaxed. Two rules were made *narrower* in the same pass,
+both to remove a false positive before anyone met it and was tempted to delete
+the rule: `by:` is now read only inside a `.groupBy(` argument rather than
+anywhere in the file, so a DTO field called `by` is safe; and `_count: true` is
+refused only inside a `select`/`include`, because inside a `groupBy` it means
+"rows in this group" and is correct. Both narrowings ship with a fixture proving
+the true positive still fires.
+
+**Guards:** `security/ops-blindness-gate.spec.ts` (A15) and the 69-file corpus
+behind `--self-test`. The spec's mutation test deletes each declared rule in turn
+from a throwaway copy of the gate and requires the self-test to go red, so a
+fixture that fires the wrong rule cannot pass for the right-looking reason.
+
+---
+
+## F24 · What the blindness gate still cannot see · Info → Accepted
+
+Recorded so no document claims more for the gate than is true. The gate's own
+header states three limits; these are the ones the QA pass found by trying, and
+they are in addition to those.
+
+**A name built at runtime cannot be decoded.** `["family","Code"].join("")`,
+`atob(...)`, `String.fromCharCode(...)` and anything else that assembles an
+identifier while the process is running are outside what a text scanner can
+read. This is mitigated rather than closed, and the mitigation is the important
+part: the *consequence* is gated even though the *construction* is not. A
+computed key inside a query object is refused outright by
+`OPS-COMPUTED-SELECTION` whatever the expression is, on the same principle as
+the `groupBy` key rule, so an unreadable name cannot select a column; and
+reaching a credential off a fetched row first requires an unprojected read,
+which `OPS-UNPROJECTED-READ` refuses. A determined author with arbitrary
+JavaScript still wins against any regex gate, which is why the gate is paired
+with review and with the runtime specs and is described as a floor.
+
+**A count of a parent's own sign-in artefacts passes.**
+`_count: { select: { magicTokens: true } }` on a parent record is permitted, and
+this was a judgement rather than an oversight. It is a figure about an adult's
+own account, of exactly the shape amendment C2 allows ("has this family ever
+signed in, when did they last"), and it names no child and reveals no token
+value. If the owner reads C2 more narrowly, the change is to add `magicTokens`
+and `sessions` to `NEVER_LINK_RELATIONS` with a fixture; the gate is written so
+that is a two-line edit.
+
+**`scripts/ops/` is deliberately not scanned.** Handbook section 5 makes the
+interim one-off operator scripts "procedurally constrained, not structurally
+blind": they run on the server with full database access by design. Pretending
+the gate covers them would be exactly the overstatement the programme exists to
+avoid. This belongs in the DPIA, next to the larger fact the gate header already
+records: the gate constrains the **product**, not the person, and the operator
+has host access to the SQLite file and the media volume regardless.
+
+**Accepted.** No action beyond keeping these sentences in the DPIA and out of
+anything a school is shown.
 
 ---
 

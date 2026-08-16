@@ -1,0 +1,10 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-SCOPE-KEY
+// R10 refuses classId as a groupBy key. This is the same number by a different
+// route, and in a class of one it names that child.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function pupilsInClass(classId) {
+  return db.student.count({ where: { classId } });
+}

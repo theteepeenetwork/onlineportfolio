@@ -1,0 +1,9 @@
+// @path: src/app/actions/ops/billing.ts
+// @expect: OPS-REQUIRE-OPERATOR
+"use server";
+
+import { freezeSchool } from "@/lib/ops/operations";
+
+export async function freeze(schoolId, reason) {
+  return freezeSchool(schoolId, reason);
+}

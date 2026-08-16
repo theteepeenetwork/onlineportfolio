@@ -1,0 +1,9 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-FILESYSTEM
+import "server-only";
+import { readFile } from "node:fs/promises";
+import { MEDIA_DIR } from "@/lib/mediaPath";
+
+export async function peek(name) {
+  return readFile(MEDIA_DIR + "/" + name);
+}

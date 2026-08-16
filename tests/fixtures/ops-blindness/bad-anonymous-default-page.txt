@@ -1,0 +1,11 @@
+// @path: src/app/ops/schools/page.tsx
+// @expect: OPS-REQUIRE-OPERATOR
+// The guard scan matched `export default function` and `export const x = () =>`
+// and missed the anonymous default arrow entirely, so this page had no guard
+// and no violation.
+import { listSchoolsForOps } from "@/lib/ops/reads";
+
+export default async (props) => {
+  const schools = await listSchoolsForOps();
+  return <main>{schools.length}</main>;
+};

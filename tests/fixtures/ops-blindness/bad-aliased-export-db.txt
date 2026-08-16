@@ -1,0 +1,7 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-DB-REEXPORT
+// Rename it and it is not called db any more, which was enough.
+import "server-only";
+import { db } from "@/lib/db";
+
+export const client = db;

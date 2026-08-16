@@ -42,6 +42,15 @@ jobs:
         run: node scripts/audit-motion.mjs
       - name: R2 tripwire (media migration guard)
         run: node scripts/check-r2-tripwire.mjs
+      # The operator console is structurally blind to children's work, and this
+      # is what enforces it. It runs BEFORE any ops screen exists, on purpose: a
+      # screen written before the gate is a screen the gate never checked while
+      # it was being written. The self-test is a separate step so a corpus that
+      # has quietly stopped proving anything shows up as its own red line.
+      - name: Ops blindness gate (rules 4, 5, 8, 11)
+        run: node scripts/check-ops-blindness.mjs
+      - name: Ops blindness gate self-test (proves it still fires)
+        run: node scripts/check-ops-blindness.mjs --self-test
       - name: Production dependency audit (fail on high)
         run: npm run audit:prod
       - name: Error-string audit (report-only)

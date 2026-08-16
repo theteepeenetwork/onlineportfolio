@@ -1,0 +1,12 @@
+// @path: src/app/ops/api/route.ts
+// @expect: OPS-REQUIRE-OPERATOR
+// `export { handler as GET }` makes handler a route entry point just as surely
+// as `export function GET`, and the guard scan only looked for the word export
+// in front of a function.
+import { listSchoolsForOps } from "@/lib/ops/reads";
+
+async function handler() {
+  return Response.json(await listSchoolsForOps());
+}
+
+export { handler as GET };

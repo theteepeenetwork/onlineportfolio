@@ -1,0 +1,8 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-MODEL-METHOD
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function recentWork() {
+  return db.journalItem.findMany({ take: 20 });
+}

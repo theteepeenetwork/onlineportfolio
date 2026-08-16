@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-AGGREGATE-SHAPE
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function busiestSchools() {
+  return db.journalItem.groupBy({
+    by: ["schoolId"],
+    _count: true,
+    having: { id: { _count: { gt: 5 } } },
+  });
+}

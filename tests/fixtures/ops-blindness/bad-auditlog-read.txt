@@ -1,0 +1,8 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-AUDITLOG
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function recentPlatformActions() {
+  return db.auditLog.findMany({ where: { actorType: "PLATFORM" }, take: 50 });
+}

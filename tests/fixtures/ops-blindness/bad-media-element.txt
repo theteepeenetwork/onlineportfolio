@@ -1,0 +1,14 @@
+// @path: src/app/ops/page.tsx
+// @expect: OPS-MEDIA-ELEMENT
+// Shared definition of done item 9 had no gate behind it. Every byte of media
+// in this product is a child's photograph, drawing or voice note, and an img
+// tag renders one while satisfying every data rule in the gate, because the
+// path arrived as an innocent-looking string on a DTO.
+import { requireOperator } from "@/lib/ops/session";
+import { latest } from "@/lib/ops/reads";
+
+export default async function OpsHome() {
+  await requireOperator();
+  const p = await latest();
+  return <img src={p.path} alt="" />;
+}

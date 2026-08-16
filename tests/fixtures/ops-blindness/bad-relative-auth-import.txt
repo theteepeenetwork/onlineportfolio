@@ -1,0 +1,11 @@
+// @path: src/lib/ops/session.ts
+// @expect: OPS-SESSION-REUSE
+// @expect: OPS-IMPORT-ALLOWLIST
+// The session rules compared import specifiers by string equality, so the same
+// module reached by a relative path did not fire them. The alias on the import
+// hid the identifier from the usage rules at the same time.
+import { getCurrentUser as who } from "../auth";
+
+export async function requireOperator() {
+  return who();
+}

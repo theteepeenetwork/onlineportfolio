@@ -1,0 +1,12 @@
+// @path: src/app/ops/page.tsx
+// @expect: OPS-MEDIA-ELEMENT
+// The same element without the angle brackets.
+import { createElement } from "react";
+import { requireOperator } from "@/lib/ops/session";
+import { latest } from "@/lib/ops/reads";
+
+export default async function OpsHome() {
+  await requireOperator();
+  const p = await latest();
+  return createElement("img", { src: p.path });
+}

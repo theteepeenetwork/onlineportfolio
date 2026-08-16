@@ -1,0 +1,11 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-COUNT-WILDCARD
+// _count: true inside a select counts EVERY relation on the row. On a Parent
+// that is the linked-children count R11 refuses, obtained without naming the
+// relation the gate is watching for.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function parentByEmail(email) {
+  return db.parent.findUnique({ where: { email }, select: { id: true, _count: true } });
+}

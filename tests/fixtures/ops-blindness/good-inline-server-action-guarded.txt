@@ -1,0 +1,17 @@
+// @path: src/app/ops/schools/FreezePanel.tsx
+// An inline Server Action is its own POST endpoint with its own action id, so
+// the guard belongs immediately after the directive, not on the page that
+// rendered it. This is the passing half of bad-inline-server-action.txt.
+"use client-not-really";
+import { requireOperator } from "@/lib/ops/session";
+import { freezeSchool } from "@/lib/ops/operations";
+
+export default async function FreezePanel({ schoolId }) {
+  await requireOperator();
+  async function freeze(formData) {
+    "use server";
+    await requireOperator();
+    return freezeSchool(schoolId, formData.get("reason"));
+  }
+  return <form action={freeze} />;
+}

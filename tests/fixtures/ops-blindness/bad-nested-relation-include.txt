@@ -1,0 +1,9 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-UNPROJECTED-READ
+// The same read with include: instead of select:.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function schoolsWithStaff() {
+  return db.school.findMany({ include: { staff: true } });
+}

@@ -1,0 +1,11 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-RELATION
+// A child relation name outside the one permitted position. Ordering schools by
+// how much their children have posted is a profile of those children by another
+// name (rule 11, amendment C3).
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function busiest() {
+  return db.class.count({ orderBy: { students: { _count: "desc" } } });
+}

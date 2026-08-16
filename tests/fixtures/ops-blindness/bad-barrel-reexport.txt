@@ -1,0 +1,7 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// A barrel is an import wearing a different hat. export * from launders every
+// symbol in the target module into the ops namespace at once.
+import "server-only";
+
+export * from "@/lib/schoolStats";

@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// Amendment C2's parent record: who they are, when they registered, whether
+// they have added an email. Exact match, named columns, no family code, no
+// children and no count of them.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function parentByExactEmail(email) {
+  return db.parent.findUnique({
+    where: { email },
+    select: { id: true, createdAt: true },
+  });
+}

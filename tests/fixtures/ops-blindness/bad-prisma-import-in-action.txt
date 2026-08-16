@@ -1,0 +1,11 @@
+// @path: src/app/actions/ops/schools.ts
+// @expect: OPS-PRISMA-IMPORT
+"use server";
+
+import { db } from "@/lib/db";
+import { requireOperator } from "@/lib/ops/session";
+
+export async function schoolCount() {
+  await requireOperator();
+  return db.school.count();
+}

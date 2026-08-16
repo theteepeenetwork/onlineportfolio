@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-DB-HANDLE
+// The model rules match `<client>.<delegate>.<method>(`. Destructuring breaks
+// that shape into two statements and every one of them goes blind.
+import "server-only";
+import { db } from "@/lib/db";
+
+const { journalItem } = db;
+
+export async function recentWork() {
+  return journalItem.findMany({ take: 20 });
+}

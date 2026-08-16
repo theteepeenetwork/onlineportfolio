@@ -1,0 +1,13 @@
+// @path: src/lib/auditFeed.ts
+// @expect: OPS-AUDITLOG
+// @expect: OPS-PRISMA-IMPORT
+// Reading AuditLog through a helper rather than directly. AuditLog.detail is
+// free text written by teacher-facing actions and routinely contains a child's
+// first name ("Approved Amara's moment"), so this is a child-data read wearing
+// an operations hat (R4). The transitive walk judges the helper by the same
+// rules as the ops file that imported it.
+import { db } from "@/lib/db";
+
+export async function feedForSchool(schoolId) {
+  return db.auditLog.findMany({ where: { schoolId }, take: 100 });
+}

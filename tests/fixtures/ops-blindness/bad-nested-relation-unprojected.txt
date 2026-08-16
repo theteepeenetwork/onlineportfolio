@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-UNPROJECTED-READ
+// A relation selected with `true` returns whole rows of the RELATED model. The
+// outer call has a select:, staff points at an adult model so it is not a child
+// relation, and every rule was satisfied while this returned every teacher's
+// password hash.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function schoolsWithStaff() {
+  return db.school.findMany({ select: { id: true, name: true, staff: true } });
+}
