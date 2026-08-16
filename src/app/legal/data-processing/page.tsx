@@ -32,7 +32,7 @@ export default function DPA() {
       </ul>
 
       <h2>4. International transfers</h2>
-      <p>Personal data is stored and processed in the <strong>UK/EU</strong>. We will not transfer children&apos;s personal data outside the UK/EU without an adequacy decision or appropriate safeguards, and will tell the school first.</p>
+      <p>Personal data is stored and processed in the <strong>EU — Amsterdam, the Netherlands</strong> (hosting sub-processor: Railway). We will not transfer children&apos;s personal data outside the UK or EEA without an adequacy decision or appropriate safeguards, and will tell the school first. See <a href="/legal/sub-processors">Sub-processors</a> for the full picture, including where our processors are incorporated.</p>
 
       <h2>5. Sub-processors</h2>
       <p>Current sub-processors and their locations are listed on the <a href="/legal/sub-processors">Sub-processors</a> page. We will give schools prior notice of changes and an opportunity to object.</p>

@@ -51,7 +51,7 @@ export default function Privacy() {
 
       <h2>5. Where data is stored</h2>
       <p>
-        Personal data (database, uploaded media and backups) is stored and processed in the <strong>UK/EU</strong>.
+        Personal data (database, uploaded media and backups) is stored and processed in the <strong>EU — Amsterdam, the Netherlands</strong>. It never leaves Europe and is never transferred to the United States. Transfers from the UK to the EEA are covered by the UK&apos;s adequacy regulations.
         We do not transfer children&apos;s personal data to the United States or other jurisdictions without an adequacy
         decision or appropriate safeguards. Our current infrastructure and sub-processors are listed in the{" "}
         <a href="/legal/sub-processors">Sub-processors</a> page.

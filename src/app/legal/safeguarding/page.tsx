@@ -12,7 +12,7 @@ export default function Safeguarding() {
         <li><strong>An adult always checks first.</strong> Every moment a child makes waits in the teacher&apos;s approval queue and is never shown to anyone until the teacher approves it.</li>
         <li><strong>Access is need-to-know.</strong> A child&apos;s work is visible only to staff who teach that child and to a linked parent/carer (read-only). School admins do not see children&apos;s work unless they teach the class. Media (photos and drawings) is access-controlled, never at a public link.</li>
         <li><strong>No tracking, no profiling, no advertising.</strong> Ever.</li>
-        <li><strong>Data stays in the UK/EU.</strong></li>
+        <li><strong>Data stays in Europe</strong> — stored in Amsterdam, never transferred to the United States.</li>
       </ul>
 
       <h2>How this supports schools</h2>

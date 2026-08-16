@@ -233,7 +233,7 @@ Tracked here until closed; each becomes its own change.
 | Pri | Gap | Rule | Status |
 |---|---|---|---|
 | P0 | Uploaded children's media served from unauthenticated `public/uploads` URLs | 7 | **In progress** |
-| P0 | Production hosting region is US West (must be UK/EU before real data) | 10 | **In progress** |
+| P0 | ~~Production hosting region is US West~~ — **resolved 2026-08-15: EU West (Amsterdam, Netherlands)**, service and volume in region. Railway has no UK region, so "UK/EU" is satisfied by the EU half; see docs/DPIA.md R6 for the two residuals (Railway is US-incorporated; Stripe residency unassessed) | 10 | **Done** |
 | P1 | No security headers (CSP/HSTS/etc.) | 14 | Planned |
 | P1 | No audit log of safeguarding-relevant actions | 16 | Planned |
 | P2 | No DPIA on file; customer policies are drafts pending professional review | — | Ongoing |

@@ -26,7 +26,7 @@ export default function Terms() {
       <p>A teacher account is free, permanently — there is nothing to pay and no trial that expires. A school plan is priced by the number of pupils on roll (£199, £299, £449 or £649 a year), covering every teacher and pupil at the school, billed annually by card or by invoice / purchase order. Storyjar is not VAT registered, so no VAT is added. Your band is set when the plan starts and does not change during the paid year, even if the school roll grows. A school may cancel at any time; access continues to the end of the paid year. <em>[Confirm cancellation and refund wording.]</em></p>
 
       <h2>6. Data protection</h2>
-      <p>We process personal data as your processor under the <a href="/legal/data-processing">Data Processing Agreement</a> and our <a href="/legal/privacy">Privacy Policy</a>. Data is held in the UK/EU.</p>
+      <p>We process personal data as your processor under the <a href="/legal/data-processing">Data Processing Agreement</a> and our <a href="/legal/privacy">Privacy Policy</a>. Data is held in the EU (Amsterdam, the Netherlands).</p>
 
       <h2>7. Availability &amp; support</h2>
       <p>We aim to keep Storyjar available and to support schools, but the service is provided &ldquo;as is&rdquo; without warranties beyond those that cannot be excluded by law. <em>[Confirm SLA/support commitments.]</em></p>

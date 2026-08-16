@@ -31,7 +31,7 @@ Legend — ✅ has it · ⚠️ partial/weak · ❌ none. Verdict is StoryJar's 
 | Approval queue before publish | ✅ | ✅ | ✅ | ✅ | Table stakes — have it |
 | Activities / assignable templates | ✅ | ✅ | ⚠️ | ✅ | Table stakes — have it |
 | Export / data portability out | ⚠️ | ✅ | ⚠️ | ✅ | Trust feature — keep loud |
-| UK-hosted, UK-GDPR, no child data to 3rd parties | ❌ (US) | ✅ | ❌ (US) | ✅ | **Positioning** — wedge vs Seesaw/Dojo |
+| European-hosted, UK-GDPR, no child data to 3rd parties | ❌ (US) | ✅ | ❌ (US) | ✅ (Amsterdam) | **Positioning** — wedge vs Seesaw/Dojo |
 | Free teacher tier | ✅ | ❌ | ✅ | ✅ (planned) | Growth engine — keep |
 
 ## The three verdict buckets
@@ -53,9 +53,15 @@ through a model. These are exactly the "drift" and "bloat" our positioning attac
 — adding them makes us the thing teachers are leaving.
 
 **POSITIONING — limitations sold as virtues.** "No AI *fluff*, no bloat." "No
-behaviour scores." "No DMs — just the work." "UK-built, your data stays in the UK,
-and no child data ever goes to a payment processor." Our safeguarding rules are a
-product *philosophy*, not just compliance — say so out loud.
+behaviour scores." "No DMs — just the work." "UK-built, your data never leaves
+Europe, and no child data ever goes to a payment processor." Our safeguarding rules
+are a product *philosophy*, not just compliance — say so out loud.
+
+> **Say Europe, not the UK.** Storyjar is hosted in Amsterdam (Railway has no UK
+> region). "Your data stays in the UK" was in this document and it was wrong. The
+> honest line is just as strong against the US incumbents: *never leaves Europe,
+> never goes to the United States.* A business manager who checks and finds we
+> overstated it costs us far more than the word "Europe" ever will.
 
 ## Where AI fits — and where it doesn't
 
@@ -118,9 +124,11 @@ is no upsell and no fluff, **not** no intelligence. Better slogan than "no AI":
 > approved it. AI that does your prep, not AI that watches your kids.
 
 **"Where's our data stored?"**
-> The UK. StoryJar is UK-built and UK-GDPR-first, deletion is real (rows *and*
-> files), and no child's data ever touches our payment processor. We publish a
-> plain-English privacy notice and a DPA your DPO can read in five minutes.
+> In Europe — Amsterdam, in the EU. StoryJar is UK-built and UK-GDPR-first, your
+> children's data never leaves Europe and never goes to the United States,
+> deletion is real (rows *and* files), and no child's data ever touches our payment
+> processor. We publish a plain-English privacy notice, a sub-processor list, and a
+> DPA your DPO can read in five minutes.
 
 **"Can it do video?"** *(honest, for now)*
 > Voice is in today — a child can record themselves explaining their thinking,
