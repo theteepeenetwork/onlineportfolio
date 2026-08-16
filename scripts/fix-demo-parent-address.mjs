@@ -39,9 +39,15 @@ const apply = process.argv.includes("--apply");
 const db = new PrismaClient();
 
 try {
+  // Ids only. This script is run with `railway run` against production, so its
+  // output lands in an operator's terminal and, run from the Railway shell, in
+  // Railway's log store. A family code is a credential, not a label: anyone who
+  // can READ one can redeem it and reach that child's jar (SAFEGUARDING rule 4).
+  // The parent's name is personal data that adds nothing here. Neither is
+  // needed to confirm the change, so neither is selected, let alone printed.
   const rows = await db.parent.findMany({
     where: { email: OLD },
-    select: { id: true, name: true, familyCode: true },
+    select: { id: true },
   });
 
   if (rows.length === 0) {
@@ -55,7 +61,7 @@ try {
   }
 
   console.log(`Found ${rows.length} parent row(s) on ${OLD}:`);
-  for (const r of rows) console.log(`  ${r.name} (family code ${r.familyCode})`);
+  for (const r of rows) console.log(`  id ${r.id}`);
 
   if (!apply) {
     console.log(`\nDry run. Re-run with --apply to change the address to ${NEW}.`);

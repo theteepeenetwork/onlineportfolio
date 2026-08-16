@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { freezeSubscription, type AccountStatus } from "@/lib/billing";
 import { recordAudit } from "@/lib/audit";
+import { errorLabel } from "@/lib/safeLog";
 
 // Stripe webhooks. The Stripe SDK needs Node APIs (crypto) for signature
 // verification, and this must run per-request (never cached/prerendered).
@@ -28,7 +29,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     event = getStripe().webhooks.constructEvent(body, sig, secret);
   } catch (e) {
-    console.error("[stripe] signature verification failed", e);
+    console.error("[stripe] signature verification failed", errorLabel(e));
     return new Response("Invalid signature", { status: 400 });
   }
 
@@ -44,7 +45,9 @@ export async function POST(req: Request): Promise<Response> {
     await handleEvent(event);
   } catch (e) {
     // Roll back the idempotency record so Stripe's retry can reprocess.
-    console.error("[stripe] handler error for", event.type, e);
+    // The event type and a label only: a Stripe error object carries the
+    // customer payload, and a Prisma one carries the row we tried to write.
+    console.error("[stripe] handler error for", event.type, errorLabel(e));
     await db.billingEvent.delete({ where: { id: event.id } }).catch(() => {});
     return new Response("Handler error", { status: 500 });
   }

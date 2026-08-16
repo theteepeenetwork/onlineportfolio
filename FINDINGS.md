@@ -10,9 +10,13 @@ resolved. Data-protection failures are treated as critical/high per the brief
 > delete (`deleteItem`). Findings reflect that state — F3 was narrowed to
 > `removeStudent`, which this work then fixed too.
 
-**Status: all findings (F1–F19) addressed.** Fixes were applied after explicit sign-off
+**Status: F1 to F19 addressed.** Fixes were applied after explicit sign-off
 (the Phase-1 plan was "findings only"; the user then asked to fix them). Every
 fix is covered by a test that now passes.
+
+**F20 to F22 were opened on 16 August 2026** by the SRE work (OPS-0a, 0c and
+0d). F20 is not fixable by an agent: it is owner decision D2, and it is the most
+serious entry in this file.
 
 > **F15–F18 were found later**, while working through the July 2026 intuitiveness
 > audit — not during the original battery work. All four are fixed. F16 shipped
@@ -49,6 +53,106 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F16 | High | Rate-limit / Enumeration | Class-code lookup is unthrottled, and a hit discloses the class name + every pupil's first name | **Fixed** | `security/classcode-throttle.spec.ts` (+ `findings/classcode-throttle-grind.spec.ts`) |
 | **F19** | **Critical** | **AuthN** | `requestMagicLink` returned the parent's single-use sign-in URL to the browser, rendered as "Open it now →", with no environment guard — so typing any parent's email into the PUBLIC family form handed over a working session for that family | **Fixed** | `security/f19-magic-link-never-on-screen.spec.ts` |
 | F17 | Medium | AuthZ / robustness | `/uploads` authorised **path-first**: it decided on the first journal item matching a media path and never fell through to the draft/template branches, so two records sharing a path mis-authorised each other. Now scopes ownership into each branch and grants if any (Option A); the fixture no longer shares a path (Option C). | **Fixed** | `security/uploads-path-collision.spec.ts` |
+| **F20** | **Critical** | **Availability / Claims** | There are no backups of the volume holding every child's photograph, drawing and voice note, and three documents schools read say there are | **Open, blocked on owner decision D2** | none possible; options in `docs/ops-backup-options.md` |
+| F21 | Medium | Schema / deploy | Production applies schema changes with `prisma migrate deploy`; local setup and CI still use `prisma db push`, so a schema edit made the usual way ships without a migration | **Mitigated, not closed** | `security/migrations-match-schema.spec.ts` |
+| F22 | Low | Log hygiene | The stdout static check scans `src/` only; scripts run against production with `railway run` are audited by hand | **Accepted** | `security/log-hygiene.spec.ts` (scope stated in its header) |
+
+---
+
+## F20 · No backups exist, and the documents say otherwise · Critical → Open
+
+Found while doing OPS-0a/0c/0d (SRE), 16 August 2026. **Not fixed, and not
+fixable by an agent:** it is owner decision D2.
+
+One 5 GB Railway volume in EU West holds `/data/prod.db` and `/data/media`,
+which together are every school, every pupil name, and every photograph, drawing
+and voice note a child has saved. The volume has no backup and no point in time
+recovery. A volume corruption, a mistaken command or a provider incident destroys
+all of it with no recovery path.
+
+The second half is worse than the first. `RETENTION.md` promises schools a
+35-day rolling backup cycle with deletions propagating out within one cycle;
+`/legal/privacy` states that the database, uploaded media **and backups** are
+stored in Amsterdam; `/legal/data-processing` presents a list of Article 32
+measures that a reader will take as complete and that omits availability and
+restore. A school's data protection lead reads the first of those during
+procurement. It is currently untrue.
+
+**Why no repro test exists.** There is nothing to assert. A test that fails
+because backups are absent would be asserting a decision that has not been made,
+and the missing piece is not code.
+
+**What has been done instead:** the costed options, their RPO and RTO, their
+retention windows, and what each would oblige Storyjar to tell schools are
+written up in [`docs/ops-backup-options.md`](./docs/ops-backup-options.md). No
+plan was changed, no provider was added, no money was spent, and the backup line
+in `RETENTION.md` was deliberately left exactly as it is: correcting it without
+fixing it means telling schools their children's work has no disaster recovery,
+and that sentence is the owner's to write.
+
+**Blocks:** OPS-0b, and handbook R12, which holds school deletion out of v1 until
+a backup exists and a restore has been rehearsed.
+
+---
+
+## F21 · Two ways to change the schema, only one of which reaches production · Medium → Mitigated
+
+Found while doing OPS-0c, 16 August 2026.
+
+`scripts/railway-start.sh` now runs `prisma migrate deploy`, which applies only
+the SQL committed under `prisma/migrations`. Local development still runs
+`prisma db push` (`npm run setup`, `npm run db:reset`), and so does CI, and
+`db push` reads `schema.prisma` directly without ever looking at the migrations
+folder.
+
+So the trap is: edit `schema.prisma`, push it locally, watch the battery go
+green, deploy, and `migrate deploy` finds nothing new to apply. The container
+boots against last week's tables and fails on the first request that touches the
+new column, at whatever time of the morning the deploy went out, on a database
+with no backups (F20).
+
+**Mitigated** by `tests/battery/security/migrations-match-schema.spec.ts`, which
+fails the blocking security project whenever the committed migrations and the
+committed schema stop describing the same database. That turns the trap into a
+red build rather than a broken deploy, and it was watched failing with a model
+appended to `schema.prisma`.
+
+**Not closed**, because the two workflows still exist. Closing it properly means
+either moving local and CI onto `prisma migrate dev` / `migrate deploy`, or
+accepting the split and relying on the spec. Prisma's own guidance is not to mix
+the two against one database. That change touches the CI workflow and the npm
+scripts, so it belongs in its own reviewed PR rather than being bundled into a
+log-hygiene and healthcheck change.
+
+---
+
+## F22 · The stdout check covers the app, not the scripts · Low → Accepted
+
+Found while doing OPS-0d, 16 August 2026.
+
+`tests/battery/security/log-hygiene.spec.ts` statically scans `src/`, which is
+the application's own stdout, and that is where the accidental leak lives: a
+`console.error("...", e)` whose error object turns out to contain a rejected
+Prisma payload or a Stripe parameter.
+
+Scripts under `scripts/` are different. They print deliberately, to an operator's
+terminal, and several exist precisely to show a delivery status or a masked
+address. A blanket rule there would be wrong, so they were audited by hand
+instead:
+
+- `scripts/mail-events.mjs` already masked recipient addresses by default, with
+  an explicit `--full` opt-out. Left as it is.
+- `scripts/fix-demo-parent-address.mjs` printed a parent's name and their family
+  code. A family code is a credential: reading one is enough to sign in and see
+  that child's jar. It now selects and prints row ids only.
+- `scripts/freeze-expired.mjs` logs its caught error in full. Left as it is,
+  deliberately: the only payload it can carry is subscription ids and fixed
+  strings, no child data, and it is the one production job with no other
+  observability at all.
+
+**Accepted**, not fixed: a script added tomorrow is protected by nothing here.
+The durable answer is the mail alerting and `JobRun` work, where an operator
+reads counters rather than log lines.
 
 ---
 

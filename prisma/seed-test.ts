@@ -21,6 +21,16 @@ import { PrismaClient } from "@prisma/client";
 // npm script, both of which target the local dev database.
 // ---------------------------------------------------------------------------
 
+// The same production guard as prisma/seed.ts, for the same reason: this script
+// runs the demo seed with FORCE_SEED=1 and then appends two more schools, so it
+// wipes and rewrites everything exactly as that one does. It is only ever meant
+// for the local battery database. Runs before anything is opened or written.
+if (process.env.NODE_ENV === "production") {
+  console.error("[seed-test] refusing to run: NODE_ENV is production.");
+  console.error("[seed-test] These are test fixtures. They delete every row before writing.");
+  process.exit(1);
+}
+
 const MEDIA_DIR = process.env.MEDIA_DIR || path.join(process.cwd(), ".media");
 
 const OAK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#fff"/><rect x="150" y="120" width="100" height="140" fill="#8b5a2b"/><circle cx="200" cy="110" r="80" fill="#2e7d32"/></svg>`;
