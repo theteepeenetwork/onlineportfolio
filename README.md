@@ -260,6 +260,31 @@ authentication mail never shares reputation with inbound forwarding — add a
 verified sender on it, then set `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`,
 `EMAIL_FROM_NAME` and `EMAIL_REPLY_TO` (see `.env.example`).
 
+**Also required: the demo parent's mailbox must exist.** `prisma/seed.ts` runs on
+every production boot and creates a demo parent, so that address is a live row in
+the production database, and the family sign-in form is public. Anyone who types
+it causes a real send. The seeded address is `demo-parent@storyjar.co.uk`, and
+`storyjar.co.uk` must carry a matching forwarding alias (or a catch-all) so mail
+to it is delivered or discarded rather than rejected. An address on a domain we
+do not control bounces: the seed previously used `parent@home.com`, and the first
+send to it came back `550 Invalid Recipient`. A hard bounce is the metric mailbox
+providers weigh most heavily against a new sending domain, and it is trivially
+repeatable from a public form.
+
+**Changing the seed does not change production.** The seed skips a database that
+already has data, so real accounts and children's work are never wiped by a
+redeploy. That also means the demo parent row was written once, on the first
+boot, and it still holds the old address. Fix the live row once, by hand:
+
+```
+node scripts/fix-demo-parent-address.mjs            # show what it would change
+node scripts/fix-demo-parent-address.mjs --apply    # change it
+```
+
+It updates one column on one row and touches nothing else. Do **not** reseed
+production with `FORCE_SEED=1` to achieve the same thing: that wipes every real
+account and every child's work.
+
 > **Staff invitations do not send yet, deliberately.** There is no
 > accept-invite flow at all — invited staff are created with an empty password
 > hash and have no route to set one — so an invitation email would link nowhere.

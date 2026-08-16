@@ -381,11 +381,26 @@ async function main() {
 
   // A parent/carer linked to two children (Amara in Sunflower, Grace in
   // Ladybird) — demonstrates the read-only family view + sibling switcher.
-  // Signs in with family code FAM123 or a magic link to parent@home.com.
+  // Signs in with family code FAM123 or a magic link to demo-parent@storyjar.co.uk.
+  //
+  // The address must be one WE control. This seed runs on every production
+  // boot, so the demo parent is a live row in the production database, and the
+  // family sign-in form is public: anyone can type this address and cause a
+  // real send. It used to be `parent@home.com`, a domain belonging to somebody
+  // else, whose mail server answered "550 Invalid Recipient" (see the Brevo log
+  // for 16 August 2026, 14:05). Hard bounces are the single metric mailbox
+  // providers weigh most heavily against a young sending domain, and
+  // mail.storyjar.co.uk has no reputation to spare.
+  //
+  // DEPLOYMENT REQUIREMENT: demo-parent@storyjar.co.uk must exist as a
+  // forwarding alias (or be covered by a catch-all) on the storyjar.co.uk
+  // domain, so mail to it is delivered or quietly discarded. If the alias is
+  // missing, the forwarder rejects it and we are back to a hard bounce with a
+  // different address on it. See README, "Transactional email".
   await db.parent.create({
     data: {
       name: "Priya Shah",
-      email: "parent@home.com",
+      email: "demo-parent@storyjar.co.uk",
       familyCode: "FAM123",
       children: { connect: [{ id: sun[0].id }, { id: lady[0].id }] },
     },
@@ -394,7 +409,7 @@ async function main() {
   console.log("✅ Seeded demo data (library-first activities).");
   console.log("   Teacher: teacher@school.uk / password");
   console.log("   Class codes: SUN234 (Sunflower · KS1), BUG456 (Ladybird · KS2), ACO789 (Acorns · EYFS)");
-  console.log("   Parent: family code FAM123 / magic link parent@home.com");
+  console.log("   Parent: family code FAM123 / magic link demo-parent@storyjar.co.uk");
 }
 
 main()

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 // The seeded parent (Priya Shah) is linked to Amara (Sunflower) and Grace
-// (Ladybird): family code FAM123, magic-link email parent@home.com.
+// (Ladybird): family code FAM123, magic-link email demo-parent@storyjar.co.uk.
 
 test.describe("Parent / family space", () => {
   test("a parent signs in with the family code and sees a read-only home", async ({ page }) => {
@@ -33,7 +33,7 @@ test.describe("Parent / family space", () => {
 
   test("a magic link signs the parent in", async ({ page }) => {
     await page.goto("/family");
-    await page.fill("#pl-email", "parent@home.com");
+    await page.fill("#pl-email", "demo-parent@storyjar.co.uk");
     await page.getByRole("button", { name: "Email me a magic link" }).click();
 
     // The confirmation offers a one-tap link (standing in for the emailed link).
