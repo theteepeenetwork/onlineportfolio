@@ -5,7 +5,7 @@ export const metadata = { title: "Data Processing Agreement — Storyjar" };
 export default function DPA() {
   return (
     <LegalShell title="Data Processing Agreement (DPA)" intro="A summary of the processor terms under which Storyjar handles personal data on a school's behalf, as required by UK GDPR Article 28. A signable version is available for your office.">
-      <p><em>[This is a plain summary. A full, signable DPA — with the required Art. 28(3) clauses and schedules — should be prepared and reviewed by a solicitor/DPO. Contact <strong>[dpo@storyjar.co.uk]</strong> for the signable version.]</em></p>
+      <p><em>[This is a plain summary. A full, signable DPA — with the required Art. 28(3) clauses and schedules — should be prepared and reviewed by a solicitor. Contact <strong>hello@storyjar.co.uk</strong> for the signable version.]</em></p>
 
       <h2>1. Roles</h2>
       <p>The <strong>school is the controller</strong>; <strong>Storyjar is the processor</strong>. We process personal data only on the school&apos;s documented instructions, as needed to provide Storyjar, and for no other purpose. We never sell data or use it for advertising or profiling.</p>
@@ -32,7 +32,7 @@ export default function DPA() {
       </ul>
 
       <h2>4. International transfers</h2>
-      <p>Personal data is stored and processed in the <strong>UK/EU</strong>. We will not transfer children&apos;s personal data outside the UK/EU without an adequacy decision or appropriate safeguards, and will tell the school first.</p>
+      <p>Transactional email (a parent&apos;s sign-in link) is sent via <strong>Brevo</strong>, which receives the adult recipient&apos;s email address and nothing else — no child&apos;s name and no child&apos;s work. Personal data is stored and processed in the <strong>EU — Amsterdam, the Netherlands</strong> (hosting sub-processor: Railway). We will not transfer children&apos;s personal data outside the UK or EEA without an adequacy decision or appropriate safeguards, and will tell the school first. See <a href="/legal/sub-processors">Sub-processors</a> for the full picture, including where our processors are incorporated.</p>
 
       <h2>5. Sub-processors</h2>
       <p>Current sub-processors and their locations are listed on the <a href="/legal/sub-processors">Sub-processors</a> page. We will give schools prior notice of changes and an opportunity to object.</p>

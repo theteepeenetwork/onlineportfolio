@@ -10,7 +10,7 @@ resolved. Data-protection failures are treated as critical/high per the brief
 > delete (`deleteItem`). Findings reflect that state — F3 was narrowed to
 > `removeStudent`, which this work then fixed too.
 
-**Status: all findings (F1–F18) addressed.** Fixes were applied after explicit sign-off
+**Status: all findings (F1–F19) addressed.** Fixes were applied after explicit sign-off
 (the Phase-1 plan was "findings only"; the user then asked to fix them). Every
 fix is covered by a test that now passes.
 
@@ -47,9 +47,53 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F14 | Low | Touch target | Approval-queue buttons < 44px on tablet | **Fixed** | `ux/responsive.spec.ts` |
 | F15 | Critical | AuthZ | `createJournalItem` trusted a client `studentId` — a teacher could publish into another school's pupil's journal, past the approval queue | **Fixed** | `security/f15-cross-tenant-journal-write.spec.ts` |
 | F16 | High | Rate-limit / Enumeration | Class-code lookup is unthrottled, and a hit discloses the class name + every pupil's first name | **Fixed** | `security/classcode-throttle.spec.ts` (+ `findings/classcode-throttle-grind.spec.ts`) |
+| **F19** | **Critical** | **AuthN** | `requestMagicLink` returned the parent's single-use sign-in URL to the browser, rendered as "Open it now →", with no environment guard — so typing any parent's email into the PUBLIC family form handed over a working session for that family | **Fixed** | `security/f19-magic-link-never-on-screen.spec.ts` |
 | F17 | Medium | AuthZ / robustness | `/uploads` authorised **path-first**: it decided on the first journal item matching a media path and never fell through to the draft/template branches, so two records sharing a path mis-authorised each other. Now scopes ownership into each branch and grants if any (Option A); the fixture no longer shares a path (Option C). | **Fixed** | `security/uploads-path-collision.spec.ts` |
 
 ---
+
+## F19 · A parent's sign-in link was handed to whoever asked — Critical → Fixed
+
+**Was:** `requestMagicLink` (`src/app/actions/family.ts`) minted a single-use
+magic token and returned its URL in the action result:
+
+```ts
+return { sent: true, openUrl: `/family/enter?token=${token}` };
+```
+
+`FamilySignIn.tsx` rendered that as an **"Open it now →"** link, and there was
+**no environment guard anywhere in the path**. The family sign-in page is
+public. So on a live deployment: type any parent's email address into the form,
+receive a working sign-in link on screen, open it, and you are signed in as that
+parent — reading that child's photographs, drawings and voice notes.
+
+**Why it is worse than F1 and F15.** Both of those needed a crafted request with
+a tampered id. This needed a form submission with an address someone knows — a
+parent at the same school, a separated partner, anyone who has seen a class
+letter. It breaks rule 4 and rule 6 outright.
+
+**It also quietly defeated F6.** That finding made the response deliberately
+identical for known and unknown emails so the form could not be used to discover
+whether an address was registered. The neutral sentence was then followed by a
+sign-in link that answered the question far more emphatically.
+
+**Why it survived:** the comment above it explained itself honestly — *"here (no
+mail server) we mint the same single-use token and hand back the URL"*. It was a
+correct decision for a build that could not send email, and it was never revised
+when the code moved toward deployment. **A convenience justified by a temporary
+limitation needs a guard that expires with the limitation, not a comment.**
+
+**Fix:** the link is emailed (`src/lib/mailer.ts`, `src/lib/emails.ts`). The
+on-screen version is gated behind `signInLinkMayBeShown()` in
+`src/lib/signInLinkPolicy.ts` — a pure function of `NODE_ENV`, kept in its own
+tiny module precisely so a test can assert it rather than trusting an `if`
+buried in a server action. Development keeps the affordance, because local work
+still has no mail server. Send failures are logged server-side and never change
+what the user is told, so F6's neutrality holds even when Brevo is down.
+
+**Guards:** `security/f19-magic-link-never-on-screen.spec.ts` — blocking.
+Asserts production returns no link, that development still does, and states
+explicitly why an unset `NODE_ENV` is treated as non-production.
 
 ## F15 · Cross-tenant journal write, past the approval queue — Critical → Fixed
 

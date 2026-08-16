@@ -14,7 +14,7 @@ access control, the approval queue, children's data, or uploaded media.
 
 It is **engineering governance, not legal advice.** The customer-facing policies
 (privacy, safeguarding, DPA, etc.) must be reviewed and signed off by a
-qualified data-protection / education-law professional and the responsible DPO
+qualified data-protection / education-law professional and the responsible data protection lead
 before they are relied upon.
 
 ---
@@ -83,6 +83,8 @@ Each rule is testable. A change that breaks one does not ship.
 2. **First names only.** We store a child's first name and their work. **No**
    surnames, dates of birth, addresses, contact details, or biometric data.
    Data minimisation (UK GDPR Art. 5(1)(c)) is a hard limit, not a target.
+   See **rule 19** for why photos and voice notes are *not* biometric data today,
+   and the single change that would make them so.
 
 ### B. Nothing is seen until an adult has seen it
 3. **The approval queue is sacred.** Every child-generated moment stays `PENDING`
@@ -163,6 +165,33 @@ Each rule is testable. A change that breaks one does not ship.
     typography, ≥64px child touch targets, `prefers-reduced-motion` honoured. A
     child who cannot use the tool cannot be kept safe by it.
 
+### I. A child's face and voice are not identifiers
+19. **Never process a child's face or voice to identify them.** A photograph or
+    a voice recording is ordinary personal data. It becomes **biometric data —
+    special category data under UK GDPR Art. 9** — the moment it is processed by
+    technical means *for the purpose of uniquely identifying a person*. Storyjar
+    does not do that anywhere, and must not start.
+
+    **Specifically banned** without a full data-protection review *first*: facial
+    recognition or face grouping ("show me all photos of Amara"), auto-tagging
+    children in photos, voice identification or speaker matching, emotion or
+    attention detection, and any third-party service that performs those on our
+    behalf.
+
+    **Why this rule has its own number rather than a line in a backlog:** it is the
+    single change that would move Storyjar from "no special category data" to
+    "large-scale processing of special category data as a core activity". That
+    flips the answer on the ICO's registration question, makes appointing a DPO
+    **mandatory** (UK GDPR Art. 37(1)(c)), and requires a new DPIA before any of it
+    ships. It is also exactly the kind of feature that sounds harmless in a roadmap
+    conversation — "wouldn't it be handy to find all of a child's photos?" — which
+    is why the cost is written down here next to the temptation.
+
+    The same test applies to teacher-added tags: skill tags record a judgement
+    about a *piece of work*. A tag that records something about the *child* —
+    SEN status, a diagnosis, a health need, ethnicity, religion — is special
+    category data and does not belong in Storyjar.
+
 ---
 
 ## Compliance map (England / UK)
@@ -205,7 +234,7 @@ media, or third parties **must** answer these in the PR:
 - [ ] Accessibility floor still met?
 
 If a box can't be ticked, the change doesn't ship without a documented,
-DPO-aware decision.
+documented, data-protection-aware decision.
 
 ---
 
@@ -222,7 +251,7 @@ DPO-aware decision.
    recur.
 
 *(This is a placeholder to be expanded with named contacts and the school-facing
-process, and reviewed by the DPO.)*
+process, and reviewed by the data protection lead.)*
 
 ---
 
@@ -233,7 +262,7 @@ Tracked here until closed; each becomes its own change.
 | Pri | Gap | Rule | Status |
 |---|---|---|---|
 | P0 | Uploaded children's media served from unauthenticated `public/uploads` URLs | 7 | **In progress** |
-| P0 | Production hosting region is US West (must be UK/EU before real data) | 10 | **In progress** |
+| P0 | ~~Production hosting region is US West~~ — **resolved 2026-08-15: EU West (Amsterdam, Netherlands)**, service and volume in region. Railway has no UK region, so "UK/EU" is satisfied by the EU half; see docs/DPIA.md R6 for the two residuals (Railway is US-incorporated; Stripe residency unassessed) | 10 | **Done** |
 | P1 | No security headers (CSP/HSTS/etc.) | 14 | Planned |
 | P1 | No audit log of safeguarding-relevant actions | 16 | Planned |
 | P2 | No DPIA on file; customer policies are drafts pending professional review | — | Ongoing |
@@ -251,7 +280,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
-| 2026-07-15 | 1 | Carved out **one** exception to "never ask a child for any credential": an optional, off-by-default, teacher-enabled numeric PIN, self-chosen, intended for Years 4–6. Bans on child emails, passwords and phone numbers are unchanged, as is rule 2. | Product owner (the serving teacher who owns Storyjar), acting on the July 2026 intuitiveness audit | Widening to ages 3–11 brought in Years 4–6, where children signing in as each other is a genuine problem that the class-code-plus-name model does not address. A mis-tap files one child's work in another child's evidence base — an assessment problem and a safeguarding one. **The honest framing: this is a classroom-management feature, not a security control**, and rule 1's text now says so explicitly so that no one later mistakes it for protection. **Not yet reviewed by a DPO** — the PIN adds a per-child data field (`pinHash`), so it needs that review before it reaches real children. |
+| 2026-07-15 | 1 | Carved out **one** exception to "never ask a child for any credential": an optional, off-by-default, teacher-enabled numeric PIN, self-chosen, intended for Years 4–6. Bans on child emails, passwords and phone numbers are unchanged, as is rule 2. | Product owner (the serving teacher who owns Storyjar), acting on the July 2026 intuitiveness audit | Widening to ages 3–11 brought in Years 4–6, where children signing in as each other is a genuine problem that the class-code-plus-name model does not address. A mis-tap files one child's work in another child's evidence base — an assessment problem and a safeguarding one. **The honest framing: this is a classroom-management feature, not a security control**, and rule 1's text now says so explicitly so that no one later mistakes it for protection. **Not yet reviewed by a data-protection professional** — the PIN adds a per-child data field (`pinHash`), so it needs that review before it reaches real children. |
 
-*Last reviewed by engineering; **not yet reviewed by a DPO / legal.** Update the
+*Last reviewed by engineering; **not yet reviewed by a data-protection professional / legal.** Update the
 "Last reviewed" line and the backlog whenever this changes.*

@@ -19,7 +19,7 @@ export default function PrivacyForFamilies() {
       <p>Nothing your child makes is shown to anyone until their <strong>teacher has checked and approved it</strong>. It is never public. Other families cannot see your child.</p>
 
       <h2>Is it safe?</h2>
-      <p>Yes — safety is the whole point. Your child&apos;s photos and drawings are kept private and protected, stored in the UK/EU, and we <strong>never</strong> use them for adverts or tracking.</p>
+      <p>Yes — safety is the whole point. Your child&apos;s photos, drawings and voice notes are kept private and protected, stored on servers in Europe (Amsterdam, in the Netherlands), and we <strong>never</strong> use them for adverts or tracking.</p>
 
       <h2>What if I want to see it, or ask for it to be removed?</h2>
       <p>Just speak to your child&apos;s school — they&apos;re in charge of the data and can show you, download it, or have it deleted.</p>

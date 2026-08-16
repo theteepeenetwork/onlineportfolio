@@ -30,11 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — ignore secret-bearing ones, but keep the committed .env and the
-# secret-free .env.example template
+# env files — ALL ignored. `.env` was previously force-tracked (`!.env`) because
+# it held only the SQLite path and no secret (FINDINGS F8). That stopped being
+# true the moment a live API key went into it, and this repo is PUBLIC — so the
+# next commit would have published the key. Only the secret-free template is
+# tracked now.
 # (it only holds the local SQLite path, no secrets) so the app runs after clone.
 .env*
-!.env
 !.env.example
 
 # vercel
