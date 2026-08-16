@@ -98,7 +98,7 @@ async function main() {
   });
 
   // Sunflower is the demo's KS1 (younger) class. Set EXPLICITLY to "KS1": the
-  // NULL default is now EYFS (SJ-06, owner/DPO 2026-07-19), so a class that must
+  // NULL default is now EYFS (SJ-06, owner / data-protection lead, 2026-07-19), so a class that must
   // read as KS1 has to say so — leaving it null would now render the EYFS shell.
   const sunflower = await db.class.create({
     data: { name: "Sunflower Class", classCode: "SUN234", ageMode: "KS1", teacherId: teacher.id },

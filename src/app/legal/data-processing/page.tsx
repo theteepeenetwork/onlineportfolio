@@ -5,7 +5,7 @@ export const metadata = { title: "Data Processing Agreement — Storyjar" };
 export default function DPA() {
   return (
     <LegalShell title="Data Processing Agreement (DPA)" intro="A summary of the processor terms under which Storyjar handles personal data on a school's behalf, as required by UK GDPR Article 28. A signable version is available for your office.">
-      <p><em>[This is a plain summary. A full, signable DPA — with the required Art. 28(3) clauses and schedules — should be prepared and reviewed by a solicitor/DPO. Contact <strong>hello@storyjar.co.uk</strong> for the signable version.]</em></p>
+      <p><em>[This is a plain summary. A full, signable DPA — with the required Art. 28(3) clauses and schedules — should be prepared and reviewed by a solicitor. Contact <strong>hello@storyjar.co.uk</strong> for the signable version.]</em></p>
 
       <h2>1. Roles</h2>
       <p>The <strong>school is the controller</strong>; <strong>Storyjar is the processor</strong>. We process personal data only on the school&apos;s documented instructions, as needed to provide Storyjar, and for no other purpose. We never sell data or use it for advertising or profiling.</p>

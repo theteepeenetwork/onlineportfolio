@@ -64,7 +64,7 @@ export default function Privacy() {
         We keep a child&apos;s data for as long as the school&apos;s subscription and the school&apos;s own retention
         rules require, and then delete it. A school can export or delete a class&apos;s data at any time; deletion removes
         both the database records and the underlying media files. Full details are set out in the{" "}
-        <a href="/legal/data-processing">Data Processing Agreement</a>. <em>[Confirm the exact retention schedule with the DPO.]</em>
+        <a href="/legal/data-processing">Data Processing Agreement</a>. <em>[Confirm the exact retention schedule before publication.]</em>
       </p>
 
       <h2>7. Security</h2>

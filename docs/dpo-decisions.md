@@ -1,8 +1,13 @@
-# DPO decision log — Storyjar
+# Data-protection decision log — Storyjar
 
-Storyjar is a one-person operation; the founder is also its Data Protection
-Officer. This file is the written record of data-protection decisions taken in
-that capacity — what was decided, when, and why. It exists so a school's data
+Storyjar is a one-person operation; the founder is the **data protection lead**.
+Storyjar is **not required to appoint a Data Protection Officer** — it does not
+process special category data on a large scale as a core activity, and it does no
+regular systematic monitoring (see SAFEGUARDING rule 19). We deliberately do not
+call the role "DPO": appointing one voluntarily imports the full statutory
+requirements, including independence and freedom from conflict of interest, which
+a sole trader who is also the decision-maker cannot satisfy. This file is the
+written record of data-protection decisions taken in that capacity — what was decided, when, and why. It exists so a school's data
 lead, an auditor, or a future colleague can see that these calls were made
 deliberately, not by default.
 
@@ -38,7 +43,7 @@ pending review); "first name only" stands (true at every age).
 amendment) is ever built, the Privacy policy will need a line describing it, as a
 PIN hash is data held about the child. No action until that ships.
 
-**Decided by:** the founder/DPO. **Recorded:** 2026-07-18.
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-07-18.
 
 ---
 
@@ -71,7 +76,7 @@ frozen→deletion pipeline; the full child-PIN feature review; and surfacing thi
 schedule in plain language in the customer-facing privacy notice / DPA
 (Children's Code transparency).
 
-**Decided by:** the founder/DPO. **Recorded:** 2026-07-18.
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-07-18.
 
 ---
 
@@ -97,4 +102,4 @@ reach their own work without it. Parking it is the more protective choice.
   name-borrowing between classmates. At that point the full feature review
   (still listed open in RETENTION.md) must happen *before* any PIN reaches a child.
 
-**Decided by:** the founder/DPO. **Recorded:** 2026-07-18.
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-07-18.

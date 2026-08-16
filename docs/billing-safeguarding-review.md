@@ -31,12 +31,12 @@ trial-expiry freeze job, and audited billing state transitions.
 - [x] **Nothing stores/sends children's or account-holders' personal data outside
   the UK/EU.** Stripe receives **adult billing data only** (billing-contact name
   & email, or a school name). No child data is ever sent to Stripe. The residency
-  of Stripe's billing processing is logged as an **open item for DPO review**
+  of Stripe's billing processing is logged as an **open item for data-protection review**
   (sub-processors page) before real payments are taken.
 - [x] **New sub-processor listed & assessed.** Stripe added to the sub-processor
   list with purpose, the adult-billing-only data scope, and the data-residency
   open item. No analytics/advertising/profiling. DPA via Stripe's processor terms
-  (to be countersigned by the DPO).
+  (to be countersigned by the data protection lead).
 - [x] **Denies and leaks nothing on error/uncertainty.** `requireWritableAccount()`
   returns non-writable (`UNKNOWN`) whenever the subscription can't be resolved or
   read. The webhook rejects bad/missing signatures (400). Checkout/portal errors
@@ -60,7 +60,7 @@ trial-expiry freeze job, and audited billing state transitions.
   labelled inputs, semantic headings, and `role="status"` notices; the frozen
   banner is `role="status"` text. No new child-facing UI.
 
-## Notes for the DPO / open items
+## Notes for the data protection lead / open items
 
 - Stripe data-residency assessment (billing processing region) — **open**.
 - Counter-sign Stripe's data-processing terms; add to the DPA pack.

@@ -16,7 +16,7 @@ import { resolveAgeMode, type AgeMode } from "@/lib/ageMode";
 const MODES: AgeMode[] = ["EYFS", "KS1", "KS2"];
 
 test("NULL / unknown age mode resolves to EYFS (the most protective default)", () => {
-  // Owner/DPO decision 2026-07-19: NULL now resolves to EYFS, the youngest and
+  // Owner / data-protection-lead decision 2026-07-19: NULL now resolves to EYFS, the youngest and
   // most locked-down register (was KS1). Only an explicit "KS1"/"KS2" leaves it.
   expect(resolveAgeMode(null)).toBe("EYFS");
   expect(resolveAgeMode(undefined)).toBe("EYFS");

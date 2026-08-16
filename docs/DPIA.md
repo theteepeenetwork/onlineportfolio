@@ -1,7 +1,7 @@
 # Data Protection Impact Assessment — Storyjar
 
-**Version:** 1.1 (draft for DPO sign-off) · **Written:** 15 August 2026 · **Updated:** 15 August 2026 (R6 — hosting region confirmed)
-**Assessed by:** the founder, acting as DPO · **Status:** *Not yet signed off*
+**Version:** 1.1 (draft for sign-off) · **Written:** 15 August 2026 · **Updated:** 15 August 2026 (R6 — hosting region confirmed)
+**Assessed by:** the founder, as data protection lead · **Status:** *Not yet signed off*
 
 > **This is an internal assessment, not legal advice, and it has not been reviewed
 > by a qualified data-protection or education-law professional.** It is written so
@@ -85,7 +85,7 @@ disclosure to any third party.
 
 | Who | Status |
 |---|---|
-| DPO | The founder acts as DPO. Decisions recorded in `docs/dpo-decisions.md`. **A qualified external reviewer has not yet been engaged — see §8.** |
+| Data protection lead | The founder. Storyjar is not required to appoint a DPO (no large-scale special category processing, no systematic monitoring — see SAFEGUARDING rule 19), and deliberately does not use the title, since a voluntary appointment imports statutory independence requirements a sole trader cannot meet. Decisions recorded in `docs/dpo-decisions.md`. **A qualified external reviewer has not yet been engaged — see §8.** |
 | Teachers / schools | Informal design input from classroom practice. A moderated usability kit exists (`docs/MANUAL_USABILITY_KIT.md`) but **has not yet been run**. |
 | Children | Not directly consulted. Age-appropriateness has been addressed through design (three age registers, icon-only pre-reader interface, read-aloud) rather than consultation. **A gap worth closing with pilot schools.** |
 | Parents | Not yet consulted. The family-facing privacy notice (`/legal/privacy-for-families`) is written for them but untested with them. |
@@ -161,11 +161,11 @@ rating that remains.
 | Risk | Measure | Effect | Owner | When |
 |---|---|---|---|---|
 | R6 | ~~Confirm and pin the Railway region~~ — **done 2026-08-15: EU West (Amsterdam)**, recorded in the sub-processors table and the privacy notice | Closed | Founder | Complete |
-| R6 | Obtain Railway's DPA and record its onward-transfer / support-access terms | Reduced to Low | Founder/DPO | Before launch |
-| R6 | Complete the Stripe residency assessment and record the conclusion | Reduced to Low | Founder/DPO | Before first live payment |
+| R6 | Obtain Railway's DPA and record its onward-transfer / support-access terms | Reduced to Low | Founder | Before launch |
+| R6 | Complete the Stripe residency assessment and record the conclusion | Reduced to Low | Founder | Before first live payment |
 | R5 | Build the frozen→deletion automation | Reduced to Low | Founder | Post-launch; until then, a documented manual diary check |
 | R9 | Settle the badge palette and empty `BASELINE_RULES` so the a11y gate is strict | Reduced to Low | Founder | Before launch |
-| R12 | Name an incident contact, write the school-facing breach template, rehearse once | Reduced to Low | Founder/DPO | Before launch |
+| R12 | Name an incident contact, write the school-facing breach template, rehearse once | Reduced to Low | Founder | Before launch |
 | R10 | Offer MFA for staff accounts | Reduced | Founder | Post-launch, review at scale |
 | R4 | Keep roster disclosure to first names; monitor for abuse; keep rotation one tap away | Accepted | — | Ongoing |
 | All | Keep the QA battery green as the executable form of `SAFEGUARDING.md`; never weaken a gate to make it pass | Sustained | Founder | Ongoing |
@@ -192,9 +192,9 @@ This DPIA **cannot be signed off** until:
 
 | | Name | Date | Outcome |
 |---|---|---|---|
-| Assessed by | *(founder, acting DPO)* | 2026-08-15 | Draft |
+| Assessed by | *(founder, data protection lead)* | 2026-08-15 | Draft |
 | Reviewed by (external) | *(not yet engaged)* | — | **Outstanding** |
-| Residual risk accepted by | *(founder, acting DPO)* | — | **Not yet — see §8** |
+| Residual risk accepted by | *(founder, data protection lead)* | — | **Not yet — see §8** |
 
 **Review cycle:** at least annually, and immediately on any change to hosting,
 sub-processors, the age range served, the categories of data held, or any feature

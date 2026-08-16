@@ -28,7 +28,7 @@ export default function Cookies() {
       </p>
 
       <h2>Changes</h2>
-      <p>If we ever introduced a non-essential cookie, we would ask for consent first and update this page. <em>[Confirm with the DPO before adding any new cookie or third-party script.]</em></p>
+      <p>If we ever introduced a non-essential cookie, we would ask for consent first and update this page. <em>[Confirm with the data protection lead before adding any new cookie or third-party script.]</em></p>
     </LegalShell>
   );
 }

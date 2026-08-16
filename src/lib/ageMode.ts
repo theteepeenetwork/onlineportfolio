@@ -18,7 +18,7 @@
 //      class errs toward the safest experience until a teacher chooses. Never
 //      infer the register from `yearGroup`.
 //
-//      (Owner/DPO decision, 2026-07-19: the NULL fallback was moved from KS1 to
+//      (Owner / data-protection-lead decision, 2026-07-19: the NULL fallback was moved from KS1 to
 //      EYFS when EYFS was added. This STRENGTHENS the protective default rather
 //      than trading anything away — no SAFEGUARDING.md rule-trade amendment is
 //      needed. The visible consequence the owner accepted: an unanswered class

@@ -20,7 +20,7 @@ export default function SubProcessors() {
             <td><strong>Stripe</strong></td>
             <td>Subscription billing &amp; payment processing (Checkout, Customer Portal, invoicing)</td>
             <td><strong>Adult billing data only</strong> — the billing contact&apos;s name and email, or a school&apos;s name. No children&apos;s data is ever sent to Stripe. Card details are handled entirely by Stripe; Storyjar never sees or stores them.</td>
-            <td>Adult billing data only. <strong>[Residency assessment pending DPO review]</strong></td>
+            <td>Adult billing data only. <strong>[Residency assessment pending review]</strong></td>
           </tr>
           <tr>
             <td><strong>GitHub</strong></td>
@@ -34,7 +34,7 @@ export default function SubProcessors() {
       <p>
         <strong>Stripe &amp; data residency:</strong> Stripe processes <strong>adult billing data only</strong> — never any
         personal data of children. The UK/EU-only requirement (rule&nbsp;10) applies to children&apos;s and account-holders&apos;
-        personal data; the residency of Stripe&apos;s billing processing is recorded here as an <em>open item for DPO review</em>
+        personal data; the residency of Stripe&apos;s billing processing is recorded here as an <em>open item for review</em>
         before real payments are taken.
       </p>
 
@@ -50,7 +50,7 @@ export default function SubProcessors() {
         <strong>Being precise about &ldquo;UK&rdquo;:</strong> data is held in the <em>EEA</em>, not in the UK itself.
         Transfers from the UK to EEA countries are covered by the UK&apos;s adequacy regulations, so no additional
         transfer safeguard is required. Railway is a US-incorporated company, so its personnel may access systems for
-        support from outside the EEA under its own data-processing terms. <em>[Open item for DPO review: obtain and
+        support from outside the EEA under its own data-processing terms. <em>[Open item for review: obtain and
         record Railway&apos;s DPA and its onward-transfer terms.]</em> We would rather state this plainly than let a
         school&apos;s data lead discover it later.
       </p>

@@ -1,7 +1,8 @@
 # Data retention policy — Storyjar
 
-> Status: **schedule reviewed and approved by the DPO, 2026-07-18.** Storyjar is a
-> one-person operation — the founder is also the DPO; the decision is recorded in
+> Status: **schedule reviewed and approved by the data protection lead, 2026-07-18.**
+> Storyjar is a one-person operation — the founder is also the data protection lead;
+> the decision is recorded in
 > [`docs/dpo-decisions.md`](./docs/dpo-decisions.md). The periods below stand as
 > written (12-month frozen window kept; audit-log 2y/6y kept). **Known gap, not a
 > policy question:** the frozen → deletion *automation* that enforces the
@@ -100,10 +101,10 @@ The school remains the data controller regardless of who pays. Consequences:
 - [ ] Automate the frozen→deletion pipeline (currently the P2 backlog gap in
       SAFEGUARDING.md; this document is the schedule it must implement).
       **Still open** — the 12-month lifecycle is manual until this ships.
-- [x] DPO/legal review of all periods above — **done 2026-07-18.** The 12-month
+- [x] Data-protection / legal review of all periods above — **done 2026-07-18.** The 12-month
       frozen window and audit-log retention (2y rolling / 6y deletion record) were
       reviewed and kept as written. See `docs/dpo-decisions.md`.
-- [ ] **DPO review of the child PIN** (added 2026-07-15 with the SAFEGUARDING
+- [ ] **Data-protection review of the child PIN** (added 2026-07-15 with the SAFEGUARDING
       rule 1 amendment): it is the first per-child data field beyond a first
       name. Needed **before** PINs reach real children, not before the code is
       written. *(2026-07-18: the retention treatment of the PIN row is confirmed;
@@ -111,4 +112,4 @@ The school remains the data controller regardless of who pays. Consequences:
 - [ ] Surface this schedule in the customer-facing privacy notice and DPA in
       plain language (Children's Code transparency standard).
 
-*Last updated: 2026-07-18 (DPO review). Review whenever billing states or data flows change.*
+*Last updated: 2026-07-18 (data-protection review). Review whenever billing states or data flows change.*
