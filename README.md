@@ -247,9 +247,16 @@ Three rules hold this together, and each one is load-bearing:
   holds the parent's address, not us, and addresses get mistyped. Every template
   in `src/lib/emails.ts` is written so a misdirected message tells a stranger
   nothing about any child.
-- **No tracking.** Opens and clicks are disabled on every send. Click-tracking
-  would rewrite the sign-in link through a third party — breaking the token and
-  handing that third party the means to use it.
+- **We cannot tell whether a particular parent opened an email.** Every send
+  asks Brevo to disable tracking, and Brevo's account-level anonymous tracking
+  is switched on, so any open or click it does record is not tied to an
+  individual. Note the shape of that claim. It is not "no tracking": on
+  16 August 2026 Brevo recorded an open against a magic-link email that we sent
+  with tracking disabled, which is why the wording here changed. Click-tracking
+  in particular must never happen, because rewriting the sign-in link would
+  break the token and hand a third party the means to use it. Check it with
+  `node scripts/verify-mail.mjs <a mailbox you control>` rather than trusting
+  the flag; `node scripts/brevo-events.mjs` shows what the provider recorded.
 - **The link is never returned to the browser in production.** See
   `src/lib/signInLinkPolicy.ts` and FINDINGS **F19**; development keeps the
   on-screen link because local work has no mail server.
@@ -259,6 +266,31 @@ Setup: create a Brevo account, authenticate a **sending subdomain**
 authentication mail never shares reputation with inbound forwarding — add a
 verified sender on it, then set `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`,
 `EMAIL_FROM_NAME` and `EMAIL_REPLY_TO` (see `.env.example`).
+
+**Also required: the demo parent's mailbox must exist.** `prisma/seed.ts` runs on
+every production boot and creates a demo parent, so that address is a live row in
+the production database, and the family sign-in form is public. Anyone who types
+it causes a real send. The seeded address is `demo-parent@storyjar.co.uk`, and
+`storyjar.co.uk` must carry a matching forwarding alias (or a catch-all) so mail
+to it is delivered or discarded rather than rejected. An address on a domain we
+do not control bounces: the seed previously used `parent@home.com`, and the first
+send to it came back `550 Invalid Recipient`. A hard bounce is the metric mailbox
+providers weigh most heavily against a new sending domain, and it is trivially
+repeatable from a public form.
+
+**Changing the seed does not change production.** The seed skips a database that
+already has data, so real accounts and children's work are never wiped by a
+redeploy. That also means the demo parent row was written once, on the first
+boot, and it still holds the old address. Fix the live row once, by hand:
+
+```
+node scripts/fix-demo-parent-address.mjs            # show what it would change
+node scripts/fix-demo-parent-address.mjs --apply    # change it
+```
+
+It updates one column on one row and touches nothing else. Do **not** reseed
+production with `FORCE_SEED=1` to achieve the same thing: that wipes every real
+account and every child's work.
 
 > **Staff invitations do not send yet, deliberately.** There is no
 > accept-invite flow at all — invited staff are created with an empty password

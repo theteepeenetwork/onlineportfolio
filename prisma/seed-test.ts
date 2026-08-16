@@ -163,10 +163,16 @@ async function main() {
   });
 
   // A parent linked only to Zara (Oakfield). Signs in with family code OAKFAM1.
+  //
+  // The address is on storyjar.co.uk for the same reason as the demo parent in
+  // `seed.ts`: an address on somebody else's domain bounces the moment anything
+  // actually sends to it. These fixtures never run in production, but whoever
+  // first points a staging environment at a live Brevo key would inherit the
+  // trap, and staging bounces damage the same sending reputation.
   await db.parent.create({
     data: {
       name: "Nadia Rahman",
-      email: "parent@oakfield-family.com",
+      email: "demo-parent-oakfield@storyjar.co.uk",
       familyCode: "OAKFAM1",
       children: { connect: [{ id: zara.id }] },
     },
