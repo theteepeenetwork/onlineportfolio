@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { uniqueClassCode } from "@/lib/classCode";
 import { deleteMediaFiles } from "@/lib/media";
 import { gatherDraftPaths } from "@/lib/drafts";
+import { deleteOrphanedParents } from "@/lib/familyLinks";
 import { recordAudit } from "@/lib/audit";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 import { normaliseAgeModeInput, type AgeMode } from "@/lib/ageMode";
@@ -187,6 +188,9 @@ export async function deleteClass(formData: FormData) {
     include: {
       journalItems: { select: { mediaPath: true, mediaPathsJson: true } },
       drafts: { select: { pagesJson: true } }, // in-progress response drafts for this class
+      // Gathered BEFORE the delete: the parent↔child links vanish with the
+      // pupils, and an unlinked family row is a working code owned by nobody.
+      students: { select: { parents: { select: { id: true } } } },
       _count: { select: { students: true, journalItems: true } },
     },
   });
@@ -219,6 +223,8 @@ export async function deleteClass(formData: FormData) {
   // their sessions), then erase the files so the right to erasure is real.
   await db.class.delete({ where: { id: klass.id } });
   await deleteMediaFiles(mediaUrls);
+  // Families left linked to no child at all go with them (RETENTION.md).
+  await deleteOrphanedParents(klass.students.flatMap((s) => s.parents.map((p) => p.id)));
 
   await recordAudit({
     action: "CLASS_DELETED",

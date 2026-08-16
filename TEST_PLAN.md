@@ -30,7 +30,7 @@
 ### 1.2 Routes (pages)
 
 - **Public:** `/`, `/login/teacher`, `/login/student`, `/signup/teacher`, `/signup/teacher/welcome`, `/family`, `/legal/*` (11 pages)
-- **Teacher (auth = TEACHER):** `/teacher`, `/teacher/queue`, `/teacher/class`, `/teacher/calendar`, `/teacher/activities` (+ `/new`, `/[id]`), `/teacher/students/[studentId]` (+ `/new`)
+- **Teacher (auth = TEACHER):** `/teacher`, `/teacher/queue`, `/teacher/class`, `/teacher/calendar`, `/teacher/activities` (+ `/new`, `/[id]`), `/teacher/students/[studentId]` (+ `/new`, `/letter`)
 - **Student (auth = STUDENT):** `/student`, `/student/new`, `/student/popped`, `/student/activities` (+ `/[id]`)
 - **Admin (auth = TEACHER + role ADMIN):** `/admin`
 - **Family (auth = PARENT):** `/family` (ParentHome)
@@ -51,6 +51,8 @@
 | `actions/roster.ts` | roster/pupil management | TEACHER (to verify) |
 | `actions/activities.ts` | templates + assignments | TEACHER (to verify) |
 | `actions/family.ts` | `requestMagicLink`, `signInWithFamilyCode`, `parentLogout` | public → parent session |
+| `actions/family.ts` | `addChildWithFamilyCode`, `saveFamilyDetails` | PARENT; self only (`getCurrentParent()`), code entry throttled on the shared `family:` key |
+| `actions/familyAccess.ts` | `createFamilyCode`, `rotateFamilyCode`, `removeFamilyAccess` | TEACHER; every one scoped through a pupil in the acting teacher's own classes (`ownPupil()`), then the family scoped through that pupil |
 
 ### 1.5 Auth & access-control model (the thing under test)
 
@@ -107,6 +109,7 @@ Legend: ✅ build now · 🟡 build now, forward-looking (feature not yet in cod
 | A9 | **Dependencies** | `npm audit --audit-level=high` gated in CI; `npm ci` lockfile-integrity check. | ✅ |
 | A10 | **Rate limiting & enumeration** | Login brute force, magic-link/family-code abuse, class-code + pupil/class ID enumeration. | ⏸ **No rate limiting exists** (F2). Tests will document current behaviour and fail against the intended limit — needs decision on whether to add limiting or mark as accepted-risk findings. |
 | A11 | **Data protection** | No child data in logs; no PII in URLs/analytics (there are no analytics — assert none added); deletion cascade + **media-file erasure** (rule 9); data export works. | ✅ (export & per-item media erasure — see **F3**, **F4**) |
+| A12 | **Family access** (added 2026-08-16, when a teacher could first set it up) | `family-access-cross-tenant.spec.ts`: one test per action (create / view / rotate / remove), each a cross-tenant negative **paired with a positive control on the same actor and resource**, plus code scoping to the linked child only (including against a classmate), rotation taking effect at once, removal ending a live session, the last-link cascade asserted rows-are-gone, and the nullable-unique email traps. `family-code-throttle.spec.ts`: a correct code clears the counter (so typos never lock a family out) and both code boxes share one budget. | ✅ Blocking. Each negative was watched failing against a deliberately broken ownership check. |
 
 ### B. Usability & UX
 

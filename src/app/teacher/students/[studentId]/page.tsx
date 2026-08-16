@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { JournalItemCard } from "@/components/JournalItemCard";
 import { teacherNav } from "@/lib/teacherNav";
 import { deleteItem } from "@/app/actions/journal";
+import { FamilyAccess } from "./FamilyAccess";
 
 export default async function StudentJournal({
   params,
@@ -32,6 +33,21 @@ export default async function StudentJournal({
 
   const pendingCount = await db.journalItem.count({
     where: { status: "PENDING", class: { teacherId: user.teacher.id } },
+  });
+
+  // The families who can see THIS child, and nothing about any other child they
+  // may also be linked to (SAFEGUARDING rule 6 runs both ways: a teacher learns
+  // nothing here about another teacher's pupils). Reached only through a pupil
+  // the ownership-scoped query above already proved is this teacher's.
+  //
+  // `inUse` is deliberately the whole picture of the household we show: whether
+  // the code has been taken up. Not who took it up — a code belongs to whoever
+  // holds the letter, and the parent's own name and address are theirs, given
+  // for sign-in links rather than for the register.
+  const families = await db.parent.findMany({
+    where: { children: { some: { id: student.id } } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, familyCode: true, email: true, _count: { select: { sessions: true } } },
   });
 
   const published = student.journalItems.filter((i) => i.status === "APPROVED");
@@ -80,6 +96,18 @@ export default async function StudentJournal({
             ))
           )}
         </div>
+
+        <FamilyAccess
+          studentId={student.id}
+          studentName={student.name}
+          families={families.map((f) => ({
+            id: f.id,
+            code: f.familyCode,
+            // Taken up: someone has signed in with it, or the parent has added
+            // their own address for sign-in links.
+            inUse: f._count.sessions > 0 || f.email !== null,
+          }))}
+        />
       </main>
     </>
   );

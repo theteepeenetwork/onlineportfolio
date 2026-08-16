@@ -24,7 +24,11 @@ export type ParentChild = {
 
 export type ParentSession = {
   id: string;
-  name: string;
+  // Both NULL until the parent fills them in themselves. A teacher creates a
+  // family place holding a code and nothing else, so a signed-in parent whose
+  // name and email are empty is the normal case, not a broken row.
+  name: string | null;
+  email: string | null;
   children: ParentChild[];
 };
 
@@ -65,6 +69,7 @@ export async function getCurrentParent(): Promise<ParentSession | null> {
   return {
     id: p.id,
     name: p.name,
+    email: p.email,
     children: p.children.map((c) => ({
       id: c.id,
       name: c.name,

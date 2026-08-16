@@ -626,7 +626,7 @@ h4 {
   .print-only { display: flex !important; }
   /* Plain white sheet: drop the cream paper background from the page itself
      (the coloured code tiles and avatar dots still print, via color-adjust). */
-  html, body, .sj, .welcome-main { background: #fff !important; }
+  html, body, .sj, .welcome-main, .letter-main { background: #fff !important; }
   .sj { min-height: 0 !important; }
   * {
     box-shadow: none !important;
@@ -641,6 +641,13 @@ h4 {
   .welcome-sheet > * { margin-top: 14px !important; break-inside: avoid; }
   .welcome-sheet > .print-only { margin-top: 0 !important; }
   .welcome-sheet > h1 { margin-top: 8px !important; }
+
+  /* The family letter, on the same one-A4 rules as the classroom hand-out. It
+     goes home in a book bag, so nothing may spill onto a second sheet that
+     could be left behind: the code and the how-to must travel together. */
+  .letter-main { display: block !important; padding: 0 !important; }
+  .letter-sheet { max-width: 100% !important; }
+  .letter-sheet > * { break-inside: avoid; }
 }
 .legal-prose h2 {
   margin: 32px 0 10px;
