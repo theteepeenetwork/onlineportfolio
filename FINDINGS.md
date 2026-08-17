@@ -68,6 +68,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F27 | Medium | Erasure / Claims | Teacher-authored **template** media (`templatePathsJson`, `quizJson` option pictures, `objectsJson` image srcs) has no erasure path at all: templates are only archived, never deleted. `RETENTION.md` says this media is "deleted with the template/account". `duplicateTemplate` also copies the path strings, so two templates share files on disk | **Open, logged not fixed** | none yet; must be written with the fix |
 | F28 | Medium | Availability / build | The app fetches its two webfonts from Google at build and dev-server startup via `next/font/google`. A 404 or outage from `fonts.gstatic.com` fails the build, which took out a CI job on 2026-08-17 and would equally fail a production deploy. | Open |
 | F29 | Low | Test timing | The template restore prompt waits on an IndexedDB purge, an IndexedDB read and a Server Action round trip before it can render. On a cold CI runner that exceeded the 10 second default assertion budget twice in one day while passing locally every time. The assertion now names the precondition and allows 30 seconds. | Fixed |
+| F34 | Medium | Draft restore | A hung cross-device draft lookup can permanently suppress the restore prompt for a draft that is safely in the user's own IndexedDB, because `serverLoadDraft` has no timeout and `Promise.all` waits for both. Surfaced as an intermittent CI failure that four attempts could not reproduce locally. | Open, handed to a separate session |
 
 ---
 
@@ -806,6 +807,56 @@ rather than a slow runner.
 **Not a product defect, and no user is waiting thirty seconds for anything.**
 The three steps are fast in production, where the Server Action is already
 compiled. It is a test-timing finding, which is why it is Low.
+
+## F34 · A hung draft lookup can hide work the user still has · Medium → Open
+
+Handed to a separate session on 2026-08-17 rather than fixed inside a wave,
+because it touches `DrawingCanvas`, which both children and teachers use.
+
+**What is observed.** `tests/e2e/drafts.spec.ts` "a teacher's in-progress
+template survives a reload" failed in CI four times on 17 August, on four
+unrelated commits, roughly one run in two. It has never failed locally, not
+once, including a full cold run of all 131 e2e tests in the order CI runs them.
+One failing run carried `[WebServer] Error: aborted`.
+
+**What was tried and did not work.** The assertion was given a 30 second budget
+on the theory that the prompt was merely slow. **It then failed at 33.9
+seconds.** That is the useful result: the prompt does not arrive late, it does
+not arrive. The budget has been reverted to the default, because a number that
+does not fix the problem only slows the failure down and makes the test look
+healthier than it is. My first diagnosis was wrong and is recorded here so the
+next person does not spend the same hour on it.
+
+**The current hypothesis, unproven.** The prompt is gated on this sequence in
+`DrawingCanvas`:
+
+```
+await purgeExpired(...)
+const [local, server] = await Promise.all([
+  loadDraft(...),        // IndexedDB, local
+  serverLoadDraft(...),  // a Server Action round trip
+])
+```
+
+`serverLoadDraft` catches errors and returns null, but **a hang is not an
+error**, and `Promise.all` waits for both. So a cross-device lookup that never
+comes back suppresses the prompt entirely.
+
+**Why this matters beyond a red build.** If the hypothesis holds, the product
+behaviour is: a teacher's or a child's work is saved safely in their own browser,
+and they are never offered it back, because a network call they know nothing
+about did not return. The local copy is the one that is guaranteed to exist.
+It should not be withheld pending a remote one.
+
+**Suggested shape of a fix**, for whoever picks it up to accept or reject: race
+the server lookup against a short timeout and fall back to the local draft,
+rather than letting it block. Consider what should happen when the server copy
+is genuinely newer but slow, since restoring the older local copy silently is
+its own small harm. `loadImage` in the same file has the same unbounded shape
+and is worth a look while in there.
+
+**Not yet established:** whether the hang is the Server Action, an image load,
+or something else; and why it reproduces only on a CI runner.
 
 ## How the battery encodes fixed findings
 
