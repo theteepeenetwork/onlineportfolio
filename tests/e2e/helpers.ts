@@ -59,3 +59,39 @@ export async function pageCount(page: Page, field: string): Promise<number> {
     return 0;
   }
 }
+
+// Click a button only once React has actually wired it up.
+//
+// Playwright's actionability checks are satisfied by server-rendered HTML: the
+// button is visible, enabled and stable long before React attaches its onClick.
+// A click landing in that window is swallowed in silence. There is no error and
+// no effect, so the test fails later on whatever the click was meant to produce,
+// which reads exactly like a product bug and is not one.
+//
+// This bites after `page.reload()`, where the markup comes back almost at once
+// and the JavaScript does not. It is the second, independent cause of the F34
+// flake: a restore prompt cannot appear if the editor never opened. On 17 August
+// 2026 it failed the same way on every run, locally and in CI, and a six second
+// sleep in the same place made it pass, which is what identified it.
+//
+// The signal is React's own. On hydrating a node it stores its props on the DOM
+// element under a `__reactProps$…` key, so that key existing is the element
+// saying "my handlers are attached". It is a React internal, and it is still the
+// honest choice: the alternative is a fixed sleep racing the very unknown the
+// helper exists to remove.
+export async function clickHydrated(page: Page, name: RegExp) {
+  const button = page.getByRole("button", { name });
+  await expect(button).toBeVisible();
+  await page.waitForFunction(
+    (source) => {
+      const re = new RegExp(source);
+      const el = Array.from(document.querySelectorAll("button")).find((b) =>
+        re.test(b.textContent ?? ""),
+      );
+      return !!el && Object.keys(el).some((k) => k.startsWith("__reactProps$"));
+    },
+    name.source,
+    { timeout: 30_000 },
+  );
+  await button.click();
+}

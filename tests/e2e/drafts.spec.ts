@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { teacherLogin, studentLogin, logout, drawOnCanvas } from "./helpers";
+import { teacherLogin, studentLogin, logout, drawOnCanvas, clickHydrated } from "./helpers";
 
 // Local-first draft autosave: in-progress work survives an accidental close /
 // crash / lost connection (simulated here by a full page reload, which throws
@@ -76,7 +76,7 @@ test("a teacher's in-progress template survives a reload and saves correctly", a
   // default budget is the right one, and this assertion is once again a straight
   // question: does saved work come back? The stalled-lookup case has its own
   // test at the bottom of this file.
-  await page.getByRole("button", { name: /Build a template/ }).click();
+  await clickHydrated(page, /Build a template/);
   await expect(page.getByRole("dialog", { name: /restore your unsaved work/i })).toBeVisible();
   await page.getByRole("button", { name: /Restore my work/i }).click();
 
@@ -208,7 +208,7 @@ test("the restore prompt still arrives when the cross-device lookup never answer
   // Crash/close, then reopen the editor.
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.locator("#title")).toHaveValue("");
-  await page.getByRole("button", { name: /Build a template/ }).click();
+  await clickHydrated(page, /Build a template/);
   await expect(page.locator("canvas")).toBeVisible();
 
   // The local copy is the one guaranteed to exist. It must be offered.
