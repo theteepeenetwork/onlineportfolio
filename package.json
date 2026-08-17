@@ -59,5 +59,8 @@
   },
   "engines": {
     "node": "22.x"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1"
   }
 }
