@@ -34,6 +34,9 @@ reader will look and not a place a school's data protection lead could be shown.
 | 2026-08-17 | Wave 5 | Proceed on the handbook defaults for the remaining wave 5 decisions rather than pausing. D7 therefore stands at counters only for mail. | OWNER |
 | 2026-08-17 | D6 (build) | Implementing D6: billing is its own screen at `/ops/billing`, separate from `/ops/schools`, and the blindness gate was widened by exactly one allowlist entry, `@/lib/stripeMode`. Two schools of thought were weighed and both are recorded because a reader will ask. **Separate screen** because `/ops/schools` is asserted to link nowhere at all, and that property is worth more than avoiding one extra route: putting the Stripe link there would have meant weakening an existing blocking assertion. **`@/lib/stripeMode` rather than `@/lib/stripe`** because the obvious import builds the Stripe SDK client from the secret key, which would put `getStripe()` one keystroke from every operator screen; the new module holds two functions over one environment variable and returns only booleans, so the secret stays outside the ops path. The widening is bounded and carries three fixtures proving the near misses still fail. | Implementation, PR3 |
 | 2026-08-16 | R1 | Code namespace is `ops`, never `admin`, because `src/app/admin/` is already the school console. The public URL is a separate question (D1). | Handbook ruling, not disputed |
+| 2026-08-17 | PR4 registry | **The operation registry is closed, and adding a row is four edits.** `src/lib/ops/registry.ts` holds the list; `src/lib/ops/operations.ts` is the only module under the ops roots permitted to write anything that is not the operator's own record, enforced by the new gate rule OPS-MUTATION-MODULE; `tests/battery/security/ops-operations.spec.ts` carries the same ids as a literal list, so the battery goes red in both directions if they disagree; and the table below has to say so too. None of that decides anything on the owner's behalf. It makes adding an operation a visible act in a diff rather than a function somebody wrote. | Implementation, PR4 |
+| 2026-08-17 | PR4 scope | **Rotating a class code was asked for and is NOT built.** Rotation itself is fine; picking a class is not. Nothing in the operator area can see a class, deliberately: `Class` is aggregate-only and `classId` is refused as an identifier anywhere under the ops roots, because a per-class figure in a class of one names that child. Offering this operation would mean putting a list of class names and class ids on an operator screen, which is a widening of what the operator can **see** rather than of a call shape, in order to duplicate a button the teacher already has on their own class page. The blind alternatives are worse: every class code at a school, keyed on the school id, takes a whole school's children offline over one leaked code; every class code belonging to one teacher cannot be written at all, because the column is unique and one `updateMany` cannot give each class a different value. **The gap this leaves, for the backlog:** a class code belonging to a teacher who has left cannot be rotated by anybody, because `rotateClassCode` is scoped to the acting teacher. That is a missing capability in the **school** console, where an admin can hold it against a class in their own school. | Implementation, PR4 |
+| 2026-08-17 | PR4 gate | Three widenings and one strictening, all in the same commit as the code they permit, each with fixtures. Strictening: **OPS-MUTATION-MODULE**, which refuses a Prisma write anywhere under the ops roots except the operations module (before this, `School` and `Teacher` could be updated from any ops file, so the registry was a convention). Widenings: `src/lib/ops/operations.ts` as the fourth module permitted to import the Prisma client; `@/lib/familyCodeMint` on the import allowlist, being the pure minting half split out of `@/lib/familyCode` so ops does not drag the database-coupled half into its import walk; and **OPS-ROTATION-WRITE**, one permitted write shape on somebody else's record, `data: { familyCode: makeFamilyCode() }` in the operations module only, with the value minted inline so no name holds it and no line can return it. A bound value fails, the same identifier in a `select:` fails, the same shape in another file fails, and `data: { email: … }` fails, which is what keeps D9 structural. | Implementation, PR4 |
 
 ## Defaults applied without an owner answer
 
@@ -44,7 +47,7 @@ overturn today and progressively less cheap later.
 | --- | --- | --- |
 | D1 | URL prefix `/ops`. | Every route under `src/app/ops/`. |
 | D11 | One operator account. The `OWNER` / `OPERATOR` split is modelled on the row so "last owner protected" is expressible, but nothing creates a second account and no action exercises the split. | `Operator.role` in the schema. |
-| D3 | Not yet reached. Platform actions are not yet visible in a school's own audit feed, because no platform action exists yet. | **Not PR3 after all.** This row said "becomes live at PR3", written when PR3 was expected to record payments. Decision D6 dropped that, so PR3 shipped read-only and created no platform action at all: nothing it does could appear in a school's audit feed, because it does nothing. D3 becomes live at the first PR that carries a mutation. |
+| ~~D3~~ | **Moved to the Open table on 2026-08-17.** The first platform mutation landed in PR4, so "not yet reached" stopped being true and no default has been applied. See D3 below. | Previously read: not yet reached, becomes live at the first PR that carries a mutation. |
 
 ## Open, and what each one blocks
 
@@ -52,6 +55,7 @@ overturn today and progressively less cheap later.
 | --- | --- | --- |
 | **D2** | **Backups. Materially narrowed on 2026-08-17:** Railway's documentation states **no plan restriction** on volume backups and prices them by usage, so the "$15 uplift" premise of amendment B1 is doubtful. It also states retention of 6 days daily / 1 month weekly / 3 months monthly, none of which is the 35 days `RETENTION.md` promises; that line needs correcting whichever option wins. Two further facts push toward an off-provider copy: wiping a volume deletes all its backups, and a backup can only be restored into the same project and environment. See `docs/ops-backup-options.md` section 6a. What remains is a thirty-second dashboard check and the RPO/RTO numbers. | **Original entry follows.** |
 | **D2 (original)** | **Backups.** Which option, and the RPO and RTO numbers. Options are costed in `docs/ops-backup-options.md`. **The first step is not a choice but a fact**: confirm in the Railway dashboard whether volume backups are available on the current plan. Amendment B1 says Pro only; Railway's public documentation says no plan restriction and never mentions point in time recovery. | **OPS-0b entirely.** Through R12, all deletion work (PR8). And the pilot: `RETENTION.md` line 63 promises schools a 35 day backup cycle that does not exist. |
+| **D3** | **Are platform actions visible in the affected school's own audit feed. Live as of 2026-08-17, and unanswered.** PR4 shipped the first thing a platform operator can do to a school's data: issuing a new family code. **It was built WITHOUT the school-visible row**, rather than on the handbook's published default of "yes", because this is one of the decisions section 7 reserves to the owner and the honest thing is to leave it visibly undone rather than guess. State the cost plainly: today a school's own audit feed shows nothing when Storyjar rotates one of their family codes. The teacher sees a different code on the pupil's page and no record of why, and the operator screen tells the operator, in words, that they have to ring the school. **If the answer is yes**, the change is small and lands in one place: the same transaction in `src/lib/ops/operations.ts` also writes one `AuditLog` row with `actorType: "PLATFORM"` through the single write-only helper in `src/lib/ops/audit.ts`, which the blindness gate already permits (`db.auditLog.create`, that file only). What needs deciding with it: whether the operator's free-text reason is copied into a feed teachers read, given a reason may name a child, or whether the school-visible row says only that a code was re-issued by Storyjar and when. | Nothing is blocked. One operation is shipping without a school-visible record, and every further mutation adds to that. |
 | D5 | Does school deletion exist in v1 at all. | PR8. Gated on D2 regardless, per R12. |
 | D7 | Per-recipient mail failure detail. | PR5's storage model. Default is counters only. |
 | D8 | Promote `error-string-audit.mjs` to blocking repo-wide. | Nothing. Scoped-strict on ops is the default. |
@@ -67,6 +71,29 @@ Also owner-only, from brief 06: the written definition of exactly which adult
 data the operator may see. Handbook R11 is the proposed answer and the 2026-08-17
 decision above confirms its strictest reading for parents. The teacher side has
 not been separately confirmed.
+
+## The operation registry
+
+Everything a Storyjar operator can DO, as opposed to see. The list is closed:
+adding a row needs the owner, and the four edits it takes are described at the
+top of `src/lib/ops/registry.ts`. A blocking test asserts that this table and
+the code hold the same ids, so an operation cannot exist in one and not the
+other.
+
+Every row, without exception: a stated reason of at least twelve characters
+stored word for word, a confirm step that says what will happen before it
+happens, and the change and its audit row written in one database transaction,
+so a record that cannot be written means an operation that does not happen.
+
+| Operation | Since | What it does | What the operator sees |
+| --- | --- | --- | --- |
+| `OPS_FAMILY_CODE_ROTATED` | PR4, 2026-08-17 | Issues a new family code for one family space, retiring the old one. A revocation: it takes access away and hands nothing over. Reachable only from a parent record already found by typing that adult's whole email address. | **Neither code, ever** (owner amendment C1). The new one is minted inline and never held in a variable, so nothing can return it; the school sees it on that child's page. The audit row records that a code was re-issued, never the code. |
+| `OPS_PARENT_EMAIL_REVEALED` | PR4, 2026-08-17 | Shows one parent's email address in full, which is masked everywhere else (owner amendment C4). Changes nothing. Exists for the call where a school reports a parent receiving nothing and the stored address has to be compared with what they read out. | The address, once, on that screen. The address and the reason are both written to the operator audit trail. |
+
+Refused by name, so that an absence is not mistaken for an oversight:
+impersonation in any spelling, session minting, password or PIN setting, any
+change to an adult's email address (D9), any deletion (R12), any export, and
+rotating a class code (see the PR4 scope row above).
 
 ## Dashboard actions only the owner can take
 

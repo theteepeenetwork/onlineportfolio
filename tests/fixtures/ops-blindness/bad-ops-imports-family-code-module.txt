@@ -1,0 +1,14 @@
+// @path: src/lib/ops/operations.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// The near miss the PR4 import widening invites. @/lib/familyCodeMint is on the
+// allowlist because it is one function over an alphabet and node:crypto.
+// @/lib/familyCode is NOT: it asks the database whether a candidate code is
+// already in use, so it reads Parent rows and holds the identifier in a
+// `where:` clause. Importing it would pull all of that into the ops walk in
+// order to reuse four lines of string building.
+import "server-only";
+import { uniqueFamilyCode } from "@/lib/familyCode";
+
+export async function mint() {
+  return uniqueFamilyCode();
+}

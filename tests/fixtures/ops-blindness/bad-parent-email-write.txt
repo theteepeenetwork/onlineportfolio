@@ -1,0 +1,21 @@
+// @path: src/lib/ops/operations.ts
+// @expect: OPS-MODEL-METHOD
+// Owner decision D9, made structural: `correctAdultEmail` does not exist, in
+// any form, for staff or for parents. Change the address, trigger a sign-in
+// email, become that person, reach that class's children. Every step is a
+// legitimate operation, which is why no gate can catch the SEQUENCE - so the
+// gate catches the first step instead.
+//
+// This is why the rotation permission matches one `data:` shape rather than
+// permitting `parent.update` in the operations module. A broad permission would
+// have left this one keystroke away, in the file most likely to be trusted.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function fixTypo(parentId, corrected) {
+  await db.parent.update({
+    where: { id: parentId },
+    data: { email: corrected },
+    select: { id: true },
+  });
+}

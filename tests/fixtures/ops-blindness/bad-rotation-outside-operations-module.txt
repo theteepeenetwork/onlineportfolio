@@ -1,0 +1,18 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-BANNED-IDENTIFIER
+// @expect: OPS-MUTATION-MODULE
+// The exact shape the operations module is allowed, written in the read
+// chokepoint. The permission is confined to one file so the shape cannot be
+// copied into a screen, an action or a second helper: a mutation nobody put on
+// the registry is not an operation, it is a function somebody added.
+import "server-only";
+import { db } from "@/lib/db";
+import { makeFamilyCode } from "@/lib/familyCodeMint";
+
+export async function rotate(parentId) {
+  await db.parent.update({
+    where: { id: parentId },
+    data: { familyCode: makeFamilyCode() },
+    select: { id: true },
+  });
+}

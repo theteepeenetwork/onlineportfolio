@@ -1,0 +1,12 @@
+// @path: src/lib/ops/operations.ts
+// The clean half of that pair. The minting module imports node:crypto and one
+// alphabet, touches no database, and returns a string. One generator serves the
+// teacher's own rotation and the operator's, which is what reuse has to mean:
+// two that agreed when they were written and drifted afterwards would be worse
+// than one obvious duplication.
+import "server-only";
+import { makeFamilyCode } from "@/lib/familyCodeMint";
+
+export function candidate() {
+  return makeFamilyCode();
+}

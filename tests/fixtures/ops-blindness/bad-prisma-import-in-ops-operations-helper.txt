@@ -1,0 +1,13 @@
+// @path: src/lib/ops/operationsHelper.ts
+// @expect: OPS-PRISMA-IMPORT
+// A fifth module reaching for the client, with a name close enough to the
+// fourth to look like it belongs. Four modules may import Prisma and they are
+// named one by one: the read chokepoint, the audit writer, the door, and the
+// operations module. "It is basically part of operations.ts" is how a
+// chokepoint stops being one.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function subject(parentId) {
+  return db.parent.findUnique({ where: { id: parentId }, select: { id: true } });
+}

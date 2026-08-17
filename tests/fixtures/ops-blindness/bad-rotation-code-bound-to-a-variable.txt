@@ -1,0 +1,24 @@
+// @path: src/lib/ops/operations.ts
+// @expect: OPS-BANNED-IDENTIFIER
+// @expect: OPS-MODEL-METHOD
+// The near miss the rotation permission invites, and the reason it insists the
+// value is minted inline.
+//
+// A code bound to a name is a code a later line can return, log or render, and
+// the gate cannot follow it once it has a name. Here `fresh` reaches the
+// caller, which hands the operator a working credential for that child's jar
+// while every other rule in this file is satisfied. Inline minting makes the
+// mistake unwritable rather than merely discouraged.
+import "server-only";
+import { db } from "@/lib/db";
+import { makeFamilyCode } from "@/lib/familyCodeMint";
+
+export async function rotate(parentId) {
+  const fresh = makeFamilyCode();
+  await db.parent.update({
+    where: { id: parentId },
+    data: { familyCode: fresh },
+    select: { id: true },
+  });
+  return { code: fresh };
+}

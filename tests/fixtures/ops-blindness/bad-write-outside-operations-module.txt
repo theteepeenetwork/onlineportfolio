@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-MUTATION-MODULE
+// School is ADULT_READABLE, and update is one of its permitted call shapes, so
+// before PR4 this was a clean pass in the READ chokepoint. That is the hole the
+// new rule closes: which model may be written is a different question from
+// where the write may live, and "every mutating action is in the frozen
+// registry" is only true if the build refuses one that is not.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function renameSchool(schoolId, name) {
+  await db.school.update({ where: { id: schoolId }, data: { name }, select: { id: true } });
+}
