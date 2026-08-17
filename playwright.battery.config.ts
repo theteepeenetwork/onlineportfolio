@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { BATTERY_STRIPE_KEY } from "./tests/battery/stripeFixtureKey";
+import { BATTERY_MAIL_HMAC_KEY } from "./tests/battery/mailHmacFixtureKey";
 
 // ---------------------------------------------------------------------------
 // The QA battery config (security + accessibility + UX), separate from the
@@ -89,6 +90,18 @@ export default defineConfig({
     // build that gates the merge. It is never sent anywhere: no code path in
     // the operator area calls Stripe, and the webhook spec stays skipped
     // because it also needs STRIPE_WEBHOOK_SECRET, which is still unset.
-    env: { OPS_ENABLED: "1", STRIPE_SECRET_KEY: BATTERY_STRIPE_KEY },
+    //
+    // MAIL_HMAC_KEY is here for the same reason as the Stripe key. With it
+    // unset, the operator area records no address suppression at all and every
+    // surface honestly says "not monitored" — a real state, and the one in
+    // which none of PR5's suppression behaviour exists to be tested. The seed
+    // hashes its fixture addresses under the SAME constant
+    // (tests/battery/global-setup.ts), because two different keys would hash
+    // one address to two labels and the seeded rows would match nothing.
+    env: {
+      OPS_ENABLED: "1",
+      STRIPE_SECRET_KEY: BATTERY_STRIPE_KEY,
+      MAIL_HMAC_KEY: BATTERY_MAIL_HMAC_KEY,
+    },
   },
 });

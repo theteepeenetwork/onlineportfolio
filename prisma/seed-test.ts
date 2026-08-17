@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { execSync } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
@@ -363,6 +364,108 @@ async function main() {
       authorRole: "STUDENT",
       studentId: pip.id,
       classId: larchClass.id,
+    },
+  });
+
+  // -------------------------------------------------------------------------
+  // Mail delivery fixtures (PR5).
+  //
+  // Cleared first for the same reason the operator row is: the demo seed knows
+  // nothing about these tables, so without this a second run would add to
+  // whatever the last one left and the totals on the operator screen would
+  // depend on how many times the battery had been run.
+  //
+  // The two windows are deliberately given DIFFERENT verdicts, because the
+  // thing being proved is that a delivery state is a sentence rather than a
+  // colour, and one sentence on a page proves nothing about the other one:
+  //
+  //   Today          12 accepted, nothing failed  -> "Every attempt was
+  //                                                   accepted by Mailjet."
+  //   Last 7 days    +4 accepted, 12 failed and 2 never attempted, so 14 of 30
+  //                  -> well over one in five -> "Needs attention".
+  //
+  // The failing week is deliberately failing by a wide margin rather than by
+  // one row. These counters are not inert fixtures: every magic-link request
+  // any other spec makes is a real send attempt and lands in today's row, so a
+  // ratio sitting just over the threshold would drift under it as soon as
+  // another spec was added, and the mail specs would go red for a reason
+  // nowhere near the mail code. At 14 of 30 it takes forty more successful
+  // sends to tip, and a blocking test asserts the margin rather than trusting
+  // this comment.
+  //
+  // The two UNCONFIGURED rows matter more than they look: that is the case
+  // where the API key was missing or revoked, so no attempt reached Mailjet at
+  // all, so there is no bounce and no provider-side error anywhere. This screen
+  // is the only place it is visible.
+  // -------------------------------------------------------------------------
+  await db.mailCounter.deleteMany();
+  await db.mailSuppression.deleteMany();
+  await db.jobRun.deleteMany();
+
+  const utcDayString = (back: number) =>
+    new Date(Date.now() - back * DAY).toISOString().slice(0, 10);
+
+  await db.mailCounter.createMany({
+    data: [
+      { day: utcDayString(0), templateKey: "magic-link", outcome: "SENT", statusClass: "", count: 12 },
+      { day: utcDayString(2), templateKey: "magic-link", outcome: "SENT", statusClass: "", count: 4 },
+      { day: utcDayString(2), templateKey: "magic-link", outcome: "FAILED", statusClass: "5xx", count: 8 },
+      { day: utcDayString(3), templateKey: "magic-link", outcome: "FAILED", statusClass: "timeout", count: 4 },
+      { day: utcDayString(4), templateKey: "magic-link", outcome: "UNCONFIGURED", statusClass: "", count: 2 },
+      // Outside the seven-day window on purpose: it proves the window filters
+      // rather than simply totalling the table.
+      { day: utcDayString(20), templateKey: "magic-link", outcome: "FAILED", statusClass: "4xx", count: 99 },
+    ],
+  });
+
+  // One suppressed address that belongs to a fixture parent, and one that
+  // belongs to nobody. Both are needed: the first is what makes the delivery
+  // line on an adult record mean something, and the second is what a real
+  // suppression list looks like once an address has been removed from the
+  // school's roll but not from the provider's blocklist.
+  //
+  // Hashed with the same MAIL_HMAC_KEY the dev server runs under, which
+  // tests/battery/global-setup.ts passes in. If it is missing the seed refuses
+  // rather than writing rows under a made-up key, because rows that hash to
+  // nothing the application can match would make the specs fail somewhere far
+  // away from the cause.
+  const mailHmacKey = process.env.MAIL_HMAC_KEY;
+  if (!mailHmacKey) {
+    console.error("[seed-test] refusing to seed mail suppression: MAIL_HMAC_KEY is not set.");
+    console.error("[seed-test] The battery sets it in tests/battery/global-setup.ts.");
+    process.exit(1);
+  }
+  const label = (address: string) =>
+    createHmac("sha256", mailHmacKey).update(address.trim().toLowerCase()).digest("hex");
+
+  await db.mailSuppression.createMany({
+    data: [
+      {
+        // Oakfield's parent is bouncing. St Bede's demo parent is deliberately
+        // NOT here, so the two adult records read differently and neither
+        // sentence can be the component's only output.
+        addressHmac: label("demo-parent-oakfield@storyjar.co.uk"),
+        state: "BOUNCE",
+        firstSeenAt: new Date(Date.now() - 9 * DAY),
+        lastSeenAt: new Date(Date.now() - 1 * DAY),
+      },
+      {
+        addressHmac: label("someone-who-left@storyjar.test"),
+        state: "UNSUBSCRIBED",
+        firstSeenAt: new Date(Date.now() - 40 * DAY),
+        lastSeenAt: new Date(Date.now() - 40 * DAY),
+      },
+    ],
+  });
+
+  await db.jobRun.create({
+    data: {
+      job: "mail:suppression-sync",
+      startedAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+      finishedAt: new Date(Date.now() - 3 * 60 * 60 * 1000 + 4000),
+      outcome: "SUCCESS",
+      itemsAffected: 2,
+      outcomeDetail: "30 day window",
     },
   });
 
