@@ -906,6 +906,14 @@ seconds with the child still on "Loading…") and passes with the fix. The
 inflated 30 second budget from F29 has been reverted to the default, which the
 first test now holds without it.
 
+**Amended on review.** The first of those tests went red in CI on this branch,
+and then locally on every run once reproduced. That failure was **not** this
+defect: it was the test's own click racing hydration, logged separately as F36.
+Both faults were real, and the honest position is that which of them drove the
+original one-in-two CI flake is not established. The claim this section can
+still make is the one it set out to make: an unbounded lookup could withhold
+work indefinitely, and no longer can.
+
 ### Residual, logged not fixed
 
 If the lookup is slow **and** an older local copy exists **and** the person
@@ -1035,7 +1043,6 @@ starts.
 RAILPACK, so the service keeps using whatever Railway selects and the repository
 stops asserting a fact it was wrong about.
 ## F35 · Backups exist now, and the written evidence points at the United States · High → Open
-
 Raised 2026-08-17, the same day backups were switched on, because turning them
 on created this question rather than answering it.
 
@@ -1094,6 +1101,53 @@ not proof that they do not. Both are inferences about a different thing than the
 one being asked. The only thing that closes it is Railway answering the direct
 question in writing: *for volume backups on this service, in which country or
 region are the snapshots stored?*
+
+## F36 · Every post-reload click raced hydration · Low → Fixed
+
+Found on 2026-08-17 while reviewing the F34 fix, which is the only reason it was
+found at all: F34 shipped a test that forced a stalled network, and that test
+went red in CI.
+
+The first reading was that the fix did not work. It was reproduced instead: a
+worktree of its own, its own port, its own database, cold. It failed there every
+single time, at the line *before* the one the fix is about.
+
+```
+> 212 |   await expect(page.locator("canvas")).toBeVisible();
+      Error: element(s) not found
+```
+
+The page snapshot at that moment still showed the "🎨 Build a template or quiz"
+button, and no canvas. The click had been reported as successful and had done
+nothing.
+
+**The defect.** After `page.reload()` the markup returns almost immediately and
+the JavaScript does not. Playwright's actionability checks are all satisfied by
+server-rendered HTML: the button is visible, enabled and stable while React has
+not yet attached its `onClick`. A click in that window is swallowed in complete
+silence, and the test then fails on whatever the click should have produced,
+one line later, wearing the costume of a product bug.
+
+Inserting a six second sleep in that spot made the test pass, which is what
+identified the cause. The sleep was then removed, because a fixed sleep races
+the same unknown it is covering up and this repository has already paid for that
+lesson once (`waitForDraftSaved`, same file).
+
+**The fix.** `clickHydrated` in `tests/e2e/helpers.ts` waits for React's own
+signal: on hydrating a node React stores its props on the DOM element under a
+`__reactProps$…` key, so the presence of that key is the element saying its
+handlers are live. It is a React internal, and it is still the honest choice
+here, because it waits for the actual precondition rather than for a guess at
+how long the precondition takes.
+
+Both post-reload click sites in `drafts.spec.ts` now use it, including the one
+in the *original* test, which had the identical race and is the test that was
+failing about one run in two.
+
+**Not a product defect.** A real person cannot click faster than their own page
+hydrates often enough for this to matter, and if they do the click simply does
+nothing and they click again. It is logged because it burned a day's diagnosis
+across two sessions while masquerading as two different product faults.
 
 ## How the battery encodes fixed findings
 
