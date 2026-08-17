@@ -1,0 +1,11 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-RELATION
+// The same relation, filtered to one class by name. R10 bans a per-class figure
+// because a class of one names that child, and the school-scope permission is
+// deliberately narrow enough that this is still refused.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function pupilsInNamedClass(className) {
+  return db.student.count({ where: { class: { name: className } } });
+}

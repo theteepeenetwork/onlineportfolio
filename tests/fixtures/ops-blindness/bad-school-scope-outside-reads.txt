@@ -1,0 +1,7 @@
+// @path: src/lib/ops/counts.ts
+// @expect: OPS-CHILD-RELATION
+// The permitted shape, in a second helper module rather than the declared read
+// chokepoint. One place counts children, and it is the file everybody reviews.
+export async function pupilsOnRoll(db, schoolId) {
+  return db.student.count({ where: { class: { teacher: { schoolId } } } });
+}
