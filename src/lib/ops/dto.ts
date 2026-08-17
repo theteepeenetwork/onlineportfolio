@@ -138,6 +138,47 @@ export type SubscriptionDto = {
 };
 
 // ---------------------------------------------------------------------------
+// The link out to Stripe (PR3, owner decision D6)
+// ---------------------------------------------------------------------------
+// D6, recorded in docs/ops-architecture.md on 17 August 2026: "Manual payment
+// recording is dropped from v1. A manual override that the next Stripe webhook
+// silently reverts is worse than no control, because someone will trust it.
+// Billing screens are read-only with a link out to Stripe, which is where the
+// truth lives."
+//
+// So these shapes describe a LINK and nothing else. There is deliberately no
+// field here for an override, a manual paid-until date, a note, or a
+// precedence, because there is no operation that could write one. If a future
+// PR adds one, it starts with the owner reopening D6, not with a field.
+//
+// The stored id is part of the DTO because the screen shows it: a link whose
+// destination is hidden is a link the operator has to take on trust, and the
+// id is the thing they would read out on a call to reconcile against Stripe.
+// It is an adult billing identifier, already covered by RETENTION.md's
+// "Billing records - subscription state, Stripe customer/subscription IDs" line
+// at 6 years, and it authenticates nobody: reaching the object behind it needs
+// Stripe's own login.
+
+export type StripeLinkDto = {
+  /** "Customer" or "Subscription", in words rather than as an id prefix. */
+  what: string;
+  /** The stored Stripe id, shown so the operator can see where the link goes. */
+  id: string;
+  /** An absolute https://dashboard.stripe.com/... URL. Never a relative path. */
+  href: string;
+};
+
+export type StripeRefDto = {
+  links: StripeLinkDto[];
+  /**
+   * Plain English for why there is nothing to link to, or null when there is.
+   * An empty list with no explanation reads as a bug; this says which of the
+   * two reasons it is.
+   */
+  absence: string | null;
+};
+
+// ---------------------------------------------------------------------------
 // Rows
 // ---------------------------------------------------------------------------
 
@@ -150,6 +191,39 @@ export type SchoolRowDto = {
   band: BandDto;
   /** Null when no subscription row has been created for this school yet. */
   billing: SubscriptionDto | null;
+};
+
+/**
+ * One school's billing state (PR3). The same suppressed headcount and the same
+ * server-computed band as SchoolRowDto, because the headcount is what justifies
+ * the band and the band is the only reason ops counts children at all, plus the
+ * link out to Stripe.
+ *
+ * There is no `staffCount` and no `createdAt` here: they belong to the register
+ * of schools, not to the money, and a DTO carries only what its screen renders.
+ */
+export type BillingRowDto = {
+  id: string;
+  schoolName: string;
+  pupils: HeadcountDto;
+  band: BandDto;
+  billing: SubscriptionDto | null;
+  stripe: StripeRefDto;
+};
+
+/**
+ * The whole billing screen. The statement about which Stripe data set the links
+ * open is page-level rather than per row, because it is the same answer for
+ * every row and repeating it beside each school would train the reader to skip
+ * it.
+ */
+export type BillingViewDto = {
+  /**
+   * Which Stripe these links open, in words, so nobody reconciles a sandbox
+   * against a real invoice, or why there are none.
+   */
+  stripeStatement: string;
+  rows: BillingRowDto[];
 };
 
 // ---------------------------------------------------------------------------

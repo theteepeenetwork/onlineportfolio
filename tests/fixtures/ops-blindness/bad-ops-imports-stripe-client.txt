@@ -1,0 +1,15 @@
+// @path: src/lib/ops/stripeLinks.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// The near miss the PR3 widening invites. @/lib/stripeMode is on the allowlist
+// because it is two booleans over one environment variable. @/lib/stripe is
+// NOT, and must never be: it builds the Stripe SDK client from the secret key,
+// so permitting it would put getStripe() one keystroke from every operator
+// screen and the "ops links out, never calls out" property would rest on nobody
+// typing it.
+import { getStripe, stripeLiveMode } from "@/lib/stripe";
+
+export function customerLink(id) {
+  const mode = stripeLiveMode() ? "" : "/test";
+  getStripe();
+  return `https://dashboard.stripe.com${mode}/customers/${id}`;
+}

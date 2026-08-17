@@ -236,6 +236,28 @@ worse than either half.
 
 ---
 
+## 6a. Four facts confirmed on 2026-08-17, which change the shape of the choice
+
+Read from Railway's own backups documentation, not inferred.
+
+1. **Retention does not match the promise under any schedule.** Daily keeps
+   **6 days**, Weekly **1 month**, Monthly **3 months**. `RETENTION.md` promises
+   schools a **35-day rolling cycle**. No option here produces 35 days, so that
+   line has to be corrected whichever way D2 goes. This is not something buying
+   a plan fixes.
+2. **"Wiping a volume deletes all backups."** Railway's backups are therefore
+   not protection against the destructive-command scenario, which was one of the
+   original reasons for wanting them. An off-provider copy is.
+3. **"Backups can only be restored into the same project and environment."**
+   That constrains the restore drill directly and interacts with decision D12,
+   because it limits where a rehearsal can land.
+4. **Manual backups are capped at 50% of the volume's size.** On a 5 GB volume
+   that is a live ceiling as media grows, not a theoretical one.
+
+Points 2 and 3 strengthen options B and C relative to A. An off-provider copy
+survives a wiped volume and a lost Railway account. Railway's own backups
+survive neither.
+
 ## 7. Side by side
 
 | | A: Railway | B: EU object store | C: both | D: correct the documents |
@@ -268,10 +290,18 @@ Not decided here, and not by any agent:
 
 Facts not yet obtained, and which should be before money is committed:
 
-- Whether volume backups can be enabled on the current plan, confirmed in the
-  dashboard rather than from documentation.
-- Whether Railway offers point in time recovery at all, and on which plan. The
-  backups documentation page does not mention it.
+- **Largely answered on 2026-08-17, and not in the direction amendment B1
+  assumed.** Railway's own backups documentation describes manual and scheduled
+  volume backups (Daily, Weekly, Monthly) with **no plan restriction stated
+  anywhere**, and prices them by usage per GB rather than gating them behind a
+  plan. The only Pro-only backup mention found is on a different page and is a
+  narrower feature: an automatic backup taken before an **image auto-update**.
+  B1 appears to have conflated the two. What is still worth thirty seconds in
+  the dashboard is confirming the Backups tab is present on the volume, because
+  a dashboard observation outranks a docs page.
+- Whether Railway offers point in time recovery for volumes at all. The backups
+  documentation does not mention it in any form, on any plan. Treat PITR as
+  absent for volumes until something says otherwise, and do not cost against it.
 - The measured wall-clock time of one real restore, which is the only honest
   source for the RTO figure.
 

@@ -68,6 +68,12 @@ export const SCHOOL_C = {
   classCode: "ARCH22",
   student: "Pip",
   approvedMedia: "/uploads/seed-larch.svg", // APPROVED before the freeze
+  // The only fixture school with Stripe ids: it went through checkout once and
+  // then lapsed. St Bede's and Oakfield have none, which is what makes the
+  // operator billing screen's "Stripe holds nothing for this school" state
+  // testable in the same render as a working link.
+  stripeCustomerId: "cus_seedlarchwood0001",
+  stripeSubscriptionId: "sub_seedlarchwood0001",
 } as const;
 
 // Sign in as a teacher/admin by email + password, landing on their dashboard.
@@ -199,6 +205,13 @@ export async function operatorCode(): Promise<string> {
 
 // Sign in as the operator exactly as a person would: email, password, then a
 // code from the authenticator. Lands on the console.
+//
+// ONE CODE, ONE ATTEMPT, ON PURPOSE. A retry loop was tried here on 17 August
+// 2026 and reverted the same day, because it makes a bad run much worse rather
+// than better: every refused code counts a failure on the operator's own row,
+// five of those lock the account, and a lockout turns two red tests into
+// fourteen. If the door refuses a genuine code, that is worth seeing once,
+// loudly, rather than papering over three times.
 export async function signInOperator(page: Page) {
   // From no session: the door renders three different things depending on what
   // the browser already holds, so a half-finished sign-in left by an earlier

@@ -87,6 +87,26 @@ words rather than leaving you reading twenty 404s: if you see "the dev server wa
 started without OPS_ENABLED=1", kill the warm server and let Playwright start
 its own.
 
+**Never run two battery invocations at once.** Every project seeds the same
+SQLite file, so a second run's `global-setup` wipes the first run's schools
+while its tests are mid-flight. What that looks like is not a database error: it
+is a screen that renders one school instead of three, an operator whose fixture
+has vanished, and a handful of red tests in files nobody touched. On 17 August
+2026 it produced six failures, then fourteen, in specs that were green when run
+on their own, and cost an hour before the cause was found by polling the
+database during a run. If a battery result surprises you, check nothing else is
+running first (`ps aux | grep playwright`), then re-run cold on its own.
+
+The battery's config injects one more variable for the same reason:
+`STRIPE_SECRET_KEY`, set to the obviously fictional test key in
+`tests/battery/stripeFixtureKey.ts`. The operator billing screen offers a link
+into the Stripe dashboard only when a key is configured, and CI sets none, so
+without this the link-out would exist on your machine and not on the build that
+gates the merge. Nothing spends it: no code path under `/ops` calls Stripe at
+all, and the webhook spec that does use the Stripe SDK stays skipped because it
+also needs `STRIPE_WEBHOOK_SECRET`. On a warm server started without it, the
+billing link tests fail with a message naming this paragraph.
+
 Useful variants:
 
 ```bash

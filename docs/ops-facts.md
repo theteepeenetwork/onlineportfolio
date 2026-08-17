@@ -367,6 +367,22 @@ any existing gate, `robots.txt` or any sitemap, `otplib` or `otpauth`,
 
 ---
 
+## 9.4 Read from the live Railway service on 2026-08-17
+
+Checked against the running production service (project "Story Jar", service
+`onlineportfolio`, environment `production`) rather than from a brief. These
+supersede the corresponding rows above and the brief 01 "VERIFIED" list, which
+was accurate when written and has since moved.
+
+| Claim | Source | Verdict | Truth |
+| --- | --- | --- | --- |
+| "Wait for CI" exists as a toggle but cannot be set from code; there is no CI key in the deploy config | Brief 01, and PR1's own report | **WRONG** | It is in the API, just not under `deploy`. The live config carries `source.checkSuites: false`. It is off today, and it is settable. |
+| Builder is Nixpacks, marked deprecated, plan a move after the pilot | Brief 01 VERIFIED list | **WRONG** | The builder is **RAILPACK** with build environment V3. The Nixpacks migration is already done and needs no PR. |
+| `healthcheckPath` is empty | Brief 01 VERIFIED list | **STILL TRUE, and worth knowing why** | OPS-0a added it to `railway.json`, but the live service config still shows no `healthcheckPath`, because `railway.json` is applied at deploy time and there has been no deploy since. It goes live on the next deploy, which is the same deploy that runs the migration baseline. |
+| `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` is unset | Brief 01 VERIFIED list | CONFIRMED | Absent from the service's variable list. |
+| Region EU West Amsterdam, 1 replica, volume at /data | Brief 01 VERIFIED list | CONFIRMED | `europe-west4-drams3a`, `numReplicas: 1`, volume mounted at `/data`. |
+| Volume backups and PITR are Pro-plan only | Amendment B1 | **DOUBTFUL** | Railway's backups documentation states no plan restriction and prices backups by usage. The Pro-only mention is a different feature (pre-update backups on image auto-updates). PITR is not mentioned for volumes at all. See `docs/ops-backup-options.md` section 6a. A dashboard check still outranks this. |
+
 ## 10. What this pass could not check
 
 - **Railway dashboard facts.** Healthcheck path, plan tier, backups and PITR
