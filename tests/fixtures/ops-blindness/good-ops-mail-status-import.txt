@@ -1,0 +1,10 @@
+// @path: src/lib/ops/reads.ts
+// The shape the PR5 widening permits, and the whole of it: closed string
+// unions and pure helpers. No Prisma, no credentials, no address, no network.
+// The vocabulary lives outside the ops tree because the mailer needs it too,
+// and a file the ops tree imports is walked as ops code.
+import { classifyMailResult, utcDay } from "@/lib/mailStatus";
+
+export function todayLabel(status: number) {
+  return `${utcDay(new Date())}: ${classifyMailResult(status)}`;
+}

@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// The near miss the PR5 widening invites. @/lib/mailStatus is on the allowlist
+// because it is closed string unions and two pure helpers. @/lib/mailer is NOT,
+// and must never be: it holds the provider credentials and the send path, so
+// permitting it would put "send an email to this address" inside the operator
+// area, and the address itself one property away.
+import { sendMail } from "@/lib/mailer";
+
+export async function nudge(to: string) {
+  return sendMail({ to, subject: "hello", text: "hello", html: "<p>hello</p>" });
+}

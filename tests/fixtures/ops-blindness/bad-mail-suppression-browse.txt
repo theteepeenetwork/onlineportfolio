@@ -1,0 +1,15 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-MODEL-METHOD
+// THE ONE THAT MATTERS out of PR5's fixtures.
+//
+// MailSuppression is classified LOOKUP_ONLY, and this is the screen that class
+// exists to refuse: a list of every adult the mail provider is currently
+// refusing to deliver to. Each of those rows is a parent who is not receiving
+// their sign-in link, which means a family who cannot see their child's work.
+// Answering "is THIS address being refused" is support. Rendering all of them
+// is a register of locked-out families, and nobody asked for one.
+import { db } from "@/lib/db";
+
+export async function everyRefusedAddress() {
+  return db.mailSuppression.findMany({ select: { addressHmac: true, state: true } });
+}

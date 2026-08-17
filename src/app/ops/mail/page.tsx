@@ -43,21 +43,6 @@ export const metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-// This screen is not in OPS_LINKS yet.
-//
-// The nav lives in src/app/ops/shell.tsx, which all three wave-5 pull requests
-// touch and which the tech lead owns for exactly that reason, so the entry is
-// requested in the pull request rather than added here. OpsPath is derived from
-// OPS_LINKS, so "/ops/mail" is not yet one of its members and the cast is what
-// says so out loud.
-//
-// The bar still renders, with every link and the sign-out button, and no item
-// marked as the current page. That is true rather than convenient: none of the
-// four links IS this page. When `{ href: "/ops/mail", label: "Mail" }` is added
-// to OPS_LINKS, delete this constant and write `current="/ops/mail"` inline;
-// nothing else changes and the aria-current then lands on the right item.
-const NOT_YET_IN_NAV = "/ops/mail" as unknown as OpsPath;
-
 function Fact({ term, value }: { term: string; value: ReactNode }) {
   return (
     <div className="py-1">
@@ -129,7 +114,7 @@ export default async function OpsMailPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--paper)" }}>
-      <OpsBar current={NOT_YET_IN_NAV} />
+      <OpsBar current="/ops/mail" />
       <main className="mx-auto w-full max-w-4xl px-4 py-8">
         <h1 className="font-display text-2xl" style={{ color: "var(--ink)" }}>
           Mail

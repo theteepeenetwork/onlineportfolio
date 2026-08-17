@@ -34,6 +34,7 @@ export const OPS_LINKS = [
   { href: "/ops", label: "Today" },
   { href: "/ops/schools", label: "Schools" },
   { href: "/ops/billing", label: "Billing" },
+  { href: "/ops/mail", label: "Mail" },
   { href: "/ops/lookup", label: "Find an adult" },
   { href: "/ops/health", label: "Health" },
 ] as const;

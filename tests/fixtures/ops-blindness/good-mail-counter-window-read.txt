@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// The permitted read of a counter table: findMany with an explicit column list
+// and no relation, summed in process. This is why MailCounter is OPS_OWNED
+// rather than AGGREGATE_ONLY, which permits only count and groupBy and can sum
+// no tally column at all.
+import { db } from "@/lib/db";
+
+export async function windowTotals(fromDay: string) {
+  return db.mailCounter.findMany({
+    where: { day: { gte: fromDay } },
+    select: { day: true, templateKey: true, outcome: true, statusClass: true, count: true },
+  });
+}
