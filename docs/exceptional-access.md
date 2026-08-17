@@ -1,7 +1,8 @@
 # Exceptional access to a child's data
 
-**Status: draft for the owner's approval. Not in force until approved and dated
-in the Amendments table of [`SAFEGUARDING.md`](../SAFEGUARDING.md).**
+**Status: in force.** Approved by the owner and merged on 2026-08-17 with
+SAFEGUARDING rule 20, which points here and is dated in that document's
+Amendments table.
 
 Rule 20 says the operator of Storyjar cannot read a child's work **through the
 product**, and a blocking gate enforces it. This document covers the thing rule
@@ -103,13 +104,19 @@ this happened, before you know what you will find.
 
 ## Notification
 
-| Circumstance | Who is told | When |
+The default is **before you look**. The column below says what to do when a
+circumstance makes that impossible, and those are the only exceptions.
+
+| Circumstance | Who is told | First notice |
 | --- | --- | --- |
-| 1, court or police | The school, unless the order forbids it | As soon as permitted |
-| 2, school instruction | The school already knows. Confirm what was done | Within one working day |
-| 3, illegal content | Police and IWF. The school, on police advice | Immediately |
-| 4, concern about the school | LADO. **Not** the individual concerned, and not the school if it would prejudice the matter | Immediately |
-| 5, recovery | The school, if any child's data was read | Within one working day |
+| 1, court or police | The school, unless the order forbids telling them | Before, unless the order forbids it, then as soon as it permits |
+| 2, school instruction | The school instructed it, so they already know. Confirm scope back to them in writing | Before, by confirming what you are about to open |
+| 3, illegal content | Police and IWF. The school, on police advice | Before. And do not open the material at all |
+| 4, concern about the school | LADO. **Not** the individual concerned, and not the school if it would prejudice the matter | Before |
+| 5, recovery | The school, if any child's data was read | Before, unless the service is down and recovery cannot wait, then within one working day |
+
+Circumstance 5 is the only routine exception, and it is narrow: it applies when
+the service is actually broken, not when it is merely inconvenient to wait.
 
 ---
 
