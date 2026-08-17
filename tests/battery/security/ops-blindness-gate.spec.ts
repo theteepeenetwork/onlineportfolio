@@ -370,12 +370,22 @@ test.describe("A15.3 schema drift fails in both directions", () => {
     // model. Provoked from a throwaway copy of the gate instead, so that no
     // rule id in this file is left with nothing asserting it.
     const source = readFileSync(GATE, "utf8");
-    const marker = 'const LOOKUP_ONLY = ["Parent"];';
-    expect(source).toContain(marker);
+    // The mutation is found by shape rather than by an exact source line. It
+    // used to match `const LOOKUP_ONLY = ["Parent"];` verbatim, which meant this
+    // test broke the first time anybody classified a new model, which is a
+    // normal and expected act rather than a regression. PR5 classifying
+    // MailSuppression is what surfaced it. Every assertion below is unchanged:
+    // the test still mutates the gate so that one model sits in two classes,
+    // still requires exit 1, and still requires the rule id and the model name
+    // in stderr. Only the way it locates the list is looser.
+    const decl = /const LOOKUP_ONLY = \[[\s\S]*?\];/;
+    expect(source, "the LOOKUP_ONLY declaration should be findable").toMatch(decl);
     const dir = mkdtempSync(path.join(tmpdir(), "ops-blindness-mutant-"));
     trees.push(dir);
     const script = path.join(dir, "mutant.mjs");
-    writeFileSync(script, source.replace(marker, 'const LOOKUP_ONLY = ["Parent", "Teacher"];'));
+    // Teacher is ADULT_READABLE, so naming it here puts one model in two
+    // classes, which is exactly what OPS-CLASS-DUPLICATE exists to catch.
+    writeFileSync(script, source.replace(decl, 'const LOOKUP_ONLY = ["Parent", "Teacher"];'));
     const run = runGate(REPO, [], script);
     expect(run.status, run.output).toBe(1);
     expect(run.stderr).toContain("OPS-CLASS-DUPLICATE");

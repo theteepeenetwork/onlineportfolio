@@ -68,13 +68,10 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F27 | Medium | Erasure / Claims | Teacher-authored **template** media (`templatePathsJson`, `quizJson` option pictures, `objectsJson` image srcs) has no erasure path at all: templates are only archived, never deleted. `RETENTION.md` says this media is "deleted with the template/account". `duplicateTemplate` also copies the path strings, so two templates share files on disk | **Open, logged not fixed** | none yet; must be written with the fix |
 | F28 | Medium | Availability / build | The app fetches its two webfonts from Google at build and dev-server startup via `next/font/google`. A 404 or outage from `fonts.gstatic.com` fails the build, which took out a CI job on 2026-08-17 and would equally fail a production deploy. | Open |
 | F29 | Low | Test timing | The template restore prompt waits on an IndexedDB purge, an IndexedDB read and a Server Action round trip before it can render. On a cold CI runner that exceeded the 10 second default assertion budget twice in one day while passing locally every time. The assertion now names the precondition and allows 30 seconds. | Fixed |
-<<<<<<< HEAD
-| F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanishes: the header paints background and text as inline colours, so a high-contrast operator loses all four nav links and the sign-out button on the one account that runs the service. Nothing in src/ handles forced-colors. | Open |
-| F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
-=======
 | F30 | Medium | Mail | Mail health is readable at /ops/mail and nothing announces a problem. No alert channel exists, and a MailCounter row is a UTC day so the finest window the data supports is a day, not the hour brief 05 asks for. | Open |
 | F31 | Medium | Mail | The suppression sync has no schedule. Until it is scheduled, MailSuppression is a snapshot of whenever somebody last ran it by hand, and a parent who started bouncing this morning reads as not refused. | Open |
->>>>>>> b6483fc (Apply PR5's shared-file changes: gate classes, nav, retention, DPIA, findings)
+| F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanishes: the header paints background and text as inline colours, so a high-contrast operator loses all four nav links and the sign-out button on the one account that runs the service. Nothing in src/ handles forced-colors. | Open |
+| F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
 | F35 | Medium | Data residency | Volume backups were switched on 2026-08-17, and Railway does not publish where they are stored. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
 
 ---
@@ -815,7 +812,45 @@ rather than a slow runner.
 The three steps are fast in production, where the Server Action is already
 compiled. It is a test-timing finding, which is why it is Low.
 
-<<<<<<< HEAD
+## F30 · Mail failures are visible, and nothing announces them · Medium → Open
+
+PR5 makes mail health readable at `/ops/mail`. Reading it requires somebody to
+look, and nobody is watching at 4am.
+
+Brief 05 asks for a failure alert (five in sixty minutes, or a twenty per cent
+ratio) and a silence alert. Neither is built, for two reasons stated rather than
+skipped over.
+
+**The hour is not expressible.** A `MailCounter` row is keyed by UTC day, so the
+finest window the data supports is a day. The screen says its ratio is a daily
+figure rather than implying otherwise.
+
+**There is no channel.** Decision D13 was answered on 2026-08-17 by taking the
+default: no external monitor. And an alert about mail delivery, delivered by the
+mail provider that is failing, to an address behind Porkbun forwarding, is not
+an alert.
+
+The screen says in words that nothing here will tell you it has gone wrong,
+which is the honest interim. Closing this needs a channel first, then hourly
+buckets, then thresholds, in that order.
+
+## F31 · The suppression check runs only when somebody remembers · Medium → Open
+
+`npm run mail:suppression-sync` exists, is idempotent, and writes a `JobRun`
+every time including on failure. Nothing runs it.
+
+Until it is scheduled, `MailSuppression` is a snapshot of whenever it was last
+invoked by hand. A parent who started bouncing this morning reads as "not
+refused", which is the wrong answer to the one support question the table
+exists to answer.
+
+The screen does not paper over this: it renders the age of the last run in words
+and says "Never" when there has not been one.
+
+Scheduling it is blocked on an unresolved Railway question from brief 05: a cron
+service starts the service's start command in a new instance, and Railway will
+not mount one volume twice. So the choice between an in-app scheduler and a cron
+service calling an authenticated endpoint has to be made before this can close.
 ## F32 · The operator loses the whole nav in forced colours · Medium → Open
 
 Found by PR6's accessibility spec, which is why its forced-colours scan is
@@ -856,47 +891,6 @@ starts.
 **Fixed** by deleting the `build` block entirely rather than setting it to
 RAILPACK, so the service keeps using whatever Railway selects and the repository
 stops asserting a fact it was wrong about.
-=======
-## F30 · Mail failures are visible, and nothing announces them · Medium → Open
-
-PR5 makes mail health readable at `/ops/mail`. Reading it requires somebody to
-look, and nobody is watching at 4am.
-
-Brief 05 asks for a failure alert (five in sixty minutes, or a twenty per cent
-ratio) and a silence alert. Neither is built, for two reasons stated rather than
-skipped over.
-
-**The hour is not expressible.** A `MailCounter` row is keyed by UTC day, so the
-finest window the data supports is a day. The screen says its ratio is a daily
-figure rather than implying otherwise.
-
-**There is no channel.** Decision D13 was answered on 2026-08-17 by taking the
-default: no external monitor. And an alert about mail delivery, delivered by the
-mail provider that is failing, to an address behind Porkbun forwarding, is not
-an alert.
-
-The screen says in words that nothing here will tell you it has gone wrong,
-which is the honest interim. Closing this needs a channel first, then hourly
-buckets, then thresholds, in that order.
-
-## F31 · The suppression check runs only when somebody remembers · Medium → Open
-
-`npm run mail:suppression-sync` exists, is idempotent, and writes a `JobRun`
-every time including on failure. Nothing runs it.
-
-Until it is scheduled, `MailSuppression` is a snapshot of whenever it was last
-invoked by hand. A parent who started bouncing this morning reads as "not
-refused", which is the wrong answer to the one support question the table
-exists to answer.
-
-The screen does not paper over this: it renders the age of the last run in words
-and says "Never" when there has not been one.
-
-Scheduling it is blocked on an unresolved Railway question from brief 05: a cron
-service starts the service's start command in a new instance, and Railway will
-not mount one volume twice. So the choice between an in-app scheduler and a cron
-service calling an authenticated endpoint has to be made before this can close.
->>>>>>> b6483fc (Apply PR5's shared-file changes: gate classes, nav, retention, DPIA, findings)
 ## F35 · Backups exist now, and nobody knows which country they are in · Medium → Open
 
 Raised 2026-08-17, the same day backups were switched on, because turning them
