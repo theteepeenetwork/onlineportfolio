@@ -68,6 +68,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F27 | Medium | Erasure / Claims | Teacher-authored **template** media (`templatePathsJson`, `quizJson` option pictures, `objectsJson` image srcs) has no erasure path at all: templates are only archived, never deleted. `RETENTION.md` says this media is "deleted with the template/account". `duplicateTemplate` also copies the path strings, so two templates share files on disk | **Open, logged not fixed** | none yet; must be written with the fix |
 | F28 | Medium | Availability / build | The app fetches its two webfonts from Google at build and dev-server startup via `next/font/google`. A 404 or outage from `fonts.gstatic.com` fails the build, which took out a CI job on 2026-08-17 and would equally fail a production deploy. | Open |
 | F29 | Low | Test timing | The template restore prompt waits on an IndexedDB purge, an IndexedDB read and a Server Action round trip before it can render. On a cold CI runner that exceeded the 10 second default assertion budget twice in one day while passing locally every time. The assertion now names the precondition and allows 30 seconds. | Fixed |
+| F35 | Medium | Data residency | Volume backups were switched on 2026-08-17, and Railway does not publish where they are stored. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
 
 ---
 
@@ -806,6 +807,36 @@ rather than a slow runner.
 **Not a product defect, and no user is waiting thirty seconds for anything.**
 The three steps are fast in production, where the Server Action is already
 compiled. It is a test-timing finding, which is why it is Low.
+
+## F35 · Backups exist now, and nobody knows which country they are in · Medium → Open
+
+Raised 2026-08-17, the same day backups were switched on, because turning them
+on created this question rather than answering it.
+
+The owner upgraded to Railway Pro and enabled daily and weekly volume backups.
+That closes the far worse problem, which was three documents telling schools
+there were backups when there were none. It opens this one.
+
+**A volume backup is a complete second copy of every child's photograph, drawing
+and voice note.** `SAFEGUARDING.md` rule 10 says all personal data, including
+backups, is stored and processed in the UK or EU, and `docs/DPIA.md` and the
+privacy notice repeat it. Railway's backups documentation describes the
+schedule, the pricing and the restore procedure, and says nothing at all about
+where the snapshots live. The service runs in `europe-west4` (Amsterdam), but a
+backup is not obliged to sit in the same region as the volume it came from, and
+assuming it does is exactly the kind of inference this programme has repeatedly
+found to be wrong.
+
+**What was done in the meantime:** the claim that backups stay in Amsterdam has
+been removed from `RETENTION.md` rather than restated. Saying nothing is honest;
+repeating an unverified claim about children's data is not.
+
+**What closes this:** a written answer from Railway support naming the region,
+recorded in `RETENTION.md` and in the DPIA sub-processor entry. If the answer is
+that backups may leave the UK and EU, that is not a documentation update. It is
+a rule 10 problem needing either a different destination (option B in
+`docs/ops-backup-options.md`, an EU object store under our own control) or an
+explicit recorded owner decision, with the schools told.
 
 ## How the battery encodes fixed findings
 

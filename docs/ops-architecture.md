@@ -29,6 +29,8 @@ reader will look and not a place a school's data protection lead could be shown.
 | 2026-08-16 | Wave 1 | Read role brief 05 (SRE) first, per the handbook's own handoff order. | OWNER |
 | 2026-08-17 | D4 | TOTP uses the `otplib` library rather than a hand-rolled RFC 6238 implementation. Vetted before adoption: 13.4.1, MIT, maintained, crypto plugins are `@noble` and `@scure`. `npm audit --omit=dev` reports 0 vulnerabilities with it installed. | OWNER |
 | 2026-08-17 | R11 vs C2 | **An operator may NOT see how many children a parent has.** Amendment C2 permits a bare count and outranks handbook R11, which bans it. The owner was asked directly and chose the stricter rule. The blindness gate enforces R11 and its failure message explains why. Relaxing it later is one line plus a fixture. | OWNER |
+| 2026-08-17 | **D2** | **ANSWERED AND EXECUTED BY THE OWNER.** Railway upgraded to Pro; daily and weekly volume backups are switched on. Amendment B1's premise (Pro-only) turned out to be right about the plan even though Railway's public documentation states no restriction. **RPO and RTO: nightly, back within a day.** Worst case is 24 hours of children's work lost and a school offline for most of a school day, accepted knowingly for a ten-school pilot. OPS-0b is unblocked. **R12 is NOT yet satisfied**: a restore still has to be rehearsed before deletion (PR8) can ship. | OWNER |
+| 2026-08-17 | **D3** | **A platform action IS visible in the affected school's own audit feed, action only, WITHOUT the operator's free-text reason.** The school sees that Storyjar rotated a family code, when, and for which pupil. The reason stays internal because it may name a child (the accepted D9 residual) and teachers should not be shown unvetted text about other families. | OWNER |
 | 2026-08-17 | D9 | **`correctAdultEmail` does not exist.** An operator cannot change an adult's email address. Changing a teacher's address is a route into their account: change it, trigger a reset, become that teacher, reach that class's children. Every step is a legitimate operation, so no gate can catch the sequence. Support answer: the teacher changes it themselves, or a school admin re-invites them. | OWNER |
 | 2026-08-17 | D6 | **Manual payment recording is dropped from v1.** A manual override that the next Stripe webhook silently reverts is worse than no control, because someone will trust it. Billing screens are read-only with a link out to Stripe, which is where the truth lives. | OWNER |
 | 2026-08-17 | Wave 5 | Proceed on the handbook defaults for the remaining wave 5 decisions rather than pausing. D7 therefore stands at counters only for mail. | OWNER |
@@ -49,11 +51,44 @@ overturn today and progressively less cheap later.
 | D11 | One operator account. The `OWNER` / `OPERATOR` split is modelled on the row so "last owner protected" is expressible, but nothing creates a second account and no action exercises the split. | `Operator.role` in the schema. |
 | ~~D3~~ | **Moved to the Open table on 2026-08-17.** The first platform mutation landed in PR4, so "not yet reached" stopped being true and no default has been applied. See D3 below. | Previously read: not yet reached, becomes live at the first PR that carries a mutation. |
 
+## D3 is answered but not yet buildable, and that is worth reading
+
+The owner's answer on 2026-08-17 was: yes, a platform action appears in the
+affected school's own audit feed, action only, without the operator's free-text
+reason. Implementing it for the one operation that exists (rotate a family code)
+runs straight into the owner's OTHER answer, from the same day.
+
+`AuditLog` is indexed on `schoolId`, and that field is what puts a row in a
+school's feed. `Parent` has no `schoolId`. The only path from a parent to a
+school is `Parent -> children -> class -> teacher -> schoolId`, which is exactly
+the parent-to-child linkage ruling R11 forbids and the blindness gate refuses as
+`OPS-PARENT-CHILD-LINK`. The owner was asked about R11 directly and chose to
+keep it refused, against the letter of amendment C2.
+
+Moving the lookup into a helper does not avoid it: PR5 established that any
+module the ops tree imports is walked and scanned as ops code, so the traversal
+would fail in the helper instead.
+
+**The proposal, needing an owner decision before it is built.** Permit the
+traversal in exactly one place, `src/lib/ops/audit.ts`, in exactly one shape,
+where its result is written into an audit row and never returned to the caller.
+The argument for it: a school's own transparency record is not the operator
+seeing anything, and the operator screen would still be unable to display a
+school, a class or a child. The argument against: it puts the banned traversal
+inside ops code for the first time, and the thing standing between it and an
+operator screen becomes a gate rule rather than the absence of any code that
+can do it.
+
+If that is too much, the honest alternatives are to drop D3 for this operation
+and say so to schools, or to add `schoolId` to `Parent`, which is worse because
+it makes the linkage permanent in the data model rather than momentary in one
+function.
+
 ## Open, and what each one blocks
 
 | Ref | Question | Blocks |
 | --- | --- | --- |
-| **D2** | **Backups. Materially narrowed on 2026-08-17:** Railway's documentation states **no plan restriction** on volume backups and prices them by usage, so the "$15 uplift" premise of amendment B1 is doubtful. It also states retention of 6 days daily / 1 month weekly / 3 months monthly, none of which is the 35 days `RETENTION.md` promises; that line needs correcting whichever option wins. Two further facts push toward an off-provider copy: wiping a volume deletes all its backups, and a backup can only be restored into the same project and environment. See `docs/ops-backup-options.md` section 6a. What remains is a thirty-second dashboard check and the RPO/RTO numbers. | **Original entry follows.** |
+| ~~D2~~ | **Answered 2026-08-17, see the decisions table above.** Original framing kept for the record: Railway's documentation states **no plan restriction** on volume backups and prices them by usage, so the "$15 uplift" premise of amendment B1 is doubtful. It also states retention of 6 days daily / 1 month weekly / 3 months monthly, none of which is the 35 days `RETENTION.md` promises; that line needs correcting whichever option wins. Two further facts push toward an off-provider copy: wiping a volume deletes all its backups, and a backup can only be restored into the same project and environment. See `docs/ops-backup-options.md` section 6a. What remains is a thirty-second dashboard check and the RPO/RTO numbers. | **Original entry follows.** |
 | **D2 (original)** | **Backups.** Which option, and the RPO and RTO numbers. Options are costed in `docs/ops-backup-options.md`. **The first step is not a choice but a fact**: confirm in the Railway dashboard whether volume backups are available on the current plan. Amendment B1 says Pro only; Railway's public documentation says no plan restriction and never mentions point in time recovery. | **OPS-0b entirely.** Through R12, all deletion work (PR8). And the pilot: `RETENTION.md` line 63 promises schools a 35 day backup cycle that does not exist. |
 | **D3** | **Are platform actions visible in the affected school's own audit feed. Live as of 2026-08-17, and unanswered.** PR4 shipped the first thing a platform operator can do to a school's data: issuing a new family code. **It was built WITHOUT the school-visible row**, rather than on the handbook's published default of "yes", because this is one of the decisions section 7 reserves to the owner and the honest thing is to leave it visibly undone rather than guess. State the cost plainly: today a school's own audit feed shows nothing when Storyjar rotates one of their family codes. The teacher sees a different code on the pupil's page and no record of why, and the operator screen tells the operator, in words, that they have to ring the school. **If the answer is yes**, the change is small and lands in one place: the same transaction in `src/lib/ops/operations.ts` also writes one `AuditLog` row with `actorType: "PLATFORM"` through the single write-only helper in `src/lib/ops/audit.ts`, which the blindness gate already permits (`db.auditLog.create`, that file only). What needs deciding with it: whether the operator's free-text reason is copied into a feed teachers read, given a reason may name a child, or whether the school-visible row says only that a code was re-issued by Storyjar and when. | Nothing is blocked. One operation is shipping without a school-visible record, and every further mutation adds to that. |
 | D5 | Does school deletion exist in v1 at all. | PR8. Gated on D2 regardless, per R12. |
