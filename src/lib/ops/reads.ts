@@ -400,3 +400,36 @@ async function readParent(email: string): Promise<AdultRecordDto | null> {
     mailState: "NOT_MONITORED",
   };
 }
+
+// ---------------------------------------------------------------------------
+// Service health (PR6)
+// ---------------------------------------------------------------------------
+
+/**
+ * How long the database takes to answer, in milliseconds, measured from inside
+ * the app.
+ *
+ * WHY IT COUNTS THE OPERATOR TABLE AND NOTHING ELSE
+ *
+ * It needs a read that touches the database file and reveals nothing. The
+ * public healthcheck asks `SELECT 1`, which this file may not: raw SQL defeats
+ * model-name scanning, so the blindness gate bans it outright under the ops
+ * roots and is right to. A count of the operator's own rows is the closest
+ * honest equivalent that is expressible here. It reads no school, no adult and
+ * no child, and the number it returns is thrown away; only the elapsed time is
+ * kept.
+ *
+ * WHAT IT CANNOT TELL YOU, said plainly because the pane says it too
+ *
+ * It can only ever succeed. requireOperator() above has already read the
+ * session row, so a database that was not answering would have produced a 404
+ * rather than a page with a tile on it. The signal is the DURATION, not the
+ * success: this database is a file on the same volume as the children's media,
+ * and a volume in trouble goes slow some time before it goes wrong.
+ */
+export async function databaseAnswerTime(): Promise<number> {
+  await requireOperator();
+  const started = performance.now();
+  await db.operator.count();
+  return performance.now() - started;
+}

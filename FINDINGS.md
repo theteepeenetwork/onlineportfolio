@@ -68,6 +68,8 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F27 | Medium | Erasure / Claims | Teacher-authored **template** media (`templatePathsJson`, `quizJson` option pictures, `objectsJson` image srcs) has no erasure path at all: templates are only archived, never deleted. `RETENTION.md` says this media is "deleted with the template/account". `duplicateTemplate` also copies the path strings, so two templates share files on disk | **Open, logged not fixed** | none yet; must be written with the fix |
 | F28 | Medium | Availability / build | The app fetches its two webfonts from Google at build and dev-server startup via `next/font/google`. A 404 or outage from `fonts.gstatic.com` fails the build, which took out a CI job on 2026-08-17 and would equally fail a production deploy. | Open |
 | F29 | Low | Test timing | The template restore prompt waits on an IndexedDB purge, an IndexedDB read and a Server Action round trip before it can render. On a cold CI runner that exceeded the 10 second default assertion budget twice in one day while passing locally every time. The assertion now names the precondition and allows 30 seconds. | Fixed |
+| F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanishes: the header paints background and text as inline colours, so a high-contrast operator loses all four nav links and the sign-out button on the one account that runs the service. Nothing in src/ handles forced-colors. | Open |
+| F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
 | F35 | Medium | Data residency | Volume backups were switched on 2026-08-17, and Railway does not publish where they are stored. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
 
 ---
@@ -808,6 +810,46 @@ rather than a slow runner.
 The three steps are fast in production, where the Server Action is already
 compiled. It is a test-timing finding, which is why it is Low.
 
+## F32 · The operator loses the whole nav in forced colours · Medium → Open
+
+Found by PR6's accessibility spec, which is why its forced-colours scan is
+scoped to `main` rather than the whole page: widening it back is the assertion
+that this is closed.
+
+`src/app/ops/shell.tsx` paints the operator bar with inline colours,
+`background: var(--ink)` with `color: var(--paper)` on the wordmark, four nav
+links and the sign-out button. With `forcedColors: "active"`, axe reports a
+serious `color-contrast` failure on all six. Nothing anywhere in `src/` handles
+`forced-colors` at all.
+
+**Why this one matters more than its severity suggests.** The person affected is
+the operator, and there is exactly one operator account, and it is the account
+that runs the service for every school. Losing the nav and the sign-out button
+in high contrast is not a cosmetic problem for that person; it is the difference
+between being able to work and not.
+
+It is scoped to the ops area here because that is where it was found. The same
+inline-colour pattern is likely elsewhere in the product, which is worth a sweep
+rather than a spot fix: children with low vision use the child surfaces.
+
+## F33 · railway.json pinned a builder the service no longer uses · Medium → Fixed
+
+`railway.json` carried `"build": { "builder": "NIXPACKS" }` while the live
+service runs **RAILPACK**, confirmed by reading the deployed service config on
+2026-08-17 (`docs/ops-facts.md` 9.4).
+
+Railway's documentation states that configuration defined in code always
+overrides values set in the dashboard. So the next deploy would have moved the
+builder backwards onto the deprecated one, silently.
+
+That next deploy is not an ordinary one: it is also the first deploy to apply
+`healthcheckPath` and the first to run the migration baseline. Three unfamiliar
+things at once, one of them an unnoticed builder change, is how a bad afternoon
+starts.
+
+**Fixed** by deleting the `build` block entirely rather than setting it to
+RAILPACK, so the service keeps using whatever Railway selects and the repository
+stops asserting a fact it was wrong about.
 ## F35 · Backups exist now, and nobody knows which country they are in · Medium → Open
 
 Raised 2026-08-17, the same day backups were switched on, because turning them
