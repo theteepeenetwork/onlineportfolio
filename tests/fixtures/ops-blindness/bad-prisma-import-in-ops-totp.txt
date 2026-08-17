@@ -1,0 +1,18 @@
+// @path: src/lib/ops/totp.ts
+// @expect: OPS-PRISMA-IMPORT
+// PR1 widened DECLARED_DB_MODULES from two modules to three so that
+// src/lib/ops/session.ts could hold operator identity. This fixture is the
+// proof that the widening was a widening and not a hole: a FOURTH module
+// reaching for the client still fails, on the import, before it has read
+// anything.
+import { db } from "@/lib/db";
+import { generateSync } from "otplib";
+
+export async function lastStepFor(operatorId) {
+  const row = await db.operator.findUnique({ where: { id: operatorId }, select: { lastTotpStep: true } });
+  return row?.lastTotpStep ?? null;
+}
+
+export function codeForStep(secret, step) {
+  return generateSync({ secret, epoch: step * 30 });
+}

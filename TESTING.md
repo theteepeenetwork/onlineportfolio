@@ -78,6 +78,15 @@ cold. `npm run test:battery` now runs `tsc --noEmit` first, which catches that
 particular class of fault in about a second, but the cold run is what catches the
 rest.
 
+There is now a second reason to start cold. The operator area (`/ops`) answers
+404 to everybody unless the server was started with `OPS_ENABLED=1`, and the
+battery's Playwright config sets that when it starts its own dev server. A warm
+server you started yourself with plain `npm run dev` does not have it, so the
+operator specs fail on their very first test. That test exists to say so in
+words rather than leaving you reading twenty 404s: if you see "the dev server was
+started without OPS_ENABLED=1", kill the warm server and let Playwright start
+its own.
+
 Useful variants:
 
 ```bash

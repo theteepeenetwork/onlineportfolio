@@ -252,6 +252,41 @@ fixture that fires the wrong rule cannot pass for the right-looking reason.
 
 ---
 
+## F25 · An ops 404 is distinguishable from a real 404 by response size · Low → Accepted
+
+Found in review of PR1 by measuring, not by reading code.
+
+With `OPS_ENABLED=1` and no session, `/ops` returns 404 as ruling R17 requires.
+The body is 7,321 bytes. Two genuinely nonexistent routes return 8,997 and 9,011
+bytes on the same build, repeatably. So the existence of `/ops` as a route can be
+inferred from the size of its not-found response, which is the kind of signal
+R17 exists to remove.
+
+Why it is Accepted rather than Fixed:
+
+- **It reveals only that the route exists**, not who may use it, not what it
+  does, and nothing about any child or adult. The 404 body names nothing: the
+  page deliberately carries no `title`, which was a real leak found and fixed
+  during PR1, and the only occurrence of the path in the payload is Next echoing
+  the segment the requester themselves typed. A control against `/wibble` shows
+  the identical echo, so that part is generic framework behaviour.
+- **The door is openly reachable anyway.** When ops is enabled, `/ops/sign-in`
+  returns 200 to anybody, because a sign-in page nobody can reach is not a
+  sign-in page. Anyone curious enough to measure a 404 body would find that
+  first, so closing the size difference would buy nothing while the door exists.
+  What R17 actually forbids is a login page that NAMES the area, and this one
+  does not: its whole visible text is "Sign in", "Email", "Password",
+  "Continue".
+- **The fix is disproportionate.** Making the response byte-identical to a
+  framework 404 means either not routing `/ops` at all, or reproducing Next's
+  own not-found payload by hand and keeping it identical across upgrades. Both
+  are more fragile than the thing they would hide.
+
+What would change this: if the sign-in door ever moves behind something
+unguessable, the size difference becomes the remaining signal and should be
+closed at the same time. Recorded so that decision is made deliberately rather
+than by forgetting this exists.
+
 ## F24 · What the blindness gate still cannot see · Info → Accepted
 
 Recorded so no document claims more for the gate than is true. The gate's own
