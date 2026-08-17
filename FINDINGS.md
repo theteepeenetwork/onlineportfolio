@@ -72,7 +72,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F31 | Medium | Mail | The suppression sync has no schedule. Until it is scheduled, MailSuppression is a snapshot of whenever somebody last ran it by hand, and a parent who started bouncing this morning reads as not refused. | Open |
 | F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanishes: the header paints background and text as inline colours, so a high-contrast operator loses all four nav links and the sign-out button on the one account that runs the service. Nothing in src/ handles forced-colors. | Open |
 | F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
-| F35 | Medium | Data residency | Volume backups were switched on 2026-08-17, and Railway does not publish where they are stored. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
+| F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
 
 ---
 
@@ -891,7 +891,7 @@ starts.
 **Fixed** by deleting the `build` block entirely rather than setting it to
 RAILPACK, so the service keeps using whatever Railway selects and the repository
 stops asserting a fact it was wrong about.
-## F35 · Backups exist now, and nobody knows which country they are in · Medium → Open
+## F35 · Backups exist now, and the written evidence points at the United States · High → Open
 
 Raised 2026-08-17, the same day backups were switched on, because turning them
 on created this question rather than answering it.
@@ -920,6 +920,37 @@ that backups may leave the UK and EU, that is not a documentation update. It is
 a rule 10 problem needing either a different destination (option B in
 `docs/ops-backup-options.md`, an EU object store under our own control) or an
 explicit recorded owner decision, with the schools told.
+
+### Raised to High on 2026-08-17, because this is no longer an unknown
+
+The owner's understanding was that backups are held in Europe. That was checked
+against Railway's own published terms before anything was written into a
+document a school reads, and the terms say close to the opposite.
+
+Railway's Data Processing Agreement (`railway.com/legal/dpa`) states:
+
+> Customer acknowledges that Company's primary processing operations take place
+> in the United States and that the transfer of Personal Data to the United
+> States is necessary for the provision of the Services to Customer.
+
+The same document's security measures describe backups as taken "across
+multiple sites and regions" and name none of them. Local data residency is
+offered only as an option Railway "may provide" to paid customers, with no
+region identified. The sub-processor list at `trust.railway.com` names five
+vendors and gives a location for none of them.
+
+**So the position has changed from "nobody knows" to "the only written evidence
+available points to the United States, against a rule that promises the UK or
+EU".** Nothing here is proof about volume snapshots specifically, which is
+precisely the gap: the residency question has an answer in Railway's paperwork
+for processing generally, and no answer at all for backups particularly.
+
+**Do not resolve this by inference in either direction.** The service running in
+`europe-west4` is not evidence that its snapshots do, and the DPA's US clause is
+not proof that they do not. Both are inferences about a different thing than the
+one being asked. The only thing that closes it is Railway answering the direct
+question in writing: *for volume backups on this service, in which country or
+region are the snapshots stored?*
 
 ## How the battery encodes fixed findings
 
