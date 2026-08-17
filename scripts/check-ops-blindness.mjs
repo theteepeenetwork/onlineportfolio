@@ -622,7 +622,38 @@ const ALLOWED_PACKAGE_PREFIXES = ["next/"];
 // PLAN_LABELS, PLAN_PRICE_ENV, priceIdFor). @/lib/rateLimit is the shared
 // throttle. Everything else local, including every shared data helper, is
 // denied and must be reached through src/lib/ops/.
-const ALLOWED_LOCAL_IMPORTS = ["@/lib/billing-plans", "@/lib/rateLimit"];
+//
+// WIDENING (PR3, ruling R2: a widening lands in the SAME commit as the code it
+// permits, with a comment naming the rule and a fixture proving the true
+// positive still fires). The third entry is @/lib/stripeMode, and the gate
+// refused src/lib/ops/stripeLinks.ts as OPS-IMPORT-ALLOWLIST until it was
+// added, which is the rule working.
+//
+// Why it is needed at all. Owner decision D6 (docs/ops-architecture.md,
+// 2026-08-17) makes the billing screen read-only with a link out to the Stripe
+// dashboard. A dashboard URL carries the mode in its path (`/test/` for a
+// sandbox, omitted for live), so ops has to know which data set this deployment
+// is pointed at, and it has to know whether Stripe is configured here at all so
+// a screen can say so instead of offering a link to nothing.
+//
+// Why this module rather than the obvious one. The obvious import is
+// @/lib/stripe, and permitting THAT would be a genuine widening of what ops can
+// do: it constructs the Stripe SDK client from the secret key, so `getStripe()`
+// would become reachable from every operator screen and the "ops links out and
+// never calls out" property would rest on nobody typing it. @/lib/stripeMode
+// exists so that does not happen. It holds two functions over one environment
+// variable, imports nothing, returns only booleans, and never returns, logs or
+// formats the key. The secret stays outside the ops path, which is the rule
+// this widening upholds rather than relaxes.
+//
+// The true positive still fires, proved by two fixtures:
+//   bad-ops-imports-stripe-client.txt  an ops file importing @/lib/stripe, the
+//                                      near miss this widening invites -> fails
+//   bad-ops-imports-billing-lib.txt    another plausible shared billing helper,
+//                                      to show one entry did not open the door
+//                                      to the rest of src/lib          -> fails
+// and the clean shape by good-ops-stripe-mode-import.txt.
+const ALLOWED_LOCAL_IMPORTS = ["@/lib/billing-plans", "@/lib/rateLimit", "@/lib/stripeMode"];
 const ALLOWED_LOCAL_PREFIXES = ["@/lib/ops/"];
 
 // ---------------------------------------------------------------------------

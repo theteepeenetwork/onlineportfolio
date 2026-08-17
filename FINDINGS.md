@@ -66,6 +66,8 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F25 | Low | Ops surface | With ops enabled, an unauthorised `/ops` 404 is about 1,700 bytes smaller than a genuine one, so the route's existence is inferable by size. Accepted: the body names nothing and the sign-in door is openly reachable anyway. | Accepted |
 | F26 | Medium | Erasure | Deleting a `Teacher` row cascades their classes, pupils, moments, drafts and templates and erases **no** media files. Latent today (only never-activated staff are ever deleted), but it is the exact shape PR8's account deletion will reach for | **Open, logged not fixed** | none yet; must be written with the fix |
 | F27 | Medium | Erasure / Claims | Teacher-authored **template** media (`templatePathsJson`, `quizJson` option pictures, `objectsJson` image srcs) has no erasure path at all: templates are only archived, never deleted. `RETENTION.md` says this media is "deleted with the template/account". `duplicateTemplate` also copies the path strings, so two templates share files on disk | **Open, logged not fixed** | none yet; must be written with the fix |
+| F28 | Medium | Availability / build | The app fetches its two webfonts from Google at build and dev-server startup via `next/font/google`. A 404 or outage from `fonts.gstatic.com` fails the build, which took out a CI job on 2026-08-17 and would equally fail a production deploy. | Open |
+| F29 | Low | Test timing | The template restore prompt waits on an IndexedDB purge, an IndexedDB read and a Server Action round trip before it can render. On a cold CI runner that exceeded the 10 second default assertion budget twice in one day while passing locally every time. The assertion now names the precondition and allows 30 seconds. | Fixed |
 
 ---
 
@@ -731,6 +733,47 @@ clip` so cards shrink instead of overflowing at 768px. **Guards:**
 `ux/responsive.spec.ts`.
 
 ---
+
+## F28 · The build depends on Google's font CDN being up · Medium → Open
+
+Found on 2026-08-17 when the accessibility job failed on a green commit.
+
+`src/app/layout.tsx` loads Fredoka and Atkinson Hyperlegible through
+`next/font/google`. That fetches the font files from `fonts.gstatic.com` at
+build time and at dev-server startup. On this run Google answered **404** for a
+Fredoka `.woff2`, the dev server never finished starting, and Playwright gave up
+after 120 seconds:
+
+```
+Received response with status 404 when requesting
+https://fonts.gstatic.com/s/fredoka/v17/...woff2
+Error: Timed out waiting 120000ms from config.webServer.
+```
+
+The E2E job passed on the same commit, so the outage was brief or partial. That
+is what makes it worth writing down rather than shrugging at: it looked exactly
+like a flaky test, and it was not.
+
+**Why this matters beyond a red CI job.** The same fetch happens when Railway
+builds a deployment. A Google hiccup during a deploy fails that deploy. The
+healthcheck means the previous deployment keeps serving, so it degrades to "you
+cannot ship right now" rather than "the site is down", but a service schools
+depend on should not have its ability to deploy gated on a third party's CDN
+answering a hashed URL correctly.
+
+It is also a small privacy point in our favour that should not be overstated:
+`next/font/google` downloads at build time and self-hosts the result, so a
+child's browser never requests anything from Google. The dependency is on the
+build, not on the user.
+
+**The fix, when someone picks it up:** vendor the two font files into the repo
+and switch to `next/font/local`. That removes the build-time network dependency
+entirely and changes nothing a user sees. It is a small, self-contained change,
+and it wants its own PR with the font licences checked (both are open licensed,
+but that should be confirmed and recorded rather than assumed).
+
+Not fixed here because it is unrelated to the PR that surfaced it, and a font
+change touches every page in the product.
 
 ## How the battery encodes fixed findings
 

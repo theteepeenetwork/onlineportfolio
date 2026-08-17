@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { BATTERY_STRIPE_KEY } from "./tests/battery/stripeFixtureKey";
 
 // ---------------------------------------------------------------------------
 // The QA battery config (security + accessibility + UX), separate from the
@@ -20,7 +21,17 @@ const BASE_URL = `http://localhost:${PORT}`;
 export default defineConfig({
   // Reseed to the two-tenant fixtures before the battery runs.
   globalSetup: "./tests/battery/global-setup.ts",
-  timeout: 60_000,
+  // Two minutes per test, raised from one on 17 August 2026. Nothing was
+  // weakened to get there: no assertion changed, and `expect` still gives up
+  // after ten seconds, so a broken page still fails fast. What needed the room
+  // is the operator door, which is deliberately slow by design. A TOTP code
+  // lasts thirty seconds and replay protection refuses a step at or below the
+  // last accepted one, so two sign-ins inside one window are impossible and a
+  // suite that signs in more than twenty times has to wait for the clock. Ops
+  // tests routinely spent 30 of the 60 seconds signing in before they had done
+  // anything, and a dev server compiling a route for the first time on top of
+  // that left no margin at all.
+  timeout: 120_000,
   expect: { timeout: 10_000 },
   // Tests share one SQLite database and mutate sessions/rows — run serially.
   fullyParallel: false,
@@ -69,6 +80,15 @@ export default defineConfig({
     // dev server started without it makes ops-auth.spec.ts fail on its first
     // test with a message saying exactly that. See TESTING.md on warm versus
     // cold servers.
-    env: { OPS_ENABLED: "1" },
+    //
+    // BATTERY_STRIPE_KEY is a fictional test-mode key, and it is here for one
+    // reason: whether the operator billing screen offers a link into the Stripe
+    // dashboard depends on whether a key is present at all, and CI sets none.
+    // Without this, the link-out would render on a developer's machine and not
+    // in CI, so the one new interactive element in PR3 would be untested on the
+    // build that gates the merge. It is never sent anywhere: no code path in
+    // the operator area calls Stripe, and the webhook spec stays skipped
+    // because it also needs STRIPE_WEBHOOK_SECRET, which is still unset.
+    env: { OPS_ENABLED: "1", STRIPE_SECRET_KEY: BATTERY_STRIPE_KEY },
   },
 });

@@ -33,6 +33,7 @@ import { opsSignOut } from "@/app/actions/ops/session";
 export const OPS_LINKS = [
   { href: "/ops", label: "Today" },
   { href: "/ops/schools", label: "Schools" },
+  { href: "/ops/billing", label: "Billing" },
   { href: "/ops/lookup", label: "Find an adult" },
 ] as const;
 

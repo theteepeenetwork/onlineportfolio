@@ -4,12 +4,14 @@ import { bandForPupils, formatPrice } from "@/lib/billing-plans";
 import { allowCodeLookup, recordCodeHit, recordCodeMiss, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 import { recordOpsAudit } from "@/lib/ops/audit";
 import { requireOperator } from "@/lib/ops/session";
+import { currentStripeMode, stripeModeStatement, stripeRef } from "@/lib/ops/stripeLinks";
 import {
   formatDay,
   headcount,
   maskEmail,
   type AdultRecordDto,
   type BandDto,
+  type BillingViewDto,
   type LookupKind,
   type SchoolRowDto,
 } from "@/lib/ops/dto";
@@ -168,6 +170,121 @@ export async function listSchools(): Promise<SchoolRowDto[]> {
         : null,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Billing (PR3, owner decision D6)
+// ---------------------------------------------------------------------------
+//
+// Read-only, and structurally so. There is no write here, no override field and
+// no precedence rule, because owner decision D6 (docs/ops-architecture.md,
+// 2026-08-17) dropped manual payment recording from v1: the Subscription row is
+// a MIRROR written by the Stripe webhook, so anything an operator typed into it
+// would be reverted by the next event without telling them. The screen shows
+// the mirror and links out to Stripe, which is where the truth lives.
+//
+// The columns are named one at a time, as everywhere else in this file. That is
+// not ceremony: a Prisma read with no `select:` returns every scalar column,
+// and the gate refuses one for exactly that reason.
+
+// What needs attention, then what does not. A school whose payment has failed
+// or whose account has already gone read-only is the reason an operator opens
+// this screen at all, and a list sorted by anything else buries it. Sorted in
+// this process rather than in SQL because the order is a judgement about what
+// matters, not a column, and the list is capped at SCHOOLS_PAGE_MAX rows.
+const BILLING_ATTENTION_ORDER = ["PAST_DUE", "FROZEN", "TRIAL", "ACTIVE"];
+
+// A school with no Subscription row at all sorts last, after every known
+// status. It is not an alarm: it is what a school looks like before anybody has
+// arranged to pay.
+function attentionRank(status: string | null): number {
+  if (status === null) return BILLING_ATTENTION_ORDER.length + 1;
+  const at = BILLING_ATTENTION_ORDER.indexOf(status);
+  return at === -1 ? BILLING_ATTENTION_ORDER.length : at;
+}
+
+/**
+ * Every registered school's billing state, the price band, the headcount that
+ * justifies the band, and the way through to Stripe.
+ *
+ * The headcount comes from headcount() in src/lib/ops/dto.ts, the same
+ * suppression the schools list uses, so the exact number never leaves the
+ * server below the threshold. There is deliberately no second threshold and no
+ * band worked out anywhere but here (handbook ruling R10: "One suppression
+ * constant, MIN_CELL = 10, in one place").
+ *
+ * FREE teacher plans are not here. A free plan has no price, no band and no
+ * Stripe customer, so a row for one would be five empty fields next to a
+ * person's name; the schools register is where an account is looked up.
+ */
+export async function listBilling(): Promise<BillingViewDto> {
+  await requireOperator();
+
+  const rows = await db.school.findMany({
+    take: SCHOOLS_PAGE_MAX,
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      subscription: {
+        select: {
+          kind: true,
+          status: true,
+          trialEndsAt: true,
+          currentPeriodEnd: true,
+          frozenAt: true,
+          // Two opaque billing identifiers, and the only reason they are read:
+          // they are what a dashboard link is built from. They authenticate
+          // nobody (reaching the object behind one needs Stripe's own login),
+          // they are already covered by RETENTION.md's six-year billing line,
+          // and no Stripe call is made with either of them from anywhere in
+          // this area.
+          stripeCustomerId: true,
+          stripeSubscriptionId: true,
+        },
+      },
+    },
+  });
+
+  // Resolved once for the whole page rather than per row: it is the same answer
+  // every time, and it is the only impure thing in the link path.
+  const mode = currentStripeMode();
+  const rolls = await Promise.all(rows.map((row) => pupilsOnRoll(row.id)));
+
+  const billing = rows.map((row, i) => {
+    const pupils = rolls[i];
+    const sub = row.subscription;
+    return {
+      id: row.id,
+      schoolName: row.name,
+      pupils: headcount(pupils),
+      band: bandFrom(pupils),
+      billing: sub
+        ? {
+            kind: sub.kind,
+            status: sub.status,
+            registrationLabel: KIND_LABEL[sub.kind] ?? sub.kind,
+            statusLabel: STATUS_LABEL[sub.status] ?? sub.status,
+            trialEndsAt: formatDay(sub.trialEndsAt),
+            currentPeriodEnd: formatDay(sub.currentPeriodEnd),
+            frozenAt: formatDay(sub.frozenAt),
+          }
+        : null,
+      stripe: stripeRef(mode, sub?.stripeCustomerId ?? null, sub?.stripeSubscriptionId ?? null),
+    };
+  });
+
+  // Ties broken on the school name with a plain comparison rather than
+  // localeCompare, so two runs on two machines cannot disagree about the order
+  // for the same reason dates are formatted by hand in src/lib/ops/dto.ts.
+  billing.sort((a, b) => {
+    const rank = attentionRank(a.billing?.status ?? null) - attentionRank(b.billing?.status ?? null);
+    if (rank !== 0) return rank;
+    if (a.schoolName === b.schoolName) return a.id < b.id ? -1 : 1;
+    return a.schoolName < b.schoolName ? -1 : 1;
+  });
+
+  return { stripeStatement: stripeModeStatement(mode), rows: billing };
 }
 
 // ---------------------------------------------------------------------------

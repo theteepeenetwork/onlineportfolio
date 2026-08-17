@@ -62,8 +62,26 @@ test("a teacher's in-progress template survives a reload and saves correctly", a
   await expect(page.locator("#title")).toHaveValue(""); // proves state was really lost
 
   // Reopen the editor → the restore prompt offers the saved work.
+  //
+  // This assertion gets its own, longer budget, and the reason is worth stating
+  // because the obvious reading is that somebody inflated a timeout to make a
+  // flaky test pass. It is the opposite. The prompt cannot appear until the
+  // canvas has done three things in order: purged expired drafts from
+  // IndexedDB, read the local draft back, and completed a Server Action round
+  // trip for the cross-device copy (DrawingCanvas: purgeExpired, then
+  // Promise.all([loadDraft, serverLoadDraft])). On a cold CI runner that last
+  // one is also the first compile of that action, and the whole sequence has
+  // twice exceeded the 10 second default while passing locally every time,
+  // once on main and once on an unrelated PR.
+  //
+  // So the wait is not padding: it names a real precondition that a fast local
+  // machine hides. The assertion still fails if the prompt never comes, which
+  // is the thing being tested. If it ever fails at THIS budget, that is a
+  // genuine defect in draft restore and not a slow runner.
   await page.getByRole("button", { name: /Build a template/ }).click();
-  await expect(page.getByRole("dialog", { name: /restore your unsaved work/i })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /restore your unsaved work/i })).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByRole("button", { name: /Restore my work/i }).click();
 
   // The restored drawing is back in the editor's hidden field…

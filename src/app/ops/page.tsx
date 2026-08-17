@@ -54,6 +54,11 @@ export default async function OpsConsolePage() {
               in, and how many pupils are on roll.
             </li>
             <li>
+              <strong>Billing</strong> shows what each school is on and what it owes, with anything
+              unpaid or lapsed at the top and a way through to Stripe. It changes nothing: Stripe is
+              where a payment is recorded.
+            </li>
+            <li>
               <strong>Find an adult</strong> looks one member of staff or one parent up by their exact
               email address, and records why you looked.
             </li>

@@ -315,6 +315,19 @@ async function main() {
       status: "FROZEN",
       trialEndsAt: new Date(Date.now() - 10 * DAY), // trial lapsed 10 days ago
       frozenAt: new Date(Date.now() - 3 * DAY), // read-only for 3 days (12-month clock running)
+      // Fictional Stripe ids, and the only fixture that has any. Larchwood is
+      // the school that once went through checkout and then lapsed, so the
+      // operator billing screen (PR3) has a customer and a subscription to link
+      // out to. St Bede's has neither, which makes it the negative control on
+      // the same render: the screen must say Stripe holds nothing for it rather
+      // than showing an empty space.
+      //
+      // These are never sent to Stripe. Nothing in the operator area calls
+      // Stripe at all; the ids exist so a link can be built from them.
+      // Deliberately unlike the ids in stripe-webhook.spec.ts, which rewrites
+      // Oakfield's row, so the two fixtures cannot collide on the unique index.
+      stripeCustomerId: "cus_seedlarchwood0001",
+      stripeSubscriptionId: "sub_seedlarchwood0001",
       schoolId: larch.id,
     },
   });

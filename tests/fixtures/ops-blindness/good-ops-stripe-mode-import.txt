@@ -1,0 +1,23 @@
+// @path: src/lib/ops/stripeLinks.ts
+// The shape the PR3 widening permits, and the whole of it. Two booleans in, a
+// string out. No network call, no secret key, no database, and nothing here
+// writes anything: owner decision D6 makes the billing screen read-only with a
+// link out to Stripe, which is where the truth lives.
+//
+// The mode segment sits before the page and is omitted entirely for live mode,
+// verified against Stripe's own deep-link documentation rather than written
+// from memory.
+import { stripeConfigured, stripeLiveMode } from "@/lib/stripeMode";
+
+const ORIGIN = "https://dashboard.stripe.com";
+const SHAPE = /^[A-Za-z0-9_]{3,255}$/;
+
+export function currentMode() {
+  if (!stripeConfigured()) return null;
+  return stripeLiveMode() ? "live" : "test";
+}
+
+export function customerLink(mode, id) {
+  if (!SHAPE.test(id)) return null;
+  return `${ORIGIN}${mode === "test" ? "/test" : ""}/customers/${id}`;
+}

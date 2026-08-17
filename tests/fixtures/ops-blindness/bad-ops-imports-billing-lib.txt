@@ -1,0 +1,18 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// One allowlist entry is one allowlist entry. @/lib/billing.ts is a plausible
+// shared billing helper with a plausible reason to be reached from a billing
+// screen, and it is still denied: it holds freezeSubscription() and the
+// governing-subscription resolution, which are writes and reads over the live
+// tables. Ops reaches data through src/lib/ops/reads.ts and nowhere else.
+import "server-only";
+import { db } from "@/lib/db";
+import { governingSubscription } from "@/lib/billing";
+
+export async function billingForSchool(schoolId) {
+  const school = await db.school.findUnique({
+    where: { id: schoolId },
+    select: { id: true, name: true },
+  });
+  return { school, sub: await governingSubscription(schoolId) };
+}
