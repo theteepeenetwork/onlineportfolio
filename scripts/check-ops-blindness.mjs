@@ -132,10 +132,63 @@ const OPS_ROOTS = [
 // obvious candidate), that is a widening of this gate and it lands in the SAME
 // commit as the code it permits, with a comment naming the rule and a new
 // fixture. It is not a quiet edit at 11pm.
+//
+// WIDENING (PR1, ruling R2). The third module is src/lib/ops/session.ts, and
+// the gate refused it as OPS-PRISMA-IMPORT until this line was added, which is
+// the rule working. Operator identity needs the client for a reason no facade
+// helper can absorb: it reads and writes the operator's OWN account and session
+// rows on every request, inside a transaction when it rotates a session, and it
+// is the one place in the programme that must be able to do so before anybody
+// is authenticated. Routing that through reads.ts would put unauthenticated
+// writes into the read chokepoint, which is worse than naming a third module.
+//
+// The true positive still fires for a fourth module, proved by the fixture
+// tests/fixtures/ops-blindness/bad-prisma-import-in-ops-totp.txt, and the clean
+// shape is proved by good-operator-session-store.txt.
 const DECLARED_DB_MODULES = [
   "src/lib/ops/reads.ts",
   "src/lib/ops/audit.ts",
+  "src/lib/ops/session.ts",
 ];
+
+// ---------------------------------------------------------------------------
+// The door (PR1 WIDENING of OPS-REQUIRE-OPERATOR, ruling R2)
+// ---------------------------------------------------------------------------
+// Every exported callable under the ops roots must begin with
+// `await requireOperator(`. Two files cannot: the sign-in screen and the
+// sign-in actions are HOW an operator session is obtained, so there is no
+// session yet when they run. Before PR1 this was invisible, because there was
+// no door.
+//
+// The wrong fixes, both rejected:
+//   - no guard at all on the door, which would leave the kill switch
+//     unenforced on the only publicly reachable ops surface;
+//   - an argument that turns requireOperator off (`requireOperator({ door:
+//     true })`), which is ruling R6's shape exactly: a guard that sometimes
+//     does not guard, decided by a parameter somebody can copy.
+//
+// The fix taken: a SECOND, narrower, differently named guard,
+// `requireOpsDoor()`, which enforces OPS_ENABLED (ruling R17) and nothing else,
+// permitted in exactly the files named here and nowhere else. Every other ops
+// file still needs the full guard, a door file with no guard fails just as
+// loudly, and adding a file to this list is a reviewed edit in a diff rather
+// than a quiet call-site change.
+//
+// True positive still fires, proved by two fixtures:
+//   bad-door-page-unguarded.txt        a door file with no guard      -> fails
+//   bad-door-guard-on-console-page.txt the weak guard on a normal ops page,
+//                                      which is the exact leak this widening
+//                                      could have introduced             -> fails
+// and the clean shape by good-door-page-guarded.txt.
+//
+// There is deliberately no "this listed file must exist" drift check, unlike
+// the model and denylist lists, because this list rots SAFE in both directions:
+// an entry pointing at a file that no longer exists permits nothing, and a door
+// file that is renamed out of the list immediately fails for wanting the FULL
+// guard. The failure of neglect here is a red build, not a silent hole.
+const OPS_DOOR_FILES =["src/app/ops/sign-in/page.tsx", "src/app/actions/ops/auth.ts"];
+const DOOR_GUARD_CALL = "await requireOpsDoor(";
+const FULL_GUARD_CALL = "await requireOperator(";
 
 // The single file allowed to write an AuditLog row (ruling R4: ops READS
 // OpsAuditLog; the one permitted auditLog call shape is db.auditLog.create from
@@ -203,8 +256,33 @@ const LOOKUP_ONLY = ["Parent"];
 // an operations hat (ruling R4).
 const CREDENTIAL_NEVER = ["Session", "MagicToken", "AuditLog"];
 
-// The operator's own records. Empty until PR1 adds them.
-const OPS_OWNED = [];
+// The operator's own records.
+//
+// WIDENING (PR1, ruling R2: a widening lands in the same commit as the code it
+// permits, with a comment naming the rule and a fixture proving the true
+// positive still fires). This list was empty until PR1 added the three models
+// below, and the gate refused all three as OPS-MODEL-UNKNOWN until they were
+// classified here, which is the drift check working exactly as intended.
+//
+// Why OPS_OWNED rather than a narrower class: these are the operator's OWN
+// account, the operator's own browser sessions and the operator's own audit
+// trail. There is no child, no parent and no teacher in any of them, so the
+// "what may an operator read about somebody else" question that shapes every
+// other class does not arise. Ops must be able to create, read, update and
+// delete its own session rows or it cannot sign anybody in or out.
+//
+// What this widening does NOT do:
+//   - it does not let any ops file reach these tables directly. Only the three
+//     DECLARED_DB_MODULES may import the client at all
+//     (bad-prisma-import-in-ops-totp.txt proves a fourth still fails).
+//   - it does not exempt them from every other rule: an OPS_OWNED row read is
+//     still subject to the banned-identifier, impersonation, media, filesystem
+//     and guard rules, which is why the operator's columns are `pwHash` and
+//     `tokenHash` rather than the banned `passwordHash` and `token`.
+//   - it does not silence the drift check for anything else: a model that is in
+//     the schema and in none of these lists still fails, proved against a
+//     throwaway tree by tests/battery/security/ops-blindness-gate.spec.ts (A15).
+const OPS_OWNED = ["Operator", "OperatorSession", "OpsAuditLog"];
 
 const PRISMA_METHODS = [
   "findUnique",
@@ -472,6 +550,16 @@ const ALLOWED_PACKAGES = [
   "node:crypto",
   "bcryptjs",
   "qrcode",
+  // WIDENING (PR1, ruling R2). TOTP, on owner decision D4: otplib 13.4.1, MIT,
+  // maintained, crypto plugins are @noble / @scure, installed as a production
+  // dependency so `npm run audit:prod` covers it in the blocking chain. The
+  // alternative was hand-rolled RFC 6238, which nobody else would review.
+  // It reads a secret and emits six digits; it touches no database, no
+  // filesystem and no request. The true positive still fires for any other
+  // package, proved by tests/fixtures/ops-blindness/bad-unlisted-otp-package.txt
+  // (an unlisted TOTP library, which is the near miss this widening invites),
+  // and the clean shape by good-totp-via-otplib.txt.
+  "otplib",
 ];
 const ALLOWED_PACKAGE_PREFIXES = ["next/"];
 // Local imports permitted from ops files. @/lib/billing-plans holds the price
@@ -1360,14 +1448,21 @@ function checkFile(rel, raw, ctx) {
       });
     }
     candidates.sort((a, b) => a.index - b.index);
+    // The door files get the narrower guard and NOTHING ELSE gets it: a normal
+    // ops page that opens with requireOpsDoor() is a page reachable by anyone
+    // with the kill switch on, so it fails as a missing requireOperator.
+    const isDoor = OPS_DOOR_FILES.includes(rel);
+    const required = isDoor ? DOOR_GUARD_CALL : FULL_GUARD_CALL;
     for (const { index, name, bodyStart } of candidates) {
       const body = code.slice(bodyStart + 1);
       const firstStatement = body.replace(/^\s*(["'])use \w+\1\s*;?\s*/, "").trimStart();
-      if (!firstStatement.startsWith("await requireOperator(")) {
+      if (!firstStatement.startsWith(required)) {
         add(
           index,
-          "OPS-REQUIRE-OPERATOR",
-          `exported "${name}" does not begin with \`await requireOperator(\`. A Server Action is a POST endpoint reachable with a crafted request; the guard must be the first statement of the function, not of an ancestor.`,
+          isDoor ? "OPS-REQUIRE-DOOR-GUARD" : "OPS-REQUIRE-OPERATOR",
+          isDoor
+            ? `exported "${name}" does not begin with \`${DOOR_GUARD_CALL}\`. This file is on OPS_DOOR_FILES, which means it runs before anybody is authenticated, so it must still enforce the OPS_ENABLED kill switch as its first statement. If this file no longer needs to run unauthenticated, take it off that list and use requireOperator instead.`
+            : `exported "${name}" does not begin with \`${FULL_GUARD_CALL}\`. A Server Action is a POST endpoint reachable with a crafted request; the guard must be the first statement of the function, not of an ancestor. requireOpsDoor() is NOT a substitute: it checks the kill switch and proves nothing about who is asking.`,
         );
       }
     }

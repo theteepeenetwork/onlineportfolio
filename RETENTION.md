@@ -58,6 +58,9 @@
 | Magic tokens | Until used or expired | Expired tokens purged within **7 days** |
 | Sessions | Until expiry/logout | Purged within **7 days** of expiry |
 | Teacher/staff accounts | Account exists | Deleted on school instruction or account closure; personal data minimised to name + email throughout |
+| **Platform operator account** (added 2026-08-17, when operator identity was built). One row, `Operator`: the operator's own email address, a bcrypt password hash, a TOTP secret, ten bcrypt-hashed single-use recovery codes, a failed-attempt counter, a lockout time and the last sign-in time. **Adult staff data about the person who runs the service, not child data, and there is exactly one of these rows.** The plaintext password, TOTP secret and recovery codes are printed once at creation and live outside Storyjar entirely (a password manager and a sheet of paper), so the only copies here are hashes and one secret the account cannot function without. | The person operates the service | Deleted when they stop, or on account rebuild (`docs/ops-recovery.md`), which removes the row outright rather than marking it disabled. Deleting it takes the TOTP secret and every recovery-code hash with it, and cascades to the operator's sessions. It does **not** delete the operator audit trail below: an account rebuild must never be a way to erase the record of what that account did. |
+| **Operator sessions** (`OperatorSession`). One row per signed-in browser, holding a SHA-256 hash of the session value and never the value itself, plus the times it was created and last used. No address, no device information, no location. | Until sign-out, or 30 minutes idle, or 8 hours absolute, whichever comes first | Deleted at that moment, not marked expired: sign-out, idle timeout, absolute expiry, disabling the account and rebuilding the account all remove the rows. A stale row is therefore a bug rather than a retention question. |
+| **Operator audit log** (`OpsAuditLog`). Who did what in the operator area: sign-in, sign-in failure (recorded against a one-way label for the address attempted, never the address), code failure, enrolment, recovery-code use, sign-out, and every named action a later release adds. Actor and action only. **It cannot contain a child's name, a child's work or a credential value**, because the operator area is structurally unable to read those (SAFEGUARDING rules 4 and 5, enforced by `scripts/check-ops-blindness.mjs`), and a blocking test asserts no row carries a credential. | **2 years** rolling, matching the audit row below it | Deleted. Like that row, the purge is carried out manually today: the scheduled job that enforces both is the same open item recorded at the foot of this document. |
 | Audit logs (approvals, deletions, exports, access) | **2 years** rolling | Deleted; a minimal deletion record (what was deleted, when, on whose instruction — no child data) is kept **6 years** for accountability |
 | Billing records — subscription state, Stripe customer/subscription IDs, invoices, payment status (**no card data** held by Storyjar; adult billing data only) | **6 years** | Deleted (HMRC/accounting requirement) |
 | Backups | **35-day** rolling cycle | Deletions propagate out of all backups within one cycle; backups stay in the same EU region as the data (Amsterdam) |
@@ -127,7 +130,12 @@ The school remains the data controller regardless of who pays. Consequences:
 - [ ] Surface this schedule in the customer-facing privacy notice and DPA in
       plain language (Children's Code transparency standard).
 
-*Last updated: 2026-08-16 (transactional email provider changed to Mailjet; email
+*Last updated: 2026-08-17 (platform operator identity built: three rows added to
+the schedule above for the operator account, its sessions and its own audit log.
+They are the first records Storyjar holds about the person who runs it rather
+than about a school, a teacher, a parent or a child, which is why they get their
+own lines rather than being folded into "Teacher/staff accounts". Previously
+2026-08-16: transactional email provider changed to Mailjet; email
 delivery-record row rewritten, retention regression from 1 month to 90 days
 recorded above. Also 2026-08-16: family access became buildable by a teacher for
 the first time, so the parent row above was rewritten so that a parent's name and email

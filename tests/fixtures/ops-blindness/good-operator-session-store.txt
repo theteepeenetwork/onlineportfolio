@@ -1,0 +1,32 @@
+// @path: src/lib/ops/session.ts
+// The shape PR1's widening exists to permit: the third declared module reading
+// and writing the operator's OWN account and session rows. Every column named
+// here belongs to the operator; no child, parent or teacher row is touched; the
+// credential columns are `tokenHash` and `pwHash` rather than the banned
+// `token` and `passwordHash`; and the session value itself is hashed before it
+// is stored, so a leaked database file is a list of hashes and not a set of
+// live sessions.
+import "server-only";
+import { createHash, randomBytes } from "node:crypto";
+import { db } from "@/lib/db";
+
+export async function mintOperatorSession(operatorId) {
+  const secret = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  await db.operatorSession.create({
+    data: { tokenHash: createHash("sha256").update(secret).digest("hex"), operatorId, stage: "FULL", expiresAt },
+  });
+  return secret;
+}
+
+export async function operatorForSecret(secret) {
+  const row = await db.operatorSession.findUnique({
+    where: { tokenHash: createHash("sha256").update(secret).digest("hex") },
+    select: { id: true, stage: true, operator: { select: { id: true, email: true, role: true, status: true } } },
+  });
+  return row;
+}
+
+export async function endOperatorSessions(operatorId) {
+  await db.operatorSession.deleteMany({ where: { operatorId } });
+}

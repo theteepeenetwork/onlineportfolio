@@ -360,3 +360,98 @@ model AuditLog {
 
   @@index([schoolId, at])
 }
+
+// ---------------------------------------------------------------------------
+// The platform operator (PR1 of the operator programme). NOT a school admin.
+// ---------------------------------------------------------------------------
+// `Teacher.role = "ADMIN"` already means "admin at this school" and must keep
+// meaning only that, so the operator gets its own table, its own session table
+// and its own cookie. getCurrentUser() must remain incapable of returning an
+// operator and requireOperator() incapable of returning a teacher, student or
+// parent; both directions are asserted in
+// tests/battery/security/ops-auth.spec.ts (spec A21).
+//
+// Column names here are deliberately NOT the ones the blindness gate bans.
+// Session.token and Teacher.passwordHash are credential names an operator must
+// never read, so the operator's own columns are `tokenHash` and `pwHash`, which
+// pass the gate's word-boundary matching. That is a naming constraint with a
+// zero-cost remedy and it says the true thing: the operator's own secret is a
+// different thing from a child's.
+//
+// Retention: RETENTION.md, "Platform operator account" and "Operator sessions
+// and recovery codes". Purpose and residual risks: docs/DPIA.md R15.
+model Operator {
+  id    String @id @default(cuid())
+  email String @unique
+  // bcrypt, cost 12 (OPS_BCRYPT_COST in src/lib/ops/passwords.ts).
+  pwHash String
+  // Base32 TOTP secret. Stored in plaintext beside the database on the same
+  // volume: encrypting it with a key from the environment would place the key
+  // on the same host, so it buys less than it appears to. Recorded and accepted
+  // in docs/DPIA.md R15 rather than left undocumented.
+  totpSecret      String
+  totpConfirmedAt DateTime? // null until the operator has enrolled
+  // Monotonic replay protection: a step less than OR EQUAL to this is refused,
+  // so an attacker cannot replay the older code that is still inside the window.
+  lastTotpStep Int?
+  // Ten single-use recovery codes, bcrypt-hashed, as
+  // [{ "hash": "$2b$12$…", "usedAt": null }]. The plaintext is printed once by
+  // scripts/seed-operator.ts and lives offline (docs/ops-recovery.md).
+  recoveryCodesJson String @default("[]")
+  role              String @default("OWNER") // OWNER | OPERATOR. One account exists (handbook D11); the split exists so "the last owner is protected" is expressible
+  status            String @default("ACTIVE") // ACTIVE | DISABLED
+  // Lockout is persisted on the row, not held in the in-process rate limiter:
+  // that store resets on every deploy and every restart, and this is the one
+  // door where the attacker gets everything.
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  lastSignInAt   DateTime?
+  createdAt      DateTime  @default(now())
+  // Named opsSessions, not `sessions`: `sessions` is a relation to the app's
+  // Session model elsewhere in this schema, and the blindness gate matches
+  // relation names, not types.
+  opsSessions OperatorSession[]
+}
+
+// One row per operator browser session. Stores the SHA-256 hash of the cookie
+// value and never the value, so a leaked database file is not a set of live
+// sessions (the existing Session.token stores raw; that is pre-existing and out
+// of scope here, and this deliberately does not copy it).
+model OperatorSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  operatorId String
+  // PASSWORD = password accepted, TOTP not yet proven; nothing but the sign-in
+  // screen is reachable. FULL = both proven. The value is rotated (a new row,
+  // a new cookie) at the moment TOTP succeeds, so a pre-auth identifier cannot
+  // be fixated.
+  stage      String
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime // absolute cap; idle is enforced against lastSeenAt
+
+  @@index([operatorId])
+}
+
+// The operator's own audit table (handbook ruling R4). Ops never reads
+// AuditLog: its `detail` is free text written by teacher-facing actions and
+// routinely contains a child's first name, so reading it would be a child-data
+// read wearing an operations hat.
+model OpsAuditLog {
+  id          String   @id @default(cuid())
+  at          DateTime @default(now())
+  actorId     String? // null for a failed sign-in against an unknown address
+  actorName   String
+  action      String // e.g. OPS_SIGN_IN | OPS_SIGN_IN_FAILED | OPS_TOTP_FAILED
+  subjectType String?
+  subjectId   String?
+  reason      String? // the operator's stated reason, verbatim, on mutating actions
+  detail      String? // never a child's name, never a credential value
+  // Unique so QA can force a genuine constraint violation and prove that an
+  // audit failure fails the operation (ruling R5), with no fault flag in the
+  // product to do it with.
+  idempotencyKey String? @unique
+
+  @@index([at])
+}

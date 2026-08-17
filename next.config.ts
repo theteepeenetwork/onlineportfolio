@@ -59,7 +59,28 @@ const nextConfig: NextConfig = {
   },
 
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // The operator area, on top of the site-wide set above. There is no
+      // middleware file in this project and one is not being invented for this:
+      // these two headers are static, so they belong in the same place as every
+      // other static header.
+      //
+      //   X-Robots-Tag  the area must not be indexed, followed or archived. It
+      //                 is deliberately NOT named in robots.txt (there is no
+      //                 robots.txt, and adding one to name this path would
+      //                 publish it).
+      //   Cache-Control an edge- or browser-cached authenticated operator page
+      //                 is a cross-user disclosure. Every ops route is also
+      //                 force-dynamic for the same reason.
+      ...["/ops", "/ops/:path*"].map((source) => ({
+        source,
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+          { key: "Cache-Control", value: "private, no-store" },
+        ],
+      })),
+    ];
   },
 
   // Serve Stripe's Apple Pay domain-association file at the exact well-known path

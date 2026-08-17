@@ -1,0 +1,14 @@
+// @path: src/app/ops/page.tsx
+// @expect: OPS-REQUIRE-OPERATOR
+// The leak the door widening could have introduced, and the reason the narrow
+// guard is allowed in two named files and nowhere else: requireOpsDoor() proves
+// only that the area is switched on. A console page opening with it renders for
+// anybody who asks.
+import { requireOpsDoor } from "@/lib/ops/session";
+
+export const dynamic = "force-dynamic";
+
+export default async function OpsConsolePage() {
+  await requireOpsDoor();
+  return <main><h1>Operations</h1></main>;
+}

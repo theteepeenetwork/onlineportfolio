@@ -1,4 +1,6 @@
 import { type Page, expect } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
+import { codeForStep, totpStepAt } from "@/lib/ops/totp";
 
 // Known fixture accounts (see prisma/seed-test.ts). Passwords are all "password"
 // — fictional test data only.
@@ -128,6 +130,88 @@ export async function studentIdFromLogin(page: Page, code: string, name: string)
 // `x-forwarded-for` before the app sees it (verified, see src/lib/rateLimit.ts).
 export function ownThrottleKey(label: string): Record<string, string> {
   return { "x-forwarded-for": `203.0.113.${label}-${Date.now()}` };
+}
+
+// ---------------------------------------------------------------------------
+// The platform operator fixture (PR1). See prisma/seed-test.ts.
+//
+// HOW A TEST AUTHENTICATES WITHOUT A BYPASS, WHICH IS THE WHOLE POINT
+//
+// There is no SKIP_TOTP, no NODE_ENV === "test" branch and no fixture flag in
+// the sign-in path; handbook ruling R6 deleted the proposal for one. A test
+// gets in the same way a person does: it knows the password, and it holds the
+// TOTP secret, so it can compute a real six-digit code with the same library
+// the server verifies against. If that is awkward, the awkwardness is the
+// feature: it is the same awkwardness an attacker meets.
+// ---------------------------------------------------------------------------
+export const OPERATOR = {
+  email: "ops@storyjar.test",
+  password: "fixture-operator-pass-9271",
+  totpSecret: "GBX7MIWQ6ZXBKEIOGA2JYJPNCND2HCHN",
+  // The plaintext of the ten bcrypt hashes in prisma/seed-test.ts, in order.
+  recoveryCodes: [
+    "V5ZZ-JCJE-FQCN",
+    "855D-ECC2-C3ZV",
+    "PEWY-XZ8W-3SXF",
+    "QW55-KRFB-CTXN",
+    "6RZS-QJDX-QNXJ",
+    "3M47-N6E5-7ZRX",
+    "ZRJE-BTG5-ATV3",
+    "PCDY-Q39P-443D",
+    "TMW9-9Y2F-RYQK",
+    "GK9G-CANK-H4XA",
+  ],
+  // The cookie name in development, where Secure cannot be set over http and a
+  // __Host- cookie would therefore be refused by the browser. Production uses
+  // __Host-sj_ops; the rule that ties the two together is asserted directly
+  // from src/lib/ops/cookie.ts in ops-auth.spec.ts.
+  cookie: "sj_ops",
+} as const;
+
+// A genuine TOTP code, one step ahead of whatever the operator row has already
+// accepted.
+//
+// Replay protection is monotonic: a step less than OR EQUAL to the last
+// accepted one is refused, which is correct and which means two sign-ins inside
+// the same 30-second step cannot use the same code. Rather than sleeping for
+// half a minute, this uses the NEXT step's code, which a real authenticator
+// would show shortly and which the plus-or-minus-one window accepts. Only when
+// that would be two steps ahead does it wait, and then only for the remainder
+// of the current step.
+export async function operatorCode(): Promise<string> {
+  const db = new PrismaClient();
+  let last: number;
+  try {
+    const row = await db.operator.findUnique({
+      where: { email: OPERATOR.email },
+      select: { lastTotpStep: true },
+    });
+    last = row?.lastTotpStep ?? -1;
+  } finally {
+    await db.$disconnect();
+  }
+  const step = Math.max(totpStepAt(), last + 1);
+  while (step > totpStepAt() + 1) {
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return codeForStep(OPERATOR.totpSecret, step);
+}
+
+// Sign in as the operator exactly as a person would: email, password, then a
+// code from the authenticator. Lands on the console.
+export async function signInOperator(page: Page) {
+  // From no session: the door renders three different things depending on what
+  // the browser already holds, so a half-finished sign-in left by an earlier
+  // step would leave no email field to type into.
+  await page.context().clearCookies();
+  await page.goto("/ops/sign-in");
+  await page.fill("#email", OPERATOR.email);
+  await page.fill("#password", OPERATOR.password);
+  await page.getByRole("button", { name: /continue/i }).click();
+  await expect(page.getByLabel(/6-digit code/i)).toBeVisible();
+  await page.fill("#code", await operatorCode());
+  await page.getByRole("button", { name: /^sign in$/i }).click();
+  await page.waitForURL((url) => url.pathname === "/ops");
 }
 
 // Clear cookies to become anonymous.

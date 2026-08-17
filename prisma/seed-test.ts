@@ -353,6 +353,64 @@ async function main() {
     },
   });
 
+  // -------------------------------------------------------------------------
+  // The platform operator fixture (PR1).
+  //
+  // This is how the blocking auth spec signs in WITHOUT a bypass: it knows the
+  // password and the TOTP secret because they are written here, and it computes
+  // a genuine six-digit code from that secret with the same library the
+  // application uses. There is no SKIP_TOTP, no NODE_ENV === "test" branch and
+  // no fixture flag anywhere in the sign-in path (handbook ruling R6), and the
+  // only reason a test can get in is that it holds the same secret an
+  // authenticator app would.
+  //
+  // The hashes are precomputed rather than hashed here on purpose: bcrypt at
+  // cost 12 is ~200ms per hash by design, and eleven of them would add over two
+  // seconds to every reseed, four times per battery run. They are bcrypt-12
+  // hashes of the fictional values printed below, and the spec asserts the
+  // stored password hash still carries the $2b$12$ prefix, so a drop in cost
+  // factor is a red build rather than a quiet weakening.
+  // -------------------------------------------------------------------------
+  // Cleared first, because the demo seed above knows nothing about operators:
+  // it wipes the school data and leaves this row behind, so a second run would
+  // hit the unique address. Clearing it also resets the lockout counters, the
+  // spent recovery codes and lastTotpStep, so every battery run starts from the
+  // same known state rather than from whatever the last run's failures left.
+  await db.operatorSession.deleteMany();
+  await db.operator.deleteMany();
+
+  await db.operator.create({
+    data: {
+      email: "ops@storyjar.test",
+      // bcrypt-12 of "fixture-operator-pass-9271"
+      pwHash: "$2b$12$ItZmvP10NMc5qT0KM3mb7OcMsIxqsHwnfOHNnUZ3Dz0aAwIG4R1IG",
+      totpSecret: "GBX7MIWQ6ZXBKEIOGA2JYJPNCND2HCHN",
+      // Already enrolled: the enrolment screen is exercised by the spec setting
+      // this back to null for one test, so that both halves of the flow are
+      // covered without a second operator row existing (owner decision D11:
+      // one account).
+      totpConfirmedAt: new Date(Date.now() - 7 * DAY),
+      lastTotpStep: null,
+      role: "OWNER",
+      status: "ACTIVE",
+      // bcrypt-12 of the ten codes listed in tests/battery/helpers.ts.
+      recoveryCodesJson: JSON.stringify(
+        [
+          "$2b$12$zrt2IGaYCnEdnZS9fIHjK.YdFP4lUBcWMozlAIEmUMMKI5N6HsWcy",
+          "$2b$12$zcU1RW2RHYnGfqCVROpLjurqjimyRegQXYum97cfHElbBt4ldDXty",
+          "$2b$12$Yo/PArQ5Bu7kFIU6O3JqBeZnJKpbF3zfvrpFp0ceQdQs3BYj7G7KC",
+          "$2b$12$UlTPTcbpyWQN5Bdl17ejWOD3CBBFEiGBK6FCNstuQz4YosPpcDLFq",
+          "$2b$12$0nojwqtBr1PKFFX/fm8.2e6WhWWnVJP.opokfWZHcqJL3yzkANycK",
+          "$2b$12$wRUvm.duFjGS2TnwusXMgeypLuhoX.ZzMQSeEU7h5CfAWQRyvh2oG",
+          "$2b$12$KKiVNeb1HcN2JcnLjfn4tuSUmhFiuYa1i.Gi50/tI6uwFLR21JYO6",
+          "$2b$12$TlOThFu57JMbHFwy26Wcl.X8ynb5/VTk//lG/iRRDVluux.yUUw..",
+          "$2b$12$RCFJn/k.Trbsyiw97OMzi.9nMf8onTLhXmzR6EI0pgbhsi8x/iuzm",
+          "$2b$12$iz95h9Io3ysomfebOffKXOp.JGbjmjhtKwDP0o0njUKilfwv20tmK",
+        ].map((hash) => ({ hash, usedAt: null })),
+      ),
+    },
+  });
+
   console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
   console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN234 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
@@ -360,6 +418,7 @@ async function main() {
   console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)  /uploads/seed-oak-quiz.svg (quiz option)");
   console.log("  School B voice: /uploads/seed-oak-voice.m4a (APPROVED)  /uploads/seed-oak-voice-pending.webm (PENDING)");
   console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class ARCH22 (Willow)  read-only");
+  console.log("  Platform operator: ops@storyjar.test / fixture-operator-pass-9271 + a real TOTP code (no bypass exists)");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).
   console.log(`  School B pupil ids: Zara=${zara.id} Yusuf=${yusuf.id} Willow=${willow.id}`);

@@ -63,5 +63,12 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: true,
     timeout: 120_000,
+    // The operator area is 404 everywhere unless OPS_ENABLED is exactly "1"
+    // (handbook ruling R17), and it is unset by default, including here. The
+    // battery has to switch it on to test it at all, which also means a WARM
+    // dev server started without it makes ops-auth.spec.ts fail on its first
+    // test with a message saying exactly that. See TESTING.md on warm versus
+    // cold servers.
+    env: { OPS_ENABLED: "1" },
   },
 });

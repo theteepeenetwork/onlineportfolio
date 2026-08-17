@@ -1,0 +1,11 @@
+// @path: src/lib/ops/totp.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// PR1 put `otplib` on the ops import allowlist (owner decision D4). This is the
+// near miss that widening invites: a DIFFERENT one-time-password library, which
+// nobody vetted, doing the same job. Deny by default still means deny by
+// default, and one reviewed entry does not open the category.
+import speakeasy from "speakeasy";
+
+export function codeFor(secret) {
+  return speakeasy.totp({ secret, encoding: "base32" });
+}

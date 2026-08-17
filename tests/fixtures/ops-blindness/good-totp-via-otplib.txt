@@ -1,0 +1,29 @@
+// @path: src/lib/ops/totp.ts
+// The permitted shape: otplib, the reviewed dependency, generating the expected
+// codes for the steps in the window and comparing them in constant time. It
+// calls generateSync rather than otplib's verify() deliberately — verify takes
+// its candidate under the property name `token`, which is a banned identifier
+// here (a session or magic-link value is a credential an operator must never
+// read), and generating the codes is the same computation with no banned name
+// in it.
+import { timingSafeEqual } from "node:crypto";
+import { generateSecret, generateSync, generateURI } from "otplib";
+
+export function newTotpSecret() {
+  return generateSecret({ length: 20 });
+}
+
+export function enrolmentUri(email, secret) {
+  return generateURI({ issuer: "Storyjar", label: email, secret });
+}
+
+export function matchStep(secret, submitted, atMs) {
+  const now = Math.floor(atMs / 1000 / 30);
+  let matched = null;
+  for (let offset = -1; offset <= 1; offset += 1) {
+    const expected = Buffer.from(generateSync({ secret, epoch: (now + offset) * 30 }), "utf8");
+    const given = Buffer.from(submitted, "utf8");
+    if (expected.length === given.length && timingSafeEqual(expected, given)) matched = now + offset;
+  }
+  return matched;
+}
