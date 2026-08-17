@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-RELATION
+// The traversal is permitted only inside a where block, where it filters. In a
+// select it returns child rows, which is the thing the rule is for.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function schoolRoll(schoolId) {
+  return db.student.count({
+    select: { class: { teacher: { schoolId } } },
+  });
+}

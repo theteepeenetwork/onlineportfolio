@@ -1,0 +1,11 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-RELATION
+// The school-scope permission is for the pupil headcount the price band needs
+// and for nothing else. The same traversal counting children's work is a figure
+// R10 never asked for, so it is still refused.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function itemsInSchool(schoolId) {
+  return db.journalItem.count({ where: { class: { teacher: { schoolId } } } });
+}

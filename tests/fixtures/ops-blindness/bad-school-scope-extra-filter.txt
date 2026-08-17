@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-RELATION
+// The permitted traversal with a class name smuggled in beside it. A prefix
+// match would have let this through and it is a per-class count in disguise,
+// which is why the permission requires the whole object to be the traversal.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function pupilsOnRoll(schoolId, className) {
+  return db.student.count({
+    where: { class: { teacher: { schoolId }, name: className } },
+  });
+}

@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// The whole-school headcount that decides the price band (ruling R10: "ops
+// renders the price band computed server-side from bandForPupils"). Class
+// carries no schoolId column, so a child reaches a school only through its
+// class's teacher. This selects nothing, names no class and no child, and takes
+// a school id as its only argument.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function pupilsOnRoll(schoolId) {
+  return db.student.count({ where: { class: { teacher: { schoolId } } } });
+}

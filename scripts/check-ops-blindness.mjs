@@ -510,6 +510,61 @@ const MEDIA_ELEMENTS = [
 // honest use, and it is already refused as a groupBy key by BANNED_GROUP_KEYS.
 const CHILD_SCOPE_KEYS = ["classId", "studentId"];
 
+// ---------------------------------------------------------------------------
+// The one permitted traversal from a child row to its school
+// ---------------------------------------------------------------------------
+// WIDENING (PR2, ruling R2: a widening lands in the same commit as the code it
+// permits, with a comment naming the rule and a fixture proving the true
+// positive still fires). This is case 2 of the three legitimate edits named in
+// the header: a fix for a PROVEN false positive.
+//
+// Ruling R10 requires ops to render "the price band computed server-side from
+// bandForPupils", and bandForPupils takes a number of pupils on roll. So a
+// whole-school child headcount is not an optional nicety, it is the figure the
+// billing screen exists to show, and R10 names it explicitly while banning
+// every finer cut of it.
+//
+// There is exactly one way to express it in Prisma. `Class` carries no
+// schoolId column (verified in prisma/schema.prisma and in docs/ops-facts.md
+// row 4.15), so a child reaches a school only through its class's teacher:
+//
+//     db.student.count({ where: { class: { teacher: { schoolId } } } })
+//
+// Every alternative was tried against this gate first and every one is refused,
+// correctly: `where: { classId: { in: ids } }` is OPS-CHILD-SCOPE-KEY,
+// `groupBy({ by: ["classId"] })` is OPS-GROUP-KEY, and Prisma cannot count a
+// relation two hops away, so `_count: { select: { classes: true } }` on a
+// teacher counts classes and can never count children. The gate was refusing
+// the one shape the ruling above requires, which is a false positive rather
+// than the rule doing its job.
+//
+// The permission is written as narrowly as the false positive is:
+//
+//   - only in the read chokepoint, src/lib/ops/reads.ts, not in a screen, an
+//     action, or a second helper module;
+//   - only as the argument of `db.student.count(`, so the permission is the
+//     headcount itself rather than the traversal in general. Without this, the
+//     same filter on db.journalItem.count or db.draft.count would have become
+//     expressible, and while a whole-school item count is not a per-child
+//     figure, it is not something R10 asks for and nobody reviewed it;
+//   - only inside a `where:` block, so the relation still cannot appear in a
+//     select, an include or an orderBy, where it would return child rows;
+//   - only when the value is EXACTLY the traversal to a school id. A sibling
+//     key alongside it, such as a class name, would produce the per-class
+//     figure R10 bans because a class of one names that child, so the whole
+//     object must match and not merely start with it.
+//
+// The true positive still fires, proved by five fixtures:
+//   bad-per-class-headcount.txt        the same relation filtered by class name
+//   bad-school-scope-extra-filter.txt  the traversal plus a class-name sibling
+//   bad-school-scope-in-select.txt     the traversal in a select, not a where
+//   bad-school-scope-outside-reads.txt the traversal in another ops module
+//   bad-school-scope-other-model.txt   the traversal counting journal items
+// and the clean shape by good-school-headcount-traversal.txt.
+const SCHOOL_SCOPE_MODULE = "src/lib/ops/reads.ts";
+const SCHOOL_SCOPE_CALL = "student.count";
+const SCHOOL_SCOPE_INNER = /^\s*teacher\s*:\s*\{\s*schoolId\s*(?::\s*[A-Za-z_$][\w$]*\s*)?\}\s*,?\s*$/;
+
 // Raw SQL defeats model-name scanning entirely, so it is banned outright here,
 // stricter than audit-static.mjs which permits parameterised tagged templates.
 const RAW_SQL = [
@@ -1285,6 +1340,31 @@ function checkFile(rel, raw, ctx) {
   // why membership of a select/include block is the test.
   const projectionRanges = blockRangesFor(struct, /\b(?:select|include)\s*:\s*/);
   const queryRanges = blockRangesFor(struct, /\b(?:select|include|where|data|orderBy|_count)\s*:\s*/);
+  const whereRanges = blockRangesFor(struct, /\bwhere\s*:\s*/);
+
+  // The PR2 widening, kept in one function so the whole of it is readable at
+  // once. See SCHOOL_SCOPE_INNER above for why it exists and how narrow it is.
+  // Returns true only for `class: { teacher: { schoolId } }`, inside a where
+  // block, in the read chokepoint, with nothing else in the object.
+  const isSchoolScopeTraversal = (keyIndex) => {
+    if (rel !== SCHOOL_SCOPE_MODULE) return false;
+    if (!inAnyRange(whereRanges, keyIndex)) return false;
+    // The nearest client call before this key. Anything other than the
+    // headcount, and this is not the false positive the permission is for.
+    const before = [
+      ...code.slice(0, keyIndex).matchAll(/\b(?:db|prisma|tx|client)\s*\.\s*(\w+)\s*\.\s*(\w+)\s*\(/g),
+    ];
+    const nearest = before[before.length - 1];
+    if (!nearest || `${nearest[1]}.${nearest[2]}` !== SCHOOL_SCOPE_CALL) return false;
+    const colon = code.indexOf(":", keyIndex);
+    if (colon === -1) return false;
+    const open = struct.indexOf("{", colon);
+    if (open === -1) return false;
+    if (code.slice(colon + 1, open).trim() !== "") return false; // not the immediate value
+    const close = matchBrace(struct, open);
+    if (close === -1) return false;
+    return SCHOOL_SCOPE_INNER.test(code.slice(open + 1, close));
+  };
 
   // A computed property key inside a query object. This is the general answer
   // to every string-assembly trick the corpus pass found and to the ones it did
@@ -1329,6 +1409,7 @@ function checkFile(rel, raw, ctx) {
       const afterColon = code.slice(m.index + m[0].length, m.index + m[0].length + 12).trim();
       const permitted = inAnyRange(countSelectRanges, m.index) && afterColon.startsWith("true");
       if (permitted) continue;
+      if (relation === "class" && isSchoolScopeTraversal(m.index)) continue;
       add(
         m.index,
         "OPS-CHILD-RELATION",
