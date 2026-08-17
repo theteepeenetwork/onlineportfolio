@@ -1,7 +1,8 @@
 # Exceptional access to a child's data
 
-**Status: draft for the owner's approval. Not in force until approved and dated
-in the Amendments table of [`SAFEGUARDING.md`](../SAFEGUARDING.md).**
+**Status: in force.** Approved by the owner and merged on 2026-08-17 with
+SAFEGUARDING rule 20, which points here and is dated in that document's
+Amendments table.
 
 Rule 20 says the operator of Storyjar cannot read a child's work **through the
 product**, and a blocking gate enforces it. This document covers the thing rule
@@ -64,12 +65,18 @@ circumstance above applies, what specifically is being looked for, and the
 narrowest thing that answers it. If you cannot name the narrowest thing, you are
 not ready to look.
 
+**Then send the notification, before you look.** Not after. This is the step
+that makes the rest of the procedure real, and it is the one that will feel
+easiest to defer. Send it to whoever the table below names, saying what you are
+about to open and why. If the circumstance forbids telling a particular party,
+tell the one it does not forbid.
+
 **During.** Open only that. One child's record, not a table. One file, not a
 directory. Do not take copies. Do not screenshot. If the answer arrives before
 you have seen everything you opened, stop there.
 
-**After.** Complete the record below within the same day, and make the
-notification the circumstance calls for.
+**After.** Complete the record below within the same day, and tell the same
+people what was actually found and done.
 
 ## The record
 
@@ -79,19 +86,37 @@ true, why that was the minimum, who was notified and when, and what was done
 with anything retained.
 
 **The record must live where the operator cannot quietly remove it.** An audit
-trail that its subject can edit is not accountability, it is a diary. Until the
-off-box copy exists (see the weaknesses below), the record goes in a medium
-outside the operator's own infrastructure, and the school is told it exists.
+trail that its subject can edit is not accountability, it is a diary. Every audit
+row Storyjar writes is stored in the same database file, on the same volume, held
+in the same account as the thing it records, so it cannot serve as evidence
+against the operator.
+
+**Which is why the notification below is the record, and why its timing is the
+whole control.** Notify before you look, or as you look. Never afterwards.
+Telling somebody afterwards leaves you free to decide, once you have seen what
+you found, whether to tell them at all. Telling them first takes that choice away
+from you at the moment you are least able to make it well. An email in a school's
+inbox cannot be edited, deleted or backdated by the person who sent it, which is
+the property no amount of logging on our own infrastructure can provide.
+
+The point is not the paperwork. It is that somebody outside your control knows
+this happened, before you know what you will find.
 
 ## Notification
 
-| Circumstance | Who is told | When |
+The default is **before you look**. The column below says what to do when a
+circumstance makes that impossible, and those are the only exceptions.
+
+| Circumstance | Who is told | First notice |
 | --- | --- | --- |
-| 1, court or police | The school, unless the order forbids it | As soon as permitted |
-| 2, school instruction | The school already knows. Confirm what was done | Within one working day |
-| 3, illegal content | Police and IWF. The school, on police advice | Immediately |
-| 4, concern about the school | LADO. **Not** the individual concerned, and not the school if it would prejudice the matter | Immediately |
-| 5, recovery | The school, if any child's data was read | Within one working day |
+| 1, court or police | The school, unless the order forbids telling them | Before, unless the order forbids it, then as soon as it permits |
+| 2, school instruction | The school instructed it, so they already know. Confirm scope back to them in writing | Before, by confirming what you are about to open |
+| 3, illegal content | Police and IWF. The school, on police advice | Before. And do not open the material at all |
+| 4, concern about the school | LADO. **Not** the individual concerned, and not the school if it would prejudice the matter | Before |
+| 5, recovery | The school, if any child's data was read | Before, unless the service is down and recovery cannot wait, then within one working day |
+
+Circumstance 5 is the only routine exception, and it is narrow: it applies when
+the service is actually broken, not when it is merely inconvenient to wait.
 
 ---
 
@@ -108,8 +133,14 @@ directly leaves no trace inside Storyjar. The record above is written by hand,
 which means it depends on the honesty of the person it constrains. This is the
 single biggest gap here.
 
-**The off-box audit copy does not exist yet.** It is the highest-value
-improvement available and is recorded in `FINDINGS.md` rather than assumed.
+**There is no tamper-proof copy of the audit log, and this procedure does not
+try to build one.** A cryptographic audit chain was considered and rejected as
+disproportionate for a one-person service where this procedure should fire
+approximately never. The notification above does the same job in one email: a
+message already sitting in a school's inbox cannot be edited, deleted or
+backdated by its sender. Revisit that judgement if a second person joins, when
+the log starts constraining somebody other than its keeper, or if a school asks
+for more.
 
 **This is not legal advice.** The routes above, in particular the LADO route and
 the handling of illegal content, follow the ordinary shape of safeguarding
