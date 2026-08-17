@@ -64,12 +64,18 @@ circumstance above applies, what specifically is being looked for, and the
 narrowest thing that answers it. If you cannot name the narrowest thing, you are
 not ready to look.
 
+**Then send the notification, before you look.** Not after. This is the step
+that makes the rest of the procedure real, and it is the one that will feel
+easiest to defer. Send it to whoever the table below names, saying what you are
+about to open and why. If the circumstance forbids telling a particular party,
+tell the one it does not forbid.
+
 **During.** Open only that. One child's record, not a table. One file, not a
 directory. Do not take copies. Do not screenshot. If the answer arrives before
 you have seen everything you opened, stop there.
 
-**After.** Complete the record below within the same day, and make the
-notification the circumstance calls for.
+**After.** Complete the record below within the same day, and tell the same
+people what was actually found and done.
 
 ## The record
 
@@ -79,9 +85,21 @@ true, why that was the minimum, who was notified and when, and what was done
 with anything retained.
 
 **The record must live where the operator cannot quietly remove it.** An audit
-trail that its subject can edit is not accountability, it is a diary. Until the
-off-box copy exists (see the weaknesses below), the record goes in a medium
-outside the operator's own infrastructure, and the school is told it exists.
+trail that its subject can edit is not accountability, it is a diary. Every audit
+row Storyjar writes is stored in the same database file, on the same volume, held
+in the same account as the thing it records, so it cannot serve as evidence
+against the operator.
+
+**Which is why the notification below is the record, and why its timing is the
+whole control.** Notify before you look, or as you look. Never afterwards.
+Telling somebody afterwards leaves you free to decide, once you have seen what
+you found, whether to tell them at all. Telling them first takes that choice away
+from you at the moment you are least able to make it well. An email in a school's
+inbox cannot be edited, deleted or backdated by the person who sent it, which is
+the property no amount of logging on our own infrastructure can provide.
+
+The point is not the paperwork. It is that somebody outside your control knows
+this happened, before you know what you will find.
 
 ## Notification
 
@@ -108,8 +126,14 @@ directly leaves no trace inside Storyjar. The record above is written by hand,
 which means it depends on the honesty of the person it constrains. This is the
 single biggest gap here.
 
-**The off-box audit copy does not exist yet.** It is the highest-value
-improvement available and is recorded in `FINDINGS.md` rather than assumed.
+**There is no tamper-proof copy of the audit log, and this procedure does not
+try to build one.** A cryptographic audit chain was considered and rejected as
+disproportionate for a one-person service where this procedure should fire
+approximately never. The notification above does the same job in one email: a
+message already sitting in a school's inbox cannot be edited, deleted or
+backdated by its sender. Revisit that judgement if a second person joins, when
+the log starts constraining somebody other than its keeper, or if a school asks
+for more.
 
 **This is not legal advice.** The routes above, in particular the LADO route and
 the handling of illegal content, follow the ordinary shape of safeguarding
