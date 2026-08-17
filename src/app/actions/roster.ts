@@ -5,9 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { deriveChildNames } from "@/lib/childNames";
-import { deleteMediaFiles } from "@/lib/media";
-import { gatherDraftPaths } from "@/lib/drafts";
-import { deleteOrphanedParents } from "@/lib/familyLinks";
+import { eraseStudent } from "@/lib/erasure";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 
 const AVATAR_COLORS = [
@@ -75,41 +73,17 @@ export async function removeStudent(formData: FormData) {
   if (user?.role !== "TEACHER") redirect("/");
 
   const studentId = String(formData.get("studentId") ?? "");
-  // Fetch the pupil (ownership-scoped) with their media so we can erase the
-  // files too — removing a child must be real erasure, not just row removal
-  // (SAFEGUARDING.md rule 9, UK GDPR Art.17). Mirrors deleteClass/deleteItem.
+  // Ownership-scoped fetch: only a pupil in a class this teacher owns is ever
+  // visible here. Deny by default otherwise (SAFEGUARDING rules 4 and 8).
   const student = await db.student.findFirst({
     where: { id: studentId, class: { teacherId: user.teacher.id } },
-    include: {
-      journalItems: { select: { mediaPath: true, mediaPathsJson: true } },
-      drafts: { select: { pagesJson: true } }, // in-progress response drafts
-      // Gathered BEFORE the delete: once the pupil goes, so do the link rows
-      // that would tell us which families were reading this child.
-      parents: { select: { id: true } },
-    },
+    select: { id: true },
   });
   if (student) {
-    const mediaUrls: Array<string | null> = [];
-    for (const item of student.journalItems) {
-      mediaUrls.push(item.mediaPath);
-      if (item.mediaPathsJson) {
-        try {
-          const paths = JSON.parse(item.mediaPathsJson);
-          if (Array.isArray(paths)) {
-            for (const p of paths) if (typeof p === "string") mediaUrls.push(p);
-          }
-        } catch {
-          // Malformed JSON — nothing to erase from it.
-        }
-      }
-    }
-    mediaUrls.push(...gatherDraftPaths(student.drafts));
-    // Delete the row (cascades the pupil's journal items + drafts), then erase files.
-    await db.student.delete({ where: { id: studentId } });
-    await deleteMediaFiles(mediaUrls);
-    // A family linked to nobody is a working code and a live session belonging
-    // to no child. RETENTION.md: deleted when the last linked child is deleted.
-    await deleteOrphanedParents(student.parents.map((p) => p.id));
+    // Rows AND files, plus any family space left linked to no child at all —
+    // removing a child must be real erasure, not just row removal
+    // (SAFEGUARDING.md rule 9, UK GDPR Art.17). See src/lib/erasure.ts.
+    await eraseStudent(student.id);
   }
 
   revalidatePath("/teacher/class");

@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { saveImagePages, deleteMediaFiles } from "@/lib/media";
+import { eraseDrafts, mediaPathsFromJson } from "@/lib/erasure";
 import { requireWritableAccount, requireWritableAccountForClass } from "@/lib/billing";
 
 // Cross-device draft sync (Stage 2). All access is owner-scoped and deny-by-
@@ -68,20 +69,11 @@ function uniqueWhere(scope: Scope) {
   };
 }
 
+// The pages of one draft, as stored /uploads paths. One parser for every JSON
+// path column lives in src/lib/erasure.ts, so a reader and an eraser can never
+// disagree about what a malformed column means.
 export function draftPaths(pagesJson: string | null): string[] {
-  if (!pagesJson) return [];
-  try {
-    const a = JSON.parse(pagesJson);
-    return Array.isArray(a) ? a.filter((p): p is string => typeof p === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-// Collect every media path across a set of drafts, for cascade erasure when the
-// owning class/student is deleted (deletion must remove rows AND files).
-export function gatherDraftPaths(drafts: Array<{ pagesJson: string | null }>): string[] {
-  return drafts.flatMap((d) => draftPaths(d.pagesJson));
+  return mediaPathsFromJson(pagesJson);
 }
 
 function parseFields(fieldsJson: string | null): Record<string, string> {
@@ -103,9 +95,7 @@ async function purgeExpiredDrafts(): Promise<void> {
     where: { expiresAt: { lt: new Date() } },
     select: { id: true, pagesJson: true },
   });
-  if (!expired.length) return;
-  await db.draft.deleteMany({ where: { id: { in: expired.map((d) => d.id) } } });
-  await deleteMediaFiles(expired.flatMap((d) => draftPaths(d.pagesJson)));
+  await eraseDrafts(expired);
 }
 
 export type DraftLoad = { pages: string[]; fields: Record<string, string>; updatedAt: number };
@@ -174,9 +164,7 @@ export async function discardResponseDraftFor(studentId: string, assignmentId: s
     where: { surface: "ACTIVITY_RESPONSE", contextKey: assignmentId, studentId },
     select: { id: true, pagesJson: true },
   });
-  if (!drafts.length) return;
-  await db.draft.deleteMany({ where: { id: { in: drafts.map((d) => d.id) } } });
-  await deleteMediaFiles(drafts.flatMap((d) => draftPaths(d.pagesJson)));
+  await eraseDrafts(drafts);
 }
 
 // NOT write-gated: erasure stays available even on a frozen account (mirrors
@@ -186,6 +174,5 @@ export async function discardDraftServer(surface: string, contextKey: string): P
   if (!scope) return;
   const draft = await db.draft.findUnique({ where: uniqueWhere(scope), select: { id: true, pagesJson: true } });
   if (!draft) return;
-  await db.draft.delete({ where: { id: draft.id } });
-  await deleteMediaFiles(draftPaths(draft.pagesJson));
+  await eraseDrafts([draft]);
 }
