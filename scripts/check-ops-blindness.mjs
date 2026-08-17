@@ -266,7 +266,16 @@ const AGGREGATE_ONLY = [
 // only: no browse, no substring, no list. The gate can enforce the call shape;
 // it cannot enforce "exact match on an email the operator already had", so the
 // DTO and the audited named operation carry the rest.
-const LOOKUP_ONLY = ["Parent"];
+const LOOKUP_ONLY = [
+  "Parent",
+  // MailSuppression is the one of PR5's three tables that is ABOUT somebody: a
+  // keyed label for an adult the provider is refusing to deliver to. It is
+  // LOOKUP_ONLY rather than OPS_OWNED precisely because this class refuses
+  // findMany, and findMany here is the screen nobody should build: a list of
+  // every adult currently locked out of their own child's work. Answering "is
+  // this one address being refused" is support. Listing them is a register.
+  "MailSuppression",
+];
 
 // No read of any shape, not even a count that could confirm a specific row.
 // Session and MagicToken hold live sign-in credentials. AuditLog.detail is free
@@ -301,7 +310,23 @@ const CREDENTIAL_NEVER = ["Session", "MagicToken", "AuditLog"];
 //   - it does not silence the drift check for anything else: a model that is in
 //     the schema and in none of these lists still fails, proved against a
 //     throwaway tree by tests/battery/security/ops-blindness-gate.spec.ts (A15).
-const OPS_OWNED = ["Operator", "OperatorSession", "OpsAuditLog"];
+const OPS_OWNED = [
+  "Operator",
+  "OperatorSession",
+  "OpsAuditLog",
+  // JobRun and MailCounter describe the system, not its users: no recipient, no
+  // domain, no foreign key to any person. A MailCounter row says "eleven
+  // sign-in emails were attempted on this day and two failed", and there is no
+  // route from it back to a family.
+  //
+  // Not AGGREGATE_ONLY, and the reason is worth stating so nobody "tightens" it
+  // later and breaks the screen: that class permits only count and groupBy,
+  // neither of which can sum a tally COLUMN. count() returns a row count, and
+  // groupBy on templateKey is correctly refused by SAFE_GROUP_KEYS. The read is
+  // findMany with an explicit five-column select, summed in process.
+  "JobRun",
+  "MailCounter",
+];
 
 const PRISMA_METHODS = [
   "findUnique",
@@ -763,6 +788,18 @@ const ALLOWED_LOCAL_IMPORTS = [
   "@/lib/rateLimit",
   "@/lib/stripeMode",
   "@/lib/familyCodeMint",
+  // The mail status vocabulary: closed string unions and two pure helpers, no
+  // Prisma, no credentials, no address. It lives outside the ops tree for a
+  // reason PR5 discovered the hard way. It was first written at
+  // src/lib/ops/mail.ts, which is the name ruling R1 would suggest, and the
+  // gate refused it correctly: any file that imports an ops module is walked
+  // and scanned AS ops code, so the mailer importing the vocabulary dragged
+  // src/lib/mailer.ts and src/lib/mailCounters.ts into the operator scan, and
+  // the latter failed at once for importing Prisma. The vocabulary belongs to
+  // mail; ops reads it. Bounded by bad-ops-imports-mailer.txt and
+  // bad-ops-imports-mail-counters.txt, which prove the two halves that must
+  // stay out reachable are still refused.
+  "@/lib/mailStatus",
 ];
 const ALLOWED_LOCAL_PREFIXES = ["@/lib/ops/"];
 

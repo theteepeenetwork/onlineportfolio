@@ -73,8 +73,17 @@ export async function requestMagicLink(
     const mail = magicLinkEmail(`${await originUrl()}${path}`);
     // Fire and await, but ignore the outcome for the RESPONSE: telling the user
     // that sending failed would leak that their address is on file (F6). A
-    // failure is logged server-side by the mailer instead.
-    await sendMail({ to: email, subject: mail.subject, text: mail.text, html: mail.html });
+    // failure is logged server-side by the mailer instead, and counted against
+    // the template rather than the person (src/lib/mailCounters.ts).
+    // `templateKey` is a constant chosen here, never derived from the address
+    // or the message.
+    await sendMail({
+      to: email,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+      templateKey: "magic-link",
+    });
 
     // Development convenience only — never in production.
     if (signInLinkMayBeShown()) return { sent: true, openUrl: path };

@@ -1,0 +1,11 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-GROUP-KEY
+// Proves classifying JobRun and MailCounter as OPS_OWNED did not quietly open
+// the aggregate rules. OPS_OWNED means "this table is about the system, not its
+// users", not "grouping is unrestricted": SAFE_GROUP_KEYS still governs every
+// groupBy under the ops roots, and templateKey is not on it.
+import { db } from "@/lib/db";
+
+export async function perTemplate() {
+  return db.mailCounter.groupBy({ by: ["templateKey"], _count: true });
+}

@@ -236,15 +236,130 @@ export type BillingViewDto = {
 
 /**
  * Whether Storyjar knows that mail to this address is being refused by the
- * provider. There is no delivery-status feed yet, so the only honest value is
- * "not monitored". A tile or a row with no feed says so rather than rendering
- * calm, which is the convention the whole operator area uses.
+ * provider.
+ *
+ * PR2 shipped one value, NOT_MONITORED, because nothing recorded suppression.
+ * PR5 added the feed, so there are now three honest answers and the first is
+ * still one of them: with no MAIL_HMAC_KEY configured, or before the sync job
+ * has ever run, Storyjar genuinely does not know, and saying "no problem" would
+ * be inventing a green light.
+ *
+ * The suppressed states are the provider's, from src/lib/ops/mail.ts. They are
+ * carried through as their own values rather than flattened to "suppressed",
+ * because what an operator does next differs: a bounce means the address is
+ * wrong and the school has to correct it, an unsubscribe means the parent
+ * turned Storyjar off and only they can turn it back on.
  */
-export type MailStateDto = "NOT_MONITORED";
+export type MailStateDto =
+  | "NOT_MONITORED"
+  | "NOT_SUPPRESSED"
+  | "BOUNCE"
+  | "BLOCKED"
+  | "SPAM"
+  | "UNSUBSCRIBED";
 
 export const MAIL_STATE_LABEL: Record<MailStateDto, string> = {
   NOT_MONITORED:
     "Not monitored. Storyjar does not record yet whether mail to an address is being refused.",
+  NOT_SUPPRESSED:
+    "Mailjet is not refusing this address. That is not a delivery receipt: Storyjar cannot tell whether a message arrived or was read.",
+  BOUNCE: "Bounced. This address rejected Storyjar's mail, so sign-in links are not arriving.",
+  BLOCKED:
+    "Blocked. Mailjet is refusing to send to this address, so sign-in links are not arriving.",
+  SPAM: "Marked as spam by the recipient, so sign-in links are unlikely to arrive.",
+  UNSUBSCRIBED:
+    "Unsubscribed. On this account that is a block on everything, including their sign-in link, and only the parent can undo it.",
+};
+
+// ---------------------------------------------------------------------------
+// Mail delivery status (PR5, handbook ruling R9)
+// ---------------------------------------------------------------------------
+// Counters, and a count of the addresses the provider is refusing. No recipient
+// and no domain reaches these shapes, because none is stored: owner decision D7
+// is unanswered and its published default is counters only.
+//
+// THERE IS NO SCHOOL DIMENSION HERE, and that is a consequence rather than an
+// omission. Splitting mail figures by school means knowing which school each
+// recipient belongs to, which means holding the recipient. The counters
+// deliberately do not, so the figures are global and the screen says so. The
+// per-school question an operator actually asks ("is this family getting their
+// link?") is answered the other way round, from the adult record, by
+// MailStateDto above.
+
+/**
+ * One row of the by-template breakdown inside a window.
+ *
+ * `templateKey`, not `template`: `template` is a relation to ActivityTemplate
+ * elsewhere in the schema, and the blindness gate refuses the bare word
+ * anywhere under the ops roots because it cannot tell a mail template from a
+ * child's activity template. The column is named the same way for the same
+ * reason (prisma/schema.prisma, MailCounter).
+ */
+export type MailTemplateTotalsDto = {
+  /** The stored key, e.g. "magic-link". */
+  templateKey: string;
+  /** Plain English for the same thing. */
+  label: string;
+  attempted: number;
+  accepted: number;
+  failed: number;
+  unconfigured: number;
+  /** Why the failures failed, in words, coarsest first. Empty when none did. */
+  failureReasons: { label: string; count: number }[];
+};
+
+/**
+ * One window of counters. `verdictLabel` is a sentence, never a colour: a
+ * delivery state shown as a coloured dot fails handbook section 6 item 8.
+ */
+export type MailWindowDto = {
+  label: string;
+  /** The UTC days this covers, inclusive, so the reader can check the arithmetic. */
+  rangeLabel: string;
+  attempted: number;
+  accepted: number;
+  failed: number;
+  unconfigured: number;
+  verdictLabel: string;
+  byTemplate: MailTemplateTotalsDto[];
+};
+
+/**
+ * How many addresses the provider is currently refusing, by state. A COUNT, and
+ * never a list: a list of suppressed addresses is a list of adults locked out
+ * of their children's work, and nothing operational needs to read it. The
+ * individual question is asked from an adult record, one address at a time.
+ */
+export type MailSuppressionSummaryDto = {
+  /** False when there is no key, or the sync has never run. Then counts are meaningless. */
+  monitored: boolean;
+  total: number;
+  states: { state: string; label: string; count: number }[];
+  /** Why the figures are what they are, or why there are none. */
+  statement: string;
+};
+
+/** The last run of a scheduled job, as the operator screen shows it. */
+export type JobRunDto = {
+  job: string;
+  label: string;
+  startedAt: string;
+  outcomeLabel: string;
+  itemsAffected: number;
+  note: string | null;
+  /** "3 hours ago", in words, so a stale feed is legible without arithmetic. */
+  ageLabel: string;
+};
+
+export type MailStatusDto = {
+  windows: MailWindowDto[];
+  suppression: MailSuppressionSummaryDto;
+  /** Null when the sync job has never run at all. */
+  lastCheck: JobRunDto | null;
+  /** What "accepted" does and does not mean, in words, on the screen. */
+  acceptedStatement: string;
+  /** Why there is no per-school split. */
+  scopeStatement: string;
 };
 
 export type TeacherRecordDto = {
@@ -309,4 +424,39 @@ const MONTHS = [
 export function formatDay(value: Date | null | undefined): string | null {
   if (!value) return null;
   return `${value.getDate()} ${MONTHS[value.getMonth()]} ${value.getFullYear()}`;
+}
+
+/**
+ * A day and a time, in UTC and labelled as such (PR5).
+ *
+ * UTC rather than UK local time, and said out loud, because everything on the
+ * mail screen is bucketed by UTC day. A timestamp rendered in one zone beside
+ * totals bucketed in another is how somebody concludes at 00:30 in July that
+ * the job has not run today when it ran twenty minutes ago.
+ */
+export function formatDayAndTime(value: Date | null | undefined): string | null {
+  if (!value) return null;
+  const hours = String(value.getUTCHours()).padStart(2, "0");
+  const minutes = String(value.getUTCMinutes()).padStart(2, "0");
+  return `${value.getUTCDate()} ${MONTHS[value.getUTCMonth()]} ${value.getUTCFullYear()}, ${hours}:${minutes} UTC`;
+}
+
+/**
+ * How long ago, in words and rounded down (PR5).
+ *
+ * The point of it is a stale feed. "Last checked 2 days ago" is read correctly
+ * at a glance; a bare timestamp needs the reader to do subtraction, and the
+ * whole reason this line exists is that a job which silently stopped running
+ * produces no error at all, so its age IS the signal.
+ */
+export function formatAgo(value: Date, now: Date = new Date()): string {
+  const seconds = Math.floor((now.getTime() - value.getTime()) / 1000);
+  if (seconds < 0) return "in the future, which means a clock is wrong";
+  if (seconds < 90) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} days ago`;
 }

@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// The permitted question: is THIS one address being refused. Keyed by an HMAC
+// the caller computed, so the address itself never reaches the query and is
+// never stored. findUnique, never findMany: the difference between answering a
+// support call and printing a register of locked-out families.
+import { db } from "@/lib/db";
+
+export async function refusalFor(addressHmac: string) {
+  return db.mailSuppression.findUnique({
+    where: { addressHmac },
+    select: { state: true, lastSeenAt: true },
+  });
+}

@@ -6,15 +6,37 @@ import { recordOpsAudit } from "@/lib/ops/audit";
 import { requireOperator } from "@/lib/ops/session";
 import { currentStripeMode, stripeModeStatement, stripeRef } from "@/lib/ops/stripeLinks";
 import {
+  formatAgo,
   formatDay,
+  formatDayAndTime,
   headcount,
   maskEmail,
   type AdultRecordDto,
   type BandDto,
   type BillingViewDto,
+  type JobRunDto,
   type LookupKind,
+  type MailStateDto,
+  type MailStatusDto,
+  type MailSuppressionSummaryDto,
+  type MailTemplateTotalsDto,
+  type MailWindowDto,
   type SchoolRowDto,
 } from "@/lib/ops/dto";
+import {
+  MAIL_STATUS_CLASS_LABEL,
+  MAIL_SUPPRESSION_STATES,
+  MAIL_SUPPRESSION_STATE_LABEL,
+  MAIL_SUPPRESSION_SYNC_JOB,
+  MAIL_TEMPLATE_KEYS,
+  MAIL_TEMPLATE_LABEL,
+  MAIL_VERDICT_LABEL,
+  isMailSuppressionState,
+  mailVerdict,
+  utcDayBefore,
+  type MailStatusClass,
+} from "@/lib/mailStatus";
+import { mailAddressHmac, mailHmacConfigured } from "@/lib/ops/mailHmac";
 
 // ---------------------------------------------------------------------------
 // The operator read chokepoint (PR2).
@@ -397,7 +419,224 @@ async function readParent(email: string): Promise<AdultRecordDto | null> {
     id: row.id,
     maskedEmail: maskEmail(row.email),
     createdAt: formatDay(row.createdAt) ?? "",
-    mailState: "NOT_MONITORED",
+    mailState: await mailStateFor(row.email),
+  };
+}
+
+/**
+ * Is Mailjet refusing this one address (PR5)?
+ *
+ * This is the support call owner amendment C4 describes: a school reports that
+ * a parent is receiving nothing, and until now the honest answer was "Storyjar
+ * has no idea". It is asked one address at a time, about an address the
+ * operator has already typed in full to find the record, and it is answered
+ * from a keyed hash computed HERE on the server. Brief 05 imposes both halves
+ * of that and they are worth stating: never a free-text "is this address
+ * blocked?" box, which would be an enumeration oracle undoing FINDINGS F6, and
+ * never a hash accepted from the client, which would let a caller ask about an
+ * address they could not otherwise reach.
+ *
+ * With no MAIL_HMAC_KEY there is no answer rather than a reassuring one. A
+ * screen that says "no problem" because the feature is switched off is worse
+ * than one that says it does not know.
+ */
+async function mailStateFor(address: string): Promise<MailStateDto> {
+  const label = mailAddressHmac(address);
+  if (!label) return "NOT_MONITORED";
+  const suppression = await db.mailSuppression.findUnique({
+    where: { addressHmac: label },
+    select: { state: true },
+  });
+  if (!suppression) return "NOT_SUPPRESSED";
+  // A state the vocabulary does not know is not rendered as calm. It should be
+  // impossible: the sync job maps the provider's words onto the closed list
+  // before writing. If it ever happens, the honest answer is that Storyjar
+  // cannot say.
+  return isMailSuppressionState(suppression.state) ? suppression.state : "NOT_MONITORED";
+}
+
+// ---------------------------------------------------------------------------
+// Mail delivery status (PR5, handbook ruling R9)
+// ---------------------------------------------------------------------------
+//
+// Counters, a count of refused addresses, and when the provider was last
+// checked. No recipient, no domain, no subject, no body, and no per-school
+// split, because a per-school split needs the recipient.
+//
+// R9 fixes this as the default and owner decision D7, which would permit
+// per-recipient failure detail, is unanswered. The published default is
+// counters only, so this reads counters only. If D7 is ever answered yes, the
+// change starts with the DPIA and RETENTION.md, not with a query.
+
+// Today, and the week ending today. Two windows rather than one because they
+// answer different questions: "is mail going out this morning" and "has
+// anything been quietly failing". Seven days rather than a rolling 24 hours
+// because a MailCounter row is a UTC day and pretending otherwise would be
+// arithmetic on a bucket that does not exist.
+const MAIL_WINDOW_DAYS = [
+  { back: 0, label: "Today" },
+  { back: 6, label: "The last 7 days" },
+] as const;
+
+type CounterRow = {
+  day: string;
+  templateKey: string;
+  outcome: string;
+  statusClass: string;
+  count: number;
+};
+
+function windowFrom(label: string, from: string, to: string, rows: CounterRow[]): MailWindowDto {
+  const inWindow = rows.filter((row) => row.day >= from && row.day <= to);
+
+  // Every known template gets a row, including one that sent nothing. A
+  // template missing from the screen reads as "we do not send that any more";
+  // a template showing zero reads as "nothing went out", which is the signal
+  // brief 05 calls the silence alert and the one a counter can actually give.
+  const byTemplate: MailTemplateTotalsDto[] = MAIL_TEMPLATE_KEYS.map((key) => {
+    const mine = inWindow.filter((row) => row.templateKey === key);
+    const total = (outcome: string) =>
+      mine.filter((row) => row.outcome === outcome).reduce((sum, row) => sum + row.count, 0);
+    const accepted = total("SENT");
+    const failed = total("FAILED");
+    const unconfigured = total("UNCONFIGURED");
+
+    const byClass = new Map<string, number>();
+    for (const row of mine) {
+      if (row.outcome === "SENT") continue;
+      byClass.set(row.statusClass, (byClass.get(row.statusClass) ?? 0) + row.count);
+    }
+
+    return {
+      templateKey: key,
+      label: MAIL_TEMPLATE_LABEL[key],
+      attempted: accepted + failed + unconfigured,
+      accepted,
+      failed,
+      unconfigured,
+      failureReasons: [...byClass.entries()]
+        .map(([statusClass, count]) => ({
+          label:
+            MAIL_STATUS_CLASS_LABEL[statusClass as MailStatusClass] ??
+            "An outcome this version does not recognise",
+          count,
+        }))
+        // Biggest first, ties broken on the label so two runs cannot disagree.
+        .sort((a, b) => (b.count - a.count) || (a.label < b.label ? -1 : 1)),
+    };
+  });
+
+  const sum = (pick: (t: MailTemplateTotalsDto) => number) =>
+    byTemplate.reduce((total, t) => total + pick(t), 0);
+  const attempted = sum((t) => t.attempted);
+  const failed = sum((t) => t.failed) + sum((t) => t.unconfigured);
+
+  return {
+    label,
+    rangeLabel: from === to ? `${from} (UTC)` : `${from} to ${to} (UTC)`,
+    attempted,
+    accepted: sum((t) => t.accepted),
+    failed: sum((t) => t.failed),
+    unconfigured: sum((t) => t.unconfigured),
+    // An unconfigured attempt counts against the verdict: nothing left
+    // Storyjar, which is the thing the verdict is about.
+    verdictLabel: MAIL_VERDICT_LABEL[mailVerdict(attempted, failed)],
+    byTemplate,
+  };
+}
+
+async function readSuppression(lastCheck: JobRunDto | null): Promise<MailSuppressionSummaryDto> {
+  const configured = mailHmacConfigured();
+
+  // Counted one state at a time rather than grouped. A groupBy would be one
+  // query instead of four, and the gate refuses it: `state` is not on
+  // SAFE_GROUP_KEYS, and widening that list to add it would widen every model,
+  // not this one. Four counts over four literal values from a closed vocabulary
+  // is the same answer with nothing new permitted.
+  const counts = await Promise.all(
+    MAIL_SUPPRESSION_STATES.map(async (state) => ({
+      state,
+      label: MAIL_SUPPRESSION_STATE_LABEL[state],
+      count: await db.mailSuppression.count({ where: { state } }),
+    })),
+  );
+
+  const total = counts.reduce((sum, row) => sum + row.count, 0);
+  const monitored = configured && lastCheck !== null;
+
+  let statement: string;
+  if (!configured) {
+    statement =
+      "Not monitored. No MAIL_HMAC_KEY is set in this environment, so Storyjar records nothing about which addresses Mailjet is refusing, and the figures below are not evidence of anything.";
+  } else if (lastCheck === null) {
+    statement =
+      "Not monitored yet. The key is set but the check against Mailjet has never run, so an empty list here means nobody has looked, not that nobody is blocked.";
+  } else if (total === 0) {
+    statement = "Mailjet is not refusing any address that Storyjar has checked.";
+  } else {
+    statement =
+      "Addresses Mailjet is refusing. These are counts. There is no list, and there cannot be: Storyjar stores a one-way keyed label for each address and never the address, so the only way to ask about a particular parent is from their own record under Find an adult.";
+  }
+
+  return { monitored, total, states: counts, statement };
+}
+
+/**
+ * Everything the mail screen renders. School-blind and person-blind by
+ * construction, because there is nothing else in the tables to be otherwise
+ * with.
+ */
+export async function readMailStatus(): Promise<MailStatusDto> {
+  await requireOperator();
+
+  const now = new Date();
+  const earliest = utcDayBefore(now, Math.max(...MAIL_WINDOW_DAYS.map((w) => w.back)));
+  const today = utcDayBefore(now, 0);
+
+  // The four key columns and the tally. Named one at a time like every other
+  // read in this file: a Prisma read with no `select:` returns every scalar
+  // column, and the next person to add a column to this table should have to
+  // come here to surface it.
+  const rows = await db.mailCounter.findMany({
+    where: { day: { gte: earliest } },
+    select: { day: true, templateKey: true, outcome: true, statusClass: true, count: true },
+  });
+
+  const run = await db.jobRun.findFirst({
+    where: { job: MAIL_SUPPRESSION_SYNC_JOB },
+    orderBy: [{ startedAt: "desc" }],
+    select: {
+      job: true,
+      startedAt: true,
+      outcome: true,
+      itemsAffected: true,
+      outcomeDetail: true,
+    },
+  });
+
+  const lastCheck: JobRunDto | null = run
+    ? {
+        job: run.job,
+        label: "Check against Mailjet's refused addresses",
+        startedAt: formatDayAndTime(run.startedAt) ?? "",
+        outcomeLabel:
+          run.outcome === "SUCCESS" ? "Finished successfully" : "Did not finish successfully",
+        itemsAffected: run.itemsAffected,
+        note: run.outcomeDetail,
+        ageLabel: formatAgo(run.startedAt, now),
+      }
+    : null;
+
+  return {
+    windows: MAIL_WINDOW_DAYS.map((w) =>
+      windowFrom(w.label, utcDayBefore(now, w.back), today, rows),
+    ),
+    suppression: await readSuppression(lastCheck),
+    lastCheck,
+    acceptedStatement:
+      "Accepted means Mailjet took the message. It is not a delivery receipt: open and click tracking are switched off at account level and again on every message, deliberately, because a rewritten link is followed by whatever scans it, and a parent's sign-in link works exactly once. Storyjar therefore cannot tell whether a message arrived or was read, and never will while that stays true.",
+    scopeStatement:
+      "These figures cover every school together. They cannot be split by school, because splitting them would mean storing who each message went to, and no counter here holds a recipient or even a domain. To ask about one family, look their adult up under Find an adult.",
   };
 }
 

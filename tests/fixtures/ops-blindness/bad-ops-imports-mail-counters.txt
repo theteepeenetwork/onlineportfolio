@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// The other half of the same split. The vocabulary (@/lib/mailStatus) is pure
+// and allowed; the recording half (@/lib/mailCounters) is Prisma-coupled and is
+// not. This fixture is why the vocabulary was moved out of src/lib/ops/ rather
+// than the mailer being dragged in: a file that imports an ops module is walked
+// as ops code, and this one would fail for importing the client.
+import { recordMailAttempt } from "@/lib/mailCounters";
+
+export async function count() {
+  return recordMailAttempt("magicLink", "accepted", 200);
+}

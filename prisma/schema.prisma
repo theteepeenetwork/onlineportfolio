@@ -13,35 +13,35 @@ datasource db {
 
 // A teacher owns one or more classes and moderates the journal.
 model Teacher {
-  id           String    @id @default(cuid())
-  name         String // the teacher's full name (e.g. "Sam Pearson")
-  title        String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
-  displayStyle String    @default("formal") // "formal" (title + surname) | "first"
-  displayName  String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
-  email        String    @unique
-  passwordHash String
-  schoolName   String? // captured at signup (Storyjar onboarding); free text
-  country      String? // England / Scotland / Wales / NI / Elsewhere
-  role         String    @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
-  status       String    @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
+  id             String             @id @default(cuid())
+  name           String // the teacher's full name (e.g. "Sam Pearson")
+  title          String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
+  displayStyle   String             @default("formal") // "formal" (title + surname) | "first"
+  displayName    String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
+  email          String             @unique
+  passwordHash   String
+  schoolName     String? // captured at signup (Storyjar onboarding); free text
+  country        String? // England / Scotland / Wales / NI / Elsewhere
+  role           String             @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
+  status         String             @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
   // Signed up before launch day (1 Sept 2026) and promised free, unlimited
   // access permanently. STORED, never derived from `createdAt`: a promise you
   // can't identify the beneficiaries of is a promise you will break, and a
   // derived date stops being equivalent the first time rows are migrated or
   // imported. See docs/pricing-decisions.md. Not child data; no retention
   // implications beyond the teacher row itself.
-  foundingMember Boolean @default(false)
-  school       School?   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
-  schoolId     String?
-  createdAt    DateTime  @default(now())
-  classes      Class[]
-  sessions     Session[]
-  templates    ActivityTemplate[]
-  folders      Folder[]
-  drafts       Draft[] // in-progress template drafts (cross-device autosave)
+  foundingMember Boolean            @default(false)
+  school         School?            @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  schoolId       String?
+  createdAt      DateTime           @default(now())
+  classes        Class[]
+  sessions       Session[]
+  templates      ActivityTemplate[]
+  folders        Folder[]
+  drafts         Draft[] // in-progress template drafts (cross-device autosave)
   // An individually-subscribing teacher's own subscription (null when the
   // teacher is covered by a school plan instead — see Subscription).
-  subscription Subscription?
+  subscription   Subscription?
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
@@ -139,12 +139,12 @@ model Class {
 // A student has no password — they pick their name from the class after
 // entering the class code (mirrors how Seesaw handles young children).
 model Student {
-  id           String        @id @default(cuid())
+  id           String              @id @default(cuid())
   name         String
-  avatarColor  String        @default("#4f46e5") // colour of their avatar bubble
-  class        Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  avatarColor  String              @default("#4f46e5") // colour of their avatar bubble
+  class        Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
   classId      String
-  createdAt    DateTime      @default(now())
+  createdAt    DateTime            @default(now())
   // When this child last opened their jar. Approval happens while they're away,
   // so without this the reward lands in an empty room: anything approved after
   // this timestamp is new to them and drops into the jar when they next look.
@@ -157,7 +157,7 @@ model Student {
   journalItems JournalItem[]
   sessions     Session[]
   assignments  AssignmentStudent[]
-  parents      Parent[]      @relation("ParentChildren")
+  parents      Parent[]            @relation("ParentChildren")
   drafts       Draft[] // in-progress activity-response drafts (cross-device autosave)
 }
 
@@ -200,32 +200,32 @@ model MagicToken {
 
 // A single piece of work in a student's journal.
 model JournalItem {
-  id          String    @id @default(cuid())
-  type        String // PHOTO | TEXT | DRAWING | AUDIO
-  caption     String? // optional short caption / the child's words
-  textContent String? // body text for TEXT items
-  mediaPath   String? // relative /uploads path: cover image (PHOTO / DRAWING) or the voice-note file (AUDIO). Served ONLY via the authorising /uploads route, never publicly — same as photos (SAFEGUARDING rule 7).
-  mediaPathsJson String? // JSON array of paths for multi-page drawings; when set it supersedes mediaPath
+  id              String      @id @default(cuid())
+  type            String // PHOTO | TEXT | DRAWING | AUDIO
+  caption         String? // optional short caption / the child's words
+  textContent     String? // body text for TEXT items
+  mediaPath       String? // relative /uploads path: cover image (PHOTO / DRAWING) or the voice-note file (AUDIO). Served ONLY via the authorising /uploads route, never publicly — same as photos (SAFEGUARDING rule 7).
+  mediaPathsJson  String? // JSON array of paths for multi-page drawings; when set it supersedes mediaPath
   quizAnswersJson String? // JSON QuizAnswer[] — the child's multiple-choice selections (PENDING child content)
-  quizScore   Int? // server-computed number of correct answers at submit time (null = not a quiz response)
-  quizTotal   Int? // number of questions in the assignment snapshot at submit time
-  status      String    @default("PENDING") // PENDING | APPROVED | RETURNED
-  authorRole  String // STUDENT | TEACHER — who created the item
-  teacherNote String? // feedback the teacher leaves when returning work
-  stickersJson String? // JSON array of sticker KEYS (max 4) from the fixed catalog in src/lib/stickers.ts — keys only, look is derived
-  praiseNote  String? // the teacher's kind note attached at approval time (shown to the child with the stickers)
-  stickerReply String? // "HEART" once the child sends one back — fixed value, never free text (SAFEGUARDING rule 2)
-  returnMode  String? // when RETURNED: "CONTINUE" (reopen with their work) | "FRESH" (blank restart). null = not returned / legacy (treated as FRESH)
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId   String
-  class       Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
-  classId     String
-  skills      Skill[]   @relation("JournalItemSkills")
-  createdAt   DateTime  @default(now())
-  approvedAt  DateTime?
+  quizScore       Int? // server-computed number of correct answers at submit time (null = not a quiz response)
+  quizTotal       Int? // number of questions in the assignment snapshot at submit time
+  status          String      @default("PENDING") // PENDING | APPROVED | RETURNED
+  authorRole      String // STUDENT | TEACHER — who created the item
+  teacherNote     String? // feedback the teacher leaves when returning work
+  stickersJson    String? // JSON array of sticker KEYS (max 4) from the fixed catalog in src/lib/stickers.ts — keys only, look is derived
+  praiseNote      String? // the teacher's kind note attached at approval time (shown to the child with the stickers)
+  stickerReply    String? // "HEART" once the child sends one back — fixed value, never free text (SAFEGUARDING rule 2)
+  returnMode      String? // when RETURNED: "CONTINUE" (reopen with their work) | "FRESH" (blank restart). null = not returned / legacy (treated as FRESH)
+  student         Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId       String
+  class           Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId         String
+  skills          Skill[]     @relation("JournalItemSkills")
+  createdAt       DateTime    @default(now())
+  approvedAt      DateTime?
   // When set, this item is a response to an assignment (a run of a template).
-  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
-  assignmentId String?
+  assignment      Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  assignmentId    String?
 }
 
 // A reusable, class-agnostic activity a teacher can run again and again. The
@@ -381,36 +381,36 @@ model AuditLog {
 // Retention: RETENTION.md, "Platform operator account" and "Operator sessions
 // and recovery codes". Purpose and residual risks: docs/DPIA.md R15.
 model Operator {
-  id    String @id @default(cuid())
-  email String @unique
+  id                String            @id @default(cuid())
+  email             String            @unique
   // bcrypt, cost 12 (OPS_BCRYPT_COST in src/lib/ops/passwords.ts).
-  pwHash String
+  pwHash            String
   // Base32 TOTP secret. Stored in plaintext beside the database on the same
   // volume: encrypting it with a key from the environment would place the key
   // on the same host, so it buys less than it appears to. Recorded and accepted
   // in docs/DPIA.md R15 rather than left undocumented.
-  totpSecret      String
-  totpConfirmedAt DateTime? // null until the operator has enrolled
+  totpSecret        String
+  totpConfirmedAt   DateTime? // null until the operator has enrolled
   // Monotonic replay protection: a step less than OR EQUAL to this is refused,
   // so an attacker cannot replay the older code that is still inside the window.
-  lastTotpStep Int?
+  lastTotpStep      Int?
   // Ten single-use recovery codes, bcrypt-hashed, as
   // [{ "hash": "$2b$12$…", "usedAt": null }]. The plaintext is printed once by
   // scripts/seed-operator.ts and lives offline (docs/ops-recovery.md).
-  recoveryCodesJson String @default("[]")
-  role              String @default("OWNER") // OWNER | OPERATOR. One account exists (handbook D11); the split exists so "the last owner is protected" is expressible
-  status            String @default("ACTIVE") // ACTIVE | DISABLED
+  recoveryCodesJson String            @default("[]")
+  role              String            @default("OWNER") // OWNER | OPERATOR. One account exists (handbook D11); the split exists so "the last owner is protected" is expressible
+  status            String            @default("ACTIVE") // ACTIVE | DISABLED
   // Lockout is persisted on the row, not held in the in-process rate limiter:
   // that store resets on every deploy and every restart, and this is the one
   // door where the attacker gets everything.
-  failedAttempts Int       @default(0)
-  lockedUntil    DateTime?
-  lastSignInAt   DateTime?
-  createdAt      DateTime  @default(now())
+  failedAttempts    Int               @default(0)
+  lockedUntil       DateTime?
+  lastSignInAt      DateTime?
+  createdAt         DateTime          @default(now())
   // Named opsSessions, not `sessions`: `sessions` is a relation to the app's
   // Session model elsewhere in this schema, and the blindness gate matches
   // relation names, not types.
-  opsSessions OperatorSession[]
+  opsSessions       OperatorSession[]
 }
 
 // One row per operator browser session. Stores the SHA-256 hash of the cookie
@@ -439,19 +439,126 @@ model OperatorSession {
 // routinely contains a child's first name, so reading it would be a child-data
 // read wearing an operations hat.
 model OpsAuditLog {
-  id          String   @id @default(cuid())
-  at          DateTime @default(now())
-  actorId     String? // null for a failed sign-in against an unknown address
-  actorName   String
-  action      String // e.g. OPS_SIGN_IN | OPS_SIGN_IN_FAILED | OPS_TOTP_FAILED
-  subjectType String?
-  subjectId   String?
-  reason      String? // the operator's stated reason, verbatim, on mutating actions
-  detail      String? // never a child's name, never a credential value
+  id             String   @id @default(cuid())
+  at             DateTime @default(now())
+  actorId        String? // null for a failed sign-in against an unknown address
+  actorName      String
+  action         String // e.g. OPS_SIGN_IN | OPS_SIGN_IN_FAILED | OPS_TOTP_FAILED
+  subjectType    String?
+  subjectId      String?
+  reason         String? // the operator's stated reason, verbatim, on mutating actions
+  detail         String? // never a child's name, never a credential value
   // Unique so QA can force a genuine constraint violation and prove that an
   // audit failure fails the operation (ruling R5), with no fault flag in the
   // product to do it with.
-  idempotencyKey String? @unique
+  idempotencyKey String?  @unique
 
   @@index([at])
+}
+
+// ---------------------------------------------------------------------------
+// Mail delivery status, and the jobs that keep it current (PR5).
+// ---------------------------------------------------------------------------
+// Handbook ruling R9 fixes the storage model: "counters and HMAC-keyed
+// suppression, and explicitly no address or domain". Owner decision D7, which
+// would permit a per-recipient failure record, is unanswered and its published
+// default is counters only, so counters only is what these three tables are.
+//
+// WHY NOT A ROW PER SEND, which is the obvious design and the one brief 03
+// asked for. Three reasons, in the order they matter:
+//
+//   1. A visible list of sign-in failures by address rebuilds, inside Storyjar,
+//      the account-enumeration signal that FINDINGS F6 deliberately withholds
+//      from the public sign-in form. requestMagicLink answers the same way for
+//      an address on file and one that is not; an operator screen listing
+//      "delivery failed for ada@example.com" answers the question the form
+//      refuses to. Counters cannot.
+//   2. It is new personal data about adults on a 5 GB volume that has no
+//      backups and holds every child's photograph (owner amendment B1, decision
+//      D2 still open). The least data that answers the operational question is
+//      the right amount.
+//   3. Nothing operational needs it. "Is mail leaving Storyjar this morning"
+//      and "is this one parent's address being refused" are both answerable
+//      without a per-send row: the first from a tally, the second from a keyed
+//      hash of the one address the operator already holds.
+//
+// None of these tables carries a recipient address, a recipient domain, a
+// subject line or a message body. A sign-in email body contains a live token,
+// so any code path that could persist a body is a token-disclosure bug, not a
+// storage decision.
+
+// One row per run of a scheduled job, so a job that never started is visible.
+// Railway's cron does not alert on a non-zero exit and cannot alert at all on a
+// run that did not happen, so the absence of a recent SUCCESS row is itself the
+// signal (brief 05, "Both jobs must fail loudly").
+//
+// `outcomeDetail` holds a fixed vocabulary only. Never a recipient, never a
+// path, never a count of children.
+model JobRun {
+  id            String    @id @default(cuid())
+  job           String // fixed vocabulary: "mail:suppression-sync" today
+  startedAt     DateTime
+  finishedAt    DateTime?
+  outcome       String // "SUCCESS" | "FAILURE"
+  itemsAffected Int       @default(0)
+  // A fixed vocabulary, never free text. Named outcomeDetail rather than the
+  // obvious `note` because the blindness gate refuses a column whose name ends
+  // in "note": AuditLog and JournalItem both carry notes that routinely hold a
+  // child's first name, and a rule that has to know which `note` is which is a
+  // rule that will one day guess wrong.
+  outcomeDetail String?
+
+  @@index([job, startedAt])
+}
+
+// A per-day, per-template, per-outcome tally of send ATTEMPTS, written from
+// inside src/lib/mailer.ts by src/lib/mailCounters.ts. It says the same
+// operational thing a delivery log would say without holding a row about a
+// person: there is no address here, no domain, and no way to get from a row
+// back to a family.
+//
+// `statusClass` is an empty string rather than NULL when there is nothing to
+// say. SQLite treats NULLs as distinct in a unique constraint, so a nullable
+// column in the key silently produces duplicate rows on upsert instead of
+// incrementing the one that is already there.
+//
+// The vocabulary of all four key columns is closed and lives in
+// src/lib/ops/mail.ts. The provider's own error strings are mapped onto it and
+// never stored, so a provider that one day starts putting an address in a
+// rejection message cannot put one in here.
+model MailCounter {
+  day         String // "YYYY-MM-DD", UTC
+  // Named templateKey rather than `template` because `template` is a RELATION
+  // to ActivityTemplate elsewhere in this schema, and the blindness gate
+  // derives its child-relation denylist from relation names: an operator file
+  // mentioning `template` is refused, whichever thing it meant. The gate cannot
+  // tell a mail template from a child's activity template and should not try.
+  templateKey String // "magic-link"
+  outcome     String // "SENT" | "FAILED" | "UNCONFIGURED"
+  statusClass String // "" | "4xx" | "5xx" | "other" | "rejected" | "timeout" | "network"
+  count       Int    @default(0)
+
+  @@id([day, templateKey, outcome, statusClass])
+}
+
+// One row per address the provider is refusing, keyed by an HMAC-SHA256 of the
+// address under MAIL_HMAC_KEY, which lives in the environment and not in this
+// repository.
+//
+// A plain hash of an email address is not a de-identification measure: the
+// space of real addresses is small enough to walk with a dictionary, so an
+// unkeyed digest is the address with extra steps. The key is what makes this
+// row useless to somebody holding a copy of the database file and nothing else.
+//
+// It is a one-way column on purpose. An operator can ask "is THIS address, which
+// I already have in front of me, being refused", by hashing it server-side from
+// the stored adult record. Nobody can ask "which addresses are being refused",
+// because that list is a list of adults locked out of their children's work and
+// nothing operational needs it.
+model MailSuppression {
+  id          String   @id @default(cuid())
+  addressHmac String   @unique
+  state       String // "BOUNCE" | "BLOCKED" | "SPAM" | "UNSUBSCRIBED"
+  firstSeenAt DateTime
+  lastSeenAt  DateTime
 }

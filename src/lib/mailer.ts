@@ -45,6 +45,13 @@ import "server-only";
 //    tests/battery/security/email-templates.spec.ts. That module drops
 //    `server-only` so the test can read it; its header says why, and what
 //    would put the guard back.
+//  • **Every attempt is counted, and nothing about it is stored.** PR5 added a
+//    per-day, per-template, per-outcome tally through recordMailAttempt below.
+//    It holds no address, no domain, no subject, no body and no provider
+//    string, it never throws, and it cannot change what a caller observes,
+//    because requestMagicLink discards this function's result on purpose to
+//    keep finding F6 true. See src/lib/mailCounters.ts for the whole argument,
+//    including the timing side channel it does not make worse.
 //  • **Nothing about the recipient is logged.** A failure writes the provider's
 //    status class and nothing else: not the address, not its domain, not the
 //    subject, not the body, and never the link, which carries a live sign-in
@@ -57,6 +64,9 @@ import "server-only";
 //  • Mailjet is a sub-processor holding adult email addresses only. It is
 //    listed on /legal/sub-processors, in the DPA, and in docs/DPIA.md.
 // ---------------------------------------------------------------------------
+
+import { recordMailAttempt } from "@/lib/mailCounters";
+import type { MailTemplateKey } from "@/lib/mailStatus";
 
 const MAILJET_ENDPOINT = "https://api.mailjet.com/v3.1/send";
 const SEND_TIMEOUT_MS = 8000;
@@ -93,19 +103,50 @@ type SendArgs = {
   /** Plain text is the source of truth; HTML is a light wrapper around it. */
   text: string;
   html: string;
+  /**
+   * Which template this is, from the closed list in src/lib/mailStatus.ts. It
+   * is the only thing about a message that is written down, and it is a
+   * constant chosen at the call site rather than anything derived from the
+   * recipient or the content.
+   */
+  templateKey: MailTemplateKey;
 };
+
+/**
+ * The single exit from sendMail. Every return below goes through here, so
+ * "was this attempt counted?" has one answer instead of one per branch, and a
+ * new failure path cannot be added without counting it.
+ *
+ * A blocking spec asserts that sendMail contains no other return of a result
+ * object, which is what keeps that true after the next edit.
+ */
+async function finish(templateKey: MailTemplateKey, result: MailResult): Promise<MailResult> {
+  await recordMailAttempt(templateKey, result);
+  return result;
+}
 
 /**
  * Send one transactional email. Never throws: a mail failure must not take down
  * the action that triggered it, and must never change what the user is told
  * (see the enumeration note in actions/family.ts).
  */
-export async function sendMail({ to, subject, text, html }: SendArgs): Promise<MailResult> {
+export async function sendMail({
+  to,
+  subject,
+  text,
+  html,
+  templateKey,
+}: SendArgs): Promise<MailResult> {
   if (!mailerConfigured()) {
     // Loud in development, silent-but-reported in production. Deliberately not
     // an exception: an unconfigured environment should degrade, not crash.
+    //
+    // Counted as UNCONFIGURED rather than as a failure, because it is a
+    // different problem with a different fix, and it is the one that produces
+    // no signal anywhere else: a revoked API key makes no attempt at the
+    // provider, so there is no bounce and no provider-side error to notice.
     console.warn("[mailer] not configured — no Mailjet credentials; email not sent");
-    return { ok: false, reason: "not-configured" };
+    return finish(templateKey, { ok: false, reason: "not-configured" });
   }
 
   const controller = new AbortController();
@@ -146,7 +187,7 @@ export async function sendMail({ to, subject, text, html }: SendArgs): Promise<M
       // A status class, and nothing about who the message was for. See the
       // logging note in this file's header.
       console.error(`[mailer] send failed (${statusClass(res.status)})`);
-      return { ok: false, reason: `http-${res.status}` };
+      return finish(templateKey, { ok: false, reason: `http-${res.status}` });
     }
 
     // Mailjet returns HTTP 200 even when an individual message was rejected, so
@@ -158,14 +199,14 @@ export async function sendMail({ to, subject, text, html }: SendArgs): Promise<M
     const status = body?.Messages?.[0]?.Status;
     if (status !== "success") {
       console.error("[mailer] provider rejected the message");
-      return { ok: false, reason: `rejected-${status ?? "unknown"}` };
+      return finish(templateKey, { ok: false, reason: `rejected-${status ?? "unknown"}` });
     }
 
-    return { ok: true };
+    return finish(templateKey, { ok: true });
   } catch (e) {
     const reason = e instanceof Error && e.name === "AbortError" ? "timeout" : "network";
     console.error(`[mailer] send ${reason}`);
-    return { ok: false, reason };
+    return finish(templateKey, { ok: false, reason });
   } finally {
     clearTimeout(timer);
   }
