@@ -77,7 +77,56 @@ test("a teacher's in-progress template survives a reload and saves correctly", a
   // question: does saved work come back? The stalled-lookup case has its own
   // test at the bottom of this file.
   await clickHydrated(page, /Build a template/);
-  await expect(page.getByRole("dialog", { name: /restore your unsaved work/i })).toBeVisible();
+
+  // ===== TEMPORARY DIAGNOSTIC — F34/F36 residual. Do not merge. =====
+  // The question this run exists to answer: when the prompt does not arrive in
+  // CI, does it arrive LATE or NEVER? Those need different fixes, and every
+  // previous attempt guessed instead of measuring. So: capture the three things
+  // that decide it, then wait far longer than any real budget and record when
+  // (or whether) the prompt shows up.
+  const draftsAfterReload = await page.evaluate(
+    () =>
+      new Promise<string>((resolve) => {
+        const req = indexedDB.open("storyjar-drafts");
+        req.onerror = () => resolve("open-error");
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("drafts")) return resolve("no-store");
+          const all = db.transaction("drafts", "readonly").objectStore("drafts").getAll();
+          all.onerror = () => resolve("getall-error");
+          all.onsuccess = () =>
+            resolve(
+              JSON.stringify(
+                all.result.map((r: Record<string, unknown>) => {
+                  const c = r.canvas as { anyDrawn?: boolean; pages?: string[] } | undefined;
+                  return { anyDrawn: c?.anyDrawn ?? null, pages: c?.pages?.length ?? 0 };
+                }),
+              ),
+            );
+        };
+      }),
+  );
+  const canvasCount = await page.locator("canvas").count();
+  const dialog = page.getByRole("dialog", { name: /restore your unsaved work/i });
+  const startedAt = Date.now();
+  let appearedAfterMs: number | null = null;
+  for (let i = 0; i < 120; i++) {
+    if ((await dialog.count()) > 0 && (await dialog.isVisible())) {
+      appearedAfterMs = Date.now() - startedAt;
+      break;
+    }
+    await page.waitForTimeout(500);
+  }
+  console.log(
+    "F34DIAG " +
+      JSON.stringify({ appearedAfterMs, canvasCount, draftsAfterReload }),
+  );
+  expect(
+    appearedAfterMs,
+    `F34DIAG prompt never arrived in 60s. canvases=${canvasCount} drafts=${draftsAfterReload}`,
+  ).not.toBeNull();
+  // ===== END TEMPORARY DIAGNOSTIC =====
+
   await page.getByRole("button", { name: /Restore my work/i }).click();
 
   // The restored drawing is back in the editor's hidden field…
