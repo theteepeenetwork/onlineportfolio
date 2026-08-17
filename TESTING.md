@@ -118,6 +118,47 @@ PORT=3100 npm test     # run on a different port if 3000 is busy
 When something fails, Playwright saves a screenshot under `test-results/` and
 the HTML report (`npm run test:report`) shows exactly where it stopped.
 
+### Two branches at once: give each one a worktree
+
+The rule above says never run two batteries at once. The exception is when each
+run has its own checkout, its own port and its own database file, and a git
+worktree is how you get all three. This is how two pieces of work proceed in
+parallel without either one's results being a lie.
+
+```bash
+git worktree add ../sj-mywork -b my-branch
+cd ../sj-mywork
+npm ci                                  # do NOT symlink or share node_modules
+cp ../onlineportfolio/.env .env
+PORT=3200 npm run test:battery
+```
+
+Three things about that recipe are load-bearing.
+
+**Each worktree needs its own `node_modules`.** Sharing one is the obvious
+saving and it is wrong: `npm ci` writes a generated Prisma client into
+`node_modules/.prisma` from whichever schema ran last, so two branches with
+different schemas quietly overwrite each other's client. The failure surfaces
+somewhere unrelated as a column that does not exist.
+
+**Each worktree needs its own database.** `DATABASE_URL` is
+`file:./dev.db`, deliberately relative, so a worktree resolves it inside its own
+directory and gets a separate file for free. Do not change it to an absolute
+path.
+
+**Pick a port per worktree and never kill by name.** `pkill -f "next dev"` kills
+every worktree's server, not yours. On 17 August 2026 that produced nine
+failures in tenant-isolation specs that read exactly like a security regression
+and were nothing of the sort. Kill by port instead, and treat any run whose
+server disappeared under it as void rather than as a result:
+
+```bash
+lsof -ti tcp:3200 | xargs kill
+```
+
+Remove the worktree when the branch has merged, with
+`git worktree remove ../sj-mywork`.
+
 ### What's covered
 
 | File | What it checks |
