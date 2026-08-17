@@ -103,9 +103,35 @@ Each rule is testable. A change that breaks one does not ship.
    and billing. An admin **must not** see a child's work unless they personally
    teach that class. This is enforced by the same `teacherId` scoping — never add
    an admin path that reads children's journal items school-wide.
+20. **Neither is the platform operator.** The person who operates Storyjar can run
+   the service and **cannot read a child's work through it**. Operator code may read
+   adult records, billing state, and counts over children large enough that no
+   individual shows through. It may **never** read a child's name, moment, caption,
+   media path, draft, quiz answer, class code or PIN; never produce a figure about
+   an individual child; and never sign in as another person. This is enforced before
+   review by `scripts/check-ops-blindness.mjs`, a blocking gate: an operator file
+   that reaches the database directly, imports anything not on its allowlist, reads
+   a child model in any way other than a suppressed count, or contains an
+   impersonation path fails the build. If a genuine operational need appears, the
+   answer is a new named, audited, aggregate-only action, never an exception to the
+   gate.
+   **This rule governs the product, not the host.** The operator holds the hosting
+   account, so infrastructure-level access to the server, database file and media
+   volume remains technically possible, and the application does not log it. That
+   access is not a product capability and is never used for routine work. The only
+   circumstances in which it may touch a child's data, the record that must be left,
+   and who must be told, are in
+   [`docs/exceptional-access.md`](./docs/exceptional-access.md). Nobody should read
+   this rule as promising more than it gives.
 6. **Parents see only their own child(ren), read-only.** No parent can see
    another family's child. Parents can view and download; only the teacher can
    add, change or remove what is in the jar.
+6a. **A parent's contact details come only from that parent, and we send only what
+   they asked for.** Storyjar never takes a parent's email or phone number from a
+   teacher, a school import or a child. Family access travels home on paper as a
+   code, and the parent decides whether to add an address at all. We send a parent
+   only a sign-in link they requested, or notifications they switched on
+   themselves. Nothing else, and nothing by default.
 7. **Uploaded media is access-controlled, not public.** Photos and drawings of
    children **must not** be served from guessable or unauthenticated URLs. Every
    media request is authorised against the same rules as rule 4 before the bytes
@@ -280,7 +306,15 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-08-17 | 20 (new) | Added when the platform operator console was built. States that the operator can run the service and cannot read a child's work **through the product**, enforced by a blocking gate rather than by memory, and states the limit of that guarantee in the same breath: the operator holds the hosting account, the application does not log infrastructure access, and the circumstances under which it may lawfully touch a child's data are governed by `docs/exceptional-access.md`. | Product owner | One person operating a service that holds children's work needs a limit that survives their own future convenience, and a written statement of the limit's edge so that nobody relies on more than it gives. The gate constrains the product; it cannot constrain the person, and a rule that implied otherwise would fall apart in a school's due-diligence questionnaire, or the first time a court ordered otherwise. |
+| 2026-08-17 | 6a (new) | A parent's contact details come only from that parent, and Storyjar sends only what that parent asked for: a sign-in link they requested, or notifications they switched on themselves. | Product owner | The first draft said Storyjar never messages a parent who did not ask, which was too wide: it would have forbidden notification preferences before they were built. The principle was right and the scope was wrong. This wording bans the thing that actually matters, which is obtaining a parent's address from anyone other than the parent, without banning a feature the parent themselves turns on. It describes what family access already does, where the code travels home on paper and the parent chooses whether to add an address at all. |
 | 2026-07-15 | 1 | Carved out **one** exception to "never ask a child for any credential": an optional, off-by-default, teacher-enabled numeric PIN, self-chosen, intended for Years 4–6. Bans on child emails, passwords and phone numbers are unchanged, as is rule 2. | Product owner (the serving teacher who owns Storyjar), acting on the July 2026 intuitiveness audit | Widening to ages 3–11 brought in Years 4–6, where children signing in as each other is a genuine problem that the class-code-plus-name model does not address. A mis-tap files one child's work in another child's evidence base — an assessment problem and a safeguarding one. **The honest framing: this is a classroom-management feature, not a security control**, and rule 1's text now says so explicitly so that no one later mistakes it for protection. **Not yet reviewed by a data-protection professional** — the PIN adds a per-child data field (`pinHash`), so it needs that review before it reaches real children. |
+
+**A note on numbering.** Rule numbers are permanent identifiers assigned in the
+order rules were added, not positions on the page. They are cited from
+`schema.prisma`, `docs/DPIA.md` and the test battery, so a rule is never
+renumbered to tidy the sequence. Rule 20 therefore sits beside rule 5, which is
+the rule it extends, and rule 6a sits beside rule 6.
 
 *Last reviewed by engineering; **not yet reviewed by a data-protection professional / legal.** Update the
 "Last reviewed" line and the backlog whenever this changes.*
