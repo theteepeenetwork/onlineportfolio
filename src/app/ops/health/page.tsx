@@ -82,16 +82,6 @@ export const metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-// src/app/ops/shell.tsx and the ops nav are the tech lead's files for wave 5,
-// because all three wave-5 PRs touch them and that is where the merge conflicts
-// have been. So this page cannot add itself to OPS_LINKS, and the cast below is
-// the honest consequence: no nav item is marked as the current page, because
-// this route is not in the nav yet.
-//
-// The one-line change requested, which deletes this cast: add
-// { href: "/ops/health", label: "Health" } to OPS_LINKS in src/app/ops/shell.tsx.
-const HEALTH_ROUTE = "/ops/health" as unknown as OpsPath;
-
 const RAILWAY_DASHBOARD = "https://railway.com/dashboard";
 
 function FactList({ facts }: { facts: Fact[] }) {
@@ -164,7 +154,7 @@ export default async function OpsHealthPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--paper)" }}>
-      <OpsBar current={HEALTH_ROUTE} />
+      <OpsBar current="/ops/health" />
       <main className="mx-auto w-full max-w-4xl px-4 py-8">
         <h1 className="font-display text-2xl" style={{ color: "var(--ink)" }}>
           Service health

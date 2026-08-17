@@ -35,6 +35,7 @@ export const OPS_LINKS = [
   { href: "/ops/schools", label: "Schools" },
   { href: "/ops/billing", label: "Billing" },
   { href: "/ops/lookup", label: "Find an adult" },
+  { href: "/ops/health", label: "Health" },
 ] as const;
 
 export type OpsPath = (typeof OPS_LINKS)[number]["href"];
