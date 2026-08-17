@@ -63,6 +63,9 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F22 | Low | Log hygiene | The stdout static check scans `src/` only; scripts run against production with `railway run` are audited by hand | **Accepted** | `security/log-hygiene.spec.ts` (scope stated in its header) |
 | F23 | High | Ops blindness gate | Twenty-nine of forty-two attempted evasions got past the gate as first written, including three that handed over password hashes and family codes through a *permitted* call on a *permitted* model | **Fixed** (28 closed, 1 accepted in F24) | `security/ops-blindness-gate.spec.ts` + the 69-file corpus behind `--self-test` |
 | F24 | Info | Ops blindness gate | What the gate still cannot see: runtime-assembled identifiers, and `scripts/ops/` being deliberately out of scope | **Accepted** | scope stated in the gate header and in A15 |
+| F25 | Low | Ops surface | With ops enabled, an unauthorised `/ops` 404 is about 1,700 bytes smaller than a genuine one, so the route's existence is inferable by size. Accepted: the body names nothing and the sign-in door is openly reachable anyway. | Accepted |
+| F26 | Medium | Erasure | Deleting a `Teacher` row cascades their classes, pupils, moments, drafts and templates and erases **no** media files. Latent today (only never-activated staff are ever deleted), but it is the exact shape PR8's account deletion will reach for | **Open, logged not fixed** | none yet; must be written with the fix |
+| F27 | Medium | Erasure / Claims | Teacher-authored **template** media (`templatePathsJson`, `quizJson` option pictures, `objectsJson` image srcs) has no erasure path at all: templates are only archived, never deleted. `RETENTION.md` says this media is "deleted with the template/account". `duplicateTemplate` also copies the path strings, so two templates share files on disk | **Open, logged not fixed** | none yet; must be written with the fix |
 
 ---
 
@@ -252,41 +255,6 @@ fixture that fires the wrong rule cannot pass for the right-looking reason.
 
 ---
 
-## F25 · An ops 404 is distinguishable from a real 404 by response size · Low → Accepted
-
-Found in review of PR1 by measuring, not by reading code.
-
-With `OPS_ENABLED=1` and no session, `/ops` returns 404 as ruling R17 requires.
-The body is 7,321 bytes. Two genuinely nonexistent routes return 8,997 and 9,011
-bytes on the same build, repeatably. So the existence of `/ops` as a route can be
-inferred from the size of its not-found response, which is the kind of signal
-R17 exists to remove.
-
-Why it is Accepted rather than Fixed:
-
-- **It reveals only that the route exists**, not who may use it, not what it
-  does, and nothing about any child or adult. The 404 body names nothing: the
-  page deliberately carries no `title`, which was a real leak found and fixed
-  during PR1, and the only occurrence of the path in the payload is Next echoing
-  the segment the requester themselves typed. A control against `/wibble` shows
-  the identical echo, so that part is generic framework behaviour.
-- **The door is openly reachable anyway.** When ops is enabled, `/ops/sign-in`
-  returns 200 to anybody, because a sign-in page nobody can reach is not a
-  sign-in page. Anyone curious enough to measure a 404 body would find that
-  first, so closing the size difference would buy nothing while the door exists.
-  What R17 actually forbids is a login page that NAMES the area, and this one
-  does not: its whole visible text is "Sign in", "Email", "Password",
-  "Continue".
-- **The fix is disproportionate.** Making the response byte-identical to a
-  framework 404 means either not routing `/ops` at all, or reproducing Next's
-  own not-found payload by hand and keeping it identical across upgrades. Both
-  are more fragile than the thing they would hide.
-
-What would change this: if the sign-in door ever moves behind something
-unguessable, the size difference becomes the remaining signal and should be
-closed at the same time. Recorded so that decision is made deliberately rather
-than by forgetting this exists.
-
 ## F24 · What the blindness gate still cannot see · Info → Accepted
 
 Recorded so no document claims more for the gate than is true. The gate's own
@@ -325,6 +293,128 @@ has host access to the SQLite file and the media volume regardless.
 
 **Accepted.** No action beyond keeping these sentences in the DPIA and out of
 anything a school is shown.
+
+---
+
+## F25 · An ops 404 is distinguishable from a real 404 by response size · Low → Accepted
+
+Found in review of PR1 by measuring, not by reading code.
+
+With `OPS_ENABLED=1` and no session, `/ops` returns 404 as ruling R17 requires.
+The body is 7,321 bytes. Two genuinely nonexistent routes return 8,997 and 9,011
+bytes on the same build, repeatably. So the existence of `/ops` as a route can be
+inferred from the size of its not-found response, which is the kind of signal
+R17 exists to remove.
+
+Why it is Accepted rather than Fixed:
+
+- **It reveals only that the route exists**, not who may use it, not what it
+  does, and nothing about any child or adult. The 404 body names nothing: the
+  page deliberately carries no `title`, which was a real leak found and fixed
+  during PR1, and the only occurrence of the path in the payload is Next echoing
+  the segment the requester themselves typed. A control against `/wibble` shows
+  the identical echo, so that part is generic framework behaviour.
+- **The door is openly reachable anyway.** When ops is enabled, `/ops/sign-in`
+  returns 200 to anybody, because a sign-in page nobody can reach is not a
+  sign-in page. Anyone curious enough to measure a 404 body would find that
+  first, so closing the size difference would buy nothing while the door exists.
+  What R17 actually forbids is a login page that NAMES the area, and this one
+  does not: its whole visible text is "Sign in", "Email", "Password",
+  "Continue".
+- **The fix is disproportionate.** Making the response byte-identical to a
+  framework 404 means either not routing `/ops` at all, or reproducing Next's
+  own not-found payload by hand and keeping it identical across upgrades. Both
+  are more fragile than the thing they would hide.
+
+What would change this: if the sign-in door ever moves behind something
+unguessable, the size difference becomes the remaining signal and should be
+closed at the same time. Recorded so that decision is made deliberately rather
+than by forgetting this exists.
+
+## F26 · Deleting a teacher erases rows but no files · Medium → Open
+
+Found on 2026-08-17 while pulling the erasure paths into `src/lib/erasure.ts`
+(PR7). **Logged, deliberately not fixed here**, because PR7 is behaviour
+preserving and a fix is a behaviour change that deserves its own review.
+
+`removeStaff` in `src/app/actions/admin.ts` deletes the `Teacher` row outright
+when the staff member's status is `INVITED`:
+
+```
+if (staff.status === "INVITED") {
+  await db.teacher.delete({ where: { id: staffId } });
+}
+```
+
+`Teacher` cascades widely in `prisma/schema.prisma`: `Class` (and through it
+`Student`, `JournalItem`, `Draft`, `Assignment`), `ActivityTemplate`, `Folder`,
+`Subscription` and `Session` all carry `onDelete: Cascade`. So that one line can
+in principle remove every row holding a media filename while leaving every file
+on the volume, with nothing left that can name them. That is the failure mode
+rule 9 exists to prevent, and it is silent: no error, no log, no red test.
+
+**Why it is Medium and not High.** It is not reachable today. Only `INVITED`
+staff are deleted, and an invited teacher has not signed in, so they own no
+class, no template and no draft. Nothing in the code says so, though. It holds
+because of a lifecycle assumption sitting two files away from the delete.
+
+**Why it matters anyway.** Handbook §5 PR8 is account deletion, and a school
+account deletion is a teacher deletion with the same cascade and far more behind
+it. Whoever writes it will reach for `db.teacher.delete` and inherit this.
+
+**The fix, when it is its own change.** An `eraseTeacher(teacherId)` entry point
+in `src/lib/erasure.ts` alongside the others: gather the teacher's classes'
+journal-item and draft media, their template media (see F27), and the parent ids
+that could be orphaned, **before** the delete; then delete the row, then the
+files, then sweep orphaned families. `removeStaff` calls it instead of
+`db.teacher.delete`. It needs a spec of the same shape as
+`security/f3-pupil-removal-erases-media.spec.ts`, plus a positive control that
+the files existed immediately before.
+
+---
+
+## F27 · Template media has no erasure path, and the schedule says it does · Medium → Open
+
+Found on 2026-08-17 alongside F26, and **logged rather than fixed** for the same
+reason.
+
+Three columns on `ActivityTemplate` hold `/uploads` paths to teacher-authored
+media: `templatePathsJson` (background pages), `quizJson` (answer-option
+pictures) and `objectsJson` (movable picture srcs). `src/app/actions/activities.ts`
+has no delete action at all: `setTemplateArchived` archives, and its own comment
+says it "never deletes runs or responses". So there is no route by which that
+media is ever erased, while `RETENTION.md` tells schools it is "Deleted with the
+template/account like other teacher-authored template media". The document
+describes a path that does not exist.
+
+**A trap sits on top of it.** `duplicateTemplate` copies the path *strings*, not
+the files:
+
+```
+templatePathsJson: t.templatePathsJson,
+quizJson: t.quizJson,
+objectsJson: t.objectsJson,
+```
+
+so an original and its copy point at the same files on disk. `assignTemplate`
+does the same thing again into `templateSnapshotJson` / `quizSnapshotJson` /
+`objectsSnapshotJson` on the `Assignment`. Any future "delete this template and
+its files" written the obvious way will therefore blank the background pages of
+every copy and every live run made from it.
+
+This is also why `eraseClass` in `src/lib/erasure.ts` deliberately does **not**
+gather assignment snapshot paths, even though a class delete cascades its
+assignments: those paths belong to the teacher's template, which survives. That
+is existing behaviour, it is correct, and PR7 preserved it. It is written down
+here so nobody "fixes" it later and deletes a teacher's whole activity library
+by removing one class.
+
+**The fix, when it is its own change.** Decide first whether duplicate and
+assign should copy the files rather than the strings (they should, then
+ownership is one-to-one and erasure is simple), or whether erasure must
+reference-count paths across templates, copies and assignment snapshots. Only
+then add template deletion. Until it is settled, `RETENTION.md`'s
+teacher-template row is a claim ahead of the code.
 
 ---
 

@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { savePhoto, saveAudio, saveImageDataUrl, saveImagePages, deleteMediaFiles } from "@/lib/media";
+import { savePhoto, saveAudio, saveImageDataUrl, saveImagePages } from "@/lib/media";
+import { eraseJournalItem, eraseJournalItemMedia } from "@/lib/erasure";
 import { discardResponseDraftFor } from "@/lib/drafts";
 import { recordAudit } from "@/lib/audit";
 import { readQuiz, readAnswers, sanitizeAnswers, scoreQuiz } from "@/lib/quiz";
@@ -186,16 +187,10 @@ export async function createJournalItem(
 
     // Erase the previous attempt's media (right to erasure, SAFEGUARDING rule 9).
     // The new attempt saved to fresh paths above, so these are safe to remove.
-    const oldMedia: Array<string | null> = [returned.mediaPath];
-    if (returned.mediaPathsJson) {
-      try {
-        const paths = JSON.parse(returned.mediaPathsJson);
-        if (Array.isArray(paths)) for (const p of paths) if (typeof p === "string") oldMedia.push(p);
-      } catch {
-        // Malformed JSON — nothing to erase from it.
-      }
-    }
-    await deleteMediaFiles(oldMedia);
+    // The row survives (it was updated in place), so this is the files-only
+    // entry point; `returned` was read BEFORE the update, which is what still
+    // gives us the old filenames. See src/lib/erasure.ts.
+    await eraseJournalItemMedia(returned);
   } else {
     await db.journalItem.create({
       data: {
@@ -411,23 +406,9 @@ export async function deleteItem(formData: FormData) {
   const item = await ownedItem(user.teacher.id, id);
   if (!item) return;
 
-  // Gather every media file this moment owns before we drop the row, so we can
-  // erase the files too — deletion of a child's work must be real, not just a
-  // row removal (SAFEGUARDING.md rule 9). Mirrors deleteClass in classes.ts.
-  const mediaUrls: Array<string | null> = [item.mediaPath];
-  if (item.mediaPathsJson) {
-    try {
-      const paths = JSON.parse(item.mediaPathsJson);
-      if (Array.isArray(paths)) {
-        for (const p of paths) if (typeof p === "string") mediaUrls.push(p);
-      }
-    } catch {
-      // Malformed JSON — nothing to erase from it.
-    }
-  }
-
-  await db.journalItem.delete({ where: { id } });
-  await deleteMediaFiles(mediaUrls);
+  // Rows AND files: deletion of a child's work must be real, not just a row
+  // removal (SAFEGUARDING.md rule 9). See src/lib/erasure.ts.
+  await eraseJournalItem(id);
   await recordAudit({
     action: "MOMENT_DELETED", actorType: "TEACHER", actorId: user.teacher.id, actorName: user.teacher.displayName,
     schoolId: user.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: id, detail: `Deleted ${item.student.name}'s moment`,

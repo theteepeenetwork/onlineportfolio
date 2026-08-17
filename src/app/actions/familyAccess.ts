@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { uniqueFamilyCode } from "@/lib/familyCode";
-import { deleteOrphanedParents } from "@/lib/familyLinks";
+import { deleteOrphanedParents } from "@/lib/erasure";
 import { recordAudit } from "@/lib/audit";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 
