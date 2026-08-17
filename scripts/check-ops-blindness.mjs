@@ -145,10 +145,29 @@ const OPS_ROOTS = [
 // The true positive still fires for a fourth module, proved by the fixture
 // tests/fixtures/ops-blindness/bad-prisma-import-in-ops-totp.txt, and the clean
 // shape is proved by good-operator-session-store.txt.
+//
+// WIDENING (PR4, ruling R2). The fourth module is src/lib/ops/operations.ts,
+// and the gate refused it as OPS-PRISMA-IMPORT until this line was added. It is
+// the implementation of the frozen operation registry, and it is the only place
+// under the ops roots that changes anything (see OPS-MUTATION-MODULE below,
+// which is a NEW and STRICTER rule landing in the same commit and is the reason
+// this widening does not widen much).
+//
+// Why it cannot be one of the three that already exist: a write routed through
+// reads.ts would make the read chokepoint a write path and its name a lie;
+// audit.ts writes exactly one row and must keep doing only that, or "the audit
+// helper" stops meaning anything; session.ts is the door and handles nobody's
+// record but the operator's own.
+//
+// The true positive still fires for a fifth module, proved by
+// bad-prisma-import-in-ops-operations-helper.txt (a near-miss filename, which
+// is the shape this widening invites), and the clean shape by
+// good-family-code-rotation.txt.
 const DECLARED_DB_MODULES = [
   "src/lib/ops/reads.ts",
   "src/lib/ops/audit.ts",
   "src/lib/ops/session.ts",
+  "src/lib/ops/operations.ts",
 ];
 
 // ---------------------------------------------------------------------------
@@ -565,6 +584,70 @@ const SCHOOL_SCOPE_MODULE = "src/lib/ops/reads.ts";
 const SCHOOL_SCOPE_CALL = "student.count";
 const SCHOOL_SCOPE_INNER = /^\s*teacher\s*:\s*\{\s*schoolId\s*(?::\s*[A-Za-z_$][\w$]*\s*)?\}\s*,?\s*$/;
 
+// ---------------------------------------------------------------------------
+// Mutations: one module, one shape (PR4)
+// ---------------------------------------------------------------------------
+// Two rules live here, and they are deliberately written together because one
+// is a STRICTENING and the other is the narrow widening it pays for.
+//
+// OPS-MUTATION-MODULE (new, stricter). Under the ops roots, a Prisma write on
+// anything that is not the operator's OWN record may appear only in
+// src/lib/ops/operations.ts. That file implements the frozen operation registry
+// (src/lib/ops/registry.ts), so the rule is the structural half of the
+// handbook's "every mutating action is named and in the frozen registry": an
+// operation added as a helper in a screen, an action or a second library module
+// is now a failing build rather than a code review somebody might miss. Before
+// this, ADULT_READABLE permitted create, update, updateMany and upsert anywhere
+// under the ops roots, which meant the registry was a convention.
+//
+// OPS-ROTATION-WRITE (the widening). Exactly one write shape is permitted on a
+// record belonging to somebody else:
+//
+//     tx.parent.update({ where: { … }, data: { familyCode: makeFamilyCode() }, select: { … } })
+//
+// only in the operations module, only inside a `data:` block, and only with the
+// value minted INLINE. It exists because rotating a leaked family code is the
+// one platform mutation that is purely a revocation: it takes access away, it
+// hands nothing over, and owner amendment C1 names it as the reason an operator
+// never needs to READ a code ("the operator triggers a rotation and the teacher
+// sees the new code in their own interface").
+//
+// Why it is written this narrowly, key by key:
+//
+//   - a BOUND value is refused (`data: { familyCode: fresh }`). That is not
+//     pedantry, it is the entire point: a value with a name is a value a later
+//     line can return, and amendment C1's failure mode is the new code reaching
+//     the operator's screen. Minted inline, nothing holds it.
+//   - `select:` and `where:` occurrences of the identifier still fail, so this
+//     permits writing a code and never reading one.
+//   - `parent.update` remains refused for every other `data:` block, which is
+//     what keeps owner decision D9 structural rather than aspirational:
+//     `data: { email: … }` is a failing build, and changing an adult's address
+//     is the route into their account that D9 refuses to build.
+//   - it is confined to the operations module, so the shape cannot be copied
+//     into a screen or a shared helper.
+//
+// The true positives still fire, proved by five fixtures:
+//   bad-write-outside-operations-module.txt   a write in the read chokepoint
+//   bad-rotation-outside-operations-module.txt the permitted shape, elsewhere
+//   bad-rotation-code-bound-to-a-variable.txt  the C1 near miss this invites
+//   bad-rotation-reads-the-code.txt            the same identifier in a select
+//   bad-parent-email-write.txt                 the D9 near miss
+// and the clean shape by good-family-code-rotation.txt.
+const OPERATIONS_MODULE = "src/lib/ops/operations.ts";
+const ROTATION_CALL = /\b(?:db|prisma|tx|client)\s*\.\s*parent\s*\.\s*update\s*\(/g;
+const ROTATION_DATA = /^\s*familyCode\s*:\s*makeFamilyCode\s*\(\s*\)\s*,?\s*$/;
+const MUTATING_METHODS = [
+  "create",
+  "createMany",
+  "createManyAndReturn",
+  "update",
+  "updateMany",
+  "upsert",
+  "delete",
+  "deleteMany",
+];
+
 // Raw SQL defeats model-name scanning entirely, so it is banned outright here,
 // stricter than audit-static.mjs which permits parameterised tagged templates.
 const RAW_SQL = [
@@ -653,7 +736,34 @@ const ALLOWED_PACKAGE_PREFIXES = ["next/"];
 //                                      to show one entry did not open the door
 //                                      to the rest of src/lib          -> fails
 // and the clean shape by good-ops-stripe-mode-import.txt.
-const ALLOWED_LOCAL_IMPORTS = ["@/lib/billing-plans", "@/lib/rateLimit", "@/lib/stripeMode"];
+//
+// WIDENING (PR4, ruling R2). The fourth entry is @/lib/familyCodeMint, and the
+// gate refused src/lib/ops/operations.ts as OPS-IMPORT-ALLOWLIST until it was
+// added.
+//
+// Why it is needed. Rotating a family code means minting one, and the operator
+// area must mint it exactly the way the teacher's own rotation does: one
+// alphabet, one length, one crypto RNG. Two generators that agreed on the day
+// they were written and drifted afterwards is a worse outcome than any import.
+//
+// Why this module rather than the obvious one. The obvious import is
+// @/lib/familyCode, and permitting THAT would drag the Prisma client into the
+// ops import walk: it asks the database whether a candidate code is already in
+// use, so it is `server-only`, it reads Parent rows, and the word `familyCode`
+// appears in a `where:` clause in it. The pure minting half was split out into
+// @/lib/familyCodeMint in the same commit. It imports node:crypto and one
+// alphabet, touches no database, and returns a string.
+//
+// The true positive still fires, proved by
+// bad-ops-imports-family-code-module.txt (an ops file importing
+// @/lib/familyCode, the near miss this widening invites), and the clean shape
+// by good-ops-family-code-mint-import.txt.
+const ALLOWED_LOCAL_IMPORTS = [
+  "@/lib/billing-plans",
+  "@/lib/rateLimit",
+  "@/lib/stripeMode",
+  "@/lib/familyCodeMint",
+];
 const ALLOWED_LOCAL_PREFIXES = ["@/lib/ops/"];
 
 // ---------------------------------------------------------------------------
@@ -980,6 +1090,31 @@ function checkFile(rel, raw, ctx) {
     v.push({ rel, line: lineOf(raw, index), rule, reason });
   };
 
+  // The permitted family-code rotation writes in this file, as [dataOpen,
+  // dataClose, callIndex] triples. Computed up front because two separate rules
+  // consult it: the banned-identifier scan (may `familyCode` appear here?) and
+  // the model-method scan (may `parent.update` be called here?). See
+  // OPS-ROTATION-WRITE above for why each clause is as narrow as it is.
+  const rotationWrites = [];
+  if (rel === OPERATIONS_MODULE) {
+    const callRe = new RegExp(ROTATION_CALL.source, "g");
+    let cm;
+    while ((cm = callRe.exec(code))) {
+      const open = struct.indexOf("(", cm.index + cm[0].length - 1);
+      const close = open === -1 ? -1 : matchParen(struct, open);
+      if (close === -1) continue;
+      for (const [a, b] of blockRangesFor(struct, /\bdata\s*:\s*/)) {
+        if (a < open || b > close) continue;
+        if (ROTATION_DATA.test(code.slice(a + 1, b))) rotationWrites.push([a, b, open]);
+      }
+    }
+  }
+  const isRotationData = (index) => rotationWrites.some(([a, b]) => index > a && index < b);
+  // Identified by the position of the call's opening parenthesis, which is the
+  // one index both this scan and the model-method scan can agree on: they match
+  // different starting points ("tx.parent.update(" against ".parent.update(").
+  const isRotationCall = (openIndex) => rotationWrites.some(([, , at]) => at === openIndex);
+
   // -- Imports -------------------------------------------------------------
   for (const { spec, index, typeOnly } of importSpecsOf(code)) {
     if (isPrismaSpec(spec, rel)) {
@@ -1173,6 +1308,12 @@ function checkFile(rel, raw, ctx) {
     const re = new RegExp(`\\b${field}\\b`, "gi");
     let m;
     while ((m = re.exec(code))) {
+      // The one permitted occurrence anywhere under the ops roots: minting a
+      // replacement family code, inline, as the value of a `data:` key, in the
+      // operations module. Writing a fresh random value is not reading one, and
+      // amendment C1 bans reading. Every other occurrence, including this
+      // identifier in a `select:` or a `where:` in the same file, still fails.
+      if (field === "familyCode" && isRotationData(m.index)) continue;
       const credential = ["familyCode", "classCode", "token", "passwordHash", "pinHash"].includes(field);
       add(
         m.index,
@@ -1309,8 +1450,28 @@ function checkFile(rel, raw, ctx) {
         );
         continue;
       }
+      // One module writes, and it is the one that implements the registry.
+      // Checked before the per-class permission, because ADULT_READABLE
+      // permits create/update/updateMany/upsert and the point of this rule is
+      // that WHERE a write lives is a separate question from whether that model
+      // may be written at all.
+      if (
+        MUTATING_METHODS.includes(method) &&
+        klass !== "OPS_OWNED" &&
+        rel !== OPERATIONS_MODULE
+      ) {
+        add(
+          m.index,
+          "OPS-MUTATION-MODULE",
+          `${delegate}.${method}() writes to a record that is not the operator's own, in a file that is not ${OPERATIONS_MODULE}. Every mutating action is named, listed in the frozen registry (src/lib/ops/registry.ts) and implemented in that one module, with its audit row in the same transaction. A write anywhere else is an operation nobody put on the list.`,
+        );
+        continue;
+      }
       const permitted = METHODS_BY_CLASS[klass];
-      if (permitted.includes(method)) {
+      if (
+        permitted.includes(method) ||
+        (model === "Parent" && isRotationCall(m.index + m[0].length - 1))
+      ) {
         // A permitted call shape can still hand over a credential, because a
         // Prisma read with no `select:` returns EVERY scalar column. Before
         // this rule `db.teacher.findMany({ take: 50 })` was a clean pass and

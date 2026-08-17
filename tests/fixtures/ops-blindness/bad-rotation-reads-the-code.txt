@@ -1,0 +1,14 @@
+// @path: src/lib/ops/operations.ts
+// @expect: OPS-BANNED-IDENTIFIER
+// The rotation permission is write-only, and this proves it. Reading the
+// column is exactly what amendment C1 bans, and the operations module gets no
+// dispensation from that just because it is allowed to write one.
+import "server-only";
+import { db } from "@/lib/db";
+
+export async function showCode(parentId) {
+  return db.parent.findUnique({
+    where: { id: parentId },
+    select: { id: true, familyCode: true },
+  });
+}

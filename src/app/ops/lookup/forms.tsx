@@ -2,7 +2,10 @@
 
 import { useActionState, useEffect, useRef, type ReactNode } from "react";
 import { opsLookupAdult, type OpsLookupState } from "@/app/actions/ops/lookup";
+import { opsRevealParentEmail, opsRotateFamilyCode } from "@/app/actions/ops/operations";
+import { ConfirmAction } from "../ConfirmAction";
 import { LOOKUP_KIND_LABEL, MAIL_STATE_LABEL, REASON_MAX, REASON_MIN } from "@/lib/ops/dto";
+import { OPS_OPERATIONS } from "@/lib/ops/registry";
 
 // The lookup form and its result.
 //
@@ -171,11 +174,37 @@ function Result({ state }: { state: OpsLookupState }) {
       </div>
 
       {record?.kind === "PARENT" ? (
-        <p className="mt-3 text-sm" style={{ color: "var(--ink-soft)" }}>
-          The address is shown masked on purpose. Seeing one in full is a separate action that has to
-          be asked for and recorded, and it has not been built yet. Nothing here says which children
-          this parent is linked to, or how many, and there is no way to ask.
-        </p>
+        <>
+          <p className="mt-3 text-sm" style={{ color: "var(--ink-soft)" }}>
+            The address is shown masked on purpose. Seeing one in full is a separate action that has
+            to be asked for and recorded, below. Nothing here says which children this parent is
+            linked to, or how many, and there is no way to ask.
+          </p>
+
+          {/* The two named operations, and the only two things this area can do
+              to a record. Both hang off a record the operator has already found
+              by typing somebody's whole address: neither has an address box of
+              its own, so neither can be used to walk the table (amendment C4).
+              The list they come from is src/lib/ops/registry.ts and it is
+              closed. */}
+          <ConfirmAction
+            spec={OPS_OPERATIONS.OPS_PARENT_EMAIL_REVEALED}
+            subjectId={record.id}
+            action={opsRevealParentEmail}
+          />
+          <ConfirmAction
+            spec={OPS_OPERATIONS.OPS_FAMILY_CODE_ROTATED}
+            subjectId={record.id}
+            action={opsRotateFamilyCode}
+          />
+
+          <p className="mt-4 text-sm" style={{ color: "var(--ink-soft)" }}>
+            There is nothing else that can be done to this record from here. An operator cannot
+            change an adult&rsquo;s email address, in this area or anywhere else in Storyjar: a
+            teacher changes their own, and a school admin re-invites them. Changing one here would
+            be a way into that person&rsquo;s account.
+          </p>
+        </>
       ) : null}
 
       <div className="mt-4 text-sm" style={{ color: "var(--ink-soft)" }}>

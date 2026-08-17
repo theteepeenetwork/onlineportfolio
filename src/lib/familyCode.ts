@@ -1,17 +1,12 @@
 import "server-only";
-import { randomInt } from "node:crypto";
 import { db } from "@/lib/db";
-import { FAMILY_CODE_ALPHABET, FAMILY_CODE_LENGTH } from "@/lib/familyCodeChars";
+import { makeFamilyCode } from "@/lib/familyCodeMint";
 
-// Mirrors makeClassCode/uniqueClassCode in `classCode.ts`. `randomInt` is the
-// crypto RNG, not Math.random: this code is a credential.
-export function makeFamilyCode(length = FAMILY_CODE_LENGTH): string {
-  let code = "";
-  for (let i = 0; i < length; i++) {
-    code += FAMILY_CODE_ALPHABET[randomInt(FAMILY_CODE_ALPHABET.length)];
-  }
-  return code;
-}
+// The pure minting half now lives in `familyCodeMint.ts` and is re-exported
+// here so every existing caller is unchanged. It was split out in PR4 because
+// the operator area needs the same generator and may not import a module that
+// touches Prisma. See the header of that file.
+export { makeFamilyCode };
 
 // Generate a family code that isn't already in use.
 export async function uniqueFamilyCode(): Promise<string> {

@@ -1,0 +1,30 @@
+// @path: src/lib/ops/operations.ts
+// The whole of what PR4's rotation permission allows, and the clean shape the
+// blocking specs run against.
+//
+// The new code is minted INLINE. Nothing holds it, so no later line can return
+// it to the operator, which is the failure owner amendment C1 exists to
+// prevent: "an operator who can READ a family code can sign in as that family
+// and see that child's jar".
+//
+// The update carries a select, so the updated row does not come back holding
+// the very column this operation exists to avoid handing over.
+import "server-only";
+import { db } from "@/lib/db";
+import { makeFamilyCode } from "@/lib/familyCodeMint";
+
+export async function rotate(parentId) {
+  return db.$transaction(async (tx) => {
+    const family = await tx.parent.findUnique({
+      where: { id: parentId },
+      select: { id: true, email: true },
+    });
+    if (!family) return null;
+    await tx.parent.update({
+      where: { id: family.id },
+      data: { familyCode: makeFamilyCode() },
+      select: { id: true },
+    });
+    return family.id;
+  });
+}

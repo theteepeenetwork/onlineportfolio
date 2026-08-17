@@ -775,6 +775,38 @@ but that should be confirmed and recorded rather than assumed).
 Not fixed here because it is unrelated to the PR that surfaced it, and a font
 change touches every page in the product.
 
+## F29 · A restore prompt that needs three round trips, against a ten-second budget · Low → Fixed
+
+Written up on 2026-08-17. The row existed in the table above with no section
+under it, unlike every other finding, so this is that section rather than a new
+discovery.
+
+`tests/e2e/drafts.spec.ts` reopens the template editor after a reload and waits
+for the "restore your unsaved work" dialog. The prompt cannot appear until the
+canvas has done three things in order: purged expired drafts from IndexedDB,
+read the local draft back, and completed a Server Action round trip for the
+cross-device copy (`DrawingCanvas`: `purgeExpired`, then
+`Promise.all([loadDraft, serverLoadDraft])`). On a cold CI runner that last step
+is also the first compile of that action. The sequence exceeded Playwright's
+ten-second default assertion budget twice in one day, once on `main` and once on
+an unrelated pull request, while passing locally every time.
+
+The assertion now names that precondition in a comment and allows thirty
+seconds.
+
+**Why this is written down rather than shrugged at.** Raising a timeout is the
+classic way to make a flaky test pass while hiding a real defect, and a reader
+finding `timeout: 30_000` in a diff is right to be suspicious. The distinction
+worth holding on to: this wait is not padding around an unknown, it is a budget
+sized to a named sequence of three operations that a fast local machine hides.
+The assertion still fails if the prompt never arrives, which is the thing the
+test is for, and a failure at *this* budget is a genuine defect in draft restore
+rather than a slow runner.
+
+**Not a product defect, and no user is waiting thirty seconds for anything.**
+The three steps are fast in production, where the Server Action is already
+compiled. It is a test-timing finding, which is why it is Low.
+
 ## How the battery encodes fixed findings
 
 - **F1, F3** repro tests were promoted from the findings project into the
