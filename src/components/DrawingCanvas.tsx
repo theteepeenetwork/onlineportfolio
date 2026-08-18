@@ -20,7 +20,7 @@ import {
   type DraftCanvasV1,
   type DraftSurface,
 } from "@/lib/draftStore";
-import { serverSaveDraft, serverLoadDraft, serverDiscardDraft } from "@/lib/draftSync";
+import { serverSaveDraft, serverLoadDraftBounded, serverDiscardDraft } from "@/lib/draftSync";
 import type { CanvasObj } from "@/lib/canvasObjects";
 
 // Deep-clone the questions we get from props so our editing never mutates the
@@ -109,6 +109,9 @@ const W = 1000;
 const H = 700;
 const FONT_STACK = "ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif";
 const MAX_HISTORY = 30;
+// See loadImage() for why an image load needs a deadline at all, and why this
+// number is a backstop against a hang rather than a latency policy.
+const IMAGE_LOAD_BUDGET_MS = 30_000;
 
 // A quiz box is born at this size, and its contents are designed at it: the
 // type sizes below are "at QUIZ_W × QUIZ_H". A resized box scales its contents
@@ -441,6 +444,10 @@ export function DrawingCanvas({
   const [draftPrompt, setDraftPrompt] = useState<DraftCanvasV1 | null>(null);
   const [draftSource, setDraftSource] = useState<"local" | "server">("local");
   const draftFieldsRef = useRef<Record<string, string> | null>(null); // fields from a pending restore
+  // Whether the restore question has been answered. Exists for the late
+  // cross-device arrival in the restore-on-mount effect: once a person has
+  // restored or discarded, nothing is allowed to change under them.
+  const restoreDecidedRef = useRef(false);
 
   const drawing = useRef(false);
   const snapshot = useRef<ImageData | null>(null);
@@ -603,11 +610,43 @@ export function DrawingCanvas({
   function clearCanvas() {
     ctx()?.clearRect(0, 0, W, H);
   }
+  // Load an image, with a deadline.
+  //
+  // `onerror` covers a broken or forbidden URL. It does not cover a request that
+  // is accepted and then never answered, which fires neither event and leaves
+  // this promise pending forever. That matters because the seeding effect awaits
+  // it before the canvas reports itself `ready`, and `ready` gates both the
+  // "Loading…" overlay and the restore prompt. One stalled template background
+  // therefore left a child looking at an editor that never opened, and never
+  // being offered the work they had already done. Same defect as F34, reached
+  // through a different call.
+  //
+  // The deadline turns a hang into the error path every caller already handles
+  // (that page's background or object simply does not render), which is degraded
+  // but usable, and the child's own strokes still come back.
+  //
+  // The tradeoff is real and worth naming rather than hiding: a genuinely slow
+  // load that trips the deadline loses that page's worksheet background, which
+  // is a child's context for their own work. So the number is a backstop against
+  // infinity, not a latency policy. It is long enough that a multi-megabyte
+  // composite on poor school wifi should still make it, and short enough that the
+  // editor recovers inside a lesson instead of never. Losing a background is worse
+  // than a slow one and better than an editor that never opens at all.
   function loadImage(src: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
+      const timer = setTimeout(
+        () => reject(new Error("image load exceeded its deadline")),
+        IMAGE_LOAD_BUDGET_MS,
+      );
+      img.onload = () => {
+        clearTimeout(timer);
+        resolve(img);
+      };
+      img.onerror = (e) => {
+        clearTimeout(timer);
+        reject(e);
+      };
       img.src = src;
     });
   }
@@ -1054,6 +1093,15 @@ export function DrawingCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Has the person changed anything in this session? Every user edit goes through
+  // pushHistory(), so a non-empty undo stack is the canvas's own record of "there
+  // is work here now". hydrateFromDraft clears the stacks, so a restore does not
+  // count as an edit. Used to make sure a late cross-device draft never opens a
+  // dialog over work in progress.
+  function hasUserEdits(): boolean {
+    return Object.values(undoRef.current).some((stack) => (stack?.length ?? 0) > 0);
+  }
+
   // Restore-on-mount: once the canvas is ready, offer any saved draft. Gated so
   // it only fires when the draft likely represents lost work: a child response
   // always (their strokes sit on top of the template background), or a fresh
@@ -1076,14 +1124,23 @@ export function DrawingCanvas({
     let cancelled = false;
     (async () => {
       await purgeExpired(RETENTION_MS);
+
       // Reconcile the local (full-fidelity, offline) copy with the server
       // (cross-device) copy and take whichever is newer.
-      const [local, server] = await Promise.all([
-        loadDraft(draftKey, ownerId),
-        serverLoadDraft(serverSurface, serverContext),
-      ]);
+      //
+      // The local read always settles: every path in draftStore resolves, even
+      // when storage is unavailable. The server read is the one that can hang,
+      // so it gets a deadline, and the two are only awaited together because
+      // BOTH are now bounded. Waiting on an unbounded network call here used to
+      // withhold the prompt outright, which meant a teacher's or a child's work
+      // sat safe on their own disk and was never offered back to them. The local
+      // copy is the one guaranteed to exist; it is never held hostage to a remote
+      // one. See finding F34.
+      const remote = serverLoadDraftBounded(serverSurface, serverContext);
+      const [local, first] = await Promise.all([loadDraft(draftKey, ownerId), remote.settled]);
       if (cancelled) return;
       const localAt = local?.canvas ? local.updatedAt : 0;
+      const server = first.timedOut ? null : first.draft;
       const serverAt = server && server.pages.length ? server.updatedAt : 0;
 
       let chosen: DraftCanvasV1 | null = null;
@@ -1097,15 +1154,52 @@ export function DrawingCanvas({
         setDraftSource("local");
         chosen = local.canvas;
       }
-      if (!chosen) return;
 
-      // Sent back to "carry on": reopen their work immediately rather than
-      // asking a young child to choose at a restore prompt. Otherwise (a normal
-      // first attempt with lost work) offer the prompt as before.
-      if (resumeMode === "continue") {
-        await applyRestore(chosen);
-      } else {
-        setDraftPrompt(chosen);
+      if (chosen) {
+        // Sent back to "carry on": reopen their work immediately rather than
+        // asking a young child to choose at a restore prompt. Otherwise (a normal
+        // first attempt with lost work) offer the prompt as before.
+        if (resumeMode === "continue") {
+          await applyRestore(chosen);
+        } else {
+          setDraftPrompt(chosen);
+        }
+      }
+
+      // Offering the older local copy in silence is its own small harm, so if the
+      // lookup only overran its deadline (rather than answering) we keep
+      // listening, and upgrade the offer if the server copy turns out to be the
+      // newer one. Deliberately narrow, on two rules:
+      //
+      //  1. Once the person has restored or discarded, nothing changes under
+      //     them. Their choice stands.
+      //  2. Once they have edited anything, no prompt appears and none is
+      //     swapped. A dialog materialising over work in progress is worse than a
+      //     late copy going unoffered, and worse still if they aim "Start fresh"
+      //     at the strokes they just made. Nothing is lost by letting it wait:
+      //     both copies survive (30 days), so reopening the editor offers it
+      //     again.
+      //
+      // Registered last on purpose. In "carry on" mode the branch above has
+      // already applied the local copy and set restoreDecidedRef, so rule 1 holds
+      // even if the lookup answers a millisecond after its deadline; attaching
+      // this first would leave a window where both could hydrate, older last.
+      //
+      // The visible cost when it does fire is that an open dialog's wording
+      // changes from "your unsaved work" to "work from another device" while it is
+      // being read. That is the honest thing to show, and it is rarer than handing
+      // someone a stale copy without telling them.
+      if (first.timedOut) {
+        void remote.eventual.then((late) => {
+          if (cancelled || !late || !late.pages.length) return;
+          if (late.updatedAt <= localAt) return; // the local copy really was newer
+          if (restoreDecidedRef.current || hasUserEdits()) return;
+          draftFieldsRef.current = late.fields ?? {};
+          setDraftSource("server");
+          const upgraded = serverPagesToCanvas(late.pages);
+          if (resumeMode === "continue") void applyRestore(upgraded);
+          else setDraftPrompt(upgraded);
+        });
       }
     })();
     return () => {
@@ -1117,6 +1211,7 @@ export function DrawingCanvas({
   // Load a stored canvas into the live session and apply its restored fields.
   // Shared by the restore prompt and the automatic "carry on" reopen.
   async function applyRestore(canvas: DraftCanvasV1) {
+    restoreDecidedRef.current = true;
     await hydrateFromDraft(canvas);
     const f = draftFieldsRef.current;
     if (f) {
@@ -1132,12 +1227,14 @@ export function DrawingCanvas({
 
   async function restoreDraft() {
     const canvas = draftPrompt;
+    restoreDecidedRef.current = true;
     setDraftPrompt(null);
     if (!canvas) return;
     await applyRestore(canvas);
   }
 
   function discardDraft() {
+    restoreDecidedRef.current = true;
     setDraftPrompt(null);
     draftFieldsRef.current = null;
     if (draftKey) void deleteDraft(draftKey);
@@ -1281,6 +1378,10 @@ export function DrawingCanvas({
         const c = ctx();
         if (c) c.drawImage(img, 0, 0, W, H);
       })
+      // A stroke layer is always a locally-generated data URL, so this should
+      // not fail; swallow it rather than leave the canvas stuck in `loading`
+      // (which would silently stop autosave) or raise an unhandled rejection.
+      .catch(() => {})
       .finally(() => {
         loadingRef.current = false;
       });

@@ -67,12 +67,14 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F26 | Medium | Erasure | Deleting a `Teacher` row cascades their classes, pupils, moments, drafts and templates and erases **no** media files. Latent today (only never-activated staff are ever deleted), but it is the exact shape PR8's account deletion will reach for | **Open, logged not fixed** | none yet; must be written with the fix |
 | F27 | Medium | Erasure / Claims | Teacher-authored **template** media (`templatePathsJson`, `quizJson` option pictures, `objectsJson` image srcs) has no erasure path at all: templates are only archived, never deleted. `RETENTION.md` says this media is "deleted with the template/account". `duplicateTemplate` also copies the path strings, so two templates share files on disk | **Open, logged not fixed** | none yet; must be written with the fix |
 | F28 | Medium | Availability / build | The app fetches its two webfonts from Google at build and dev-server startup via `next/font/google`. A 404 or outage from `fonts.gstatic.com` fails the build, which took out a CI job on 2026-08-17 and would equally fail a production deploy. | Open |
-| F29 | Low | Test timing | The template restore prompt waits on an IndexedDB purge, an IndexedDB read and a Server Action round trip before it can render. On a cold CI runner that exceeded the 10 second default assertion budget twice in one day while passing locally every time. The assertion now names the precondition and allows 30 seconds. | Fixed |
+| F29 | Low | Test timing | The template restore prompt waits on an IndexedDB purge, an IndexedDB read and a Server Action round trip before it can render. On a cold CI runner that exceeded the 10 second default assertion budget twice in one day while passing locally every time. The assertion now names the precondition and allows 30 seconds. | **Withdrawn: wrong diagnosis, superseded by F34 and F36** |
 | F30 | Medium | Mail | Mail health is readable at /ops/mail and nothing announces a problem. No alert channel exists, and a MailCounter row is a UTC day so the finest window the data supports is a day, not the hour brief 05 asks for. | Open |
 | F31 | Medium | Mail | The suppression sync has no schedule. Until it is scheduled, MailSuppression is a snapshot of whenever somebody last ran it by hand, and a parent who started bouncing this morning reads as not refused. | Open |
 | F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanishes: the header paints background and text as inline colours, so a high-contrast operator loses all four nav links and the sign-out button on the one account that runs the service. Nothing in src/ handles forced-colors. | Open |
 | F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
+| **F34** | **High** | **Resilience / data loss** | Saved work was withheld from the person who made it. The restore prompt awaited the local draft and a cross-device server lookup **together**, and the lookup had no deadline, so a request that was accepted and never answered suppressed the prompt entirely, and a teacher's or a child's work sat safe in their own browser while they were told nothing. The same shape was found a second time on `loadImage`, where a stalled template background left a child on a permanent "Loading…" overlay. Both are now bounded. | **Fixed** | `e2e/drafts.spec.ts`: "the restore prompt still arrives when the cross-device lookup never answers" and "a stalled template background still lets a child draw and restore" |
 | F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
+| F36 | **Medium** | Test correctness | Every post-reload click in `drafts.spec.ts` raced hydration. Playwright's actionability checks pass on server-rendered HTML, so the click landed before React attached its handler, was swallowed without error, and the test failed one line later on a missing canvas that looked like a product fault. **Measured on 2026-08-18: F36 caused the one-in-two CI flake.** With it fixed the prompt appears in 38ms and all 133 functional tests pass; without it `main` failed at 33.9s. Raised from Low because a fault that fails a blocking gate every other run, and was twice misdiagnosed as a product defect, is not a low-severity test nit. | **Fixed** | `e2e/helpers.ts` `clickHydrated`, used at both post-reload click sites |
 
 ---
 
@@ -780,7 +782,174 @@ but that should be confirmed and recorded rather than assumed).
 Not fixed here because it is unrelated to the PR that surfaced it, and a font
 change touches every page in the product.
 
-## F29 · A restore prompt that needs three round trips, against a ten-second budget · Low → Fixed
+## F34 · Saved work was withheld because a network call never came back · High → Fixed
+
+Opened and fixed on 2026-08-17. **This finding supersedes F29, which was the
+wrong diagnosis of the same symptom.** Read F29 below afterwards: it is left in
+place deliberately, because how it went wrong is the more useful half.
+
+### The symptom
+
+`tests/e2e/drafts.spec.ts` "a teacher's in-progress template survives a reload
+and saves correctly" failed in CI roughly one run in two, four times on
+17 August 2026 across four unrelated commits. It had never failed locally,
+including a full cold run of all 131 e2e tests in CI's order
+(`pkill -f "next dev"; rm -rf .next; npm run test:e2e`). One failing run also
+carried `[WebServer] ⨯ Error: aborted`.
+
+### The wrong diagnosis, and why it was wrong
+
+F29 read the failure as a slow machine. The prompt needs an IndexedDB purge, an
+IndexedDB read and a Server Action round trip, and on a cold runner that last one
+is also the first compile of the action, so the assertion budget went from the
+10 second default to 30 seconds, with a careful comment explaining that this was
+a budget sized to a named sequence and not padding.
+
+It then failed at **33.9 seconds**. That number is the whole finding. The prompt
+was not arriving late; it was not arriving at all. A budget cannot fix a wait
+that never ends, and the 30 seconds only bought two more days of the same failure
+looking slightly less like a bug.
+
+The reasoning in F29 was not lazy, which is what makes it worth keeping. It named
+a real precondition, it was honest about how a raised timeout looks in a diff, and
+it was still wrong, because it explained the observation without ever testing
+whether the prompt arrives *eventually*. The check that would have caught it is
+cheap: before widening a budget, force the wait to be infinite and see whether
+the test fails differently. It does not.
+
+### The actual defect
+
+`DrawingCanvas`, restore-on-mount:
+
+```
+const [local, server] = await Promise.all([
+  loadDraft(draftKey, ownerId),                    // IndexedDB, on the device
+  serverLoadDraft(serverSurface, serverContext),   // a Server Action round trip
+])
+```
+
+`serverLoadDraft` wraps its call in try/catch and returns null on error, and the
+header of `draftSync.ts` promised on that basis that the local-first draft "is
+never blocked by the network". **A hang is not an error.** A request that is
+accepted and then never answered fires no rejection, no `error` event and no
+timeout of its own, so the catch never runs, the promise stays pending, and
+`Promise.all` waits for it forever.
+
+The test failure is the small harm. The product harm is the one that matters:
+
+> A teacher's or a child's work is saved safely in their own browser, and they
+> are never offered it back, because a network call they know nothing about did
+> not come back.
+
+The local copy is the one guaranteed to exist. It was being held hostage to a
+remote one.
+
+### The second instance, found while checking
+
+The restore effect is keyed on `[ready]`, and `ready` is only set after a seeding
+pass that awaits `loadImage` for every template background. `loadImage` rejected
+on `onerror` but had no deadline either, and `ready` gates both the restore
+prompt and the "Loading…" overlay that covers the canvas. So one stalled
+`/uploads` request left a child unable to draw *and* never offered the work they
+had already done. It is the same defect, reached through a different call.
+
+This was **not** the cause of the failing test, and it is worth saying why rather
+than fixing both and implying either might have been it. The failing test is a
+fresh template build: `ActivityBuilder` passes `background={undefined}` when
+`templatePages` is empty and there are no image objects, so that code path makes
+zero `loadImage` calls. It could not have been the cause. It is a real defect on
+the child's surface, and it is fixed here because it is the same bug.
+
+### The fix
+
+1. **`serverLoadDraftBounded`** (`src/lib/draftSync.ts`) returns the lookup as two
+   views: `settled`, which reports `{ timedOut: true }` after
+   `SERVER_LOOKUP_BUDGET_MS` (4 seconds) rather than leaving the caller waiting,
+   and `eventual`, the same lookup with no deadline.
+2. The canvas awaits `loadDraft` and `settled` together. That `Promise.all` is
+   now safe because *both* legs are bounded: every path in `draftStore` resolves,
+   even when storage is unavailable.
+3. **`loadImage`** takes a deadline of 30 seconds, which turns a hang into the
+   error path every caller already handles (that page's background simply does
+   not render).
+
+### What happens when the server copy is genuinely newer but slow
+
+Offering the older local copy in silence is its own small harm, so the fix does
+not stop at "prefer local". If the lookup only overran its deadline, the canvas
+keeps listening on `eventual` and upgrades the offer when the server copy turns
+out to be the newer one, replacing the open prompt, or opening one if nothing
+was offered. Two rules keep that narrow:
+
+- Once the person has restored or discarded, **nothing changes under them**.
+- Once they have edited anything (a non-empty undo stack), no prompt appears and
+  none is swapped. A dialog materialising over work in progress is worse than a
+  late copy going unoffered, and worse still if they aim "Start fresh" at strokes
+  they just made. Nothing is lost by waiting: both copies survive 30 days, so
+  reopening the editor offers it again.
+
+Two costs are accepted rather than hidden. An open dialog's wording can change
+from "your unsaved work" to "work from another device" while it is being read;
+that is the honest thing to show, and rarer than handing someone a stale copy
+without telling them. And a genuinely slow image load that trips the 30 second
+deadline loses that page's worksheet background, which is a child's context for
+their own work. Accepted, because their own strokes still come back, and a lost
+background is better than an editor that never opens.
+
+### Watched fail before watched pass
+
+Both tests force the condition with a Playwright route that accepts a request and
+never answers it, because neither symptom reproduces locally by waiting. Each was
+run against unmodified `main` first and fails there (the cross-device one at the
+10 second default with the prompt never rendering, the background one at 60
+seconds with the child still on "Loading…") and passes with the fix. The
+inflated 30 second budget from F29 has been reverted to the default, which the
+first test now holds without it.
+
+**Amended on review.** The first of those tests went red in CI on this branch,
+and then locally on every run once reproduced. That failure was **not** this
+defect: it was the test's own click racing hydration, logged separately as F36.
+Both faults were real.
+
+**Then it was measured, on 18 August 2026, rather than argued about.** An
+instrumented run recorded, after the reload, whether the draft survived, whether
+the canvas mounted, and how long until the prompt appeared, polling for a full
+minute. Three candidate causes were eliminated first, each with evidence rather
+than reasoning: CPU throttled to 4x, 8x and 20x made no difference (506ms, 508ms,
+518ms, 542ms), and neither did a cold server with `.next` deleted (511ms). The
+throttle was itself verified, because an unconnected knob produces exactly that
+table: a busy loop in the page went from 10ms to 85ms, and stayed at 87ms after
+a reload.
+
+In CI, with F36 fixed, **the prompt arrived in 38 milliseconds** and all 133
+functional tests passed. On `main`, without F36 fixed, the same test failed at
+33.9 seconds on the very next run. So the answer to "late or never" is neither:
+once the click actually registers, the prompt is immediate, and the one-in-two
+CI flake was F36. F29's slow-runner theory is now disproved by measurement
+rather than merely withdrawn.
+
+That leaves this finding's own claim narrower and still true: an unbounded
+lookup **could** withhold work indefinitely, was reachable by a stalled network
+rather than a slow one, and no longer can.
+
+### Residual, logged not fixed
+
+If the lookup is slow **and** an older local copy exists **and** the person
+restores it before the server answers, the canvas resumes from the older copy,
+and their next edit will eventually overwrite the newer server copy on the 25
+second sync debounce. Restoring itself does not overwrite it (`flushServerSync`
+only fires when a sync is already pending, and hydrating does not schedule one),
+so this needs a real edit to bite. Properly fixing it means merging two
+divergent drafts rather than last-writer-wins, which is a larger change than this
+one and wants its own decision about what a teacher should be shown. Narrow: it
+needs two devices, a stalled lookup and a restore inside a 4 second window.
+
+## F29 · A restore prompt that needs three round trips, against a ten-second budget · Low → **Withdrawn (wrong diagnosis; see F34)**
+
+**Kept deliberately.** This was the wrong reading of the F34 symptom, and the
+reasoning below is preserved unedited because it is a good example of an argument
+that is careful, self-aware about how it looks, and still wrong. The claim it
+never tested is the one that mattered: that the prompt arrives *at all*.
 
 Written up on 2026-08-17. The row existed in the table above with no section
 under it, unlike every other finding, so this is that section rather than a new
@@ -892,7 +1061,6 @@ starts.
 RAILPACK, so the service keeps using whatever Railway selects and the repository
 stops asserting a fact it was wrong about.
 ## F35 · Backups exist now, and the written evidence points at the United States · High → Open
-
 Raised 2026-08-17, the same day backups were switched on, because turning them
 on created this question rather than answering it.
 
@@ -951,6 +1119,68 @@ not proof that they do not. Both are inferences about a different thing than the
 one being asked. The only thing that closes it is Railway answering the direct
 question in writing: *for volume backups on this service, in which country or
 region are the snapshots stored?*
+
+## F36 · Every post-reload click raced hydration · Low → Fixed
+
+Found on 2026-08-17 while reviewing the F34 fix, which is the only reason it was
+found at all: F34 shipped a test that forced a stalled network, and that test
+went red in CI.
+
+The first reading was that the fix did not work. It was reproduced instead: a
+worktree of its own, its own port, its own database, cold. It failed there every
+single time, at the line *before* the one the fix is about.
+
+```
+> 212 |   await expect(page.locator("canvas")).toBeVisible();
+      Error: element(s) not found
+```
+
+The page snapshot at that moment still showed the "🎨 Build a template or quiz"
+button, and no canvas. The click had been reported as successful and had done
+nothing.
+
+**The defect.** After `page.reload()` the markup returns almost immediately and
+the JavaScript does not. Playwright's actionability checks are all satisfied by
+server-rendered HTML: the button is visible, enabled and stable while React has
+not yet attached its `onClick`. A click in that window is swallowed in complete
+silence, and the test then fails on whatever the click should have produced,
+one line later, wearing the costume of a product bug.
+
+Inserting a six second sleep in that spot made the test pass, which is what
+identified the cause. The sleep was then removed, because a fixed sleep races
+the same unknown it is covering up and this repository has already paid for that
+lesson once (`waitForDraftSaved`, same file).
+
+**The fix.** `clickHydrated` in `tests/e2e/helpers.ts` waits for React's own
+signal: on hydrating a node React stores its props on the DOM element under a
+`__reactProps$…` key, so the presence of that key is the element saying its
+handlers are live. It is a React internal, and it is still the honest choice
+here, because it waits for the actual precondition rather than for a guess at
+how long the precondition takes.
+
+Both post-reload click sites in `drafts.spec.ts` now use it, including the one
+in the *original* test, which had the identical race and is the test that was
+failing about one run in two.
+
+**Measured, not argued.** On 18 August 2026 an instrumented run settled what two
+sessions had guessed at. In CI with this fixed, the restore prompt appears **38
+milliseconds** after the click and all 133 functional tests pass. On `main`
+without it, the same test failed at 33.9 seconds on the next run. Three other
+candidate causes were eliminated first, each with evidence: CPU throttling to
+4x, 8x and 20x changed nothing, and nor did a cold server. The throttle was
+verified to be real and to survive a reload before those negatives were trusted,
+because an unconnected knob would have produced identical numbers.
+
+That also rehabilitates F29 as a question and then closes it. Its slow-runner
+theory was withdrawn because a 30-second budget still failed at 33.9 seconds,
+which this finding explains: the click never registered, so no budget would ever
+have helped. The theory was not wrong about timing being involved; it was
+looking at the wrong clock.
+
+**Not a product defect.** A real person cannot click faster than their own page
+hydrates often enough for this to matter, and if they do the click simply does
+nothing and they click again. It is logged because it burned a day's diagnosis
+across two sessions while masquerading as two different product faults.
 
 ## How the battery encodes fixed findings
 
