@@ -35,8 +35,14 @@ export async function addSharedActivityToLibrary(formData: FormData) {
   if (!shared) redirect("/teacher/activities/shared");
 
   // Already added? Send them to the copy they have rather than making a second.
+  //
+  // An ARCHIVED copy does not count. Archiving is how a teacher removes
+  // something from their library, so treating one as "already added" would send
+  // them to the template they had just put away and leave them no route back to
+  // a working copy. They get a fresh one, and the archived one stays archived
+  // with its own runs intact.
   const existing = await db.activityTemplate.findFirst({
-    where: { teacherId: user.teacher.id, sourceSharedActivityId: shared.id },
+    where: { teacherId: user.teacher.id, sourceSharedActivityId: shared.id, archived: false },
     select: { id: true },
   });
   if (existing) redirect(`/teacher/activities/${existing.id}`);

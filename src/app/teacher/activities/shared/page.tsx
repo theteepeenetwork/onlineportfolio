@@ -24,8 +24,13 @@ export default async function SharedLibraryPage() {
       where: { published: true },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
+    // archived: false matters. Archiving is how a teacher takes something out of
+    // their library, so an archived copy must not go on saying "Added" and
+    // offering to open the thing they just put away. Without it the card is a
+    // dead end: it claims they have it, links to an archived template, and gives
+    // them no way to take it again.
     db.activityTemplate.findMany({
-      where: { teacherId: user.teacher.id, sourceSharedActivityId: { not: null } },
+      where: { teacherId: user.teacher.id, sourceSharedActivityId: { not: null }, archived: false },
       select: { id: true, sourceSharedActivityId: true },
     }),
     db.journalItem.count({ where: { status: "PENDING", class: { teacherId: user.teacher.id } } }),

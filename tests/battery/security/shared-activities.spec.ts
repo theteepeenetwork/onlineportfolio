@@ -185,6 +185,45 @@ test.describe("adding is a copy, and the copy is the teacher's own", () => {
   });
 });
 
+  test("archiving a copy frees the teacher to take it again", async ({ page }) => {
+    // Reported from production on 2026-08-18: archive the copy, and the library
+    // still said "Added", linked to the archived template, and refused to give
+    // you another one. Archiving is how a teacher takes something OUT of their
+    // library, so the library has to agree that they no longer have it.
+    const shared = await sharedBySlug(PUBLISHED_SLUG);
+    await loginTeacher(page, SCHOOL_A.admin);
+    await page.goto("/teacher/activities/shared");
+    await addFromCard(page, shared.title);
+
+    const first = await db.activityTemplate.findFirst({
+      where: { teacher: { email: SCHOOL_A.admin.email }, sourceSharedActivityId: shared.id },
+    });
+    expect(first).toBeTruthy();
+
+    // Control: while it is in their library, the card says so and offers no Add.
+    await page.goto("/teacher/activities/shared");
+    const card = page.locator("article", { hasText: shared.title }).first();
+    await expect(card).toContainText(/Added/i);
+
+    await db.activityTemplate.update({ where: { id: first!.id }, data: { archived: true } });
+
+    // Now it must be offered again.
+    await page.goto("/teacher/activities/shared");
+    await expect(page.locator("article", { hasText: shared.title }).first()).not.toContainText(/Added/i);
+    await addFromCard(page, shared.title);
+
+    const live = await db.activityTemplate.findMany({
+      where: { teacher: { email: SCHOOL_A.admin.email }, sourceSharedActivityId: shared.id, archived: false },
+    });
+    expect(live.length, "taking it again should give them exactly one working copy").toBe(1);
+    expect(live[0].id, "and it should be a new one, not the archived one").not.toBe(first!.id);
+
+    // The archived copy is left alone: its runs and its media are still there.
+    const archived = await db.activityTemplate.findUnique({ where: { id: first!.id } });
+    expect(archived!.archived).toBe(true);
+    expect(archived!.templatePathsJson).toBe(first!.templatePathsJson);
+  });
+
 test.describe("only Storyjar publishes", () => {
   // The assertion that will still matter in a year. Publishing lives in the
   // repository, so the enforceable version of "no teacher may publish" is that
