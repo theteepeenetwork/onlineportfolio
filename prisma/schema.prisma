@@ -51,6 +51,26 @@ model School {
   id           String        @id @default(cuid())
   name         String
   createdAt    DateTime      @default(now())
+  // What this school IS. "SCHOOL" is a real customer; "DEMO" is Storyjar
+  // Academy, the fictional school Storyjar staff work and troubleshoot in.
+  //
+  // The Academy is a REAL tenant on purpose. A sandbox that is a special case in
+  // the code stops resembling the thing it rehearses, and the bug you are
+  // chasing lives in the ordinary path. So it is scoped exactly like St Bede's,
+  // and this column is not an access control: nothing may read "DEMO" and
+  // decide to relax a rule.
+  //
+  // What it IS for is figures. The Academy must never appear in the pupil rolls,
+  // price bands or revenue the operator console reports, or Storyjar's own
+  // numbers quietly include several hundred children who do not exist.
+  kind         String        @default("SCHOOL")
+  // May staff of this school publish a template into the shared library?
+  //
+  // False everywhere except the Academy, and settable only by a seed or a
+  // migration. There is deliberately no screen, no action and no operator
+  // control that writes it, which is what keeps "only Storyjar publishes" true
+  // while letting it be done on the real canvas, in a real teacher account.
+  canPublishToLibrary Boolean @default(false)
   staff        Teacher[]
   // The school's billing subscription (school plan). Null until one is created;
   // the plan label shown in the admin console is derived from this, not stored.
@@ -301,6 +321,17 @@ model SharedActivity {
   // is offered to everybody. Never read this column with resolveAgeMode(),
   // which would silently label every unbanded activity as nursery content.
   ageMode           String?
+  // Where this activity came from. "STORYJAR" is ours, authored in the
+  // Academy and promoted. It is here now, with one value, because a community
+  // hub where teachers submit their own templates is intended later, and that
+  // will have to be distinguishable from ours in every screen, every count and
+  // every takedown. One column now is cheaper than a migration and a backfill.
+  //
+  // A community hub is NOT enabled by this column and must not be built on it
+  // alone. It needs a Storyjar-side review queue before anything is visible,
+  // takedown mechanics, and its own DPIA: a teacher's template can carry a
+  // photograph of a child, and no code can tell that from a file.
+  origin    String  @default("STORYJAR")
   published         Boolean            @default(false)
   // A deliberate sequence for the library, rather than whatever createdAt gives.
   sortOrder         Int                @default(0)
