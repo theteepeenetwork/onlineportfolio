@@ -30,6 +30,14 @@ set -euo pipefail
 
 echo "[start] preparing persistent storage under /data"
 mkdir -p "${MEDIA_DIR:-/data/media}"
+# Storyjar's OWN library media, kept separate from every teacher upload (see
+# src/lib/mediaPath.ts for why that separation is the access control rather than
+# tidiness). It needs the volume for the same reason MEDIA_DIR does.
+#
+# SHARED_MEDIA_DIR must be set in the Railway environment to /data/media-shared.
+# If it is unset the application falls back to a directory inside the container
+# while this line creates one on the volume, and the two would never meet.
+mkdir -p "${SHARED_MEDIA_DIR:-/data/media-shared}"
 
 MIGRATE_LOG="$(mktemp)"
 
