@@ -50,6 +50,47 @@ test.describe("School admin", () => {
     await expect(page.getByText(/Miss Malik/)).toBeVisible();
   });
 
+  test("the guide says what an admin can do, and leads to it", async ({ page }) => {
+    await teacherLogin(page);
+    await page.goto("/admin");
+
+    await page.getByRole("button", { name: "Guide", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "What you can do" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Invite a colleague" })).toBeVisible();
+    // The guide is a map, so its directions have to actually go somewhere.
+    await page.getByRole("heading", { name: "Invite a colleague" }).locator("..").getByRole("button", { name: /Go to Staff/ }).click();
+    await expect(page.getByRole("heading", { name: "Staff & whole-school" })).toBeVisible();
+  });
+
+  test("the guide names what Storyjar deliberately will not do", async ({ page }) => {
+    await teacherLogin(page);
+    await page.goto("/admin");
+    await page.getByRole("button", { name: "Guide", exact: true }).click();
+
+    await expect(page.getByRole("heading", { name: "Things Storyjar will not do" })).toBeVisible();
+    // Rule 5, stated where an admin will look for it rather than only in the policy.
+    await expect(page.getByText(/you see a child.s work only if you teach that class/i)).toBeVisible();
+  });
+
+  test("the promises tab carries the break-glass procedure, notification first", async ({ page }) => {
+    await teacherLogin(page);
+    await page.goto("/admin");
+
+    await page.getByRole("button", { name: "Promises", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Promises & procedures" })).toBeVisible();
+    // Rule 20 is the promise this procedure is the honest limit of.
+    await expect(page.getByText("Rule 20", { exact: true })).toBeVisible();
+
+    const breakGlass = page.locator("details", { hasText: "Break glass" }).first();
+    await breakGlass.locator("summary").click();
+
+    // The control is the timing: told before, never afterwards (exceptional-access).
+    await expect(breakGlass.getByRole("heading", { name: /You are told before we look/ })).toBeVisible();
+    await expect(breakGlass.getByText(/designated officer \(LADO\)/)).toBeVisible();
+    // And the list of things that are never a reason to look.
+    await expect(breakGlass.getByRole("heading", { name: "What is never a trigger" })).toBeVisible();
+  });
+
   test("a non-admin teacher is redirected away from /admin", async ({ page }) => {
     // Make a fresh (non-admin) teacher via signup, then try to reach /admin.
     await page.goto("/signup/teacher");

@@ -37,6 +37,11 @@ export const OPS_LINKS = [
   { href: "/ops/mail", label: "Mail" },
   { href: "/ops/lookup", label: "Find an adult" },
   { href: "/ops/health", label: "Health" },
+  // Last in the bar on purpose: it is the screen you read on your first day and
+  // then rarely, and the operational screens should not move to make room for
+  // it. It reads nothing, so it is also the only link here that cannot be a
+  // wrong click.
+  { href: "/ops/handbook", label: "Handbook" },
 ] as const;
 
 export type OpsPath = (typeof OPS_LINKS)[number]["href"];
