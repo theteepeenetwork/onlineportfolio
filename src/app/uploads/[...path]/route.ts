@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getCurrentParent } from "@/lib/parentAuth";
-import { MEDIA_DIR } from "@/lib/mediaPath";
+import { MEDIA_DIR, SHARED_MEDIA_DIR, SHARED_UPLOADS_PREFIX, isSharedMediaPath } from "@/lib/mediaPath";
 
 // Authorising media route. Children's photos and drawings are NOT public files
 // (SAFEGUARDING.md rules 4 & 7). Every request for /uploads/<file> is resolved
@@ -38,14 +38,25 @@ const notFound = () => new NextResponse("Not found", { status: 404 });
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path: parts } = await params;
-  const name = parts?.length === 1 ? parts[0] : ""; // media lives in one flat segment
+
+  // Two shapes, and only two. Ordinary media is one flat segment; Storyjar's own
+  // library media is exactly ["shared", <file>].
+  //
+  // The shape decides the DIRECTORY, and that is the whole point of the second
+  // segment. A shared path is only ever resolved inside SHARED_MEDIA_DIR and an
+  // ordinary one only ever inside MEDIA_DIR, so the looser authorisation below
+  // can never reach a teacher's upload: nothing a teacher can do puts a file in
+  // the shared directory.
+  const shared = parts?.length === 2 && parts[0] === "shared";
+  const name = parts?.length === 1 ? parts[0] : shared ? parts[1] : "";
   if (!name || !SAFE_NAME.test(name)) return notFound();
 
-  const urlPath = `/uploads/${name}`;
+  const urlPath = shared ? `${SHARED_UPLOADS_PREFIX}${name}` : `/uploads/${name}`;
   if (!(await canAccess(urlPath))) return notFound();
 
-  // Resolve inside MEDIA_DIR and double-check we never escaped it.
-  const root = path.resolve(MEDIA_DIR);
+  // Resolve inside the directory this shape belongs to, and double-check we
+  // never escaped it.
+  const root = path.resolve(shared ? SHARED_MEDIA_DIR : MEDIA_DIR);
   const file = path.resolve(root, name);
   if (file !== path.join(root, name) || !file.startsWith(root + path.sep)) return notFound();
 
@@ -87,6 +98,39 @@ async function canAccess(urlPath: string): Promise<boolean> {
   const user = await getCurrentUser(); // TEACHER | STUDENT | null
   const parent = user ? null : await getCurrentParent(); // only check parent if not a teacher/student
   if (!user && !parent) return false; // never serve to the unauthenticated
+
+  // 0) Storyjar's OWN library media, the one widening on this route.
+  //
+  // A shared path is readable by any signed-in TEACHER, including one who has
+  // not added the activity, because they have to be able to see what they are
+  // considering. It contains no child data and no personal data of any kind.
+  //
+  // Three things keep this narrow, and all three matter:
+  //   - it is scoped to the RESOURCE, not to the path. The file must actually be
+  //     referenced by a PUBLISHED shared activity. A path that merely looks
+  //     shared, or one belonging to a draft activity nobody has published, is
+  //     refused exactly as before.
+  //   - it grants to teachers only. Never a parent, never a child, never the
+  //     unauthenticated. A child never needs it: adding an activity COPIES the
+  //     files into the teacher's own media, so what a class sees is the
+  //     teacher's copy, authorised by the ordinary rules below.
+  //   - it returns early rather than joining the OR chain, so a shared path can
+  //     never be answered by a query written for children's work.
+  if (isSharedMediaPath(urlPath)) {
+    if (user?.role !== "TEACHER") return false;
+    const published = await db.sharedActivity.findFirst({
+      where: {
+        published: true,
+        OR: [
+          { templatePathsJson: { contains: urlPath } },
+          { quizJson: { contains: urlPath } },
+          { objectsJson: { contains: urlPath } },
+        ],
+      },
+      select: { id: true },
+    });
+    return !!published;
+  }
 
   const pathMatch = { OR: [{ mediaPath: urlPath }, { mediaPathsJson: { contains: urlPath } }] };
 

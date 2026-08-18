@@ -1,0 +1,14 @@
+{
+  "activities": [
+    {
+      "slug": "autumn-treasure",
+      "title": "Our autumn treasure",
+      "instructions": "Draw one thing you found outside today. Tell us where you found it.",
+      "tags": ["Autumn", "Outdoors", "Drawing"],
+      "ageMode": "EYFS",
+      "sortOrder": 10,
+      "published": true,
+      "backgrounds": ["autumn-leaves.svg"]
+    }
+  ]
+}

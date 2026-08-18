@@ -1,0 +1,21 @@
+// @path: src/lib/ops/reads.ts
+// The permitted shape. An explicit projection, because a bare read would return
+// the payload columns; and the uptake figure taken as a COUNT of the relation
+// rather than a read of it, which is the one place a child-reaching relation
+// name may appear. This answers "which activities are teachers actually taking"
+// without opening a single template.
+import { db } from "@/lib/db";
+
+export async function sharedLibraryUptake() {
+  return db.sharedActivity.findMany({
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      published: true,
+      sortOrder: true,
+      _count: { select: { copies: true } },
+    },
+    orderBy: { sortOrder: "asc" },
+  });
+}

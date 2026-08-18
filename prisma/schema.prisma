@@ -231,20 +231,84 @@ model JournalItem {
 // A reusable, class-agnostic activity a teacher can run again and again. The
 // unit of organisation in the activity library. (Formerly `Activity`.)
 model ActivityTemplate {
-  id                String       @id @default(cuid())
+  id                     String          @id @default(cuid())
+  title                  String
+  instructions           String? // what to do; may be read aloud to the child
+  templatePathsJson      String? // JSON array of background image paths (canvas / PDF pages)
+  quizJson               String? // JSON QuizPayload — floating multiple-choice questions; option imagePaths are /uploads paths
+  objectsJson            String? // JSON TemplateObjects — movable pictures/shapes/text (per page); each carries a `locked` flag. Image srcs are /uploads paths
+  tagsJson               String? // JSON array of teacher-defined tag names (e.g. ["Maths"])
+  archived               Boolean         @default(false) // hidden from the grid; runs are kept
+  teacher                Teacher         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId              String
+  folder                 Folder?         @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folderId               String?
+  // Where this template came from, when a teacher added it from the Storyjar
+  // library. It is provenance and nothing else: the row and its media are a
+  // full copy, so the template works forever whatever happens to the original.
+  // SetNull, not Cascade: removing a shared activity must never remove a
+  // teacher's own copy of it (see FINDINGS F27 for why copying strings rather
+  // than files is the trap this avoids).
+  sourceShared           SharedActivity? @relation(fields: [sourceSharedActivityId], references: [id], onDelete: SetNull)
+  sourceSharedActivityId String?
+  createdAt              DateTime        @default(now())
+  assignments            Assignment[]
+}
+
+// Storyjar's own published activities, browsable by any signed-in teacher and
+// copied into their library on request.
+//
+// WHY A SEPARATE MODEL RATHER THAN A FLAG ON ActivityTemplate
+//
+// Every query that builds a teacher's library is scoped
+// `where: { teacherId: user.teacher.id }`. With a separate table a shared
+// activity cannot appear in a teacher's grid, a count or a folder, because the
+// query cannot reach it. A nullable owner with an "is shared" flag would make
+// that correctness depend on every present and future query remembering to
+// exclude it, and the first one that forgets is the bug. Structure beats
+// discipline.
+//
+// It therefore has NO teacherId and NO folderId, deliberately, and nothing in
+// this file should ever give it one.
+//
+// It holds no child data, no teacher personal data and no teacher-authored
+// media. It is Storyjar's own teaching content, published from the repository
+// by scripts/ops/publish-shared-activities.mjs. No teacher-authenticated code
+// path may write to it; that is asserted in
+// tests/battery/security/shared-activities.spec.ts.
+model SharedActivity {
+  id                String             @id @default(cuid())
+  // Stable identity for the publish script. The script upserts on this, which
+  // is what makes running it twice create one row rather than two, and what
+  // lets an activity be corrected in place without orphaning the copies
+  // teachers have already made.
+  slug              String             @unique
   title             String
-  instructions      String? // what to do; may be read aloud to the child
-  templatePathsJson String? // JSON array of background image paths (canvas / PDF pages)
-  quizJson          String? // JSON QuizPayload — floating multiple-choice questions; option imagePaths are /uploads paths
-  objectsJson       String? // JSON TemplateObjects — movable pictures/shapes/text (per page); each carries a `locked` flag. Image srcs are /uploads paths
-  tagsJson          String? // JSON array of teacher-defined tag names (e.g. ["Maths"])
-  archived          Boolean      @default(false) // hidden from the grid; runs are kept
-  teacher           Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  teacherId         String
-  folder            Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  folderId          String?
-  createdAt         DateTime     @default(now())
-  assignments       Assignment[]
+  instructions      String?
+  // The same three payload columns ActivityTemplate carries, holding
+  // /uploads/shared/<file> paths rather than /uploads/<file> ones.
+  templatePathsJson String?
+  quizJson          String?
+  objectsJson       String?
+  tagsJson          String?
+  // Suggested age band, using the SJ-06 vocabulary ("EYFS" | "KS1" | "KS2") so
+  // there is one register language in this product rather than two.
+  //
+  // NULL MEANS SOMETHING DIFFERENT HERE, and the difference is deliberate. On
+  // Class.ageMode, NULL resolves to EYFS because it decides what a child sees
+  // and the youngest register is the protective default. Here it is a browsing
+  // hint shown to an adult, so NULL means "no band suggested" and the activity
+  // is offered to everybody. Never read this column with resolveAgeMode(),
+  // which would silently label every unbanded activity as nursery content.
+  ageMode           String?
+  published         Boolean            @default(false)
+  // A deliberate sequence for the library, rather than whatever createdAt gives.
+  sortOrder         Int                @default(0)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  // The copies teachers have made. Present only so Prisma can express the
+  // relation; the operator console may count these and may never read them.
+  copies            ActivityTemplate[]
 }
 
 // One run of a template against a class (whole class or chosen children).

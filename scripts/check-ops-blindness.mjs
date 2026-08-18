@@ -277,6 +277,42 @@ const LOOKUP_ONLY = [
   "MailSuppression",
 ];
 
+// Storyjar's OWN published teaching content, and the least sensitive model in
+// the schema.
+//
+// WIDENING (PR-shared-library, ruling R2: a widening lands in the same commit as
+// the code it permits, with a comment naming the rule and a fixture proving the
+// true positive still fires). SharedActivity was refused as OPS-MODEL-UNKNOWN
+// until this class existed, which is the drift check working.
+//
+// Why a new class rather than ADULT_READABLE. Two reasons, both about what the
+// class NAME will mean to the next reader. ADULT_READABLE is about records of
+// people, and permits create, update, updateMany and upsert; SharedActivity is
+// not a person and must never be written from here at all. Publishing is
+// scripts/ops/publish-shared-activities.mjs, in the repository, reviewable in a
+// pull request. An operator screen that could publish would be the moment this
+// feature became user-generated content by accident, which the owner
+// explicitly deferred.
+//
+// So the methods below are read-only, and deliberately do not include create,
+// update, upsert or any delete. This is STRICTER than the class the task
+// suggested, not looser.
+//
+// What it does NOT do:
+//   - it does not make the content reachable through a relation. SharedActivity
+//     is deliberately absent from `adultTargets` below, so both relation names
+//     it participates in (`copies` on SharedActivity, `sourceShared` on
+//     ActivityTemplate) are treated as child relations: an ops file may count
+//     copies and may never read one. That is the direction the owner warned
+//     about, since a template is a teacher's own work.
+//   - it does not exempt the model from the banned-identifier rule. Its payload
+//     columns carry the same names as the teacher's (templatePathsJson,
+//     quizJson, objectsJson, tagsJson), all of which are on DENY_FIELDS, so an
+//     ops file naming one still fails even though the content behind it here is
+//     ours. The gate cannot tell the two apart from an identifier, and should
+//     not try.
+const PLATFORM_CONTENT = ["SharedActivity"];
+
 // No read of any shape, not even a count that could confirm a specific row.
 // Session and MagicToken hold live sign-in credentials. AuditLog.detail is free
 // text written by teacher-facing actions and routinely contains a child's first
@@ -381,6 +417,8 @@ const METHODS_BY_CLASS = {
   LOOKUP_ONLY: ["findUnique", "findUniqueOrThrow", "count"],
   CREDENTIAL_NEVER: [],
   OPS_OWNED: PRISMA_METHODS,
+  // Read-only, and no write of any shape. See the comment on PLATFORM_CONTENT.
+  PLATFORM_CONTENT: ["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count"],
 };
 
 // ---------------------------------------------------------------------------
@@ -1842,6 +1880,7 @@ const classified = [
   [LOOKUP_ONLY, "LOOKUP_ONLY"],
   [CREDENTIAL_NEVER, "CREDENTIAL_NEVER"],
   [OPS_OWNED, "OPS_OWNED"],
+  [PLATFORM_CONTENT, "PLATFORM_CONTENT"],
 ];
 for (const [list, klass] of classified) {
   for (const model of list) {
@@ -1939,7 +1978,9 @@ for (const r of neverLink) childRelations.add(r);
 // column on Teacher or Parent joins this set the day it lands.
 const projectionRequired = new Map();
 for (const [model, klass] of modelClass) {
-  if (klass !== "ADULT_READABLE" && klass !== "LOOKUP_ONLY") continue;
+  // PLATFORM_CONTENT joins these two: it permits row reads, and it owns the
+  // denylisted payload column names, so a bare findMany would return them.
+  if (klass !== "ADULT_READABLE" && klass !== "LOOKUP_ONLY" && klass !== "PLATFORM_CONTENT") continue;
   const denied = (schema.get(model)?.fields ?? [])
     .filter((f) => !schema.has(f.type) && denySet.has(f.name))
     .map((f) => f.name);

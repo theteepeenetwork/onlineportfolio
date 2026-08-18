@@ -41,6 +41,16 @@ function writeSvg(name: string, svg: string) {
   return `/uploads/${name}`;
 }
 
+// Storyjar's OWN library media lives in its own directory, separate from every
+// teacher upload. See src/lib/mediaPath.ts for why that separation is the
+// security control rather than tidiness.
+const SHARED_MEDIA_DIR = process.env.SHARED_MEDIA_DIR || path.join(process.cwd(), ".media-shared");
+
+function writeSharedSvg(name: string, svg: string) {
+  writeFileSync(path.join(SHARED_MEDIA_DIR, name), svg);
+  return `/uploads/shared/${name}`;
+}
+
 // Write raw bytes (used for the voice-note fixtures). The /uploads route serves
 // whatever exists on disk and derives the content type from the extension, so
 // placeholder bytes are enough for the access-control specs.
@@ -57,6 +67,7 @@ async function main() {
 
   const db = new PrismaClient();
   mkdirSync(MEDIA_DIR, { recursive: true });
+  mkdirSync(SHARED_MEDIA_DIR, { recursive: true });
 
   // 2) School B = Oakfield Primary. A completely separate tenant: its own admin,
   //    its own teacher, class, pupils, journal items and linked parent. Nothing
@@ -527,6 +538,60 @@ async function main() {
     },
   });
 
+  // -------------------------------------------------------------------------
+  // Storyjar's shared activity library.
+  //
+  // Two rows, and the second one is the point: an UNPUBLISHED activity must be
+  // invisible to every teacher, and its media unreadable, so the specs need one
+  // that exists in order to prove it cannot be seen. A fixture that only ever
+  // holds publishable content cannot prove the published flag does anything.
+  //
+  // These belong to nobody. No teacherId, no folderId, no school.
+  // -------------------------------------------------------------------------
+  // Cleared first, for the same reason as the operator row below: the demo seed
+  // wipes the school data and knows nothing about the shared library, so a
+  // second run would hit the unique slug. Clearing it also means a run never
+  // inherits whatever an earlier run, or a hand-run of the publish script, left
+  // in the table.
+  //
+  // Deleting these is SAFE for any teacher copy that exists, and that is worth
+  // seeing in the fixtures rather than only in a test: the relation is SetNull,
+  // and a copy carries its own files, so it survives its origin.
+  await db.sharedActivity.deleteMany();
+
+  const sharedBg = writeSharedSvg("seed-shared-bg.svg", OAK_SVG);
+  const sharedQuizImg = writeSharedSvg("seed-shared-quiz.svg", OAK_SVG);
+  const unpublishedBg = writeSharedSvg("seed-shared-unpublished-bg.svg", OAK_SVG);
+
+  await db.sharedActivity.create({
+    data: {
+      slug: "seed-autumn-walk",
+      title: "Our autumn walk",
+      instructions: "Draw one thing you found outside today.",
+      templatePathsJson: JSON.stringify([sharedBg]),
+      quizJson: JSON.stringify({
+        pages: [{ questions: [{ prompt: "Which one did you find?", options: [{ imagePath: sharedQuizImg }] }] }],
+      }),
+      tagsJson: JSON.stringify(["Autumn", "Outdoors"]),
+      ageMode: "KS1",
+      published: true,
+      sortOrder: 10,
+    },
+  });
+
+  await db.sharedActivity.create({
+    data: {
+      slug: "seed-not-published-yet",
+      title: "Not published yet",
+      instructions: "Nobody should ever see this.",
+      templatePathsJson: JSON.stringify([unpublishedBg]),
+      tagsJson: JSON.stringify(["Draft"]),
+      ageMode: "KS2",
+      published: false,
+      sortOrder: 20,
+    },
+  });
+
   console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
   console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN234 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
@@ -534,6 +599,7 @@ async function main() {
   console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)  /uploads/seed-oak-quiz.svg (quiz option)");
   console.log("  School B voice: /uploads/seed-oak-voice.m4a (APPROVED)  /uploads/seed-oak-voice-pending.webm (PENDING)");
   console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class ARCH22 (Willow)  read-only");
+  console.log("  Storyjar library: seed-autumn-walk (published, /uploads/shared/seed-shared-bg.svg)  seed-not-published-yet (unpublished)");
   console.log("  Platform operator: ops@storyjar.test / fixture-operator-pass-9271 + a real TOTP code (no bypass exists)");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).

@@ -116,6 +116,13 @@ test("a11y (AA): class manager", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "class manager");
 });
 
+test("a11y (AA): the Storyjar shared library", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities/shared");
+  await expect(page.getByRole("heading", { name: "Storyjar library" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "shared activity library");
+});
+
 test("a11y (AA): admin console", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/admin");

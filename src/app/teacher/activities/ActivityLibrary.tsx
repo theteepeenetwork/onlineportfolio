@@ -106,6 +106,23 @@ export function ActivityLibrary({
             );
           })}
         </div>
+        {/* The Storyjar library is NOT a folder, and is deliberately not in the
+            list above. It holds nothing of this teacher's, nothing here is
+            counted in their totals, and putting it in the folder list would say
+            the opposite. It sits below a rule, as its own thing. */}
+        <div style={{ margin: "18px 0 4px", borderTop: "2px solid #E4DCC8", paddingTop: 16 }}>
+          <Link
+            href="/teacher/activities/shared"
+            style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", font: "700 15px var(--font-atkinson)", color: "var(--ink)", background: "#D8ECE8", border: "2px solid var(--ink)", borderRadius: 10, padding: "10px 12px" }}
+          >
+            <span style={{ flex: 1 }}>Storyjar library</span>
+            <span aria-hidden>→</span>
+          </Link>
+          <p style={{ margin: "6px 2px 0", font: "400 13px/1.45 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+            Activities we made. Add one and it becomes yours.
+          </p>
+        </div>
+
         {creatingFolder ? (
           <NewFolderForm onDone={() => setCreatingFolder(false)} />
         ) : (
@@ -134,7 +151,32 @@ export function ActivityLibrary({
           <div className="sj-card" style={{ padding: "48px 32px", textAlign: "center" }}>
             <Icon name="add-file" size={44} decorative />
             <p style={{ margin: "10px 0 0", font: "600 20px var(--font-fredoka)" }}>Nothing here yet</p>
-            <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Make a reusable activity to assign to your classes.</p>
+            {templates.length === 0 ? (
+              // A teacher who has nothing at all is the reason the library
+              // exists. An empty grid tells them the product does nothing; this
+              // tells them what it can do, and is one tap from proving it.
+              <>
+                <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+                  Have a look at the activities we have made. Add one and it is yours to change.
+                </p>
+                <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 18 }}>
+                  <Link
+                    href="/teacher/activities/shared"
+                    style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}
+                  >
+                    Browse the Storyjar library
+                  </Link>
+                  <Link
+                    href="/teacher/activities/new"
+                    style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink)", textDecoration: "none", border: "2px solid var(--ink)", borderRadius: 999, padding: "12px 24px" }}
+                  >
+                    Make my own
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Make a reusable activity to assign to your classes.</p>
+            )}
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 18 }}>
