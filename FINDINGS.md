@@ -74,7 +74,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
 | **F34** | **High** | **Resilience / data loss** | Saved work was withheld from the person who made it. The restore prompt awaited the local draft and a cross-device server lookup **together**, and the lookup had no deadline, so a request that was accepted and never answered suppressed the prompt entirely, and a teacher's or a child's work sat safe in their own browser while they were told nothing. The same shape was found a second time on `loadImage`, where a stalled template background left a child on a permanent "Loading…" overlay. Both are now bounded. | **Fixed** | `e2e/drafts.spec.ts`: "the restore prompt still arrives when the cross-device lookup never answers" and "a stalled template background still lets a child draw and restore" |
 | F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
-| F36 | Low | Test correctness | Every post-reload click in `drafts.spec.ts` raced hydration. Playwright's actionability checks pass on server-rendered HTML, so the click landed before React attached its handler, was swallowed without error, and the test failed one line later on a missing canvas that looked like a product fault. Which of F34 and F36 caused the original one-in-two CI flake is **not** established; both were real and both are now closed. | **Fixed** | `e2e/helpers.ts` `clickHydrated`, used at both post-reload click sites |
+| F36 | **Medium** | Test correctness | Every post-reload click in `drafts.spec.ts` raced hydration. Playwright's actionability checks pass on server-rendered HTML, so the click landed before React attached its handler, was swallowed without error, and the test failed one line later on a missing canvas that looked like a product fault. **Measured on 2026-08-18: F36 caused the one-in-two CI flake.** With it fixed the prompt appears in 38ms and all 133 functional tests pass; without it `main` failed at 33.9s. Raised from Low because a fault that fails a blocking gate every other run, and was twice misdiagnosed as a product defect, is not a low-severity test nit. | **Fixed** | `e2e/helpers.ts` `clickHydrated`, used at both post-reload click sites |
 
 ---
 
@@ -909,10 +909,28 @@ first test now holds without it.
 **Amended on review.** The first of those tests went red in CI on this branch,
 and then locally on every run once reproduced. That failure was **not** this
 defect: it was the test's own click racing hydration, logged separately as F36.
-Both faults were real, and the honest position is that which of them drove the
-original one-in-two CI flake is not established. The claim this section can
-still make is the one it set out to make: an unbounded lookup could withhold
-work indefinitely, and no longer can.
+Both faults were real.
+
+**Then it was measured, on 18 August 2026, rather than argued about.** An
+instrumented run recorded, after the reload, whether the draft survived, whether
+the canvas mounted, and how long until the prompt appeared, polling for a full
+minute. Three candidate causes were eliminated first, each with evidence rather
+than reasoning: CPU throttled to 4x, 8x and 20x made no difference (506ms, 508ms,
+518ms, 542ms), and neither did a cold server with `.next` deleted (511ms). The
+throttle was itself verified, because an unconnected knob produces exactly that
+table: a busy loop in the page went from 10ms to 85ms, and stayed at 87ms after
+a reload.
+
+In CI, with F36 fixed, **the prompt arrived in 38 milliseconds** and all 133
+functional tests passed. On `main`, without F36 fixed, the same test failed at
+33.9 seconds on the very next run. So the answer to "late or never" is neither:
+once the click actually registers, the prompt is immediate, and the one-in-two
+CI flake was F36. F29's slow-runner theory is now disproved by measurement
+rather than merely withdrawn.
+
+That leaves this finding's own claim narrower and still true: an unbounded
+lookup **could** withhold work indefinitely, was reachable by a stalled network
+rather than a slow one, and no longer can.
 
 ### Residual, logged not fixed
 
@@ -1143,6 +1161,21 @@ how long the precondition takes.
 Both post-reload click sites in `drafts.spec.ts` now use it, including the one
 in the *original* test, which had the identical race and is the test that was
 failing about one run in two.
+
+**Measured, not argued.** On 18 August 2026 an instrumented run settled what two
+sessions had guessed at. In CI with this fixed, the restore prompt appears **38
+milliseconds** after the click and all 133 functional tests pass. On `main`
+without it, the same test failed at 33.9 seconds on the next run. Three other
+candidate causes were eliminated first, each with evidence: CPU throttling to
+4x, 8x and 20x changed nothing, and nor did a cold server. The throttle was
+verified to be real and to survive a reload before those negatives were trusted,
+because an unconnected knob would have produced identical numbers.
+
+That also rehabilitates F29 as a question and then closes it. Its slow-runner
+theory was withdrawn because a 30-second budget still failed at 33.9 seconds,
+which this finding explains: the click never registered, so no budget would ever
+have helped. The theory was not wrong about timing being involved; it was
+looking at the wrong clock.
 
 **Not a product defect.** A real person cannot click faster than their own page
 hydrates often enough for this to matter, and if they do the click simply does
