@@ -254,3 +254,38 @@ This DPIA **cannot be signed off** until:
 **Review cycle:** at least annually, and immediately on any change to hosting,
 sub-processors, the age range served, the categories of data held, or any feature
 touching authentication, the approval queue, or children's media.
+
+## Storyjar's shared activity library (added 2026-08-18)
+
+A small library of activities Storyjar has written itself, which a teacher can
+browse and add to their own library. It exists so that a teacher who has just
+signed up sees what the product can do instead of an empty grid.
+
+**It processes no personal data, and it does not move any risk rating in this
+assessment.** That is stated rather than left to be inferred, because a new
+content surface normally invites a re-read of the whole document. There is
+nothing here to re-read: a shared activity is Storyjar's own teaching content,
+held in its own table with no `teacherId` and no `folderId`, and its media is
+Storyjar's own illustration held in its own directory. No child data, no teacher
+personal data, and no media authored by any teacher goes into it.
+
+Two things about it are worth recording because they touch controls described
+elsewhere in this document:
+
+1. **A widening of the authorising media route.** `/uploads/shared/...` is
+   readable by any signed-in teacher, including one who has not added the
+   activity, so they can see what they are considering. It is scoped to the
+   resource rather than to the path: the file must be referenced by a
+   **published** shared activity, and the route serves it only out of the
+   separate shared directory. Children, parents and unauthenticated requests are
+   refused, and a teacher still cannot read another teacher's ordinary template
+   media. Both halves are asserted in
+   `tests/battery/security/shared-activity-media.spec.ts`.
+2. **Adding copies the files.** A teacher's copy shares nothing with the
+   original, so nothing a school relies on depends on content Storyjar can later
+   change or withdraw.
+
+Publishing is not in the application. It is a repository script, so the library
+is version controlled and reviewable, and no teacher-authenticated code path can
+write to the table (asserted over `src/` in
+`tests/battery/security/shared-activities.spec.ts`).

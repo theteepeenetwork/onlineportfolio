@@ -425,6 +425,27 @@ reference-count paths across templates, copies and assignment snapshots. Only
 then add template deletion. Until it is settled, `RETENTION.md`'s
 teacher-template row is a claim ahead of the code.
 
+**Extended 2026-08-18, by the shared activity library. F27 is NOT fixed and this
+work does not claim to fix it.** `duplicateTemplate` still copies path strings,
+`assignTemplate` still snapshots them, and template media still has no erasure
+path at all.
+
+What changed is that one new road was built the other way, deliberately, so the
+finding does not grow. "Add to my activities" copies the FILES
+(`src/lib/sharedActivities.ts`), not the strings, so a teacher's copy of a
+Storyjar library activity shares no bytes with the original or with any other
+teacher's copy. Had it been written the obvious way, every teacher's copy would
+have depended on a file Storyjar owns, and withdrawing or replacing a library
+background would have blanked that activity in every classroom that had added
+it, discovered by a teacher mid-lesson. That is this finding's exact shape, made
+structural instead of latent.
+
+It also settles half of the open question above for one case: where copying was
+written fresh, files won, and ownership is one-to-one. When F27 is fixed
+properly, `copySharedMediaForTeacher` is the shape to copy, and the assertion
+that proves it is "adding produces an independent copy" in
+`tests/battery/security/shared-activities.spec.ts`.
+
 ---
 
 ## F19 · A parent's sign-in link was handed to whoever asked — Critical → Fixed

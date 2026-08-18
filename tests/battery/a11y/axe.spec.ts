@@ -116,6 +116,22 @@ test("a11y (AA): class manager", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "class manager");
 });
 
+test("a11y (AA): a teacher's own activities grid", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities");
+  // Anchored on the search control, because it is the part of this screen that
+  // was added last and the part with a label, a live region and a clear button.
+  await expect(page.getByLabel(/^Search /)).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "teacher activities grid");
+});
+
+test("a11y (AA): the Storyjar shared library", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities/shared");
+  await expect(page.getByRole("heading", { name: "Storyjar library" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "shared activity library");
+});
+
 test("a11y (AA): admin console", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/admin");

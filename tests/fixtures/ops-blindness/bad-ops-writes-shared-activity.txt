@@ -1,0 +1,16 @@
+// @path: src/lib/ops/operations.ts
+// @expect: OPS-MODEL-METHOD
+// Deliberately placed in the ONE module permitted to mutate anything, so that
+// OPS-MUTATION-MODULE cannot fire and the classification itself is what refuses
+// it. Written at src/lib/ops/reads.ts this fixture would pass for the wrong
+// reason and prove nothing about PLATFORM_CONTENT being read-only.
+// The near miss the shared library invites: an operator screen that publishes.
+// SharedActivity is PLATFORM_CONTENT, which is read-only on purpose. Publishing
+// is scripts/ops/publish-shared-activities.mjs, in the repository, reviewable in
+// a pull request and impossible to fat-finger in production. A write from here
+// is how a curated library quietly becomes user-generated content.
+import { db } from "@/lib/db";
+
+export async function publishActivity(slug, title) {
+  return db.sharedActivity.create({ data: { slug, title, published: true } });
+}

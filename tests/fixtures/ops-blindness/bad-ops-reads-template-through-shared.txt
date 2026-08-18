@@ -1,0 +1,14 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-RELATION
+// The other direction, and the one the owner warned about. SharedActivity is
+// ours and carries nothing personal, but `copies` points at ActivityTemplate,
+// which is a teacher's own work. Reading the relation rather than counting it
+// turns a harmless content table into a route from ops into every teacher's
+// activity library.
+import { db } from "@/lib/db";
+
+export async function libraryUptake() {
+  return db.sharedActivity.findMany({
+    select: { id: true, title: true, copies: true },
+  });
+}

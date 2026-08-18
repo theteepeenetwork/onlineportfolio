@@ -12,3 +12,50 @@ export const MEDIA_DIR = process.env.MEDIA_DIR || path.join(process.cwd(), ".med
 // before (/uploads/<file>) so every <img src> keeps working; it is now served
 // by the authorising route rather than as a static file.
 export const UPLOADS_PREFIX = "/uploads/";
+
+// ---------------------------------------------------------------------------
+// Storyjar's OWN library media (the shared activity library)
+// ---------------------------------------------------------------------------
+// A physically separate directory, and that separation is the security control
+// rather than a tidiness preference.
+//
+// Shared library media is the first content in this product that is deliberately
+// readable by every signed-in teacher. If it lived in MEDIA_DIR alongside
+// children's photographs, "is this file shared?" would be a question about a
+// path string, and a teacher who could influence a filename could aim that
+// question at somebody else's file. With two directories the route resolves a
+// shared path only inside SHARED_MEDIA_DIR and an ordinary path only inside
+// MEDIA_DIR, so a teacher upload cannot be served as library content: nothing a
+// teacher can reach writes here. Only the publish script does.
+//
+// It holds no child data and no personal data of any kind. It is Storyjar's own
+// teaching illustration, shipped with the repository.
+export const SHARED_MEDIA_DIR =
+  process.env.SHARED_MEDIA_DIR || path.join(process.cwd(), ".media-shared");
+
+// Public URL prefix. The extra segment is what makes the two kinds of media
+// distinguishable in a src attribute, a log line and a test.
+export const SHARED_UPLOADS_PREFIX = "/uploads/shared/";
+
+export function isSharedMediaPath(urlPath: string): boolean {
+  return urlPath.startsWith(SHARED_UPLOADS_PREFIX);
+}
+
+// Every /uploads/shared/<file> path mentioned anywhere in a shared activity's
+// payload columns.
+//
+// Deliberately a scan rather than a parse of the three payload shapes. Copying
+// an activity has to find every file it references, and a parser that knows the
+// shapes is a parser that silently misses a file the day a shape gains a field.
+// A path is a unique token, so matching the token is both simpler and harder to
+// get wrong.
+const SHARED_PATH_TOKEN = /\/uploads\/shared\/[A-Za-z0-9._-]+/g;
+
+export function sharedMediaPathsIn(...payloads: (string | null | undefined)[]): string[] {
+  const found = new Set<string>();
+  for (const payload of payloads) {
+    if (!payload) continue;
+    for (const match of payload.matchAll(SHARED_PATH_TOKEN)) found.add(match[0]);
+  }
+  return [...found];
+}
