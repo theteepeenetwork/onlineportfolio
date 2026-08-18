@@ -48,6 +48,10 @@ async function waitForDraftSaved(page: Page) {
 }
 
 test("a teacher's in-progress template survives a reload and saves correctly", async ({ page }) => {
+  // The diagnostic below polls for 60s, which is the whole default test budget,
+  // so the test was dying before it could print its reading. Measuring a deadline
+  // requires more room than the deadline.
+  test.setTimeout(180_000);
   await teacherLogin(page);
   await page.goto("/teacher/activities/new");
   await page.fill("#title", "Recovered worksheet");
