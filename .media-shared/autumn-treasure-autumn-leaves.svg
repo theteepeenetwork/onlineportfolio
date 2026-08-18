@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="A blank page with a border of autumn leaves">
+  <rect width="800" height="600" fill="#FFFDF7"/>
+  <rect x="60" y="60" width="680" height="480" rx="18" fill="#FFFFFF" stroke="#E4DCC8" stroke-width="4"/>
+  <g fill="#E8A06A"><ellipse cx="110" cy="110" rx="26" ry="16" transform="rotate(-25 110 110)"/><ellipse cx="690" cy="500" rx="26" ry="16" transform="rotate(15 690 500)"/></g>
+  <g fill="#C2476B"><ellipse cx="700" cy="120" rx="24" ry="15" transform="rotate(35 700 120)"/><ellipse cx="120" cy="490" rx="24" ry="15" transform="rotate(-10 120 490)"/></g>
+  <g fill="#F0B441"><ellipse cx="400" cy="86" rx="22" ry="14"/><ellipse cx="400" cy="516" rx="22" ry="14"/></g>
+</svg>

@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { addSharedActivityToLibrary } from "@/app/actions/sharedActivities";
+import { ActivitySearchBox } from "@/components/ActivitySearchBox";
+import { matchesActivitySearch, searchResultLabel } from "@/lib/activitySearch";
 
 // The browse screen for Storyjar's own activities.
 //
@@ -32,6 +37,23 @@ const AGE_LABEL: Record<string, string> = {
 const ageLabel = (mode: string | null) => (mode && AGE_LABEL[mode]) || "Any age";
 
 export function SharedLibrary({ activities }: { activities: SharedSummary[] }) {
+  const [query, setQuery] = useState("");
+  const [band, setBand] = useState<string | null>(null);
+
+  // Filtering happens over `activities`, which the server already scoped to
+  // PUBLISHED rows. Search narrows what is on this page and can never widen it:
+  // an unpublished activity was never sent to the browser, so no query can
+  // reveal one.
+  const shown = useMemo(
+    () =>
+      activities.filter(
+        (a) => (band === null || a.ageMode === band) && matchesActivitySearch(a, query),
+      ),
+    [activities, query, band],
+  );
+
+  const bands = [...new Set(activities.map((a) => a.ageMode).filter(Boolean))] as string[];
+
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 24px 60px" }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 6 }}>
@@ -49,7 +71,46 @@ export function SharedLibrary({ activities }: { activities: SharedSummary[] }) {
         </Link>
       </div>
 
-      {activities.length === 0 ? (
+      <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap", marginTop: 18 }}>
+        <ActivitySearchBox
+          id="shared-search"
+          value={query}
+          onChange={setQuery}
+          label="Search the library"
+          placeholder="autumn, phonics, counting…"
+          resultLabel={searchResultLabel(shown.length, activities.length, query)}
+        />
+        {bands.length > 1 && (
+          <fieldset style={{ border: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+            <legend style={{ font: "700 13px var(--font-atkinson)", color: "var(--ink)", padding: 0 }}>Age group</legend>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[null, ...bands].map((b) => {
+                const active = band === b;
+                return (
+                  <button
+                    key={b ?? "all"}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setBand(b)}
+                    style={{ font: "700 13px var(--font-atkinson)", color: active ? "var(--paper)" : "var(--ink)", background: active ? "var(--ink)" : "transparent", border: "2px solid var(--ink)", borderRadius: 999, padding: "8px 14px", minHeight: 44, cursor: "pointer" }}
+                  >
+                    {b === null ? "All ages" : ageLabel(b)}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+      </div>
+
+      {activities.length > 0 && shown.length === 0 ? (
+        <div className="sj-card" style={{ marginTop: 24, padding: "48px 32px", textAlign: "center" }}>
+          <p style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Nothing matches that</p>
+          <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+            Try a shorter word, or clear the search to see all {activities.length}.
+          </p>
+        </div>
+      ) : activities.length === 0 ? (
         <div className="sj-card" style={{ marginTop: 24, padding: "48px 32px", textAlign: "center" }}>
           <p style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Nothing in the library yet</p>
           <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
@@ -58,7 +119,7 @@ export function SharedLibrary({ activities }: { activities: SharedSummary[] }) {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 18, marginTop: 24 }}>
-          {activities.map((a) => (
+          {shown.map((a) => (
             <article key={a.id} className="sj-card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
               <div style={{ position: "relative", background: "#F3EEE2", aspectRatio: "4 / 3", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {a.thumb ? (

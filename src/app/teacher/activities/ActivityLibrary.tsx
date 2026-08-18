@@ -11,6 +11,8 @@ import {
 } from "@/app/actions/activities";
 import type { ClassInfo, RunSummary } from "@/lib/activities";
 import { Icon, type IconName } from "@/components/icons/Icon";
+import { ActivitySearchBox } from "@/components/ActivitySearchBox";
+import { matchesActivitySearch, searchResultLabel } from "@/lib/activitySearch";
 
 export type TemplateSummary = {
   id: string;
@@ -54,6 +56,7 @@ export function ActivityLibrary({
   const [moveId, setMoveId] = useState<string | null>(null); // which card's "move to folder" submenu is open
   const [assignId, setAssignId] = useState<string | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [query, setQuery] = useState("");
 
   const closeMenus = () => {
     setMenuId(null);
@@ -72,11 +75,15 @@ export function ActivityLibrary({
     { id: ARCHIVED, name: "Archived", color: "#B99CD6", special: true },
   ];
 
-  const shown = templates.filter((t) => {
+  // The folder tab decides WHICH of the teacher's activities are in play; the
+  // search narrows that, never widens it. A search that reached across folders,
+  // or into the archive, would quietly undo the choice they just made.
+  const inFolder = templates.filter((t) => {
     if (folder === ALL) return !t.archived;
     if (folder === ARCHIVED) return t.archived;
     return !t.archived && t.folderId === folder;
   });
+  const shown = inFolder.filter((t) => matchesActivitySearch(t, query));
 
   const folderName = sidebar.find((f) => f.id === folder)?.name ?? "All activities";
   const assignTemplate = templates.find((t) => t.id === assignId);
@@ -141,13 +148,30 @@ export function ActivityLibrary({
           <div>
             <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)" }}>{folderName}</h1>
             <p style={{ margin: "5px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-              {shown.length === 0 ? "Nothing here yet" : `${shown.length} ${shown.length === 1 ? "activity" : "activities"}`}
+              {inFolder.length === 0 ? "Nothing here yet" : searchResultLabel(shown.length, inFolder.length, query)}
             </p>
           </div>
+          {inFolder.length > 0 && (
+            <ActivitySearchBox
+              id="my-activities-search"
+              value={query}
+              onChange={setQuery}
+              label={`Search ${folderName.toLowerCase()}`}
+              placeholder="title, instructions or a tag"
+              resultLabel={searchResultLabel(shown.length, inFolder.length, query)}
+            />
+          )}
           <Link href="/teacher/activities/new" style={{ marginLeft: "auto", font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}>＋ New activity</Link>
         </div>
 
-        {shown.length === 0 ? (
+        {inFolder.length > 0 && shown.length === 0 ? (
+          <div className="sj-card" style={{ padding: "48px 32px", textAlign: "center" }}>
+            <p style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Nothing matches that</p>
+            <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+              Try a shorter word, or clear the search to see all {inFolder.length}.
+            </p>
+          </div>
+        ) : shown.length === 0 ? (
           <div className="sj-card" style={{ padding: "48px 32px", textAlign: "center" }}>
             <Icon name="add-file" size={44} decorative />
             <p style={{ margin: "10px 0 0", font: "600 20px var(--font-fredoka)" }}>Nothing here yet</p>
