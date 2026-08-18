@@ -20,10 +20,31 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # The QA battery — keep it green
 
 This repo has a standing UX / security / accessibility test battery. It is the
-executable form of `SAFEGUARDING.md`. **If you change auth, access control, the
-approval queue, children's data, uploads, headers, or any user-facing copy, run
-the battery and keep the gates green.** Plan & findings live in
-[`TEST_PLAN.md`](./TEST_PLAN.md) and [`FINDINGS.md`](./FINDINGS.md).
+executable form of `SAFEGUARDING.md`. **Nothing reaches `main` with a red gate.**
+Plan & findings live in [`TEST_PLAN.md`](./TEST_PLAN.md) and
+[`FINDINGS.md`](./FINDINGS.md).
+
+**When to run what.** The battery is slow — the Playwright suites run serially
+against a dev server and take minutes. Do not run it after every edit. Instead:
+
+| While | Run | Takes |
+| --- | --- | --- |
+| Writing code | `npm run check` | ~2s |
+| Working on one area | that one suite, e.g. `npm run test:a11y`, or a single file: `npx playwright test -c playwright.battery.config.ts --project=security tests/battery/security/uploads.spec.ts` | seconds–a minute |
+| **Before anything lands on `main`** — the merge, not each commit on the branch | `npm run test:gate` | minutes |
+
+`npm run check` is the whole dev loop: typecheck plus every static gate
+(raw-query/`dangerouslySetInnerHTML`, reduced-motion, R2 tripwire, ops blindness
++ its self-test). It is cheap enough to run constantly and it catches the class
+of breakage — a broken import, a leaked ops field — that used to be found the
+slow way, by three suites going red at once.
+
+This changes *when* the gates run, never *whether* they pass. CI still runs the
+full battery on every PR and every push to `main`
+(`.github/workflows/battery.yml`), and a red blocking gate there is a blocked
+merge. Running `test:gate` locally before merging is how you find out before CI
+does — and, while this repo has no branch protection, it is the only thing
+standing between a red gate and `main`.
 
 **Layout**
 - `tests/battery/security/` — tenant isolation, auth/sessions, uploads, CSRF,
@@ -42,8 +63,14 @@ the battery and keep the gates green.** Plan & findings live in
 - Fixtures: `prisma/seed-test.ts` seeds **two schools** (A = St Bede's demo,
   B = Oakfield) so cross-tenant isolation is testable.
 
-**Commands** — `npm run test:battery` (all), or `test:security` / `test:a11y` /
-`test:ux` / `test:e2e` / `test:perf`. CI: `.github/workflows/battery.yml`.
+**Commands**
+- `npm run check` — static gates only, ~2s. The dev loop.
+- `npm run test:gate` — the three blocking suites (security, a11y, e2e). Run
+  before merging to `main`.
+- `npm run test:battery` — `test:gate` plus the report-only UX suite.
+- Individually: `test:security` / `test:a11y` / `test:ux` / `test:e2e` /
+  `test:security:findings` / `test:perf`.
+- CI: `.github/workflows/battery.yml`.
 
 **Conventions when adding tests**
 - New endpoint/action taking an id → add a cross-tenant isolation test (School B
