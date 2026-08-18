@@ -10,6 +10,9 @@ import {
   setStaffRole,
 } from "@/app/actions/admin";
 import { Icon, type IconName } from "@/components/icons/Icon";
+import { Guide } from "./Guide";
+import { Promises } from "./Promises";
+import { CARD, TABS, TAB_HEADING, type Tab } from "./tabs";
 
 export type StaffRow = {
   id: string;
@@ -24,16 +27,6 @@ export type StaffRow = {
 export type SchoolClass = { id: string; name: string; teacherId: string; teacherName: string; children: number };
 
 export type AuditEntry = { id: string; atISO: string; actorName: string; action: string; detail: string | null };
-
-type Tab = "overview" | "staff" | "classes" | "safeguarding" | "billing" | "audit";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "staff", label: "Staff" },
-  { id: "classes", label: "Classes" },
-  { id: "safeguarding", label: "Safeguarding" },
-  { id: "audit", label: "Audit log" },
-  { id: "billing", label: "Billing" },
-];
 
 // Human labels for audit actions.
 const ACTION_LABEL: Record<string, string> = {
@@ -74,7 +67,6 @@ const JAM_BTN: React.CSSProperties = {
   cursor: "pointer",
   boxShadow: "0 3px 0 #93304F",
 };
-const CARD: React.CSSProperties = { background: "#FFFDF7", border: "2px solid #E4DCC8", borderRadius: 14, padding: "16px 18px" };
 const INPUT: React.CSSProperties = {
   width: "100%",
   boxSizing: "border-box",
@@ -111,11 +103,13 @@ export function AdminConsole({
   const invited = staff.filter((s) => s.status === "INVITED").length;
   const closeMenus = () => { setMenuId(null); setSubmenu(null); };
 
+  // Keyed by `id`, not by `label`: two of these read "Staff" once a school has
+  // more than one member of staff, and a duplicate React key drops a card.
   const stats = [
-    { value: `${staff.length}`, label: "Staff", sub: invited > 0 ? `${invited} invite${invited === 1 ? "" : "s"} pending` : "all active", color: "#22304A" },
-    { value: `${classes.length}`, label: "Classes", sub: "across the school", color: "#37796f" },
-    { value: `${childrenCount}`, label: "Pupils", sub: "no pupil logins", color: "#C2476B" },
-    { value: `${staff.length}`, label: staff.length === 1 ? "Staff member" : "Staff", sub: plan.toLowerCase(), color: "#B07A1E" },
+    { id: "staff", value: `${staff.length}`, label: "Staff", sub: invited > 0 ? `${invited} invite${invited === 1 ? "" : "s"} pending` : "all active", color: "#22304A" },
+    { id: "classes", value: `${classes.length}`, label: "Classes", sub: "across the school", color: "#37796f" },
+    { id: "pupils", value: `${childrenCount}`, label: "Pupils", sub: "no pupil logins", color: "#C2476B" },
+    { id: "plan", value: `${staff.length}`, label: staff.length === 1 ? "Staff member" : "Staff", sub: plan.toLowerCase(), color: "#B07A1E" },
   ];
 
   return (
@@ -153,9 +147,7 @@ export function AdminConsole({
         <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
           <div>
             <p style={{ margin: 0, font: "700 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{schoolName}</p>
-            <h1 style={{ margin: "4px 0 0", font: "600 32px var(--font-fredoka)" }}>
-              {tab === "staff" ? "Staff & whole-school" : tab === "overview" ? "School overview" : tab === "classes" ? "Classes" : tab === "safeguarding" ? "Safeguarding" : tab === "audit" ? "Audit log" : "Billing"}
-            </h1>
+            <h1 style={{ margin: "4px 0 0", font: "600 32px var(--font-fredoka)" }}>{TAB_HEADING[tab]}</h1>
           </div>
           {tab === "staff" && (
             <button onClick={(e) => { e.stopPropagation(); setInviting((v) => !v); }} style={{ ...JAM_BTN, marginLeft: "auto" }} aria-expanded={inviting}>＋ Invite staff</button>
@@ -166,7 +158,7 @@ export function AdminConsole({
         {(tab === "staff" || tab === "overview") && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginTop: 22 }}>
             {stats.map((st) => (
-              <div key={st.label} style={CARD}>
+              <div key={st.id} style={CARD}>
                 <p style={{ margin: 0, font: "600 30px var(--font-fredoka)", color: st.color }}>{st.value}</p>
                 <p style={{ margin: "2px 0 0", font: "700 14px var(--font-atkinson)", color: "#43506B" }}>{st.label}</p>
                 <p style={{ margin: "2px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>{st.sub}</p>
@@ -217,16 +209,9 @@ export function AdminConsole({
           </div>
         )}
 
-        {tab === "safeguarding" && (
-          <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
-            <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Who can see what</h2>
-            <ul style={{ margin: "12px 0 0", paddingLeft: 20, font: "400 16px/1.7 var(--font-atkinson)", color: "#43506B" }}>
-              <li>Pupils never have logins, emails or passwords — they sign in with a class code and their name.</li>
-              <li>Every moment waits in the teacher&apos;s approval queue before it joins a pupil&apos;s jar.</li>
-              <li>Admins manage staff, class assignment and billing, but <strong>never see pupils&apos; work unless they teach the class</strong>.</li>
-            </ul>
-          </div>
-        )}
+        {tab === "guide" && <Guide onGoTo={(t) => { setTab(t); closeMenus(); }} />}
+
+        {tab === "promises" && <Promises />}
 
         {tab === "audit" && (
           <div style={{ marginTop: 24 }}>

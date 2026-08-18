@@ -120,6 +120,24 @@ test("a11y (AA): admin console", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/admin");
   assertNoSeriousViolations(await scan(page), "admin console");
+
+  // The guide and the promises pane are the two screens an admin is most likely
+  // to read end to end rather than skim, and the only ones in this console that
+  // are mostly prose — headings, lists and disclosure widgets. Scan them as
+  // their own surfaces (rule 18).
+  await page.getByRole("button", { name: "Guide", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "What you can do" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "admin guide");
+
+  await page.getByRole("button", { name: "Promises", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Promises & procedures" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "admin promises (collapsed)");
+
+  // A <details> has different markup open and closed, and the open state is the
+  // one carrying the procedure itself — scan that too.
+  await page.locator("details", { hasText: "Break glass" }).first().locator("summary").click();
+  await expect(page.getByRole("heading", { name: /You are told before we look/ })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "admin promises (procedure open)");
 });
 
 test("a11y (AA): student home", async ({ page }) => {
