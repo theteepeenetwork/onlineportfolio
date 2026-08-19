@@ -1421,55 +1421,13 @@ it hands a thirty-line editing job to somebody in their first five minutes).
   coming back. Nothing is left in `findings/` for them.
 - Everything else is guarded by an ordinary passing test in its suite.
 
-## F37 · The drawing canvas is full of controls a child cannot reliably hit · Medium → Open
+## F40 · One failing test in the e2e suite takes eleven more down with it · Medium → Open
 
-Found on 2026-08-19 while adding the maths kit to the canvas toolbox. The kit
-needed its palette buttons measured against SAFEGUARDING rule 18 (a 64px child
-touch floor), and measuring them meant looking at what else on that screen has
-never been measured.
-
-`tests/battery/a11y/child-touch-targets.spec.ts` sweeps whole pages for controls
-under the floor, and it is a **blocking** gate. It visits the class-code screen,
-the name picker, a child's jar and the photo / words / audio capture screens. It
-has never visited `/student/new/drawing`, which is the screen a child spends the
-longest on and the one with by far the most controls.
-
-Measured there, the canvas carries a long tail of controls below the floor:
-
-| Control | Size |
-| --- | --- |
-| ＋ fan, ✓ hand-in | 56px |
-| Object toolbar (order, padlock, colours, stroke width) | 44px |
-| Page filmstrip thumbnails, clear / undo / redo | 24–32px |
-
-None of this is new, and none of it was introduced by the toolbox work. It is
-recorded here because the work is what revealed it, and because "the gate is
-green" currently means "the gate does not look at this page".
-
-**What the toolbox work did fix.** Every button a child taps to *place* a shape
-is now 64px, including the five original shape buttons, which were 40. Those are
-asserted directly (`child-touch-targets.spec.ts`, "every shape a child can place
-is at least 64px, in every kit"), so the densest grid of controls on the canvas
-is at the floor and stays there.
-
-**What it deliberately did not do.** Add `/student/new/drawing` to the blanket
-sweep. That would turn a blocking gate red for a dozen controls unrelated to the
-change that found them, and the honest options at that point are to fix all of
-them in a toolbox PR or to weaken the gate. Neither is right. **The gate was not
-weakened and no control was exempted.**
-
-**Since logged:** a rotate handle was added alongside the resize handle, at the
-same 20px. It is in the same debt rather than a new one, and moving both to the
-floor is one job.
-
-**To close this.** Bring the canvas controls to 64px — the ＋ and ✓ buttons and
-the object toolbar first, since those are the ones a child uses on every single
-drawing — then add `/student/new/drawing` to the page sweep above so it can
-never drift back. The filmstrip needs a design answer rather than a size bump:
-ten 64px thumbnails do not fit across an iPad, so it probably wants a different
-affordance rather than bigger squares.
-
-## F38 · One failing test in the e2e suite takes eleven more down with it · Medium → Open
+*(Logged as F38 on the toolbox branch, renumbered on merge: `main` had already
+taken F37–F39 for the user-tester findings. The duplicate F37 that branch
+carried — the canvas touch targets — was the same defect as `main`'s F37, found
+independently a day later, and has been deleted rather than kept twice. What it
+said that `main`'s does not is now F41, below.)*
 
 Found on 2026-08-19, while establishing whether a red suite was caused by the
 toolbox work. It was not — the same failures reproduce on `main` — but working
@@ -1504,3 +1462,37 @@ tests — an `afterEach` in a shared fixture rather than a line remembered in ea
 spec. Worth checking at the same time whether the restore modal should be
 dismissible by pressing Escape, since a modal that can only be answered is also
 a modal that can only block.
+
+## F41 · The gate cannot see the controls that only appear once you tap something · Medium → Open
+
+Found on 2026-08-19, immediately after F37 was fixed. F37 grew every control on
+the drawing canvas to the 64px child floor and — the part that matters — added
+`/student/new/drawing` to the blocking sweep so it cannot drift back.
+
+The sweep loads that page and measures what is on it. Nothing is selected, so a
+whole class of controls is not on it: the chrome that appears **around an object
+once a child taps it**.
+
+| Control | Size | Floor |
+| --- | --- | --- |
+| Resize handle | 20×20 | 64 |
+| Turn (rotate) handle | 20×20 | 64 |
+| Delete (✕) | 24×24 | 64 |
+| Add / edit label (✏) | 24×24 | 64 |
+
+These are the controls a child uses to *arrange* their work rather than to draw
+it, and moving a counter into place is most of what an apparatus worksheet asks
+of them. F37's own lesson — "a page list is exactly as good as the pages on it"
+— has a sibling: **a page sweep is exactly as good as the states it visits.**
+
+**Why this is not just "grow them too".** A counter is 120 model units, about
+90px on a classroom iPad. Four 64px handles on a 90px shape would cover the
+shape entirely and overlap each other. Growing them needs a design answer, not a
+number: handles outside the shape's bounds, or a long-press menu, or handles
+that scale with the object down to a floor. That is a real decision and it is
+the owner's, which is why this is logged rather than guessed at.
+
+**To close this.** Decide the affordance, then extend the sweep to visit the
+selected state — place a shape, tap it, measure — so the answer stays true. The
+palette buttons a child taps to *place* a shape are already at 64px and already
+asserted, in the same spec.

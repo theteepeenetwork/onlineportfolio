@@ -2252,7 +2252,7 @@ export function DrawingCanvas({
             )}
             <button
               type="button"
-              onClick={() => { setFanOpen((v) => !v); setShapesOpen(false); }}
+              onClick={() => { setFanOpen((v) => !v); setOpenKit(null); }}
               className="flex h-16 w-16 items-center justify-center rounded-full bg-brand text-3xl font-light text-white shadow-lg transition-transform hover:scale-105"
               title={fanOpen ? "Close" : "Add"}
               aria-label={fanOpen ? "Close add menu" : "Add"}
@@ -2777,8 +2777,11 @@ function Stepper({
   step?: number;
   onChange: (v: number) => void;
 }) {
+  // 64px, matching the buttons either side of it in the same toolbar (F37). A
+  // stepper a child has to tap ten times to reach ninths is the last place to
+  // put a small target.
   const btn =
-    "pointer-events-auto flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-lg font-bold hover:bg-surface disabled:opacity-40";
+    "pointer-events-auto flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-background text-lg font-bold hover:bg-surface disabled:opacity-40";
   return (
     <span className="pointer-events-auto inline-flex items-center gap-1">
       <span className="text-sm font-semibold text-muted">{label}</span>
