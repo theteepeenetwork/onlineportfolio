@@ -9,7 +9,7 @@ import { SCHOOL_A } from "../helpers";
 //
 // scripts/audit-motion.mjs proves the CSS is SHAPED right — one block, a
 // catch-all, nothing outranking it. It cannot prove the app still WORKS with
-// motion off, which is the half that matters: Storyjar tells a child where
+// motion off, which is the half that matters: StoryJar tells a child where
 // their work is partly THROUGH movement (a tile falls into the jar). So the
 // risk isn't a stray animation — it's a child who turns motion off and can no
 // longer tell what happened. Status must never depend on motion (WCAG 1.4.1,

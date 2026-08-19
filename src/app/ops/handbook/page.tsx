@@ -15,7 +15,7 @@ import {
   Section,
 } from "./sections";
 
-// The handbook: how Storyjar works, what this console may and may not do, and
+// The handbook: how StoryJar works, what this console may and may not do, and
 // the procedures, kept on the screen where the decisions get made.
 //
 // WHO IT IS FOR. The owner, and the next person who is given a sign-in here.
@@ -54,7 +54,7 @@ export default async function OpsHandbookPage() {
         </p>
 
         <Section id="read-first" heading="Read this first" body={<ReadFirst />} />
-        <Section id="how-it-works" heading="How Storyjar works" body={<HowItWorks />} />
+        <Section id="how-it-works" heading="How StoryJar works" body={<HowItWorks />} />
         <Section id="screens" heading="What each screen here does" body={<Screens idleMinutes={IDLE_LIFETIME_MINUTES} />} />
         <Section id="never" heading="What this console may never do" body={<NeverDo />} />
 
@@ -69,7 +69,7 @@ export default async function OpsHandbookPage() {
               </p>
               <Procedure
                 title="Break glass: reaching a pupil's data outside the product"
-                whenToUse="Five circumstances only, and somebody outside Storyjar is told before anything is opened."
+                whenToUse="Five circumstances only, and somebody outside StoryJar is told before anything is opened."
                 body={<BreakGlassBody />}
               />
               <Procedure

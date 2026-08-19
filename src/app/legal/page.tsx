@@ -1,26 +1,26 @@
 import Link from "next/link";
 import { LegalShell, POLICIES } from "./LegalShell";
 
-export const metadata = { title: "Policies — Storyjar" };
+export const metadata = { title: "Policies — StoryJar" };
 
 const BLURB: Record<string, string> = {
-  privacy: "How Storyjar handles personal data, and the roles of school, teacher, parent and Storyjar.",
+  privacy: "How StoryJar handles personal data, and the roles of school, teacher, parent and StoryJar.",
   "privacy-for-families": "The short, plain-English version for parents and carers.",
-  cookies: "What cookies Storyjar sets (essential only) and why.",
-  safeguarding: "How Storyjar is built to keep children safe, and how to raise a concern.",
-  terms: "The agreement between a school and Storyjar for using the service.",
-  "acceptable-use": "What may and may not be put into Storyjar.",
-  "data-processing": "The processor terms: how Storyjar handles data on a school's behalf.",
-  "sub-processors": "The third parties Storyjar relies on, and where data is held.",
-  accessibility: "Storyjar's commitment to being usable by every child and adult.",
+  cookies: "What cookies StoryJar sets (essential only) and why.",
+  safeguarding: "How StoryJar is built to keep children safe, and how to raise a concern.",
+  terms: "The agreement between a school and StoryJar for using the service.",
+  "acceptable-use": "What may and may not be put into StoryJar.",
+  "data-processing": "The processor terms: how StoryJar handles data on a school's behalf.",
+  "sub-processors": "The third parties StoryJar relies on, and where data is held.",
+  accessibility: "StoryJar's commitment to being usable by every child and adult.",
 };
 
 export default function LegalIndex() {
   return (
-    <LegalShell title="Policies" updated="Draft — under review" intro="Storyjar is a class journal for children aged 3–11. Because it holds children's work, safeguarding and data protection sit at its core. These policies explain how it works and how we protect the people who use it.">
+    <LegalShell title="Policies" updated="Draft — under review" intro="StoryJar is a class journal for children aged 3–11. Because it holds children's work, safeguarding and data protection sit at its core. These policies explain how it works and how we protect the people who use it.">
       <p>
         In data-protection law the <strong>school is the data controller</strong> and{" "}
-        <strong>Storyjar is a data processor</strong> acting on the school&apos;s instructions.
+        <strong>StoryJar is a data processor</strong> acting on the school&apos;s instructions.
         Each policy below reflects that relationship.
       </p>
       <div style={{ display: "grid", gap: 12, marginTop: 8 }}>

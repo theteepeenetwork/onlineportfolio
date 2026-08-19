@@ -1,10 +1,10 @@
 import { LegalShell } from "../LegalShell";
 
-export const metadata = { title: "Safeguarding & Child Protection — Storyjar" };
+export const metadata = { title: "Safeguarding & Child Protection — StoryJar" };
 
 export default function Safeguarding() {
   return (
-    <LegalShell title="Safeguarding & Child Protection" intro="Storyjar holds the work of children aged 3–11. Keeping them safe is our first principle — every design decision is made to protect the child.">
+    <LegalShell title="Safeguarding & Child Protection" intro="StoryJar holds the work of children aged 3–11. Keeping them safe is our first principle — every design decision is made to protect the child.">
       <h2>Our safeguarding principles</h2>
       <ul>
         <li><strong>Children are never account-holders.</strong> No child logins, emails or passwords. Children sign in only with a class code and by tapping their own name.</li>
@@ -17,8 +17,8 @@ export default function Safeguarding() {
 
       <h2>How this supports schools</h2>
       <p>
-        Storyjar operates within a school&apos;s safeguarding regime under <strong>Keeping Children Safe in Education</strong>.
-        The school remains responsible for safeguarding; Storyjar provides teacher moderation, private-by-default content,
+        StoryJar operates within a school&apos;s safeguarding regime under <strong>Keeping Children Safe in Education</strong>.
+        The school remains responsible for safeguarding; StoryJar provides teacher moderation, private-by-default content,
         least-privilege staff roles, and clear data-handling so the school can meet its duties. It is not a communication
         tool — there is no child-to-child messaging and no unmoderated contact.
       </p>
@@ -26,14 +26,14 @@ export default function Safeguarding() {
       <h2>Photographs of children</h2>
       <p>
         Photos are captured by staff on school devices and only stored when a teacher chooses to keep a moment. Schools
-        should ensure their existing <strong>photography/consent</strong> arrangements cover use in Storyjar. Approved
+        should ensure their existing <strong>photography/consent</strong> arrangements cover use in StoryJar. Approved
         images are shown only to the child&apos;s teacher(s) and linked family.
       </p>
 
       <h2>Raising a concern</h2>
       <p>
         If you have a <strong>child-safety concern</strong>, contact your school&apos;s <strong>Designated Safeguarding
-        Lead (DSL)</strong> in the first instance. If you believe there is a problem with how Storyjar itself is handling
+        Lead (DSL)</strong> in the first instance. If you believe there is a problem with how StoryJar itself is handling
         content or data, contact us at <strong>hello@storyjar.co.uk</strong> and we will work with the school.
         In an emergency where a child is at immediate risk, contact the police or your local authority&apos;s children&apos;s
         services.
@@ -43,7 +43,7 @@ export default function Safeguarding() {
       <p>
         If we become aware of a personal-data breach or a safeguarding issue, we notify the affected school(s) without
         undue delay so they can meet their statutory duties (including the ICO&apos;s 72-hour reporting requirement where
-        applicable). Storyjar is a one-person business, so the single point of contact for both data-protection and
+        applicable). StoryJar is a one-person business, so the single point of contact for both data-protection and
         safeguarding matters is <strong>[Full name]</strong> at <strong>hello@storyjar.co.uk</strong>. We do not contact
         children or the public directly about an incident — we go to the school, because the school is the data
         controller and holds the safeguarding relationship with the family.

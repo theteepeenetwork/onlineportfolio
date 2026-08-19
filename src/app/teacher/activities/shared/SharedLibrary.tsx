@@ -6,7 +6,7 @@ import { addSharedActivityToLibrary } from "@/app/actions/sharedActivities";
 import { ActivitySearchBox } from "@/components/ActivitySearchBox";
 import { matchesActivitySearch, searchResultLabel } from "@/lib/activitySearch";
 
-// The browse screen for Storyjar's own activities.
+// The browse screen for StoryJar's own activities.
 //
 // Attribution is explicit while browsing, because a teacher deciding whether to
 // use something should know whose it is. Once they have added it and made it
@@ -58,7 +58,7 @@ export function SharedLibrary({ activities }: { activities: SharedSummary[] }) {
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 24px 60px" }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 6 }}>
         <div>
-          <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)" }}>Storyjar library</h1>
+          <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)" }}>StoryJar library</h1>
           <p style={{ margin: "5px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>
             Activities we have made, ready to use. Add one and it becomes yours to change however you like.
           </p>
@@ -124,7 +124,7 @@ export function SharedLibrary({ activities }: { activities: SharedSummary[] }) {
               <div style={{ position: "relative", background: "#F3EEE2", aspectRatio: "4 / 3", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {a.thumb ? (
                   // A preview, without adding. The teacher is authorised to load
-                  // this because it is Storyjar's own media, which is what the
+                  // this because it is StoryJar's own media, which is what the
                   // /uploads widening exists for.
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -134,7 +134,7 @@ export function SharedLibrary({ activities }: { activities: SharedSummary[] }) {
                 <span
                   style={{ position: "absolute", top: 10, left: 10, font: "700 12px var(--font-atkinson)", color: "var(--paper)", background: "var(--ink)", borderRadius: 999, padding: "4px 10px" }}
                 >
-                  From Storyjar
+                  From StoryJar
                 </span>
               </div>
 

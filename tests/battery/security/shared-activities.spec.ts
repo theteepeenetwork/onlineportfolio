@@ -5,12 +5,12 @@ import { db } from "@/lib/db";
 import { SCHOOL_A, SCHOOL_B, loginTeacher } from "../helpers";
 
 // ===========================================================================
-// The Storyjar shared activity library.
+// The StoryJar shared activity library.
 //
 // The owner's three constraints, each turned into an assertion rather than a
 // convention:
 //
-//   1. Curated, not community. Only Storyjar publishes, and publishing is the
+//   1. Curated, not community. Only StoryJar publishes, and publishing is the
 //      repository's job. No teacher-authenticated code path may write to the
 //      shared table, in this version or by accident.
 //   2. Separate from a teacher's own folders.
@@ -120,7 +120,7 @@ test.describe("adding is a copy, and the copy is the teacher's own", () => {
     expect(copyB).toBeTruthy();
 
     // The media is copied, not referenced: no teacher's copy may depend on a
-    // file Storyjar owns (FINDINGS F27 is the trap this avoids).
+    // file StoryJar owns (FINDINGS F27 is the trap this avoids).
     expect(
       copyA!.templatePathsJson,
       "a copy that still points at /uploads/shared/ breaks the day the original changes",
@@ -224,7 +224,7 @@ test.describe("adding is a copy, and the copy is the teacher's own", () => {
     expect(archived!.templatePathsJson).toBe(first!.templatePathsJson);
   });
 
-test.describe("only Storyjar publishes", () => {
+test.describe("only StoryJar publishes", () => {
   // The assertion that will still matter in a year. Publishing lives in the
   // repository, so the enforceable version of "no teacher may publish" is that
   // no code a teacher's session can reach writes to the table at all.
@@ -303,7 +303,7 @@ test("removing a shared activity leaves every teacher's copy working", async ({ 
   const copyMedia: string[] = JSON.parse(copy!.templatePathsJson ?? "[]");
   expect(copyMedia.length, "the fixture activity should carry a background").toBeGreaterThan(0);
 
-  // Storyjar deletes the shared activity outright.
+  // StoryJar deletes the shared activity outright.
   await db.sharedActivity.delete({ where: { id: shared.id } });
 
   // The copy survives, keeps its own media, and still renders.

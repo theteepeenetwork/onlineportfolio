@@ -235,20 +235,20 @@ export type BillingViewDto = {
 // written where a person will read it.
 
 /**
- * Whether Storyjar knows that mail to this address is being refused by the
+ * Whether StoryJar knows that mail to this address is being refused by the
  * provider.
  *
  * PR2 shipped one value, NOT_MONITORED, because nothing recorded suppression.
  * PR5 added the feed, so there are now three honest answers and the first is
  * still one of them: with no MAIL_HMAC_KEY configured, or before the sync job
- * has ever run, Storyjar genuinely does not know, and saying "no problem" would
+ * has ever run, StoryJar genuinely does not know, and saying "no problem" would
  * be inventing a green light.
  *
  * The suppressed states are the provider's, from src/lib/ops/mail.ts. They are
  * carried through as their own values rather than flattened to "suppressed",
  * because what an operator does next differs: a bounce means the address is
  * wrong and the school has to correct it, an unsubscribe means the parent
- * turned Storyjar off and only they can turn it back on.
+ * turned StoryJar off and only they can turn it back on.
  */
 export type MailStateDto =
   | "NOT_MONITORED"
@@ -260,10 +260,10 @@ export type MailStateDto =
 
 export const MAIL_STATE_LABEL: Record<MailStateDto, string> = {
   NOT_MONITORED:
-    "Not monitored. Storyjar does not record yet whether mail to an address is being refused.",
+    "Not monitored. StoryJar does not record yet whether mail to an address is being refused.",
   NOT_SUPPRESSED:
-    "Mailjet is not refusing this address. That is not a delivery receipt: Storyjar cannot tell whether a message arrived or was read.",
-  BOUNCE: "Bounced. This address rejected Storyjar's mail, so sign-in links are not arriving.",
+    "Mailjet is not refusing this address. That is not a delivery receipt: StoryJar cannot tell whether a message arrived or was read.",
+  BOUNCE: "Bounced. This address rejected StoryJar's mail, so sign-in links are not arriving.",
   BLOCKED:
     "Blocked. Mailjet is refusing to send to this address, so sign-in links are not arriving.",
   SPAM: "Marked as spam by the recipient, so sign-in links are unlikely to arrive.",

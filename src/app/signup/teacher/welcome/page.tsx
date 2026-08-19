@@ -68,7 +68,7 @@ export default async function SignupWelcomePage({
       <main className="welcome-main" style={{ flex: 1, display: "flex", justifyContent: "center", padding: "24px 24px 80px" }}>
         <div className="welcome-sheet" style={{ width: "100%", maxWidth: 620, textAlign: "center" }}>
           {/* Print-only masthead: on the classroom hand-out the celebratory
-              badge is replaced by the Storyjar logo + wordmark. */}
+              badge is replaced by the StoryJar logo + wordmark. */}
           <div className="print-only" style={{ display: "none", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 6 }}>
             <JarLogo width={28} height={34} />
             <span style={{ font: "600 26px var(--font-fredoka)", color: "var(--ink)" }}>storyjar</span>

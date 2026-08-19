@@ -2,7 +2,7 @@
 // Turning a caught error into something safe to write to stdout.
 //
 // Application stdout goes to Railway's log store: a third party's system, with
-// its own retention and its own access model, that nobody at Storyjar can grep
+// its own retention and its own access model, that nobody at StoryJar can grep
 // for a child's name later and remove. So the rule is that a log line carries
 // ids, counts and fixed phrases, and never contents.
 //

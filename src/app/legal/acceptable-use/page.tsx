@@ -1,11 +1,11 @@
 import { LegalShell } from "../LegalShell";
 
-export const metadata = { title: "Acceptable Use Policy — Storyjar" };
+export const metadata = { title: "Acceptable Use Policy — StoryJar" };
 
 export default function AcceptableUse() {
   return (
-    <LegalShell title="Acceptable Use Policy" intro="What may and may not be put into Storyjar. Teachers are the moderators, so this is mainly a guide for staff.">
-      <h2>Storyjar is for children's learning moments</h2>
+    <LegalShell title="Acceptable Use Policy" intro="What may and may not be put into StoryJar. Teachers are the moderators, so this is mainly a guide for staff.">
+      <h2>StoryJar is for children's learning moments</h2>
       <p>It is a place for a child&apos;s own work — drawings, photos of what they&apos;ve made or done, and their words — kept for the class journal. It is not a general photo store, a messaging tool, or a place for personal or sensitive records.</p>
 
       <h2>The teacher&apos;s role</h2>
@@ -21,7 +21,7 @@ export default function AcceptableUse() {
       <ul>
         <li>Giving a child their own login, email or password (they don&apos;t need one).</li>
         <li>Sharing login details or letting unauthorised adults access children&apos;s work.</li>
-        <li>Using Storyjar to contact children directly or outside the school&apos;s supervision.</li>
+        <li>Using StoryJar to contact children directly or outside the school&apos;s supervision.</li>
         <li>Attempting to access another class&apos;s or family&apos;s data, or to circumvent access controls.</li>
         <li>Uploading malware, or content that infringes others&apos; rights.</li>
       </ul>

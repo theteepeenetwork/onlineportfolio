@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Publishing Storyjar's own activity library.
+// Publishing StoryJar's own activity library.
 //
 // WHY THIS IS A SCRIPT AND NOT A SCREEN
 //
 // The owner's first constraint is that the library is curated, not community:
-// only Storyjar publishes, and no teacher may publish, share or submit an
+// only StoryJar publishes, and no teacher may publish, share or submit an
 // activity in this version or by accident. The enforceable version of that is
 // that publishing does not exist in the application at all. It lives here, in
 // the repository, so the library is version controlled, reviewable in a pull

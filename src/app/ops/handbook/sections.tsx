@@ -61,12 +61,12 @@ export function ReadFirst() {
   return (
     <div>
       <p className="mt-3" style={{ color: "var(--ink)" }}>
-        Storyjar holds the work of children aged 3 to 11. Safeguarding outranks speed, convenience,
+        StoryJar holds the work of children aged 3 to 11. Safeguarding outranks speed, convenience,
         a customer&rsquo;s urgency and your own curiosity, every time. Where a choice is unclear, the
         more protective option is the right one, and nobody will ever criticise you for taking it.
       </p>
       <p className="mt-3" style={{ color: "var(--ink)" }}>
-        In law the <strong>school is the data controller</strong> and <strong>Storyjar is the
+        In law the <strong>school is the data controller</strong> and <strong>StoryJar is the
         processor</strong>. That sentence decides most arguments: we act on a school&rsquo;s
         instructions, we do not decide for them what happens to their pupils&rsquo; work, and when
         something goes wrong they are the ones who must be told so they can meet their own duties.
@@ -87,14 +87,14 @@ export function ReadFirst() {
 }
 
 // ---------------------------------------------------------------------------
-// 2. How Storyjar works
+// 2. How StoryJar works
 // ---------------------------------------------------------------------------
 
 export function HowItWorks() {
   return (
     <div>
       <p className="mt-3" style={{ color: "var(--ink)" }}>
-        Four people use Storyjar, and each of them sees a different thing. Knowing which one is on
+        Four people use StoryJar, and each of them sees a different thing. Knowing which one is on
         the phone tells you what they can possibly be looking at.
       </p>
 
@@ -175,7 +175,7 @@ export function NeverDo() {
   return (
     <div>
       <p className="mt-3" style={{ color: "var(--ink)" }}>
-        Rule 20: the person who operates Storyjar can run the service and <strong>cannot read a
+        Rule 20: the person who operates StoryJar can run the service and <strong>cannot read a
         pupil&rsquo;s work through it</strong>. This console may read adult records, billing, and
         counts large enough that no individual shows through. It may never show a pupil&rsquo;s name,
         their work, the words they wrote, a file they made, a quiz answer, a class code, a family
@@ -299,10 +299,10 @@ export function RetentionBody() {
 export function ConcernBody() {
   return (
     <ul className="list-disc ps-5" style={{ color: "var(--ink)" }}>
-      <li><strong>A concern about a child, raised by a school</strong> — their Designated Safeguarding Lead, always. Storyjar is not a reporting route and never replaces a school&rsquo;s own procedures.</li>
+      <li><strong>A concern about a child, raised by a school</strong> — their Designated Safeguarding Lead, always. StoryJar is not a reporting route and never replaces a school&rsquo;s own procedures.</li>
       <li><strong>A child at immediate risk</strong> — the police, or the local authority&rsquo;s children&rsquo;s services.</li>
       <li><strong>A concern about a school itself, or one of its staff</strong> — the local authority&rsquo;s designated officer. This is circumstance 4 of break glass, and the one case where we act outside the school. Do not tell the person concerned, and do not tell the school if it would prejudice the matter.</li>
-      <li><strong>Something wrong with how Storyjar handles work or data</strong> — that is ours. Follow the incident procedure above.</li>
+      <li><strong>Something wrong with how StoryJar handles work or data</strong> — that is ours. Follow the incident procedure above.</li>
     </ul>
   );
 }

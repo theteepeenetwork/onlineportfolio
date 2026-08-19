@@ -37,7 +37,7 @@ const PROMISES = [
   { chip: "Promise one", chipBg: "#F0B441", tilt: "-1.5deg", h: "No child emails or passwords. Ever.", p: "Children sign in with a class code and by tapping their own name. First names only — no surnames, no accounts, nothing to forget or leak." },
   { chip: "Promise two", chipBg: "#E08A9B", tilt: "1deg", h: "Nothing exists until you approve it", p: "Every single moment passes through your approval queue before it joins a child's jar. You are the gatekeeper, by design, always." },
   { chip: "Promise three", chipBg: "#7FC4BB", tilt: "-1deg", h: "UK GDPR, and your data never leaves Europe", p: "Built for UK schools' obligations from day one: UK GDPR compliant, your data never leaves Europe, and a DPA ready for your office." },
-  { chip: "Promise four", chipBg: "#C9A87C", tilt: "1.5deg", h: "Built by a serving UK primary teacher", p: "Storyjar is made by someone who does the school run, the marking and the moderation meetings. It exists because the classroom needed it." },
+  { chip: "Promise four", chipBg: "#C9A87C", tilt: "1.5deg", h: "Built by a serving UK primary teacher", p: "StoryJar is made by someone who does the school run, the marking and the moderation meetings. It exists because the classroom needed it." },
 ];
 
 const FAQS = [
@@ -49,7 +49,7 @@ const FAQS = [
   { q: "When can parents see the jar?", a: "A read-only family view is on the roadmap. Parents will only ever see their own child's approved moments — and you'll switch it on when you're ready." },
 ];
 
-// Marketing landing page for Storyjar.
+// Marketing landing page for StoryJar.
 export default async function Home() {
   // Returning teachers/children skip the marketing page and go to their app.
   const user = await getCurrentUser();
@@ -344,7 +344,7 @@ export default async function Home() {
       <section id="founder" style={{ padding: `${SECTION_PAD} ${GUTTER} 0`, maxWidth: 900, margin: "0 auto", boxSizing: "border-box" }}>
         <div style={{ position: "relative", background: "#FFFDF7", border: "3px solid #22304A", borderRadius: 6, padding: "clamp(36px, 5vw, 52px) clamp(28px, 5vw, 56px)", boxShadow: "0 5px 0 rgba(34,48,74,0.15)" }}>
           <div style={{ position: "absolute", left: "50%", top: -14, transform: "translateX(-50%) rotate(-2deg)", width: 120, height: 28, background: "#E5A0B2", opacity: 0.85 }} />
-          <p style={{ margin: 0, font: "400 clamp(18px, 2.4vw, 21px)/1.7 var(--font-atkinson)", color: "#22304A" }}>I built Storyjar in my own Year 2 classroom in the North East, because the tools we were given made evidence-gathering feel like admin, and the children&apos;s work deserved better than a folder on a shelf. Every feature here has been tested by the toughest review panel there is: thirty six-year-olds and one very tired teacher on a Thursday afternoon.</p>
+          <p style={{ margin: 0, font: "400 clamp(18px, 2.4vw, 21px)/1.7 var(--font-atkinson)", color: "#22304A" }}>I built StoryJar in my own Year 2 classroom in the North East, because the tools we were given made evidence-gathering feel like admin, and the children&apos;s work deserved better than a folder on a shelf. Every feature here has been tested by the toughest review panel there is: thirty six-year-olds and one very tired teacher on a Thursday afternoon.</p>
           <p style={{ margin: "26px 0 0", font: "600 22px var(--font-fredoka)", color: "#37796f" }}>— A Year 2 teacher in the North East</p>
         </div>
       </section>
@@ -428,7 +428,7 @@ export default async function Home() {
               ))}
             </div>
             <p style={{ margin: "22px 0 0", font: "400 14px var(--font-atkinson)", color: "#6B7690", textAlign: "center" }}>
-              Storyjar is a data processor for schools · Data kept in Europe · © 2026 Storyjar · storyjar.co.uk · Made in a Year 2 classroom
+              StoryJar is a data processor for schools · Data kept in Europe · © 2026 StoryJar · storyjar.co.uk · Made in a Year 2 classroom
             </p>
           </div>
         </div>

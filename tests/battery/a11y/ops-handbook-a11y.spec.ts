@@ -41,7 +41,7 @@ test("a11y (AA, empty baseline): the handbook, procedures closed", async ({ page
   await page.goto(ROUTE);
   // An axe scan of a page that did not render is a clean scan, so anchor first.
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
-  await expect(page.locator("main")).toContainText("How Storyjar works");
+  await expect(page.locator("main")).toContainText("How StoryJar works");
   await assertStrictNoViolations(page, "handbook (closed)");
 });
 

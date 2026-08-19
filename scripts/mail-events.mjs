@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // ---------------------------------------------------------------------------
-// mail-events: print what Mailjet recorded about Storyjar's recent sends.
+// mail-events: print what Mailjet recorded about StoryJar's recent sends.
 //
 // The companion to scripts/verify-mail.ts. verify-mail proves what arrives in
 // one mailbox on one occasion; this prints what the provider recorded about
 // every send in a window, which is the other half of the same question.
 //
 // WHY THIS SURVIVED THE PROVIDER CHANGE. Its Brevo predecessor is what produced
-// the evidence behind the August 2026 correction to Storyjar's email-tracking
+// the evidence behind the August 2026 correction to StoryJar's email-tracking
 // claims: it showed an `opened` event recorded against a sign-in email that the
 // application had sent with tracking explicitly disabled. Tracking is now off
 // three ways (account setting, per-message properties, per-message headers),
@@ -52,7 +52,7 @@ const showFull = process.argv.includes("--full");
 const days = Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 7);
 
 // How many messages to pull, and how many of those to fetch an event trail for.
-// Storyjar sends one kind of email at low volume, so these are generous. They
+// StoryJar sends one kind of email at low volume, so these are generous. They
 // exist so a bad argument cannot turn into hundreds of API calls.
 const MESSAGE_LIMIT = 200;
 const HISTORY_LIMIT = 60;
@@ -129,7 +129,7 @@ if (messages.length > HISTORY_LIMIT) {
 if (failed.length > 0) {
   console.log(`\n${failed.length} message(s) did not reach the recipient:`);
   for (const f of failed) console.log(`  ${pad(f.status, 14)} ${f.address}`);
-  console.log("A hard bounce from a Storyjar-controlled address means a broken alias.");
+  console.log("A hard bounce from a StoryJar-controlled address means a broken alias.");
   console.log("See the demo parent note in README and prisma/seed.ts.");
 }
 

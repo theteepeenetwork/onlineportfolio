@@ -584,7 +584,7 @@ function DeleteClassZone({ klass }: { klass: ClassCard }) {
   );
 }
 
-// ── Storyjar-styled wrappers around the existing server actions ──
+// ── StoryJar-styled wrappers around the existing server actions ──
 function NewClassForm({ onCreated }: { onCreated: () => void }) {
   const [state, action, pending] = useActionState(createClass, {});
   const ref = useRef<HTMLFormElement>(null);

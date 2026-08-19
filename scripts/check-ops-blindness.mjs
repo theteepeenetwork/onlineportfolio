@@ -8,7 +8,7 @@
 //
 // One person will run a service holding the work of children aged 3 to 11. The
 // promise made to a school's data protection lead is not "we will be careful".
-// It is that they can be shown exactly what Storyjar staff can and cannot see
+// It is that they can be shown exactly what StoryJar staff can and cannot see
 // through the product, and that the answer is enforced by a build failure
 // rather than by a sentence in a document. This script is that enforcement.
 //
@@ -277,7 +277,7 @@ const LOOKUP_ONLY = [
   "MailSuppression",
 ];
 
-// Storyjar's OWN published teaching content, and the least sensitive model in
+// StoryJar's OWN published teaching content, and the least sensitive model in
 // the schema.
 //
 // WIDENING (PR-shared-library, ruling R2: a widening lands in the same commit as

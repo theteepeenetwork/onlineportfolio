@@ -18,7 +18,7 @@ import {
 // A25 - Billing visibility, read-only, with a link out to Stripe (PR3)
 //
 // Owner decision D6, 17 August 2026 (docs/ops-architecture.md): manual payment
-// recording is dropped from v1, because Storyjar's Subscription row is a mirror
+// recording is dropped from v1, because StoryJar's Subscription row is a mirror
 // written by the Stripe webhook and anything an operator typed into it would be
 // reverted by the next event without saying so. So this suite proves two things
 // that pull in opposite directions: that the billing state is really there and
@@ -253,7 +253,7 @@ test("every link on the billing screen leaves for Stripe and leaks nothing on th
     // answers 404 to everybody else and is named nowhere public.
     expect(link.rel, `an outbound link without noreferrer: ${link.href}`).toContain("noreferrer");
     // Read out of context by a screen reader, the link still says where it goes
-    // and that it leaves Storyjar.
+    // and that it leaves StoryJar.
     expect(link.text.toLowerCase()).toContain("stripe");
     expect(link.text.toLowerCase()).toContain("leaves storyjar");
   }

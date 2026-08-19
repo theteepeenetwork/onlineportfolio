@@ -11,7 +11,7 @@ import {
 // ---------------------------------------------------------------------------
 //
 // One function, called from inside src/lib/mailer.ts, which increments a
-// per-day, per-template, per-outcome tally. That is the whole of Storyjar's
+// per-day, per-template, per-outcome tally. That is the whole of StoryJar's
 // mail observability, and the shape is handbook ruling R9's: "counters and
 // HMAC-keyed suppression, and explicitly NO recipient address or domain
 // stored".

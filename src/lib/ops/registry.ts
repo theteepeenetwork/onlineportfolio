@@ -115,7 +115,7 @@ export const OPS_OPERATIONS: Readonly<Record<OpsOperationId, OpsOperationSpec>> 
     subjectType: "PARENT",
     consequences: [
       "The whole address is shown on this screen, once, until you leave the page.",
-      "Storyjar never needs a person to read an address in order to send to it. This exists for the call where a school says a parent is receiving nothing and you have to compare what is stored against what they read out.",
+      "StoryJar never needs a person to read an address in order to send to it. This exists for the call where a school says a parent is receiving nothing and you have to compare what is stored against what they read out.",
       "The address and your reason are written to the operator record, word for word, and can be read back later.",
     ],
     confirmLabel: "Yes, show the address",

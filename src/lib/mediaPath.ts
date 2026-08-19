@@ -14,7 +14,7 @@ export const MEDIA_DIR = process.env.MEDIA_DIR || path.join(process.cwd(), ".med
 export const UPLOADS_PREFIX = "/uploads/";
 
 // ---------------------------------------------------------------------------
-// Storyjar's OWN library media (the shared activity library)
+// StoryJar's OWN library media (the shared activity library)
 // ---------------------------------------------------------------------------
 // A physically separate directory, and that separation is the security control
 // rather than a tidiness preference.
@@ -28,7 +28,7 @@ export const UPLOADS_PREFIX = "/uploads/";
 // MEDIA_DIR, so a teacher upload cannot be served as library content: nothing a
 // teacher can reach writes here. Only the publish script does.
 //
-// It holds no child data and no personal data of any kind. It is Storyjar's own
+// It holds no child data and no personal data of any kind. It is StoryJar's own
 // teaching illustration, shipped with the repository.
 export const SHARED_MEDIA_DIR =
   process.env.SHARED_MEDIA_DIR || path.join(process.cwd(), ".media-shared");

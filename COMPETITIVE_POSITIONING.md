@@ -57,7 +57,7 @@ behaviour scores." "No DMs — just the work." "UK-built, your data never leaves
 Europe, and no child data ever goes to a payment processor." Our safeguarding rules
 are a product *philosophy*, not just compliance — say so out loud.
 
-> **Say Europe, not the UK.** Storyjar is hosted in Amsterdam (Railway has no UK
+> **Say Europe, not the UK.** StoryJar is hosted in Amsterdam (Railway has no UK
 > region). "Your data stays in the UK" was in this document and it was wrong. The
 > honest line is just as strong against the US incumbents: *your data never leaves
 > Europe.* Say where the data **is**, not where it isn't — a claim about where it

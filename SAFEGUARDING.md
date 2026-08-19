@@ -1,13 +1,13 @@
-# Safeguarding & security — the rules for Storyjar
+# Safeguarding & security — the rules for StoryJar
 
 > **Rule 1: Safeguarding comes first. Everything else comes after it.**
 >
-> Storyjar exists to hold the work of children aged 3–11. If a feature,
+> StoryJar exists to hold the work of children aged 3–11. If a feature,
 > optimisation, deadline or convenience trades off against a child's safety or
 > privacy, **safety wins — without discussion**. When a choice is unclear, take
 > the more protective option and escalate rather than guess.
 
-This document is the constitution for how Storyjar is built. It binds everyone
+This document is the constitution for how StoryJar is built. It binds everyone
 who works on the codebase, **including AI agents** (it is referenced from
 `AGENTS.md`). Read it before changing anything that touches authentication,
 access control, the approval queue, children's data, or uploaded media.
@@ -21,7 +21,7 @@ before they are relied upon.
 
 ## Who we are, in law
 
-- The **school is the data controller.** **Storyjar is a data processor** acting
+- The **school is the data controller.** **StoryJar is a data processor** acting
   on the school's documented instructions.
 - That means we **minimise** what we hold, we **never** repurpose children's data,
   and we give schools the tools to meet *their* obligations (privacy information,
@@ -40,7 +40,7 @@ Each rule is testable. A change that breaks one does not ship.
 1. **No child logins, emails or passwords — ever.** Children sign in with a class
    code and by tapping their own name. Never add a flow that asks a child for an
    email address, a password, a phone number, or any other contact detail — or
-   any credential that could identify them outside Storyjar.
+   any credential that could identify them outside StoryJar.
 
    **The one exception — an optional KS2 class PIN** *(amended 2026-07-15; see
    "Amendments" below)*. A teacher may switch on a short numeric PIN for their
@@ -64,7 +64,7 @@ Each rule is testable. A change that breaks one does not ship.
      lockout is short and always routes the child to their teacher. **If a PIN is
      ever the reason a child cannot reach their own jar, the feature is wrong.**
    - **The teacher resets it; nobody reads it.** Hashed with bcrypt (rule 13). No
-     teacher, no admin, and no one at Storyjar can see a child's PIN. Switching
+     teacher, no admin, and no one at StoryJar can see a child's PIN. Switching
      PINs off for a class **deletes every stored hash** — it does not merely stop
      asking for them.
    - **It creates no new identity.** The PIN is not an account. It is meaningless
@@ -103,7 +103,7 @@ Each rule is testable. A change that breaks one does not ship.
    and billing. An admin **must not** see a child's work unless they personally
    teach that class. This is enforced by the same `teacherId` scoping — never add
    an admin path that reads children's journal items school-wide.
-20. **Neither is the platform operator.** The person who operates Storyjar can run
+20. **Neither is the platform operator.** The person who operates StoryJar can run
    the service and **cannot read a child's work through it**. Operator code may read
    adult records, billing state, and counts over children large enough that no
    individual shows through. It may **never** read a child's name, moment, caption,
@@ -127,7 +127,7 @@ Each rule is testable. A change that breaks one does not ship.
    another family's child. Parents can view and download; only the teacher can
    add, change or remove what is in the jar.
 6a. **A parent's contact details come only from that parent, and we send only what
-   they asked for.** Storyjar never takes a parent's email or phone number from a
+   they asked for.** StoryJar never takes a parent's email or phone number from a
    teacher, a school import or a child. Family access travels home on paper as a
    code, and the parent decides whether to add an address at all. We send a parent
    only a sign-in link they requested, or notifications they switched on
@@ -195,7 +195,7 @@ Each rule is testable. A change that breaks one does not ship.
 19. **Never process a child's face or voice to identify them.** A photograph or
     a voice recording is ordinary personal data. It becomes **biometric data —
     special category data under UK GDPR Art. 9** — the moment it is processed by
-    technical means *for the purpose of uniquely identifying a person*. Storyjar
+    technical means *for the purpose of uniquely identifying a person*. StoryJar
     does not do that anywhere, and must not start.
 
     **Specifically banned** without a full data-protection review *first*: facial
@@ -205,7 +205,7 @@ Each rule is testable. A change that breaks one does not ship.
     behalf.
 
     **Why this rule has its own number rather than a line in a backlog:** it is the
-    single change that would move Storyjar from "no special category data" to
+    single change that would move StoryJar from "no special category data" to
     "large-scale processing of special category data as a core activity". That
     flips the answer on the ICO's registration question, makes appointing a DPO
     **mandatory** (UK GDPR Art. 37(1)(c)), and requires a new DPIA before any of it
@@ -216,13 +216,13 @@ Each rule is testable. A change that breaks one does not ship.
     The same test applies to teacher-added tags: skill tags record a judgement
     about a *piece of work*. A tag that records something about the *child* —
     SEN status, a diagnosis, a health need, ethnicity, religion — is special
-    category data and does not belong in Storyjar.
+    category data and does not belong in StoryJar.
 
 ---
 
 ## Compliance map (England / UK)
 
-Storyjar must help schools meet, and itself comply with, at least:
+StoryJar must help schools meet, and itself comply with, at least:
 
 | Framework | What it means for us |
 |---|---|
@@ -308,8 +308,8 @@ to.
 |---|---|---|---|---|
 | 2026-08-19 | 10, 11 (scope note) | Read-aloud may speak **a teacher's note on returned work**, and only through a voice the platform reports as running on the device (`SpeechSynthesisVoice.localService === true`). Where there is no local voice the listen button is not rendered and the note stays as text. Storyjar's own fixed copy is unaffected — it is still the only thing `readAloud` will say. | Product owner | Finding F38: a teacher writes the child a note saying what to change, and the child was never shown it. Showing it is not enough for a pre-reader, so it has to be speakable — but `speechSynthesis` is not local on every platform, and the default voice on Android Chrome ships the text to a cloud service with no DPA, which rules 10 and 11 forbid. Naming a local voice explicitly is the narrowest mechanism that reaches the child without the words leaving the tablet. **Deny by default is preserved**: an implementation that does not report `localService` is treated as remote, and says nothing. |
 | 2026-08-17 | 20 (new) | Added when the platform operator console was built. States that the operator can run the service and cannot read a child's work **through the product**, enforced by a blocking gate rather than by memory, and states the limit of that guarantee in the same breath: the operator holds the hosting account, the application does not log infrastructure access, and the circumstances under which it may lawfully touch a child's data are governed by `docs/exceptional-access.md`. | Product owner | One person operating a service that holds children's work needs a limit that survives their own future convenience, and a written statement of the limit's edge so that nobody relies on more than it gives. The gate constrains the product; it cannot constrain the person, and a rule that implied otherwise would fall apart in a school's due-diligence questionnaire, or the first time a court ordered otherwise. |
-| 2026-08-17 | 6a (new) | A parent's contact details come only from that parent, and Storyjar sends only what that parent asked for: a sign-in link they requested, or notifications they switched on themselves. | Product owner | The first draft said Storyjar never messages a parent who did not ask, which was too wide: it would have forbidden notification preferences before they were built. The principle was right and the scope was wrong. This wording bans the thing that actually matters, which is obtaining a parent's address from anyone other than the parent, without banning a feature the parent themselves turns on. It describes what family access already does, where the code travels home on paper and the parent chooses whether to add an address at all. |
-| 2026-07-15 | 1 | Carved out **one** exception to "never ask a child for any credential": an optional, off-by-default, teacher-enabled numeric PIN, self-chosen, intended for Years 4–6. Bans on child emails, passwords and phone numbers are unchanged, as is rule 2. | Product owner (the serving teacher who owns Storyjar), acting on the July 2026 intuitiveness audit | Widening to ages 3–11 brought in Years 4–6, where children signing in as each other is a genuine problem that the class-code-plus-name model does not address. A mis-tap files one child's work in another child's evidence base — an assessment problem and a safeguarding one. **The honest framing: this is a classroom-management feature, not a security control**, and rule 1's text now says so explicitly so that no one later mistakes it for protection. **Not yet reviewed by a data-protection professional** — the PIN adds a per-child data field (`pinHash`), so it needs that review before it reaches real children. |
+| 2026-08-17 | 6a (new) | A parent's contact details come only from that parent, and StoryJar sends only what that parent asked for: a sign-in link they requested, or notifications they switched on themselves. | Product owner | The first draft said StoryJar never messages a parent who did not ask, which was too wide: it would have forbidden notification preferences before they were built. The principle was right and the scope was wrong. This wording bans the thing that actually matters, which is obtaining a parent's address from anyone other than the parent, without banning a feature the parent themselves turns on. It describes what family access already does, where the code travels home on paper and the parent chooses whether to add an address at all. |
+| 2026-07-15 | 1 | Carved out **one** exception to "never ask a child for any credential": an optional, off-by-default, teacher-enabled numeric PIN, self-chosen, intended for Years 4–6. Bans on child emails, passwords and phone numbers are unchanged, as is rule 2. | Product owner (the serving teacher who owns StoryJar), acting on the July 2026 intuitiveness audit | Widening to ages 3–11 brought in Years 4–6, where children signing in as each other is a genuine problem that the class-code-plus-name model does not address. A mis-tap files one child's work in another child's evidence base — an assessment problem and a safeguarding one. **The honest framing: this is a classroom-management feature, not a security control**, and rule 1's text now says so explicitly so that no one later mistakes it for protection. **Not yet reviewed by a data-protection professional** — the PIN adds a per-child data field (`pinHash`), so it needs that review before it reaches real children. |
 
 **A note on numbering.** Rule numbers are permanent identifiers assigned in the
 order rules were added, not positions on the page. They are cited from

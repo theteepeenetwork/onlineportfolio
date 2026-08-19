@@ -12,7 +12,7 @@ import {
 import { OpsBar, OpsFootnote, type OpsPath } from "../shell";
 
 // ---------------------------------------------------------------------------
-// Service health: what this running copy of Storyjar knows about itself.
+// Service health: what this running copy of StoryJar knows about itself.
 // ---------------------------------------------------------------------------
 //
 // THE FAILURE THIS SCREEN IS BUILT AGAINST
@@ -160,7 +160,7 @@ export default async function OpsHealthPage() {
           Service health
         </h1>
         <p className="mt-2" style={{ color: "var(--ink)" }}>
-          This is what this running copy of Storyjar knows about itself, worked out from inside the
+          This is what this running copy of StoryJar knows about itself, worked out from inside the
           process. It is not a monitoring system, and it is not the Railway dashboard. Where there is
           no signal it says <strong>{NOT_MONITORED}</strong> and says why, because a tile that looks
           calm because its feed is missing is worse than no tile at all.
@@ -300,7 +300,7 @@ export default async function OpsHealthPage() {
           What this screen cannot tell you
         </h2>
         <ul className="mt-2 list-disc ps-5" style={{ color: "var(--ink)" }}>
-          <li>Whether Storyjar is up. You are reading it, so it is.</li>
+          <li>Whether StoryJar is up. You are reading it, so it is.</li>
           <li>
             Anything about another instance, another environment or the platform underneath. This app
             holds no Railway credential and is not going to.
@@ -326,7 +326,7 @@ export default async function OpsHealthPage() {
               overflowWrap: "anywhere",
             }}
           >
-            Open the Railway dashboard (leaves Storyjar, opens in a new tab)
+            Open the Railway dashboard (leaves StoryJar, opens in a new tab)
           </a>
         </p>
       </main>

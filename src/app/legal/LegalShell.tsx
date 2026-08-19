@@ -15,7 +15,7 @@ export const POLICIES: { key: string; label: string }[] = [
   { key: "accessibility", label: "Accessibility Statement" },
 ];
 
-// Shared chrome for the /legal/* pages: Storyjar nav, a prominent "draft"
+// Shared chrome for the /legal/* pages: StoryJar nav, a prominent "draft"
 // banner, a readable column, and a cross-linking footer.
 export function LegalShell({
   title,
@@ -56,14 +56,14 @@ export function LegalShell({
 
       <footer style={{ background: "#22304A", color: "#C4CDDD", padding: "40px 32px" }}>
         <div style={{ maxWidth: 820, margin: "0 auto" }}>
-          <p style={{ margin: "0 0 14px", font: "600 16px var(--font-fredoka)", color: "#FAF6EE" }}>Storyjar policies</p>
+          <p style={{ margin: "0 0 14px", font: "600 16px var(--font-fredoka)", color: "#FAF6EE" }}>StoryJar policies</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 22px" }}>
             {POLICIES.map((p) => (
               <Link key={p.key} href={`/legal/${p.key}`} style={{ font: "400 14px var(--font-atkinson)", color: "#A9B4C9", textDecoration: "none" }}>{p.label}</Link>
             ))}
           </div>
           <p style={{ margin: "22px 0 0", font: "400 13px var(--font-atkinson)", color: "#6B7690" }}>
-            Storyjar acts as a data processor for schools (the data controller). © 2026 Storyjar · storyjar.co.uk
+            StoryJar acts as a data processor for schools (the data controller). © 2026 StoryJar · storyjar.co.uk
           </p>
         </div>
       </footer>

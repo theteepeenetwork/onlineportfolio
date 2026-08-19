@@ -4,7 +4,7 @@ Copy everything below into a fresh agent session from the repo root.
 
 ---
 
-Implement subscription billing for Storyjar using Stripe. Read `AGENTS.md`,
+Implement subscription billing for StoryJar using Stripe. Read `AGENTS.md`,
 `SAFEGUARDING.md` and `RETENTION.md` **before writing any code** — they are
 binding, and this change touches access control so the safeguarding review
 checklist in `SAFEGUARDING.md` must pass. Also read the Next.js guides in

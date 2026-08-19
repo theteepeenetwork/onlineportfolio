@@ -63,7 +63,7 @@ export const MAIL_TEMPLATE_LABEL: Record<MailTemplateKey, string> = {
 // Outcomes
 // ---------------------------------------------------------------------------
 // SENT means Mailjet accepted the message for delivery. It does NOT mean it
-// arrived: Storyjar has no delivery receipt, because open and click tracking
+// arrived: StoryJar has no delivery receipt, because open and click tracking
 // are switched off at account level and on every message, and no event webhook
 // is wired. The screen says so in those words rather than printing "delivered".
 //
@@ -104,7 +104,7 @@ export const MAIL_STATUS_CLASS_LABEL: Record<MailStatusClass, string> = {
   other: "An HTTP status outside the usual classes",
   rejected: "Mailjet accepted the request and rejected the message",
   timeout: "Mailjet did not answer within the timeout",
-  network: "Storyjar could not reach Mailjet",
+  network: "StoryJar could not reach Mailjet",
 };
 
 /**
@@ -147,7 +147,7 @@ export function isMailTemplateKey(value: string): value is MailTemplateKey {
 // Suppression
 // ---------------------------------------------------------------------------
 // The four states Mailjet's message list can leave an address in that mean
-// Storyjar's mail is no longer arriving. UNSUBSCRIBED is here because of the
+// StoryJar's mail is no longer arriving. UNSUBSCRIBED is here because of the
 // failure mode owner amendment D2 describes: Mailjet attaches a one-click
 // List-Unsubscribe header and its blocked-contacts list is account-wide, so a
 // parent who unsubscribes from anything is unsubscribed from their own sign-in
@@ -243,7 +243,7 @@ export const MAIL_VERDICT_LABEL: Record<MailVerdict, string> = {
   NONE_ATTEMPTED:
     "Nothing was attempted. That is normal out of term, and worth a look on a school morning.",
   ALL_ACCEPTED: "Every attempt was accepted by Mailjet.",
-  SOME_FAILED: "Some attempts did not leave Storyjar.",
+  SOME_FAILED: "Some attempts did not leave StoryJar.",
   NEEDS_ATTENTION: `Needs attention: more than ${Math.round(
     MAIL_FAILURE_RATIO * 100,
   )} per cent of attempts failed.`,

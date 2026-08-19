@@ -36,7 +36,7 @@ const atkinson = localFont({
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Storyjar — every child's story, collected",
+  title: "StoryJar — every child's story, collected",
   description:
     "A class journal and portfolio for ages 3–11. Children pop their photos, drawings and words into the jar — and nothing is kept until the teacher has seen it.",
 };

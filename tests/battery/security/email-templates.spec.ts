@@ -7,7 +7,7 @@ import { magicLinkEmail, staffInviteEmail } from "@/lib/emailTemplates";
 //
 // WHAT BREAKS IF THIS FAILS. An `<img>` in an email is how open tracking
 // works: the client fetches it, and whoever serves it learns that this
-// recipient opened this message, at this time, from this IP address. Storyjar
+// recipient opened this message, at this time, from this IP address. StoryJar
 // tells schools the opposite. `docs/DPIA.md` (R14) and the public
 // `/legal/sub-processors` page both state that we cannot tell whether a
 // particular parent opened an email. A single hosted logo, web font or CDN
@@ -21,7 +21,7 @@ import { magicLinkEmail, staffInviteEmail } from "@/lib/emailTemplates";
 // only check was a human sending a probe and reading the raw source by hand,
 // which had happened exactly once.
 //
-// WHAT THIS CANNOT SEE. Only what Storyjar generates. A provider can still
+// WHAT THIS CANNOT SEE. Only what StoryJar generates. A provider can still
 // inject a pixel into a clean message on its way out, which is precisely what
 // Brevo did and why it is no longer the provider. That half is checked by
 // sending a real message and reading the delivered source:
@@ -91,9 +91,9 @@ for (const { name, mail } of templates) {
 test("the subjects are fixed copy, not built from anything", () => {
   // A subject line is the one part of an email that is visible in a preview on
   // a lock screen. Nothing may reach it.
-  expect(magicLinkEmail(LINK).subject).toBe("Your Storyjar sign-in link");
-  expect(staffInviteEmail(SCHOOL, LINK).subject).toBe("You've been invited to Storyjar");
-  expect(staffInviteEmail("Oakfield Junior", LINK).subject).toBe("You've been invited to Storyjar");
+  expect(magicLinkEmail(LINK).subject).toBe("Your StoryJar sign-in link");
+  expect(staffInviteEmail(SCHOOL, LINK).subject).toBe("You've been invited to StoryJar");
+  expect(staffInviteEmail("Oakfield Junior", LINK).subject).toBe("You've been invited to StoryJar");
 });
 
 test("magicLinkEmail interpolates the URL and nothing else", () => {

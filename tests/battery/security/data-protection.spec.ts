@@ -13,7 +13,7 @@ import { SCHOOL_A, SCHOOL_B, loginTeacher, loginParent, studentIdFromLogin } fro
 // narrower delete paths do not.)
 // ===========================================================================
 
-// Any request whose host isn't our own origin is a third party. Storyjar
+// Any request whose host isn't our own origin is a third party. StoryJar
 // promises "no trackers" (SAFEGUARDING.md rule 11) — assert nothing phones home.
 async function assertNoThirdPartyRequests(page: import("@playwright/test").Page, gotoUrl: string) {
   const offOrigin: string[] = [];

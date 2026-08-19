@@ -6,7 +6,7 @@ const PUBLISHED_MEDIA = "/uploads/shared/seed-shared-bg.svg";
 const UNPUBLISHED_MEDIA = "/uploads/shared/seed-shared-unpublished-bg.svg";
 
 // ===========================================================================
-// The /uploads route, across the widening that the Storyjar shared activity
+// The /uploads route, across the widening that the StoryJar shared activity
 // library needs.
 //
 // Shared library media is the first content in this product that is

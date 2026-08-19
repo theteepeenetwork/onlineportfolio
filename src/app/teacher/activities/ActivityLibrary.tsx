@@ -113,7 +113,7 @@ export function ActivityLibrary({
             );
           })}
         </div>
-        {/* The Storyjar library is NOT a folder, and is deliberately not in the
+        {/* The StoryJar library is NOT a folder, and is deliberately not in the
             list above. It holds nothing of this teacher's, nothing here is
             counted in their totals, and putting it in the folder list would say
             the opposite. It sits below a rule, as its own thing. */}
@@ -122,7 +122,7 @@ export function ActivityLibrary({
             href="/teacher/activities/shared"
             style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", font: "700 15px var(--font-atkinson)", color: "var(--ink)", background: "#D8ECE8", border: "2px solid var(--ink)", borderRadius: 10, padding: "10px 12px" }}
           >
-            <span style={{ flex: 1 }}>Storyjar library</span>
+            <span style={{ flex: 1 }}>StoryJar library</span>
             <span aria-hidden>→</span>
           </Link>
           <p style={{ margin: "6px 2px 0", font: "400 13px/1.45 var(--font-atkinson)", color: "var(--sj-muted)" }}>
@@ -188,7 +188,7 @@ export function ActivityLibrary({
                     href="/teacher/activities/shared"
                     style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}
                   >
-                    Browse the Storyjar library
+                    Browse the StoryJar library
                   </Link>
                   <Link
                     href="/teacher/activities/new"

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { teacherLogin } from "./helpers";
 
-// Teachers usually have a register with full names; Storyjar keeps first names
+// Teachers usually have a register with full names; StoryJar keeps first names
 // only (SAFEGUARDING.md rule 2). Where a first name repeats, the shortest
 // surname prefix that tells them apart is appended.
 test("pasting a register with surnames keeps first names and disambiguates", async ({ page }) => {
