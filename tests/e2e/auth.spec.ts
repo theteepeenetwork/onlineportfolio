@@ -113,3 +113,58 @@ test.describe("Class code entry", () => {
     await expect(page.getByRole("heading", { name: /tap your name/i })).toBeVisible();
   });
 });
+
+// ===========================================================================
+// F39 — a class list pasted into the SIGN-UP WIZARD is stored as first names
+// only, exactly as the roster's own paste path stores it.
+//
+// Promoted here from the findings project on 19 August 2026, when it was fixed.
+// SAFEGUARDING rule 2 is a hard limit ("we store a child's first name and their
+// work; no surnames"), and `Student.name` is the label on the name cards at
+// /login/student?code=…, a screen a whole class reads off a code written on the
+// board. The wizard used to store `raw.trim()`; a register pasted out of a
+// school MIS therefore put "Ali Hassan" in front of the class.
+//
+// Found by the user-tester team: Ms Blake's first twenty minutes
+// (tests/battery/personas/teacher-first-day.spec.ts).
+// ===========================================================================
+test("a register pasted at sign-up is stored as first names only", async ({ page }) => {
+  const stamp = Date.now().toString().slice(-6);
+
+  await page.goto("/signup/teacher");
+  await page.locator("#su-fullname").fill("Robin Fixture");
+  await page.locator("#su-email").fill(`f39.${stamp}@newschool.test`);
+  await page.locator("#su-pass").fill("bramble-fox-lantern-9");
+  await page.getByRole("button", { name: /^continue$/i }).click();
+
+  await page.locator("#su-school").fill(`F39 Primary ${stamp}`);
+  await page.getByRole("button", { name: /^continue$/i }).click();
+
+  await page.locator("#su-class").fill("Kingfishers");
+  await page.locator('input[name="su-agemode"]').first().check();
+  await page.getByRole("button", { name: /create class/i }).click();
+
+  // A register exactly as it comes out of a school MIS.
+  await page.locator("#su-children").fill("Ali Hassan\nBea Turner\nCallum Reid");
+
+  // The teacher is told what will be stored, before they commit to it.
+  await expect(page.getByText(/stored as first names only/i)).toBeVisible();
+
+  await page.getByRole("button", { name: /add pupils/i }).click();
+  await page.waitForURL((url) => !/\/signup\/teacher$/.test(url.pathname), { timeout: 30_000 });
+
+  await expect(page.getByRole("heading", { name: /class code/i })).toBeVisible();
+  const code = ((await page.locator("body").innerText()).match(/\b[A-Z]{3}[A-Z0-9]{3}\b/) ?? [""])[0];
+  expect(code).toMatch(/^[A-Z0-9]{4,8}$/);
+
+  // The children's own sign-in screen is where those names are shown, so it is
+  // where the rule has to hold.
+  await page.context().clearCookies();
+  await page.goto(`/login/student?code=${code}`);
+  await expect(page.getByRole("button", { name: /Ali/ })).toBeVisible();
+
+  const wall = await page.locator("body").innerText();
+  for (const surname of ["Hassan", "Turner", "Reid"]) {
+    expect(wall, `SAFEGUARDING rule 2: no surname may reach the class sign-in screen (found "${surname}")`).not.toContain(surname);
+  }
+});

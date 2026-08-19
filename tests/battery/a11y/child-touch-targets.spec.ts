@@ -36,7 +36,9 @@ async function undersizedControls(page: Page) {
   return page.evaluate(
     ({ floor, exempt }) => {
       const out: { label: string; w: number; h: number }[] = [];
-      const controls = document.querySelectorAll<HTMLElement>("button, a[href], input:not([type=hidden]), select, textarea");
+      const controls = document.querySelectorAll<HTMLElement>(
+        'button, a[href], input:not([type=hidden]), select, textarea, [role="button"], [role="slider"]',
+      );
       for (const el of controls) {
         if (exempt.some((sel) => el.matches(sel) || el.closest(sel))) continue;
         const r = el.getBoundingClientRect();
@@ -77,6 +79,42 @@ test("every control on a child's jar meets the child touch floor", async ({ page
   await loginStudent(page, SCHOOL_A.classCode, "Chloe");
   const small = await undersizedControls(page);
   expect(small, `controls below ${FLOOR}px: ${JSON.stringify(small)}`).toEqual([]);
+});
+
+// The two full-screen CANVASES and the EYFS jar (F37). They were outside this
+// gate's list of URLs until 19 August 2026, which is how a child's most-used
+// screens came to carry ten controls under the floor while a gate named "child
+// touch targets" passed. A page list is exactly as good as the pages on it.
+test("every tool on a child's drawing canvas meets the child touch floor", async ({ page }) => {
+  await loginStudent(page, SCHOOL_A.classCode, "Chloe");
+  await page.goto("/student/new/drawing");
+  await expect(page.locator("canvas")).toBeVisible();
+
+  const small = await undersizedControls(page);
+  expect(small, `controls below ${FLOOR}px on the drawing canvas: ${JSON.stringify(small)}`).toEqual([]);
+});
+
+test("every tool on an activity response meets the child touch floor", async ({ page }) => {
+  await loginStudent(page, SCHOOL_A.classCode, "Dev");
+  await page.goto("/student/activities");
+  const activity = page.locator('a[href^="/student/activities/"]').first();
+  await expect(activity).toBeVisible();
+  await activity.click();
+  await expect(page.locator("canvas")).toBeVisible();
+
+  const small = await undersizedControls(page);
+  expect(small, `controls below ${FLOOR}px on an activity response: ${JSON.stringify(small)}`).toEqual([]);
+});
+
+test("every control on an EYFS child's jar meets the child touch floor", async ({ page }) => {
+  // A different shell entirely (EyfsHome), for the youngest children in the
+  // product, and measured the way a Reception child holds a tablet: portrait.
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await loginStudent(page, "ACO789", "Ava");
+  await expect(page.getByRole("heading", { name: /hello/i })).toBeVisible();
+
+  const small = await undersizedControls(page);
+  expect(small, `controls below ${FLOOR}px on an EYFS jar: ${JSON.stringify(small)}`).toEqual([]);
 });
 
 test("every control on the add-work screens meets the child touch floor", async ({ page }) => {

@@ -28,10 +28,13 @@ first run (`tests/battery/personas/`, TEST_PLAN B7) — nine people and a bot
 using the product for whole jobs of work rather than asserting against it. All
 three were found by somebody doing something ordinary: a six-year-old picking up
 a pen, a ten-year-old looking for what his teacher asked him to change, and a
-teacher pasting her register on her first morning. Each is logged with a repro
-that fails on purpose, and none is fixed here — F37 needs a layout decision,
-F38 needs an owner decision about read-aloud and the EYFS register, and F39
-needs the roster's disambiguation to work before a class exists.
+teacher pasting her register on her first morning.
+
+**All three were fixed on 19 August 2026**, each on an owner decision rather than
+a guess: grow the target and keep the icon (F37); the note on the jar and on the
+work, in every register, spoken only by an on-device voice (F38); strip the
+surnames and show the teacher what was stored (F39). Their repros moved into the
+blocking a11y and e2e suites.
 
 > **F15–F18 were found later**, while working through the July 2026 intuitiveness
 > audit — not during the original battery work. All four are fixed. F16 shipped
@@ -85,9 +88,9 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | **F34** | **High** | **Resilience / data loss** | Saved work was withheld from the person who made it. The restore prompt awaited the local draft and a cross-device server lookup **together**, and the lookup had no deadline, so a request that was accepted and never answered suppressed the prompt entirely, and a teacher's or a child's work sat safe in their own browser while they were told nothing. The same shape was found a second time on `loadImage`, where a stalled template background left a child on a permanent "Loading…" overlay. Both are now bounded. | **Fixed** | `e2e/drafts.spec.ts`: "the restore prompt still arrives when the cross-device lookup never answers" and "a stalled template background still lets a child draw and restore" |
 | F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
 | F36 | **Medium** | Test correctness | Every post-reload click in `drafts.spec.ts` raced hydration. Playwright's actionability checks pass on server-rendered HTML, so the click landed before React attached its handler, was swallowed without error, and the test failed one line later on a missing canvas that looked like a product fault. **Measured on 2026-08-18: F36 caused the one-in-two CI flake.** With it fixed the prompt appears in 38ms and all 133 functional tests pass; without it `main` failed at 33.9s. Raised from Low because a fault that fails a blocking gate every other run, and was twice misdiagnosed as a product defect, is not a low-severity test nit. | **Fixed** | `e2e/helpers.ts` `clickHydrated`, used at both post-reload click sites |
-| **F37** | **High** | A11y (child-facing) | The blocking 64px child touch-target gate does not cover either **canvas** — `/student/new/drawing` or an activity response — nor the **EYFS jar**, which is a different shell for the youngest children in the product. Every tool on them is under the floor: the pen, eraser, undo, redo, clear and close at 44×44, Done and ＋ at 56×56, and the colour slider **24px wide**. Same shape as F18: a gate that reads as "child touch targets are covered" while the busiest child screen in the product is outside it | **Open, logged not fixed** | `findings/child-touch-targets-drawing.spec.ts` (fails on purpose) |
-| **F38** | **Medium** | Feedback loop / child-facing | A teacher sends work back with a note — the queue asks for one and gives an example — and the child is never shown it. `/student` renders a returned moment with a fixed status line ("Have another go") and nothing else; `teacherNote` is rendered by one component, on the teacher's own view of the child's journal. The child is told that something came back and left to guess which part to change | **Open, logged not fixed** | `findings/returned-work-note-reaches-the-child.spec.ts` (fails on purpose) |
-| **F39** | **High** | Data minimisation / SAFEGUARDING rule 2 | The sign-up wizard stores children's **surnames**. Step 4 takes the pasted register and writes `raw.trim()` straight to `Student.name`; the roster's own paste path runs the identical input through `deriveChildNames`, which keeps first names only. The full names are then the buttons on the class sign-in screen, reached with a code written on the board. Rule 2 calls this a hard limit, and it is enforced on the second class list a teacher types but not the first | **Open, logged not fixed** | `findings/signup-keeps-surnames.spec.ts` (fails on purpose) |
+| **F37** | **High** | A11y (child-facing) | The blocking 64px child touch-target gate covered neither **canvas** — `/student/new/drawing` or an activity response — nor the **EYFS jar**, a different shell for the youngest children in the product. Every tool on them was under the floor: pens 58 wide, undo/redo/clear/close at 44×44, Done and ＋ at 56×56, the Text tool at 48×48, page tiles at 57, and the colour slider **24px wide**. The quiz answers a pre-reader taps measured 57 because the canvas sized them in MODEL units and scaled them down — a floor in the wrong coordinate space is not a floor. Same shape as F18: a gate reading as "child touch targets are covered" while the busiest child screens sat outside its list of URLs | **Fixed** | `a11y/child-touch-targets.spec.ts` (both canvases and the EYFS jar now in the blocking gate) |
+| **F38** | **Medium** | Feedback loop / child-facing | A teacher sent work back with a note — the queue asks for one and gives an example — and the child was never shown it. `/student` rendered a returned moment with a fixed status line ("Have another go") and nothing else; `teacherNote` was rendered by one component, on the teacher's own view. The child was told something came back and left to guess which part | **Fixed** | `e2e/journal.spec.ts` ("the teacher's note reaches the child…") |
+| **F39** | **High** | Data minimisation / SAFEGUARDING rule 2 | The sign-up wizard stored children's **surnames**. Step 4 wrote `raw.trim()` straight to `Student.name`; the roster's own paste path ran the identical input through `deriveChildNames`, which keeps first names only. The full names were then the buttons on the class sign-in screen, reached with a code written on the board | **Fixed** | `e2e/auth.spec.ts` ("a register pasted at sign-up is stored as first names only") |
 
 ---
 
@@ -1216,7 +1219,7 @@ hydrates often enough for this to matter, and if they do the click simply does
 nothing and they click again. It is logged because it burned a day's diagnosis
 across two sessions while masquerading as two different product faults.
 
-## F37 · The child touch-target gate stops at the edge of the canvas · High → Open
+## F37 · The child touch-target gate stopped at the edge of the canvas · High → Fixed
 
 Found on 2026-08-18 by the user-tester team's first run — by Nell, aged six, on
 a classroom tablet, trying to draw something and put it in her jar
@@ -1256,15 +1259,31 @@ says "child touch targets" while the busiest child-facing screen sits outside
 its list of URLs. F18 was hidden by a baseline; this is hidden by a page list.
 Both read, from outside, as "covered".
 
-**Not fixed here, and deliberately not added to the blocking gate**, which would
-turn `main` red on a defect nobody has yet decided how to fix — the canvas is
-dense by design and 64px tools need a layout decision, not a padding change.
-The repro lives in the report-only findings project asserting the intended
-behaviour, so it fails on purpose until the layout question is answered. When it
-is, move it into `a11y/child-touch-targets.spec.ts` so it stays fixed, and
-delete this entry.
+**The fix (19 August 2026), decided by the product owner: grow the target, keep
+the icon.** Every control listed above now measures at least 64px as a box while
+the glyph inside it is untouched — the pen a child sees is the same pen, drawn
+in a wider button; the line-thickness dial is still a 36px circle inside a 64px
+press; the rainbow slider is still 24px of colour, centred in a 64px column. The
+alternative (making the icons themselves bigger) was rejected because it spends
+the drawing area to buy the same hit rate.
 
-## F38 · The teacher writes the child a note, and the child never sees it · Medium → Open
+Two of these were not padding at all, and they are the interesting ones:
+
+- **The quiz answers a pre-reader taps** were already written as `minHeight:
+  px(64)`. `px()` converts MODEL units to display units by the canvas's scale, so
+  at k≈0.9 that "64" reached the child as 57 real pixels. A floor expressed in
+  the wrong coordinate space is not a floor. There is now a `touch()` helper —
+  `px()` with a hard floor at the real 64 — and the answer buttons use it.
+- **The page thumbnails** were 57px tall because their column was 96px wide and
+  the tiles are 10:7. The column is 112px now; nothing else moved.
+
+**And the gate was widened, which is the half that keeps it fixed.**
+`a11y/child-touch-targets.spec.ts` — blocking — now sweeps the drawing canvas,
+an activity response and the EYFS jar alongside the screens it already covered,
+and its sweep counts `[role="button"]` and `[role="slider"]` so a control that is
+not a `<button>` (the colour slider) cannot slip through the way it did here.
+
+## F38 · The teacher writes the child a note, and the child never sees it · Medium → Fixed
 
 Found on 2026-08-18 by two of the user testers independently: Wren, aged ten,
 looking for what his teacher wanted changed, and Mr Reeves, who had just written
@@ -1286,24 +1305,40 @@ person it was written for. The teacher types what to change; the child is told
 only that something came back, and has to guess, or ask — which is the classroom
 time this product is meant to give back.
 
-Three things make this worth logging rather than shrugging at:
+**The fix (19 August 2026).** The note now appears in both places a child looks:
+on the returned-work strip on their jar, and again at the top of the work when
+they reopen it. In all three registers — including EYFS, which previously showed
+a returned piece nowhere at all, so a four-year-old had neither the note nor a
+route back into the activity. One component (`student/TeacherNote.tsx`) renders
+it everywhere, so the two places cannot drift.
+
+**The read-aloud decision, which is the part that needed one.** A teacher's note
+is free text written by an adult, and `readAloud` speaks only Storyjar's fixed
+copy for a reason that is not editorial: on some platforms `speechSynthesis`
+ships the text to a cloud voice service, and sending a teacher's words about a
+named child to a third party with no DPA is what rules 10 and 11 forbid.
+
+So the listen button uses a different mechanism. `readAloudOnDevice` selects a
+voice the platform reports as **local** (`SpeechSynthesisVoice.localService ===
+true`) and speaks with that voice explicitly; where the device offers none, the
+button is not rendered and the note stays as text beside a teacher. An
+implementation that does not report `localService` counts as remote and says
+nothing — deny by default, rule 8. Nothing ever speaks unprompted (WCAG 1.4.2).
+Recorded as an amendment in `SAFEGUARDING.md`.
+
+Three things made this worth logging rather than shrugging at:
 
 1. It is the assessment loop. Returning work with feedback is the difference
    between a portfolio and a marking pile, and it is what the queue's own copy
    invites the teacher to do.
 2. It is invisible from the teacher's side. Mr Reeves can see his note on the
    child's journal page, so nothing tells him it never arrived.
-3. It is a **safeguarding-adjacent** decision, which is why the fix is not a
-   one-line render. A teacher's note is free text written by an adult and shown
-   to a child, and `readAloud` deliberately speaks only fixed `studentCopy`,
-   never a caption or a teacher's words (`src/lib/readAloud.ts`). Whoever builds
-   this has to answer: does the note appear on the jar, or only inside the
-   reopened activity; is it read aloud for a pre-reader (and if not, what does an
-   EYFS child get instead); and does the EYFS register — which today receives no
-   returned-work strip at all — show it. Those are decisions for the owner, so
-   this is logged, not guessed at.
+3. It was a **safeguarding-adjacent** decision rather than a one-line render,
+   which is why it waited for the owner: whether the note appears on the jar or
+   only inside the work, whether a pre-reader hears it, and whether the EYFS
+   register gets returned work at all. All three were answered above.
 
-## F39 · The sign-up wizard keeps the surnames · High → Open
+## F39 · The sign-up wizard kept the surnames · High → Fixed
 
 Found on 2026-08-18 by the user-tester team's first run, in Ms Blake's first
 twenty minutes (`tests/battery/personas/teacher-first-day.spec.ts`). She did
@@ -1350,13 +1385,20 @@ field, and is given no indication that the product has kept what they pasted —
 while the same paste made ten minutes later, inside the app, is silently
 corrected.
 
-**Not fixed here**, for one reason worth stating: `deriveChildNames` disambiguates
-against the names already in the class, and at signup the class does not exist
-yet, so the fix has to decide the order of "create class → derive → create
-children" and what happens to a duplicate first name in the very first paste.
-That is a small piece of work rather than a one-line import, and it belongs with
-somebody who can run the roster tests beside it. The repro asserts the intended
-behaviour and fails until then.
+**The fix (19 August 2026).** `createTeacherAccount` calls `deriveChildNames`,
+the same function the roster's paste path uses. The "disambiguate against the
+existing roster" question that made this more than a one-line import answers
+itself at signup: there is no existing roster, because the class is created from
+this very list, so it is called with no existing names and two Olivias in the
+first paste are separated against each other exactly as they would be later.
+
+**And the teacher is told.** The wizard now shows what will be stored — "Stored
+as first names only: Ali, Bea, Callum" — but only when the paste actually
+contains surnames, because a list of plain first names previewing as itself is
+noise. That was the product owner's call over the two alternatives: stripping
+silently (consistent with the roster, but a teacher who pasted thirty full names
+is never told the surnames went) and refusing the paste outright (explicit, but
+it hands a thirty-line editing job to somebody in their first five minutes).
 
 ## How the battery encodes fixed findings
 
@@ -1368,12 +1410,13 @@ behaviour and fails until then.
 - **F11** keeps a *reduced* tracked baseline in the blocking `a11y` gate: new
   serious/critical violations block; the residual brand-badge contrast is
   counted and reported until the palette is finalised.
-- **F37, F38, F39** are new and open, and their repros sit in the report-only
-  `findings` project asserting the behaviour that *should* exist, so each fails
-  on purpose until it does. None of them was put in a blocking gate, and that is
-  a decision rather than an oversight: a blocking gate that goes red on a defect
-  nobody has yet decided how to fix turns `main` red for everyone and gets
-  weakened within the week. When each is built, its repro moves — F37 into
-  `a11y/child-touch-targets.spec.ts`, F38 into `e2e/journal.spec.ts`, F39 into
-  `e2e/auth.spec.ts` — and the entry here is deleted.
+- **F37, F38, F39** were opened on 18 August 2026 with their repros in the
+  report-only `findings` project, asserting the behaviour that *should* exist so
+  each failed on purpose. That was deliberate: a blocking gate that goes red on a
+  defect nobody has yet decided how to fix turns `main` red for everyone and gets
+  weakened within the week. They were fixed on 19 August once the owner had
+  answered the three questions they turned on, and each repro then **moved into a
+  blocking suite** — F37 into `a11y/child-touch-targets.spec.ts`, F38 into
+  `e2e/journal.spec.ts`, F39 into `e2e/auth.spec.ts` — which is what stops them
+  coming back. Nothing is left in `findings/` for them.
 - Everything else is guarded by an ordinary passing test in its suite.

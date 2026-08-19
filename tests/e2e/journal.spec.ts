@@ -196,3 +196,39 @@ test.describe("A child can see where their work is", () => {
     await expect(page.locator("[data-jar-arrival]"), "the drop plays once, not on every visit").toHaveCount(0);
   });
 });
+
+// ===========================================================================
+// F38 — the teacher's note on returned work reaches the child it was written
+// for, on their jar and again on the work when they reopen it.
+//
+// Promoted here from the findings project on 19 August 2026, when it was built.
+// Found by the user-tester team (tests/battery/personas/): a ten-year-old
+// looking for what his teacher wanted changed, and the teacher who had just
+// written it. Before the fix the child got a fixed "Have another go" tag and
+// nothing else — `teacherNote` rendered on the teacher's own screen only.
+// ===========================================================================
+test("the teacher's note on returned work reaches the child, on the jar and on the work", async ({ page }) => {
+  const note = "Can you add the units to each number?";
+
+  // A child hands something in.
+  await studentLogin(page, "Ella");
+  await page.getByRole("button", { name: "My words", exact: true }).click();
+  await page.getByPlaceholder(/write your words here/i).fill("Six add four is ten.");
+  await page.getByRole("button", { name: /add to my jar|pop it in|done/i }).first().click();
+  await page.waitForURL((url) => url.pathname === "/student/popped" || url.pathname === "/student");
+
+  // The teacher sends it back with words.
+  await logout(page);
+  await teacherLogin(page);
+  await page.goto("/teacher/queue");
+  const row = page.locator('[data-child="Ella"]').first();
+  await expect(row).toBeVisible();
+  await row.getByRole("button", { name: /send back/i }).click();
+  await page.getByPlaceholder(/a kind note/i).fill(note);
+  await page.getByRole("button", { name: /^send back$/i }).click();
+
+  // The child reads them, on their own jar.
+  await logout(page);
+  await studentLogin(page, "Ella");
+  await expect(page.getByText(note)).toBeVisible();
+});

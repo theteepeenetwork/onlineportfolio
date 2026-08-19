@@ -12,6 +12,7 @@ import type { AgeMode } from "@/lib/ageMode";
 import { readAloud } from "@/lib/readAloud";
 import { useSpeechReady } from "@/lib/useSpeechReady";
 import { CaptureSurface, type CaptureType } from "./CaptureSurface";
+import { TeacherNote } from "../TeacherNote";
 
 // EYFS (3–5) — design 6a, "Make first, icon-only".
 //
@@ -79,6 +80,17 @@ function foldWrap(open: boolean): React.CSSProperties {
   };
 }
 
+// A piece of work the teacher has sent back, as this shell needs it. Nothing
+// here identifies anybody but this child (SAFEGUARDING rule 4).
+export type EyfsReturned = {
+  id: string;
+  title: string;
+  /** What the teacher asked them to change. Null if they sent it back silently. */
+  note: string | null;
+  /** Set when it was an activity, so there is somewhere to go back into. */
+  assignmentId: string | null;
+};
+
 export function EyfsHome({
   mode,
   student,
@@ -86,6 +98,7 @@ export function EyfsHome({
   jarCount,
   waitingCount,
   activitiesCount,
+  returned = [],
 }: {
   mode: AgeMode;
   student: { name: string; avatarColor: string; className: string };
@@ -93,6 +106,7 @@ export function EyfsHome({
   jarCount: number;
   waitingCount: number;
   activitiesCount: number;
+  returned?: EyfsReturned[];
 }) {
   const [open, setOpen] = useState<Open>(null);
   const c = studentCopy(mode);
@@ -142,7 +156,7 @@ export function EyfsHome({
           <span style={{ font: "700 30px var(--font-atkinson)", color: "var(--honey-ink)" }}>{activitiesCount}</span>
           <Link
             href="/student/activities"
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, background: "var(--glass)", color: "var(--paper)", border: "3px solid var(--ink)", borderRadius: 999, padding: "10px 24px", font: "700 18px var(--font-atkinson)", textDecoration: "none", minHeight: 56, boxSizing: "border-box" }}
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, background: "var(--glass)", color: "var(--paper)", border: "3px solid var(--ink)", borderRadius: 999, padding: "10px 24px", font: "700 18px var(--font-atkinson)", textDecoration: "none", minHeight: 64, boxSizing: "border-box" }}
           >
             {c.home.startActivities}
             <Icon name="next" size={18} decorative />
@@ -152,6 +166,54 @@ export function EyfsHome({
 
       {/* 3 — the four capture tiles. 2×2 giant tiles; when a capture opens they
           re-lay to a single row of four small tiles (icon-only either way). */}
+      {/* Work the teacher sent back, and what they asked for (F38).
+          
+          The youngest register showed none of this. A three-year-old was told
+          nothing, had no note to act on, and — where it was an activity — no way
+          back into it. It sits ABOVE the four tiles because it is the one thing
+          on this screen that needs the child, and it is dashed-and-kraft like
+          the older registers' strip so it reads as "this one is waiting for
+          you" rather than as another thing to make. */}
+      {!captureOpen &&
+        returned.map((r) => {
+          const body = (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <span
+                  aria-hidden="true"
+                  style={{ width: 64, height: 64, borderRadius: 14, background: "repeating-linear-gradient(45deg, #FFFDF7, #FFFDF7 10px, #F6E4BE 10px, #F6E4BE 20px)", border: "3px solid var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                >
+                  <Icon name="edit" size={30} decorative />
+                </span>
+                <p style={{ margin: 0, font: "600 26px var(--font-fredoka)" }}>{r.title}</p>
+                <span style={{ marginLeft: "auto", background: "#37796f", color: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 999, padding: "10px 22px", minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 18px var(--font-atkinson)" }}>
+                  {c.status.tryAgain}
+                </span>
+              </div>
+              {r.note && <TeacherNote note={r.note} mode={mode} />}
+            </>
+          );
+          const frame: React.CSSProperties = {
+            margin: "18px 48px 0",
+            background: "#FBEED3",
+            border: "3px dashed #C9A87C",
+            borderRadius: 18,
+            padding: "16px 22px",
+            display: "block",
+            textDecoration: "none",
+            color: "var(--ink)",
+          };
+          return r.assignmentId ? (
+            <Link key={r.id} href={`/student/activities/${r.assignmentId}`} style={frame}>
+              {body}
+            </Link>
+          ) : (
+            <div key={r.id} style={frame}>
+              {body}
+            </div>
+          );
+        })}
+
       <div
         style={{
           display: "grid",
@@ -277,7 +339,7 @@ export function EyfsHome({
       {/* 6 — sign out. Quiet, centred. */}
       <div style={{ display: "flex", justifyContent: "center", padding: "0 0 22px" }}>
         <LogoutForm>
-          <button type="submit" style={{ minHeight: 56, display: "inline-flex", alignItems: "center", font: "700 16px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "6px 22px", cursor: "pointer" }}>
+          <button type="submit" style={{ minHeight: 64, display: "inline-flex", alignItems: "center", font: "700 16px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "3px solid #C9C2B0", borderRadius: 999, padding: "6px 22px", cursor: "pointer" }}>
             {c.home.signOut}
           </button>
         </LogoutForm>
@@ -347,7 +409,7 @@ function HeartBack({ itemId, hearted }: { itemId: string; hearted: boolean }) {
       type="button"
       onClick={send}
       disabled={replied || busy}
-      style={{ marginTop: 8, minHeight: 56, font: "700 14px var(--font-atkinson)", color: replied ? "var(--jam)" : "var(--paper)", background: replied ? "none" : "var(--jam)", border: replied ? "none" : "3px solid var(--ink)", borderRadius: 999, padding: replied ? 0 : "6px 16px", cursor: replied ? "default" : "pointer", boxShadow: replied ? "none" : "0 3px 0 var(--jam-deep)", opacity: busy ? 0.7 : 1 }}
+      style={{ marginTop: 8, minHeight: 64, font: "700 14px var(--font-atkinson)", color: replied ? "var(--jam)" : "var(--paper)", background: replied ? "none" : "var(--jam)", border: replied ? "none" : "3px solid var(--ink)", borderRadius: 999, padding: replied ? 0 : "6px 16px", cursor: replied ? "default" : "pointer", boxShadow: replied ? "none" : "0 3px 0 var(--jam-deep)", opacity: busy ? 0.7 : 1 }}
     >
       {replied ? "💛 You sent a heart back" : "Send a heart back 💛"}
     </button>

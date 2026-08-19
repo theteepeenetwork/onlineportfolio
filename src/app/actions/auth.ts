@@ -8,6 +8,7 @@ import { isFoundingSignup } from "@/lib/billing";
 import { uniqueClassCode } from "@/lib/classCode";
 import { AVATAR_PALETTE } from "@/lib/avatar";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
+import { deriveChildNames } from "@/lib/childNames";
 import { normaliseAgeModeInput } from "@/lib/ageMode";
 import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 
@@ -48,17 +49,22 @@ export async function createTeacherAccount(input: {
   if (!school) return { error: "What’s your school called?", step: 2 };
   if (!className) return { error: "Give your class a name — anything you like.", step: 3 };
 
-  // Tidy the class list: trim, drop blanks and case-insensitive duplicates.
-  const seen = new Set<string>();
-  const children: string[] = [];
-  for (const raw of input.children) {
-    const child = raw.trim();
-    if (!child) continue;
-    const key = child.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    children.push(child);
-  }
+  // The class list, through the SAME derivation the roster uses.
+  //
+  // This used to be `raw.trim()`, and that was finding F39: a teacher pasting
+  // their register on their first morning — the way it comes out of the office
+  // system, with surnames on it — had "Ali Hassan" stored verbatim, while the
+  // identical paste made ten minutes later inside the app was reduced to "Ali".
+  // SAFEGUARDING rule 2 ("we store a child's first name and their work; no
+  // surnames") is a hard limit under UK GDPR Art. 5(1)(c), not a preference, and
+  // `Student.name` is the label on the name cards at /login/student?code=…, a
+  // screen the whole class reads off a code written on the board.
+  //
+  // `deriveChildNames` drops the surname and adds back only the shortest prefix
+  // that tells two Olivias apart. There is no existing roster to disambiguate
+  // against here — the class is created below, from this list — so it is called
+  // with no existing names, which is exactly right for the first paste.
+  const children = deriveChildNames(input.children);
   if (children.length === 0)
     return { error: "Add at least one first name to get started.", step: 4 };
 

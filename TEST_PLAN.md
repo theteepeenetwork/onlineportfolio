@@ -134,7 +134,7 @@ Legend: ✅ build now · 🟡 build now, forward-looking (feature not yet in cod
 
 | # | Test | Plan | Notes |
 | --- | --- | --- | --- |
-| B1 | **Accessibility** | axe-core scan on every page, gated at WCAG 2.2 AA; keyboard-only nav for core flows; check ≥64px child touch targets (rule 18, stricter than the brief's 44px). | ✅ |
+| B1 | **Accessibility** | axe-core scan on every page, gated at WCAG 2.2 AA; keyboard-only nav for core flows; check ≥64px child touch targets (rule 18, stricter than the brief's 44px). **Extended 19 August 2026 (F37):** the child touch-target sweep now covers the drawing canvas, an activity response and the EYFS jar — the three busiest child-facing screens, all of which sat outside its page list while the gate's name said otherwise — and counts `[role="button"]` and `[role="slider"]`, so a control that is not a `<button>` cannot slip past it. | ✅ |
 | B2 | **Core task flows** | Playwright: teacher login → capture photo → tag pupil(s) → publish, assert step count ≤ N + no dead ends; admin: add teacher, add class, bulk-import pupils. | ✅ (extends existing specs) |
 | B3 | **Interruption resilience** | Half-finished upload/form survives tab close/reopen + flaky connection without data loss. | ✅ (will surface whether any draft-persistence exists) |
 | B4 | **Responsive & device** | Playwright projects: iPad viewport + low-end laptop; assert no horizontal scroll, touch targets ≥44px on core flows. | ✅ |
