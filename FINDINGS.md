@@ -1252,6 +1252,10 @@ change that found them, and the honest options at that point are to fix all of
 them in a toolbox PR or to weaken the gate. Neither is right. **The gate was not
 weakened and no control was exempted.**
 
+**Since logged:** a rotate handle was added alongside the resize handle, at the
+same 20px. It is in the same debt rather than a new one, and moving both to the
+floor is one job.
+
 **To close this.** Bring the canvas controls to 64px — the ＋ and ✓ buttons and
 the object toolbar first, since those are the ones a child uses on every single
 drawing — then add `/student/new/drawing` to the page sweep above so it can

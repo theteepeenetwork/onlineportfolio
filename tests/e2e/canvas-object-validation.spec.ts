@@ -35,12 +35,10 @@ test.describe("canvas object validation", () => {
     expect(normaliseOne({ ...base, shape: "base10-ten" })?.shape).toBe("rect");
   });
 
-  test("flip is stored only when it is actually set", () => {
-    expect(normaliseOne({ ...base, shape: "line", flip: true })?.flip).toBe(true);
-    // Absent rather than `false`, so the stored payload stays small and a
-    // default-direction line and an untouched one look identical at rest.
-    expect(normaliseOne({ ...base, shape: "line", flip: false })?.flip).toBeUndefined();
-    expect(normaliseOne({ ...base, shape: "line", flip: "yes" })?.flip).toBeUndefined();
+  test("flip is gone; rotation replaced it", () => {
+    // Two mechanisms for one idea is worse than either. A line pointing the
+    // other way is a rotation now, so `flip` is not stored at all.
+    expect(normaliseOne({ ...base, shape: "line", flip: true })?.flip).toBeUndefined();
   });
 
   test("rotation wraps into 0-359, and a full turn is no rotation at all", () => {
@@ -99,5 +97,29 @@ test.describe("canvas object validation", () => {
     expect(normaliseOne({ ...base, shape: "grid", lockAspect: true })?.lockAspect).toBe(true);
     expect(normaliseOne({ ...base, shape: "grid" })?.lockAspect).toBeUndefined();
     expect(normaliseOne({ ...base, shape: "grid", lockAspect: "yes" })?.lockAspect).toBeUndefined();
+  });
+
+  test("a ring's band is clamped to something you can actually see", () => {
+    expect(normaliseOne({ ...base, shape: "ring", thickness: 70 })?.thickness).toBe(70);
+    // 0% is not a ring and 100% is a disc, so both ends are pulled in rather
+    // than producing a shape that is not the shape it claims to be.
+    expect(normaliseOne({ ...base, shape: "ring", thickness: 0 })?.thickness).toBe(10);
+    expect(normaliseOne({ ...base, shape: "ring", thickness: 500 })?.thickness).toBe(90);
+    // Untouched rings stay untouched — absent means the default band.
+    expect(normaliseOne({ ...base, shape: "ring" })?.thickness).toBeUndefined();
+  });
+
+  test("a clock stores whether its numbers show, and nothing about hours", () => {
+    expect(normaliseOne({ ...base, shape: "clock", numerals: true })?.numerals).toBe(true);
+    expect(normaliseOne({ ...base, shape: "clock" })?.numerals).toBeUndefined();
+    // Twelve hours is not a setting, so a clock never carries `parts` — a
+    // clock with seven hours is not a clock.
+    expect(normaliseOne({ ...base, shape: "clock", parts: 7 })?.parts).toBeUndefined();
+  });
+
+  test("infinite survives, because it is the teacher's decision", () => {
+    expect(normaliseOne({ ...base, shape: "ellipse", infinite: true })?.infinite).toBe(true);
+    expect(normaliseOne({ ...base, shape: "ellipse" })?.infinite).toBeUndefined();
+    expect(normaliseOne({ ...base, shape: "ellipse", infinite: "yes" })?.infinite).toBeUndefined();
   });
 });

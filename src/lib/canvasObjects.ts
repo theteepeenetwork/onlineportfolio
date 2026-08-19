@@ -18,6 +18,7 @@
 import {
   clampDivisions,
   clampParts,
+  clampThickness,
   isVectorKind,
   SHAPE_KINDS,
   type ShapeKind,
@@ -76,8 +77,20 @@ export type ShapeObj = ObjCommon & {
   // bar and the array — the numbers are what tell them apart.
   cols?: number;
   rows?: number;
-  // pie / ring / clock: how many equal parts the circle is cut into.
+  // pie / ring: how many equal parts the circle is cut into. (A clock is always
+  // twelve, so it stores none.)
   parts?: number;
+  // ring: the band, as a percentage of the radius. A sorting hoop wants a thin
+  // one, a fraction ring a fat one.
+  thickness?: number;
+  // clock: whether the numerals 1–12 are drawn on the face.
+  numerals?: boolean;
+  // Teacher-set: this is a SOURCE, not a single piece of apparatus. A child
+  // dragging it gets a new copy and this one stays where it is, so a worksheet
+  // can hand out as many counters or ten-rods as a child needs without them
+  // ever opening a palette. Being a source pins it: a child never moves it,
+  // whatever the padlock says.
+  infinite?: boolean;
   // Set from the palette preset when the shape only means what it means at a
   // fixed proportion — a hundred flat squashed into a rectangle is not a
   // hundred. Held on the OBJECT rather than the kind, because the same kind can
@@ -120,19 +133,32 @@ function num(v: unknown, fallback = 0): number {
 // grid of five hundred is an unreadable smear, so the bounds live beside the
 // geometry (canvasShapes) and are applied here.
 function shapeGeometryFields(shape: ShapeKind, o: Record<string, unknown>) {
-  const out: { cols?: number; rows?: number; parts?: number; lockAspect?: boolean } = {};
+  const out: {
+    cols?: number;
+    rows?: number;
+    parts?: number;
+    thickness?: number;
+    numerals?: boolean;
+    lockAspect?: boolean;
+  } = {};
   if (shape === "grid") {
     out.cols = clampDivisions(o.cols);
     out.rows = clampDivisions(o.rows);
   }
-  if (shape === "pie" || shape === "clock") {
+  if (shape === "pie") {
     out.parts = clampParts(o.parts);
+  }
+  if (shape === "clock") {
+    // Twelve hours, always — the count is not a setting. Only whether the
+    // numbers are drawn.
+    if (o.numerals === true) out.numerals = true;
   }
   if (shape === "ring") {
     // A ring may legitimately have no divisions at all — that is the plain
     // ring — so 1 is allowed here where the pie's floor is 2.
     const raw = typeof o.parts === "number" && Number.isFinite(o.parts) ? Math.round(o.parts) : 1;
     out.parts = raw <= 1 ? 1 : clampParts(raw);
+    if (o.thickness !== undefined) out.thickness = clampThickness(o.thickness);
   }
   if (o.lockAspect === true) out.lockAspect = true;
   return out;
@@ -206,6 +232,7 @@ function normalizeObject(raw: unknown): CanvasObj | null {
       ...(textColor ? { textColor } : {}),
       ...(rot ? { rot } : {}),
       ...geom,
+      ...(o.infinite === true ? { infinite: true } : {}),
       locked,
     };
   }

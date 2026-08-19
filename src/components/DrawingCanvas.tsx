@@ -28,7 +28,10 @@ import {
   type Kit,
   isVectorKind,
   minShapeSize,
+  DEFAULT_RING_THICKNESS,
   MAX_DIVISIONS,
+  MAX_RING_THICKNESS,
+  MIN_RING_THICKNESS,
   MAX_PARTS,
   MIN_DIVISIONS,
   MIN_PARTS,
@@ -36,6 +39,7 @@ import {
   shapeFillRule,
   shapeInnerBox,
   shapeParts,
+  shapeTextMarks,
   BASE_KITS,
   SHAPE_DEFAULTS,
   type KitId,
@@ -207,6 +211,12 @@ type ShapeObj = ObjLock & {
   cols?: number;
   rows?: number;
   parts?: number;
+  // ring: the band as a percentage of the radius. clock: whether the numerals
+  // 1–12 are drawn.
+  thickness?: number;
+  numerals?: boolean;
+  // Teacher-set: a SOURCE a child drags copies out of. See canvasObjects.
+  infinite?: boolean;
   // Locks the proportion on resize, for shapes that only mean what they mean at
   // a fixed ratio (a hundred flat is square or it is not a hundred).
   lockAspect?: boolean;
@@ -708,9 +718,31 @@ export function DrawingCanvas({
           }
         }
         ec.restore();
+        // Geometry text — a clock's numerals. Drawn inside the same rotated
+        // frame as the shape, and before the label, so a label sits on top.
+        const marks = shapeTextMarks(o);
+        if (marks.length) {
+          ec.save();
+          ec.translate(o.x, o.y);
+          if (o.rot) {
+            ec.translate(o.w / 2, o.h / 2);
+            ec.rotate((o.rot * Math.PI) / 180);
+            ec.translate(-o.w / 2, -o.h / 2);
+          }
+          ec.fillStyle = o.stroke;
+          ec.textAlign = "center";
+          ec.textBaseline = "middle";
+          for (const m of marks) {
+            ec.font = `700 ${m.size}px ${FONT_STACK}`;
+            ec.fillText(m.text, m.x, m.y);
+          }
+          ec.textAlign = "left";
+          ec.textBaseline = "alphabetic";
+          ec.restore();
+        }
         // The shape's label, wrapped + centred inside the shape's usable area.
         if (o.text && o.text.trim()) {
-          const region = shapeInnerBox(o.shape, o.w, o.h);
+          const region = shapeInnerBox(o.shape, o.w, o.h, o.thickness);
           // The label rides with the shape, so it is drawn inside the same
           // rotated frame rather than being left behind axis-aligned.
           ec.save();
@@ -1577,6 +1609,8 @@ export function DrawingCanvas({
       ...(preset.cols !== undefined ? { cols: preset.cols } : {}),
       ...(preset.rows !== undefined ? { rows: preset.rows } : {}),
       ...(preset.parts !== undefined ? { parts: preset.parts } : {}),
+      ...(preset.thickness !== undefined ? { thickness: preset.thickness } : {}),
+      ...(preset.numerals ? { numerals: true } : {}),
       ...(preset.lockAspect ? { lockAspect: true } : {}),
     };
     const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
@@ -1617,6 +1651,33 @@ export function DrawingCanvas({
     setSelectedId(clone.id);
     syncHidden();
     refreshThumbs();
+  }
+
+  // Pull a new one off an endless source. The copy is the CHILD's own object —
+  // not from the template, not itself a source — so they can move, restyle and
+  // delete it freely, while the source it came from stays exactly where the
+  // teacher put it.
+  //
+  // Returns the new id so the drag that triggered it can retarget onto the copy
+  // mid-gesture; null when the page is full, in which case the drag is
+  // abandoned rather than silently moving the source.
+  function spawnFromSource(id: string): string | null {
+    const list = objectsRef.current[currentRef.current] ?? [];
+    const src = list.find((o) => o.id === id);
+    if (!src || src.type !== "shape") return null;
+    if (list.length >= MAX_OBJECTS_PER_PAGE) return null;
+    pushHistory();
+    const copy: ShapeObj = { ...src, id: `o${objIdRef.current++}` };
+    delete copy.infinite;
+    delete copy.fromTemplate;
+    delete copy.locked;
+    const next = [...list, copy];
+    objectsRef.current[currentRef.current] = next;
+    setObjects(next);
+    anyDrawnRef.current = true;
+    syncHidden();
+    refreshThumbs();
+    return copy.id;
   }
 
   function updateObject(id: string, patch: Partial<Obj>) {
@@ -1994,6 +2055,7 @@ export function DrawingCanvas({
       onSendToBack={(id) => reorderObject(id, "back")}
       onDuplicate={duplicateObject}
       canDuplicate={(objects.length || 0) < MAX_OBJECTS_PER_PAGE}
+      onSpawn={spawnFromSource}
       onEditText={editTextObject}
       onTextChange={updateText}
       onFinishEditing={finishEditing}
@@ -2646,8 +2708,10 @@ function ShapeThumb({ preset }: { preset: ShapePreset }) {
   );
 }
 
+// A clock is deliberately absent: it has twelve hours and that is not a
+// setting. What a clock offers instead is whether the numbers are printed.
 function shapeHasParts(kind: ShapeKind): boolean {
-  return kind === "grid" || kind === "pie" || kind === "ring" || kind === "clock";
+  return kind === "grid" || kind === "pie" || kind === "ring";
 }
 
 // A minus / value / plus control for one of a shape's numbers. Deliberately a
@@ -2659,12 +2723,14 @@ function Stepper({
   value,
   min,
   max,
+  step = 1,
   onChange,
 }: {
   label: string;
   value: number;
   min: number;
   max: number;
+  step?: number;
   onChange: (v: number) => void;
 }) {
   const btn =
@@ -2675,7 +2741,7 @@ function Stepper({
       <button
         type="button"
         className={btn}
-        onClick={() => onChange(Math.max(min, value - 1))}
+        onClick={() => onChange(Math.max(min, value - step))}
         disabled={value <= min}
         aria-label={`${label}: fewer`}
       >
@@ -2687,7 +2753,7 @@ function Stepper({
       <button
         type="button"
         className={btn}
-        onClick={() => onChange(Math.min(max, value + 1))}
+        onClick={() => onChange(Math.min(max, value + step))}
         disabled={value >= max}
         aria-label={`${label}: more`}
       >
@@ -2810,6 +2876,9 @@ type ObjHandlers = {
   onSendToBack: (id: string) => void;
   onDuplicate: (id: string) => void;
   canDuplicate: boolean;
+  // Pull a new copy off an endless source. Returns the copy's id, or null when
+  // the page is full.
+  onSpawn: (id: string) => string | null;
   onEditText: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
   onFinishEditing: () => void;
@@ -2822,13 +2891,20 @@ type ObjHandlers = {
 //    pieces — e.g. the numbers being sorted).
 //  - child, own object          → fully editable (their import), no padlock.
 function objCapabilities(o: Obj, author: boolean) {
-  if (author) return { movable: true, editable: true, showLock: true, fixed: false };
+  if (author) return { movable: true, editable: true, showLock: true, fixed: false, source: false };
   const fromTemplate = !!o.fromTemplate;
-  if (fromTemplate && o.locked) {
-    return { movable: false, editable: false, showLock: false, fixed: true };
+  // An endless source. A child may START a drag on it — that is how they get a
+  // new one — but the source itself never moves, whatever the padlock says.
+  // Being a dispenser pins it; that is what makes it a dispenser rather than a
+  // counter that happens to breed.
+  if (fromTemplate && o.type === "shape" && o.infinite) {
+    return { movable: true, editable: false, showLock: false, fixed: false, source: true };
   }
-  if (fromTemplate) return { movable: true, editable: false, showLock: false, fixed: false };
-  return { movable: true, editable: true, showLock: false, fixed: false };
+  if (fromTemplate && o.locked) {
+    return { movable: false, editable: false, showLock: false, fixed: true, source: false };
+  }
+  if (fromTemplate) return { movable: true, editable: false, showLock: false, fixed: false, source: false };
+  return { movable: true, editable: true, showLock: false, fixed: false, source: false };
 }
 
 // The floating toolbar that hovers just above (and centred over) a selected
@@ -2932,6 +3008,25 @@ function ObjectToolbar({
           >
             <Icon name={o.locked ? "lock-closed" : "lock-open"} size={30} decorative />
           </button>
+          {/* Make this a source. A child dragging it gets a new one and this
+              stays put, so a worksheet hands out as many counters or ten-rods
+              as they need and they never open a palette. */}
+          {shape && (
+            <button
+              type="button"
+              onClick={() => onStyle({ infinite: !shape.infinite })}
+              className={btn}
+              aria-pressed={!!shape.infinite}
+              aria-label={shape.infinite ? "Endless supply on" : "Endless supply off"}
+              title={
+                shape.infinite
+                  ? "Endless — pupils drag a new one off this. Tap to stop."
+                  : "Tap to make this endless: pupils drag a new one off it."
+              }
+            >
+              <Icon name="infinite" size={30} decorative />
+            </button>
+          )}
         </>
       )}
 
@@ -2970,6 +3065,34 @@ function ObjectToolbar({
           max={MAX_DIVISIONS}
           onChange={(v) => onStyle({ rows: v })}
         />
+      )}
+
+      {/* A sorting hoop wants a thin band and a fraction ring a fat one, so the
+          band is the ring's to set rather than a constant everyone lives with. */}
+      {showStyle && shape && shape.shape === "ring" && (
+        <Stepper
+          label="Thickness"
+          value={shape.thickness ?? DEFAULT_RING_THICKNESS}
+          min={MIN_RING_THICKNESS}
+          max={MAX_RING_THICKNESS}
+          step={5}
+          onChange={(v) => onStyle({ thickness: v })}
+        />
+      )}
+
+      {/* A clock's hours are fixed at twelve — the only thing worth changing is
+          whether the numbers are printed or the child writes them on. */}
+      {showStyle && shape && shape.shape === "clock" && (
+        <button
+          type="button"
+          onClick={() => onStyle({ numerals: !shape.numerals })}
+          className={btn}
+          aria-pressed={!!shape.numerals}
+          title={shape.numerals ? "Hide the numbers 1 to 12" : "Show the numbers 1 to 12"}
+          aria-label="Clock numbers"
+        >
+          <span className="text-sm font-bold">12</span>
+        </button>
       )}
 
       {showStyle && <span className="mx-0.5 h-9 w-px bg-border" />}
@@ -3092,6 +3215,7 @@ function MediaObjectView({
   onSendToBack,
   onDuplicate,
   canDuplicate,
+  onSpawn,
   onEditText,
   onTextChange,
   onFinishEditing,
@@ -3122,7 +3246,9 @@ function MediaObjectView({
         2;
   const toolbarBelow = o.y * scale + (o.h * scale) / 2 - halfSpan < 92;
   const drag = useRef<
-    | { mode: "move"; ax: number; ay: number }
+    // `spawnId` is set when the drag started on an endless source: the source
+    // stays where it is and the copy is what actually moves.
+    | { mode: "move"; ax: number; ay: number; spawnId?: string }
     // Resize needs the starting x/y as well as w/h: rotating about the centre
     // means a change in w/h moves the box, and x/y has to absorb that.
     | { mode: "resize"; ax: number; ay: number; sw: number; sh: number; sx: number; sy: number }
@@ -3144,9 +3270,24 @@ function MediaObjectView({
     if (!cap.movable) return;
     e.stopPropagation();
     e.preventDefault();
-    onSelect(o.id);
+    // Dragging a source pulls a NEW one off it. The pointer capture stays on
+    // this element — which is fine, it is only a delivery route for the events
+    // — while every move is applied to the copy instead.
+    const spawned = cap.source ? onSpawn(o.id) : null;
+    if (cap.source && !spawned) return; // the page is full; nothing to drag
+    // A copy pulled off a source is deliberately NOT selected. Selecting it
+    // would raise its floating toolbar, which is wider than the counter itself
+    // and would sit straight over the source — so the next counter a child went
+    // to drag out would be behind a toolbar. Pull one out, put it down, pull
+    // the next: nothing in the way. Tapping it afterwards still selects it.
+    if (!spawned) onSelect(o.id);
     onStart();
-    drag.current = { mode: "move", ax: e.clientX - o.x * scale, ay: e.clientY - o.y * scale };
+    drag.current = {
+      mode: "move",
+      ax: e.clientX - o.x * scale,
+      ay: e.clientY - o.y * scale,
+      spawnId: spawned ?? undefined,
+    };
     capture(e);
   }
   function startResize(e: React.PointerEvent) {
@@ -3194,7 +3335,7 @@ function MediaObjectView({
       // Pictures and text boxes are left alone: a photo nudged 4px for no
       // visible reason just reads as a glitch.
       const snap = o.type === "shape" ? SNAP_UNITS : 1;
-      onChange(o.id, {
+      onChange(d.spawnId ?? o.id, {
         x: Math.round(nx / snap) * snap,
         y: Math.round(ny / snap) * snap,
       });
@@ -3251,7 +3392,7 @@ function MediaObjectView({
     }
   }
 
-  const region = o.type === "shape" ? shapeInnerBox(o.shape, o.w, o.h) : null;
+  const region = o.type === "shape" ? shapeInnerBox(o.shape, o.w, o.h, o.thickness) : null;
   const label =
     o.type === "shape" && region && o.text && o.text.trim()
       ? fitTextToBox(o.text, region.w, region.h)
@@ -3284,6 +3425,32 @@ function MediaObjectView({
         ...(rot ? { transform: `rotate(${rot}deg)`, transformOrigin: "50% 50%" } : {}),
       }}
     >
+      {/* An endless source draws a stack behind it — the paper-stack idiom, so
+          a child can see there is another one under this one without being
+          told. Purely decorative: it is offset outside the shape's own box and
+          never receives a pointer. */}
+      {o.type === "shape" && o.infinite && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{ transform: `translate(${6 * scale}px, ${6 * scale}px)`, opacity: 0.45 }}
+        >
+          <svg viewBox={`0 0 ${o.w} ${o.h}`} width="100%" height="100%" preserveAspectRatio="none" className="block h-full w-full overflow-visible">
+            {shapeParts(o).map((part, i) => (
+              <path
+                key={i}
+                d={part.d}
+                fill={part.role === "detail" || o.fill === "none" ? "none" : o.fill}
+                fillRule={shapeFillRule(o.shape)}
+                stroke={o.stroke}
+                strokeWidth={part.role === "detail" ? detailStrokeWidth(o.strokeWidth) : o.strokeWidth}
+                strokeLinejoin="round"
+              />
+            ))}
+          </svg>
+        </div>
+      )}
+
       {o.type === "image" ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -3319,6 +3486,22 @@ function MediaObjectView({
               }
               strokeLinejoin="round"
             />
+          ))}
+          {shapeTextMarks(o).map((m, i) => (
+            <text
+              key={`m${i}`}
+              x={m.x}
+              y={m.y}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={m.size}
+              fontWeight="700"
+              fontFamily={FONT_STACK}
+              fill={o.stroke}
+              stroke="none"
+            >
+              {m.text}
+            </text>
           ))}
         </svg>
       )}
@@ -3466,6 +3649,7 @@ function TextObjectView({
   onSendToBack,
   onDuplicate,
   canDuplicate,
+  onSpawn,
   onEditText,
   onTextChange,
   onFinishEditing,

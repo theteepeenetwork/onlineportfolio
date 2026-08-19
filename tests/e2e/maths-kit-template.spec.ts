@@ -19,14 +19,33 @@ import { teacherLogin, logout } from "./helpers";
 // builder fails on a click that has nothing to do with what it was testing.
 // That fragility is logged as F38 and wants a shared fixture; until then, a test
 // that creates the problem clears up after itself.
-test.afterEach(async ({ page }) => {
-  // Navigate away FIRST. The canvas autosaves on a debounce, so deleting while
-  // it is still mounted just races a write that lands a moment later — which is
-  // exactly the trap this hook exists to avoid.
-  await page.goto("about:blank");
+// These tests open the template builder, which autosaves a local-first draft.
+// A draft left behind blocks the NEXT test — anywhere in the suite — with a
+// restore modal that is `aria-modal` and intercepts pointer events, so the next
+// click times out on something unrelated to what it was testing. That is F38,
+// and it wants a shared fixture; until it has one, a test that creates the
+// problem clears up on both sides of itself.
+//
+// Before, so a draft left by someone else cannot break these. After, so these
+// cannot break anyone else — and after means navigating away first and then
+// retrying, because a save already in flight can land after a single delete.
+async function clearDrafts() {
   const db = new PrismaClient();
-  await db.draft.deleteMany({});
-  await db.$disconnect();
+  try {
+    for (let i = 0; i < 3; i++) {
+      await db.draft.deleteMany({});
+      if ((await db.draft.count()) === 0) break;
+    }
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+test.beforeEach(clearDrafts);
+
+test.afterEach(async ({ page }) => {
+  await page.goto("about:blank");
+  await clearDrafts();
 });
 
 test("a teacher's apparatus renders for a child who is never offered it", async ({ page }) => {

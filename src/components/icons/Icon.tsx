@@ -59,7 +59,8 @@ export type IconName =
   | "send-to-back"
   | "duplicate"
   | "maths-kit"
-  | "rotate";
+  | "rotate"
+  | "infinite";
 
 type Glyph = { label: string; glyph: ReactNode };
 
@@ -197,6 +198,10 @@ const ICONS: Record<IconName, Glyph> = {
   ) },
   // Two overlapping cards: the accent one is the selected object. Bring-to-front
   // draws it on TOP; send-to-back draws it BEHIND the plain card.
+  // A lemniscate: there is always another one of these.
+  "infinite": { label: "Endless supply", glyph: (
+    <><path d="M8.6 12 C8.6 9.5 5.5 9.5 5.5 12 C5.5 14.5 8.6 14.5 8.6 12 C8.6 9.5 15.4 14.5 15.4 12 C15.4 9.5 8.6 14.5 8.6 12 Z" fill="none" /> <circle cx="18.4" cy="12" r="1.4" fill="#F0B441" stroke="none" /></>
+  ) },
   // An arrow chasing its own circle: turn this.
   "rotate": { label: "Turn", glyph: (
     <><path d="M20 12 A8 8 0 1 1 12 4" fill="none" /> <path d="M12 1.2 L15 4 L12 6.8" fill="none" /></>

@@ -131,6 +131,10 @@ export type ShapeGeom = {
   rows?: number;
   // pie / ring / clock: how many equal parts the circle is divided into.
   parts?: number;
+  // ring: the band, as a percentage of the radius.
+  thickness?: number;
+  // clock: whether the numerals 1–12 are drawn.
+  numerals?: boolean;
   // Set by the palette preset when the shape only means what it means at a
   // fixed proportion. See shapeAspect.
   lockAspect?: boolean;
@@ -276,22 +280,38 @@ function piePartsPath(w: number, h: number, parts: number): ShapePart[] {
   return out;
 }
 
-// How much of a ring's radius is hole. 0.55 keeps a band wide enough to colour
-// in and to read a fraction off, without the hole closing up.
-const RING_INNER = 0.55;
+// A ring's band, as a percentage of its radius. A sorting hoop wants a thin
+// band and a fraction ring a fat one, so it is per-object rather than a
+// constant everyone lives with. 45% is the old fixed value, kept as the default
+// so existing rings are unchanged.
+export const MIN_RING_THICKNESS = 10;
+export const MAX_RING_THICKNESS = 90;
+export const DEFAULT_RING_THICKNESS = 45;
+
+export function clampThickness(v: unknown): number {
+  const t = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : DEFAULT_RING_THICKNESS;
+  return Math.min(MAX_RING_THICKNESS, Math.max(MIN_RING_THICKNESS, t));
+}
+
+// Thickness is what the teacher sets, because it is what they can see. The
+// geometry needs the hole, which is its complement.
+function ringInner(thickness: number | undefined): number {
+  return (100 - clampThickness(thickness ?? DEFAULT_RING_THICKNESS)) / 100;
+}
 
 // A true annulus: two concentric subpaths in ONE outline path, filled with the
 // even-odd rule so the middle stays transparent rather than being painted over
 // whatever is underneath. Both renderers must use shapeFillRule for this, or
 // the hole survives on screen and fills in on hand-in.
-function ringParts(w: number, h: number, parts: number): ShapePart[] {
+function ringParts(w: number, h: number, parts: number, thickness?: number): ShapePart[] {
   const cx = w / 2;
   const cy = h / 2;
   const rx = w / 2;
   const ry = h / 2;
+  const inner = ringInner(thickness);
   const out: ShapePart[] = [
     {
-      d: `${ellipsePath(cx, cy, rx, ry)} ${ellipsePath(cx, cy, rx * RING_INNER, ry * RING_INNER)}`,
+      d: `${ellipsePath(cx, cy, rx, ry)} ${ellipsePath(cx, cy, rx * inner, ry * inner)}`,
       role: "outline",
     },
   ];
@@ -304,7 +324,7 @@ function ringParts(w: number, h: number, parts: number): ShapePart[] {
       // Only across the band — a radius through the hole would draw a spoke
       // where there is deliberately nothing.
       cuts.push(
-        `M ${n(cx + c * rx * RING_INNER)} ${n(cy + si * ry * RING_INNER)} L ${n(cx + c * rx)} ${n(cy + si * ry)}`,
+        `M ${n(cx + c * rx * inner)} ${n(cy + si * ry * inner)} L ${n(cx + c * rx)} ${n(cy + si * ry)}`,
       );
     }
     out.push({ d: cuts.join(" "), role: "detail" });
@@ -352,6 +372,41 @@ function cubeParts(w: number, h: number): ShapePart[] {
 // extending the part contract past paths, and a blank face a child numbers and
 // draws the hands onto is a standard worksheet in its own right — it is what
 // makes this need no rotation.
+// A clock face has twelve hours. Not a parameter — see shapeParts.
+export const CLOCK_HOURS = 12;
+
+// Text drawn INSIDE a shape as part of its geometry — currently only a clock's
+// numerals. Deliberately a second function rather than a variant of ShapePart:
+// a mark carries a size and a position and no stroke or fill rule, and folding
+// it into ShapePart would make every kind carry fields one of them uses.
+//
+// Positions are in the same w×h box at the origin that shapeParts uses, and
+// `size` is a font size in the same units, so both renderers can draw these the
+// same way they draw everything else.
+export type ShapeTextMark = { x: number; y: number; text: string; size: number };
+
+export function shapeTextMarks(o: ShapeGeom): ShapeTextMark[] {
+  if (o.shape !== "clock" || !o.numerals) return [];
+  const { w, h } = o;
+  const cx = w / 2;
+  const cy = h / 2;
+  // Inside the hour ticks, which stop at 0.82 of the radius.
+  const r = 0.66;
+  const size = Math.min(w, h) * 0.13;
+  const marks: ShapeTextMark[] = [];
+  for (let i = 1; i <= CLOCK_HOURS; i++) {
+    // 12 sits at the top, and the numbers run clockwise from there.
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / CLOCK_HOURS;
+    marks.push({
+      x: cx + Math.cos(a) * (w / 2) * r,
+      y: cy + Math.sin(a) * (h / 2) * r,
+      text: String(i),
+      size,
+    });
+  }
+  return marks;
+}
+
 function clockParts(w: number, h: number, parts: number): ShapePart[] {
   const cx = w / 2;
   const cy = h / 2;
@@ -432,7 +487,7 @@ function arrowPathReversed(w: number, h: number) {
 // The switch is EXHAUSTIVE over ShapeKind with no `default`, on purpose: adding
 // a kind without drawing it should be a compile error, not a shape that renders
 // blank on a child's page. Keep it that way.
-export function shapeParts({ shape, w, h, cols, rows, parts }: ShapeGeom): ShapePart[] {
+export function shapeParts({ shape, w, h, cols, rows, parts, thickness }: ShapeGeom): ShapePart[] {
   switch (shape) {
     case "rect":
       return [{ d: roundRectPath(w, h, Math.min(w, h) * 0.06), role: "outline" }];
@@ -470,11 +525,13 @@ export function shapeParts({ shape, w, h, cols, rows, parts }: ShapeGeom): Shape
     case "ring":
       // parts may legitimately be 1 — a plain ring with no divisions — so it is
       // not run through clampParts, whose floor is 2.
-      return ringParts(w, h, parts && parts >= 2 ? clampParts(parts) : 1);
+      return ringParts(w, h, parts && parts >= 2 ? clampParts(parts) : 1, thickness);
     case "cube":
       return cubeParts(w, h);
     case "clock":
-      return clockParts(w, h, clampParts(parts ?? 12));
+      // Always twelve. A clock with seven hours is not a clock, so this is the
+      // one circle whose divisions are not a setting.
+      return clockParts(w, h, CLOCK_HOURS);
   }
 }
 
@@ -528,7 +585,7 @@ export function shapeAspect(o: ShapeGeom): number | null {
 // The usable area for a label inside each shape, so text stays within the
 // visible shape rather than its bounding box. Relative to the shape's origin.
 // Exhaustive over ShapeKind for the same reason as shapeParts.
-export function shapeInnerBox(kind: ShapeKind, w: number, h: number) {
+export function shapeInnerBox(kind: ShapeKind, w: number, h: number, thickness?: number) {
   switch (kind) {
     case "rect":
       return { x: 0.07 * w, y: 0.08 * h, w: 0.86 * w, h: 0.84 * h };
@@ -559,13 +616,17 @@ export function shapeInnerBox(kind: ShapeKind, w: number, h: number) {
       return { x: 0.16 * w, y: 0.18 * h, w: 0.68 * w, h: 0.64 * h };
     // A ring's usable area is the HOLE — a label written across the band would
     // sit on top of the very divisions it is describing.
-    case "ring":
+    case "ring": {
+      // Follows the band: a fat ring has a small hole to write in, a thin one a
+      // large one. 0.86 keeps the text clear of the inner edge.
+      const inner = ringInner(thickness) * 0.86;
       return {
-        x: (0.5 - RING_INNER * 0.62) * w,
-        y: (0.5 - RING_INNER * 0.62) * h,
-        w: RING_INNER * 1.24 * w,
-        h: RING_INNER * 1.24 * h,
+        x: (0.5 - inner / 2) * w,
+        y: (0.5 - inner / 2) * h,
+        w: inner * w,
+        h: inner * h,
       };
+    }
     // The front face only, so a label doesn't run up over the receding top.
     case "cube":
       return { x: 0.08 * w, y: 0.34 * h, w: 0.56 * w, h: 0.56 * h };
@@ -598,6 +659,8 @@ export type ShapePreset = {
   cols?: number;
   rows?: number;
   parts?: number;
+  thickness?: number;
+  numerals?: boolean;
   // This shape means something at a fixed proportion (a hundred flat is square
   // or it is not a hundred), so lock its aspect on resize.
   lockAspect?: boolean;
@@ -748,7 +811,7 @@ const MATHS_KIT: Kit = {
       id: "measure",
       label: "Shape & measure",
       presets: [
-        { id: "m-clock", kind: "clock", label: "Clock face", parts: 12, w: 320, h: 320, fill: "#FFFDF7", lockAspect: true },
+        { id: "m-clock", kind: "clock", label: "Clock face", numerals: true, w: 320, h: 320, fill: "#FFFDF7", lockAspect: true },
       ],
     },
   ],
