@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, signInOperator } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, asOperator } from "../helpers";
 import { BATTERY_STRIPE_KEY } from "../stripeFixtureKey";
 import { stripeLiveMode } from "@/lib/stripeMode";
 import { MIN_CELL } from "@/lib/ops/dto";
@@ -106,7 +106,7 @@ test(`${ROUTE} is 404 to a stranger and 200 to the operator, on the same URL`, a
   // must not travel out is the name of the AREA, which is the line above.
 
   // Positive control: same URL, same fixture, the other session.
-  await signInOperator(page);
+  await asOperator(page);
   const authorised = await page.goto(ROUTE);
   expect(authorised?.status()).toBe(200);
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
@@ -127,7 +127,7 @@ test(`a teacher session gets 404 from ${ROUTE}, and their own console still work
 });
 
 test(`${ROUTE} is never indexed and never cached`, async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   const res = await page.goto(ROUTE);
   expect(res?.headers()["x-robots-tag"]).toBe("noindex, nofollow, noarchive");
   expect(res?.headers()["cache-control"] ?? "").toMatch(/no-store|no-cache/);
@@ -140,7 +140,7 @@ test(`${ROUTE} is never indexed and never cached`, async ({ page }) => {
 test("the billing screen shows every school's state, and no child, class or code anywhere", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   const body = await bodyText(page);
 
@@ -165,7 +165,7 @@ test("the billing screen shows every school's state, and no child, class or code
 });
 
 test("what needs attention is at the top", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   const names = await page.locator("main li h2").allTextContents();
@@ -180,7 +180,7 @@ test("what needs attention is at the top", async ({ page }) => {
 });
 
 test("an exact headcount above the suppression threshold, and none below it", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   // The same one constant the schools list uses (ruling R10: one suppression
@@ -203,7 +203,7 @@ test("an exact headcount above the suppression threshold, and none below it", as
 test("a school with a Stripe record gets a link to it, and one without is told so", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   const larchwood = card(page, SCHOOL_C.name);
@@ -231,7 +231,7 @@ test("a school with a Stripe record gets a link to it, and one without is told s
 test("every link on the billing screen leaves for Stripe and leaks nothing on the way", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   const links = await page.locator("main a[href]").evaluateAll((as) =>
@@ -264,7 +264,7 @@ test("every link on the billing screen leaves for Stripe and leaks nothing on th
 // ---------------------------------------------------------------------------
 
 test("there is no way to record a payment, and the screen says so", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   // Positive control: the page rendered and has real billing content on it.

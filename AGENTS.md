@@ -24,14 +24,14 @@ executable form of `SAFEGUARDING.md`. **Nothing reaches `main` with a red gate.*
 Plan & findings live in [`TEST_PLAN.md`](./TEST_PLAN.md) and
 [`FINDINGS.md`](./FINDINGS.md).
 
-**When to run what.** The battery is slow — the Playwright suites run serially
-against a dev server and take minutes. Do not run it after every edit. Instead:
+**When to run what.** The Playwright suites run serially against a dev server,
+because they share one SQLite database. Do not run them after every edit:
 
 | While | Run | Takes |
 | --- | --- | --- |
 | Writing code | `npm run check` | ~2s |
-| Working on one area | that one suite, e.g. `npm run test:a11y`, or a single file: `npx playwright test -c playwright.battery.config.ts --project=security tests/battery/security/uploads.spec.ts` | seconds–a minute |
-| **Before anything lands on `main`** — the merge, not each commit on the branch | `npm run test:gate` | minutes |
+| Working on one area | that one suite, e.g. `npm run test:a11y`, or a single file: `npx playwright test -c playwright.battery.config.ts --project=security tests/battery/security/uploads.spec.ts` | seconds–3 min |
+| **Before anything lands on `main`** — the merge, not each commit on the branch | `npm run test:gate` | ~19 min (security 9, e2e 7, a11y 3) |
 | Changing anything a person has to *understand* — copy, a flow, a form, a child-facing screen | `npm run test:personas` | ~2 min |
 
 `npm run check` is the whole dev loop: typecheck plus every static gate
@@ -40,12 +40,32 @@ against a dev server and take minutes. Do not run it after every edit. Instead:
 of breakage — a broken import, a leaked ops field — that used to be found the
 slow way, by three suites going red at once.
 
-This changes *when* the gates run, never *whether* they pass. CI still runs the
-full battery on every PR and every push to `main`
-(`.github/workflows/battery.yml`), and a red blocking gate there is a blocked
-merge. Running `test:gate` locally before merging is how you find out before CI
-does — and, while this repo has no branch protection, it is the only thing
-standing between a red gate and `main`.
+**Where the minutes went, and where they are now.** Until 19 August 2026 the
+batteries were dominated by one thing: the operator door. Every ops test signed
+in for itself, TOTP replay protection is monotonic, so each sign-in queued for
+its own 30-second window — 1,197 of the a11y project's 1,305 seconds of test
+time, and most of security's, spent watching a clock. The door is now walked
+**once per worker** and the session reused (`asOperator` in
+`tests/battery/helpers.ts`), which is what an operator does too. a11y went from
+17.4 minutes to 2.9; the security project went from not reaching test 200 in 25
+minutes to 306 tests in 8.9. Nothing was skipped to get there: the password is
+still typed, a genuine TOTP code is still computed and accepted, and
+`ops-auth.spec.ts` — the spec that is *about* the door — still walks the whole
+thing for every one of its cases. If you are adding an ops test, use
+`asOperator`; use `signInOperator` only when the sign-in itself is the subject.
+
+This changes *when* the gates run, never *whether* they pass. CI still runs every
+blocking gate on every code PR and every push to `main`
+(`.github/workflows/battery.yml`), now sharded across runners so wall-clock is
+roughly a third of the local figures. What CI no longer runs on every PR is the
+**report-only** half — ux, personas, findings, perf. None of it could ever block
+a merge, so paying for it on every PR bought nothing that reading it the next
+morning does not: it runs on `main`, nightly, on demand, and on any PR labelled
+`full-battery`. A docs-only PR runs no battery at all.
+
+A red blocking gate is a blocked merge. Running `test:gate` locally before
+merging is how you find out before CI does — and, while this repo has no branch
+protection, it is the only thing standing between a red gate and `main`.
 
 **Layout**
 - `tests/battery/security/` — tenant isolation, auth/sessions, uploads, CSRF,
@@ -91,6 +111,9 @@ standing between a red gate and `main`.
   blocking suite (so it stays fixed), and delete the finding from `FINDINGS.md`.
 - Closing the a11y contrast debt (F11) → empty `BASELINE_RULES` in
   `a11y/axe.spec.ts` to make the gate strict.
+- Adding an ops test → `asOperator(page)`, not `signInOperator(page)`. The
+  second walks the whole door and waits on the TOTP clock, which is right only
+  when the door is what you are testing.
 - Never weaken a gate to make it pass. Fix the app or log a finding.
 - Adding a persona journey → it goes in `tests/battery/personas/`, uses
   `t.say()` / `t.expects()` rather than `expect()`, and speaks in the persona's

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { signInOperator } from "../helpers";
+import { asOperator } from "../helpers";
 import { MONITORED, NOT_MONITORED } from "@/lib/ops/health";
 
 // ===========================================================================
@@ -53,7 +53,7 @@ async function assertStrictNoViolations(page: Page, where: string, within?: stri
 }
 
 test("a11y (AA, empty baseline): the service health pane", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   // An axe scan of a page that did not render is a clean scan, and Next's own
   // 404 is perfectly accessible, so every test here is anchored first.
@@ -63,7 +63,7 @@ test("a11y (AA, empty baseline): the service health pane", async ({ page }) => {
 });
 
 test("every status is words, and survives having every colour taken away", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   const statuses = page.locator("[data-tile-status]");
@@ -100,7 +100,7 @@ test("every status is words, and survives having every colour taken away", async
 });
 
 test("each tile's heading and status are associated, not merely adjacent", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   const tiles = page.locator("[data-tile]");
@@ -130,7 +130,7 @@ test("each tile's heading and status are associated, not merely adjacent", async
 });
 
 test(`no horizontal overflow on ${ROUTE} at 390px`, async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(ROUTE);
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
@@ -142,7 +142,7 @@ test(`no horizontal overflow on ${ROUTE} at 390px`, async ({ page }) => {
 });
 
 test("the pane is completable with the keyboard alone", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   await expect(page.locator("main")).toContainText("Service health");
 

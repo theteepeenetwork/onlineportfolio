@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, signInOperator } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, asOperator } from "../helpers";
 import { MIN_CELL, maskEmail, reasonProblem, REASON_MIN } from "@/lib/ops/dto";
 
 // ===========================================================================
@@ -107,7 +107,7 @@ for (const route of ["/ops/schools", "/ops/lookup"]) {
     expect(denied).not.toContain("storyjar operations");
 
     // Positive control: same URL, same fixture, the other session.
-    await signInOperator(page);
+    await asOperator(page);
     const authorised = await page.goto(route);
     expect(authorised?.status()).toBe(200);
     await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
@@ -127,7 +127,7 @@ for (const route of ["/ops/schools", "/ops/lookup"]) {
   });
 
   test(`${route} is never indexed and never cached`, async ({ page }) => {
-    await signInOperator(page);
+    await asOperator(page);
     const res = await page.goto(route);
     expect(res?.headers()["x-robots-tag"]).toBe("noindex, nofollow, noarchive");
     expect(res?.headers()["cache-control"] ?? "").toMatch(/no-store|no-cache/);
@@ -141,7 +141,7 @@ for (const route of ["/ops/schools", "/ops/lookup"]) {
 test("the schools list shows schools and billing, and no child, class or code anywhere", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto("/ops/schools");
   const body = await bodyText(page);
 
@@ -170,7 +170,7 @@ test("the schools list shows schools and billing, and no child, class or code an
 });
 
 test("an exact headcount above the suppression threshold, and none below it", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto("/ops/schools");
 
   const stBedes = page.locator("li", { hasText: SCHOOL_A.name }).first();
@@ -189,7 +189,7 @@ test("an exact headcount above the suppression threshold, and none below it", as
 });
 
 test("the price band is rendered from the server's own figures", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto("/ops/schools");
   const stBedes = page.locator("li", { hasText: SCHOOL_A.name }).first();
   // 12 pupils falls in the smallest band, and the band carries its price so the
@@ -203,7 +203,7 @@ test("the price band is rendered from the server's own figures", async ({ page }
 // ---------------------------------------------------------------------------
 
 test("a parent is found only by their whole address, and comes back masked", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
 
   // Negative: a prefix of a real address finds nothing. There is no substring
   // match, so an address the operator does not already hold is unreachable.
@@ -242,7 +242,7 @@ test("the mask keeps at most two characters, in the shape the amendment asks for
 test("a parent record carries no name and no link to a child, in either direction", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await submitLookup(page, "PARENT", PARENT_A, GOOD_REASON);
   await expect(page.getByRole("heading", { name: /^result$/i })).toBeVisible();
   const body = await bodyText(page);
@@ -260,7 +260,7 @@ test("a parent record carries no name and no link to a child, in either directio
 });
 
 test("a teacher lookup returns the adult record in full", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await submitLookup(page, "TEACHER", SCHOOL_A.admin.email, GOOD_REASON);
   await expect(page.getByRole("heading", { name: /^result$/i })).toBeVisible();
   const body = await bodyText(page);
@@ -282,7 +282,7 @@ test("a teacher lookup returns the adult record in full", async ({ page }) => {
 // ---------------------------------------------------------------------------
 
 test("the server refuses a short reason, and nothing is looked up or recorded", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   const before = await lookupRowCount();
 
   await submitLookup(page, "TEACHER", SCHOOL_A.admin.email, "too short");
@@ -316,7 +316,7 @@ test("the same rule holds in the module the server validates with", () => {
 test("a completed lookup is audited with the search term and the reason, word for word", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   const reason = `Checking a bounced letter for the office, ${Date.now()}`;
   await submitLookup(page, "PARENT", PARENT_A, reason);
   await expect(page.getByRole("heading", { name: /^result$/i })).toBeVisible();
@@ -343,7 +343,7 @@ test("a completed lookup is audited with the search term and the reason, word fo
 });
 
 test("no credential value reaches either screen or the audit trail", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await submitLookup(page, "PARENT", PARENT_A, GOOD_REASON);
   await expect(page.getByRole("heading", { name: /^result$/i })).toBeVisible();
 

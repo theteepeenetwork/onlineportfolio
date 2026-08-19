@@ -1,0 +1,28 @@
+name: Playwright Chromium
+description: >-
+  Install Chromium for Playwright, from cache when the pinned version has not
+  moved. Six jobs each ran `playwright install --with-deps chromium`, which is a
+  browser download plus an apt-get on every one of them; the browser is keyed on
+  the lockfile, so it is fetched again only when the Playwright version in it
+  changes. The system packages are re-applied either way, because they live on
+  the runner rather than in the cached directory.
+
+runs:
+  using: composite
+  steps:
+    - name: Cache the browser
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+    - name: Install Chromium and its system packages
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: npx playwright install --with-deps chromium
+
+    - name: Install the system packages only (browser came from cache)
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: npx playwright install-deps chromium

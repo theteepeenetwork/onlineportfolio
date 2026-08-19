@@ -1,14 +1,46 @@
 name: QA battery
 
-# Runs the UX / security / a11y battery on every PR and on pushes to main.
 # BLOCKING gates (must pass to merge): static-security, security, a11y, e2e.
-# REPORT-ONLY (non-blocking, informational): ux, findings, personas, perf.
+# REPORT-ONLY (never blocks): ux, personas, findings, perf.
 # See TEST_PLAN.md and FINDINGS.md.
+#
+# WHAT RUNS WHEN, AND WHY
+#
+# Every blocking gate runs on every code PR and every push to main. That is not
+# negotiable: they are the executable form of SAFEGUARDING.md, and a gate that
+# runs only sometimes is a gate that is red sometimes without anybody knowing.
+#
+# What changed is the price. The batteries used to be dominated by the operator
+# door: every ops test signed in for itself, TOTP replay protection is monotonic,
+# and so each one queued for its own 30-second window. The a11y project spent
+# 1,197 of its 1,305 seconds watching that clock. The door is now walked once per
+# worker and the session reused (tests/battery/helpers.ts, `asOperator`), which
+# took a11y from 17.4 to 2.9 minutes and let the security project finish at all —
+# 306 tests in 8.9 minutes, where it previously had not reached test 200 in 25.
+# The blocking suites are then sharded across runners below, so wall-clock is
+# roughly a third of that again.
+#
+# The REPORT-ONLY suites are the ones that now run "only when necessary". They
+# never blocked a merge, so paying for them on every PR bought nothing but
+# waiting: they run on main, nightly, on demand, and on any PR labelled
+# `full-battery` when someone wants the personas' opinion before merging.
 
 on:
   pull_request:
+    # A change that cannot alter behaviour does not need the battery. Kept tight
+    # on purpose: anything that is not prose is code until proven otherwise.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "Context/**"
+      - "Themeing/**"
+      - "LICENSE"
   push:
     branches: [main]
+  schedule:
+    # Nightly, for the report-only suites the PR path no longer pays for.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
 
 concurrency:
   group: battery-${{ github.ref }}
@@ -21,6 +53,7 @@ jobs:
   # ---- Fast static gates (blocking) ----
   static-security:
     name: Static security gates (blocking)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -57,52 +90,82 @@ jobs:
         run: node scripts/error-string-audit.mjs || true
 
   # ---- Security battery (blocking) ----
+  # Sharded across runners rather than parallelised in-process: the suites share
+  # one SQLite database and mutate sessions and rows, so `workers: 1` has to
+  # stand. A shard is its own runner with its own database and its own dev
+  # server, which is the same isolation by another route — and it splits by
+  # file, so nothing is skipped and no test sees a neighbour it did not see
+  # before.
   security:
-    name: Security tests (blocking)
+    name: Security tests (blocking) ${{ matrix.shard }}/3
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-chromium
       - run: npx prisma db push
       - name: Security project
-        run: npx playwright test -c playwright.battery.config.ts --project=security
+        run: npx playwright test -c playwright.battery.config.ts --project=security --shard=${{ matrix.shard }}/3
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
-        with: { name: security-report, path: playwright-report/battery, retention-days: 14 }
+        with:
+          name: security-report-${{ matrix.shard }}
+          path: playwright-report/battery
+          retention-days: 14
 
   # ---- Accessibility battery (blocking, WCAG 2.2 AA baseline) ----
   a11y:
     name: Accessibility tests (blocking)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-chromium
       - run: npx prisma db push
       - name: a11y project (fails on NEW serious/critical AA violations)
         run: npx playwright test -c playwright.battery.config.ts --project=a11y
 
   # ---- Functional E2E (blocking) ----
   e2e:
-    name: Functional E2E (blocking)
+    name: Functional E2E (blocking) ${{ matrix.shard }}/2
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-chromium
       - run: npx prisma db push
-      - run: npm run test:e2e
+      - run: npx playwright test --shard=${{ matrix.shard }}/2
 
-  # ---- Report-only: UX + findings + perf (never blocks merge) ----
+  # ---- Report-only: UX + personas + findings + perf (never blocks merge) ----
+  #
+  # Not on the PR path any more. None of it can block a merge, so running it on
+  # every PR bought nothing that reading it the next morning does not. It runs
+  # on main, nightly, on demand — and on a PR that asks for it with the
+  # `full-battery` label, which is the case it is worth waiting for: a change to
+  # copy, a flow or a child-facing screen, where the personas' opinion is the
+  # point. `npm run test:personas` locally is the same thing, faster.
   report-only:
     name: UX / personas / findings / perf (report-only)
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'full-battery')
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -110,7 +173,7 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: "22", cache: "npm" }
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - uses: ./.github/actions/playwright-chromium
       - run: npx prisma db push
       - name: UX project
         run: npx playwright test -c playwright.battery.config.ts --project=ux

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { SCHOOL_C, loginTeacher, signInOperator } from "../helpers";
+import { SCHOOL_C, loginTeacher, asOperator } from "../helpers";
 import {
   OPS_OPERATIONS,
   OPS_OPERATION_IDS,
@@ -190,7 +190,7 @@ test("the idempotency key is derived from the operation, the operator, the recor
 test("the operations exist for the operator and not for a teacher, on the same URL", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
   // Positive control: both operations are on the record, as buttons.
   await expect(page.getByRole("button", { name: REVEAL })).toBeVisible();
@@ -217,7 +217,7 @@ test("the operations exist for the operator and not for a teacher, on the same U
 test("a parent's address is masked until it is asked for, and asking is recorded", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
 
   // Negative first: the record hands over a mask, and the address is not
@@ -248,7 +248,7 @@ test("a parent's address is masked until it is asked for, and asking is recorded
 });
 
 test("the server refuses a short reason, and nothing is shown or recorded", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
   const before = await rowsFor("OPS_PARENT_EMAIL_REVEALED");
 
@@ -277,7 +277,7 @@ test("rotation replaces the family code, and the operator never sees either one"
   page,
 }) => {
   const old = await currentCode();
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
 
   const reason = `Letter went to the wrong address, school asked us to reissue, ${Date.now()}`;
@@ -329,7 +329,7 @@ test("rotation replaces the family code, and the operator never sees either one"
 // ---------------------------------------------------------------------------
 
 test("an audit row that cannot be written rolls the mutation back", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
 
   // The same operator, the same record, the same stated reason produces the
@@ -371,7 +371,7 @@ test("an audit row that cannot be written rolls the mutation back", async ({ pag
 });
 
 test("a disclosure that cannot be recorded does not happen either", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
 
   const reason = `Checking the stored address against what they read out, ${Date.now()}`;
@@ -393,7 +393,7 @@ test("a disclosure that cannot be recorded does not happen either", async ({ pag
 // ---------------------------------------------------------------------------
 
 test("the operations carry no address box, no export, no media and no way in", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
   await page.getByRole("button", { name: REVEAL }).click();
   await page.getByRole("button", { name: ROTATE }).click();

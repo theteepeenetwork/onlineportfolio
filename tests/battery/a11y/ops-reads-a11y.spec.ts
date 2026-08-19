@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { SCHOOL_A, signInOperator } from "../helpers";
+import { SCHOOL_A, asOperator } from "../helpers";
 import { REASON_MIN } from "@/lib/ops/dto";
 
 // ===========================================================================
@@ -49,7 +49,7 @@ async function assertStrictNoViolations(page: Page, where: string) {
 
 for (const [route, label] of ROUTES) {
   test(`a11y (AA, empty baseline): ${label}`, async ({ page }) => {
-    await signInOperator(page);
+    await asOperator(page);
     await page.goto(route);
     // An axe scan of a page that did not render is a clean scan. Next's own 404
     // is perfectly accessible, so without this anchor every test in this file
@@ -59,7 +59,7 @@ for (const [route, label] of ROUTES) {
   });
 
   test(`no horizontal overflow on ${route} at 390px`, async ({ page }) => {
-    await signInOperator(page);
+    await asOperator(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(route);
     await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
@@ -71,7 +71,7 @@ for (const [route, label] of ROUTES) {
 }
 
 test("a11y (AA, empty baseline): the lookup error state and the result state", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto("/ops/lookup");
 
   // The error state is different markup and gets its own scan: an alert that
@@ -97,7 +97,7 @@ test("a11y (AA, empty baseline): the lookup error state and the result state", a
 });
 
 test("submit is never disabled, whatever is in the reason box (R16)", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto("/ops/lookup");
   const submit = page.getByRole("button", { name: /search and record the reason/i });
 
@@ -115,7 +115,7 @@ test("submit is never disabled, whatever is in the reason box (R16)", async ({ p
 });
 
 test("a payment state is words, never colour alone", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto("/ops/schools");
   // Larchwood is FROZEN in the fixtures. If this were a red dot, a colour-blind
   // reader and a screen reader would both learn nothing.
@@ -124,7 +124,7 @@ test("a payment state is words, never colour alone", async ({ page }) => {
 });
 
 test("a whole lookup is completable with the keyboard alone", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto("/ops/lookup");
 
   // Tab from the top of the document until focus reaches the first radio, so
