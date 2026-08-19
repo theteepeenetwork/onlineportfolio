@@ -2451,7 +2451,7 @@ export function DrawingCanvas({
 
           {selectedId && (
             <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-muted shadow">
-              Drag to move · pull the corner to resize · ✕ to remove
+              Drag to move · pull a corner to resize or turn it
             </div>
           )}
 
@@ -2629,7 +2629,7 @@ export function DrawingCanvas({
         <p className="mb-1 text-sm text-muted">Tap on the canvas to add text.</p>
       )}
       {selectedId && !editingId && (
-        <p className="mb-1 text-sm text-muted">Drag to move · pull the corner to resize · ✕ to remove.</p>
+        <p className="mb-1 text-sm text-muted">Drag to move · pull a corner to resize or turn it.</p>
       )}
       {importError && (
         <p className="mb-2 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{importError}</p>
@@ -2999,6 +2999,14 @@ function ObjectToolbar({
   // for any object width and re-clamps as the object is dragged.
   const ref = useRef<HTMLDivElement>(null);
   const [shift, setShift] = useState(0);
+  // Whether the toolbar hangs below the object instead of above it. The caller
+  // offers a first guess from the object's position; this refines it by
+  // measuring, because how tall the toolbar actually is depends on how many
+  // controls this object has and how many rows they wrapped onto — a number no
+  // constant can know.
+  const [flip, setFlip] = useState(below);
+  // Vertical nudge that keeps the toolbar inside the canvas.
+  const [lift, setLift] = useState(0);
   useLayoutEffect(() => {
     const el = ref.current;
     const wrap = el?.parentElement;
@@ -3007,6 +3015,31 @@ function ObjectToolbar({
     const w = wrap.getBoundingClientRect();
     const s = stage.getBoundingClientRect();
     const tw = el.offsetWidth;
+    const th = el.offsetHeight;
+    const gap = 12;
+    // Above if it fits above, otherwise below if it fits below. If it fits in
+    // neither — a hundred flat is most of the canvas — go above anyway and let
+    // the clamp below pull it onto the stage, because the resize and turn
+    // handles live on the object's BOTTOM corners and a toolbar parked over
+    // them is a toolbar that has eaten two controls.
+    const roomAbove = w.top - s.top >= th + gap;
+    const roomBelow = s.bottom - w.bottom >= th + gap;
+    const nextFlip = !roomAbove && roomBelow;
+    setFlip((prev) => (prev === nextFlip ? prev : nextFlip));
+
+    // A tall shape can leave room in NEITHER place — a hundred flat is most of
+    // the canvas — and a toolbar half off the top edge is a toolbar a child
+    // cannot use. So it is clamped into the stage vertically, exactly as it
+    // already is horizontally: it may end up overlapping its own object, which
+    // is a great deal better than being unreachable.
+    //
+    // Computed from where the toolbar WOULD sit untransformed, not from where
+    // it currently is, so this converges instead of chasing itself.
+    const intendedTop = nextFlip ? w.bottom + gap : w.top - gap - th;
+    let dy = 0;
+    if (intendedTop < s.top + gap) dy = s.top + gap - intendedTop;
+    else if (intendedTop + th > s.bottom - gap) dy = s.bottom - gap - (intendedTop + th);
+    setLift((prev) => (Math.abs(prev - dy) < 0.5 ? prev : dy));
     const margin = 8;
     const naturalCentre = w.left + w.width / 2 - s.left; // canvas-space px
     const half = tw / 2;
@@ -3147,7 +3180,10 @@ function ObjectToolbar({
       {showStyle && shape && (
         <>
           <span className="inline-flex items-center font-semibold text-muted"><Icon name="fill" size={28} decorative /></span>
-          <label className="relative block h-16 w-16 overflow-hidden rounded-full border-2 border-border">
+          {/* 68px, not 64: the border eats 2px a side and the <input> inside is
+              what receives the press, so the box has to be bigger than the
+              floor for the target to reach it. */}
+          <label className="relative block h-[68px] w-[68px] overflow-hidden rounded-full border-2 border-border">
             <input
               type="color"
               value={shape.fill === "none" ? "#93c5fd" : shape.fill}
@@ -3168,13 +3204,16 @@ function ObjectToolbar({
           <button
             type="button"
             onClick={() => onStyle({ fill: shape.fill === "none" ? "#93c5fd" : "none" })}
-            className="pointer-events-auto rounded-lg border border-border px-2 py-1 text-sm font-semibold text-muted"
+            className="pointer-events-auto flex min-h-16 min-w-16 items-center justify-center rounded-lg border border-border px-3 text-sm font-semibold text-muted"
           >
             {shape.fill === "none" ? "Add fill" : "No fill"}
           </button>
 
           <span className="ml-1 inline-flex items-center font-semibold text-muted"><Icon name="line" size={28} decorative /></span>
-          <label className="relative block h-16 w-16 overflow-hidden rounded-full border-2 border-border">
+          {/* 68px, not 64: the border eats 2px a side and the <input> inside is
+              what receives the press, so the box has to be bigger than the
+              floor for the target to reach it. */}
+          <label className="relative block h-[68px] w-[68px] overflow-hidden rounded-full border-2 border-border">
             <input
               type="color"
               value={shape.stroke}
@@ -3190,7 +3229,7 @@ function ObjectToolbar({
                 key={sw}
                 type="button"
                 onClick={() => onStyle({ strokeWidth: sw })}
-                className={`pointer-events-auto flex h-11 w-11 items-center justify-center rounded-lg border ${
+                className={`pointer-events-auto flex h-16 w-16 items-center justify-center rounded-lg border ${
                   shape.strokeWidth === sw ? "border-brand bg-brand/10" : "border-border"
                 }`}
                 aria-label={`Line width ${sw}`}
@@ -3279,7 +3318,11 @@ function MediaObjectView({
   // The floating toolbar shows when a shape is restyleable (author OR the
   // child's own shape) or whenever the teacher has an object selected.
   const showStyle = o.type === "shape" && cap.editable;
-  const showToolbar = selected && !editing && (author || showStyle);
+  // Delete and "add a label" moved off the object's corners and into this
+  // toolbar (F41), so it has to appear whenever either is available — including
+  // for a child's own imported picture, which has no style controls at all and
+  // used to show no toolbar.
+  const showToolbar = selected && !editing && (author || showStyle || cap.editable);
   // Drop the toolbar under the object when it would clip off the top edge.
   // Measured against the top of the ROTATED box, not the unrotated one: a tall
   // shape turned on its side reaches far above its own `y`, and the toolbar
@@ -3633,8 +3676,10 @@ function MediaObjectView({
               title={o.text ? "Edit label" : "Add label"}
               aria-label="Edit text"
             >
-              <Icon name="edit" size={13} decorative />
-            </button>
+              <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
+                <Icon name="rotate" size={11} decorative />
+              </span>
+            </div>
           )}
           <button
             type="button"
@@ -3671,7 +3716,11 @@ function MediaObjectView({
             style={unrotate ? { transform: unrotate } : undefined}
             className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
             title="Resize"
-          />
+            role="button"
+            aria-label="Resize shape"
+          >
+            <span className="block h-5 w-5 rounded-full border-2 border-white bg-brand shadow" />
+          </div>
         </>
       )}
     </div>
@@ -3704,7 +3753,9 @@ function TextObjectView({
   const cap = objCapabilities(o, author);
   const canGrab = interactive && cap.movable;
   // A text box has no fill / line, so the toolbar (order + padlock) is teacher-only.
-  const showToolbar = selected && !editing && author;
+  // Edit and delete live here now (F41), so the toolbar has to show whenever
+  // the child can do either — not only for a teacher.
+  const showToolbar = selected && !editing && (author || cap.editable);
   // Drop the toolbar under the box when it would clip off the top edge.
   const toolbarBelow = o.y * scale < 92;
   const drag = useRef<
@@ -3813,35 +3864,20 @@ function TextObjectView({
       )}
 
       {selected && !editing && cap.editable && (
-        <>
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onEditText(o.id)}
-            className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white shadow"
-            title="Edit text"
-            aria-label="Edit text"
-          >
-            <Icon name="edit" size={13} decorative />
-          </button>
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onDelete(o.id)}
-            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white shadow"
-            title="Remove"
-            aria-label="Remove object"
-          >
-            <Icon name="close" size={13} decorative />
-          </button>
-          <div
-            onPointerDown={startResize}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
-            title="Resize"
-          />
-        </>
+        // Same as a shape (F41): edit and delete are in the floating toolbar at
+        // 64px, and only the drag handle stays on the corner — as a small dot
+        // inside a 64px press.
+        <div
+          onPointerDown={startResize}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          className={`${HANDLE_HIT} -bottom-8 -right-8 cursor-nwse-resize`}
+          title="Resize"
+          role="button"
+          aria-label="Resize text"
+        >
+          <span className="block h-5 w-5 rounded-full border-2 border-white bg-brand shadow" />
+        </div>
       )}
     </div>
   );
