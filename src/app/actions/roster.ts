@@ -7,11 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { deriveChildNames } from "@/lib/childNames";
 import { eraseStudent } from "@/lib/erasure";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
-
-const AVATAR_COLORS = [
-  "#ef4444", "#f97316", "#f59e0b", "#84cc16", "#10b981",
-  "#06b6d4", "#3b82f6", "#6366f1", "#8b5cf6", "#ec4899",
-];
+import { avatarColorAt } from "@/lib/avatarColors";
 
 // Teacher adds one or several students at once by pasting a list (one name per
 // line, or separated by commas). Teachers can paste a register that includes
@@ -56,7 +52,7 @@ export async function addStudents(
     data: names.map((name, i) => ({
       name,
       classId,
-      avatarColor: AVATAR_COLORS[(start + i) % AVATAR_COLORS.length],
+      avatarColor: avatarColorAt(start + i),
     })),
   });
 

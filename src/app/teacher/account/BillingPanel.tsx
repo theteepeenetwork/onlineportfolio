@@ -14,6 +14,8 @@ type Props = {
   foundingMember: boolean;
   hasSchool: boolean;
   hasCustomer: boolean;
+  /** True once a Stripe subscription exists. Buying again would create a SECOND one. */
+  hasLiveSubscription: boolean;
   configured: boolean;
   checkout: "success" | "cancelled" | null;
   frozenNotice: boolean;
@@ -32,7 +34,7 @@ function Notice({ tone, children }: { tone: "good" | "warn" | "info"; children: 
 }
 
 export function BillingPanel(props: Props) {
-  const { status, kind, trialDaysLeft, currentPeriodEndISO, isAdmin, hasSchool, hasCustomer, configured, foundingMember } = props;
+  const { status, kind, trialDaysLeft, currentPeriodEndISO, isAdmin, hasSchool, hasCustomer, hasLiveSubscription, configured, foundingMember } = props;
   const [checkoutState, checkoutAction, checkoutPending] = useActionState(startCheckout, {});
   const [invoiceState, invoiceAction, invoicePending] = useActionState(requestSchoolInvoice, {});
   const [portalState, portalAction, portalPending] = useActionState(openCustomerPortal, {});
@@ -93,7 +95,10 @@ export function BillingPanel(props: Props) {
       )}
 
       {/* School plan (admins only) */}
-      {isAdmin && hasSchool && (
+      {/* Only where nothing is running: a second checkout creates a second Stripe
+          subscription and bills the school twice. Changing a live plan belongs
+          in the portal below. */}
+      {isAdmin && hasSchool && !hasLiveSubscription && (
         <section style={box} aria-labelledby="school-heading">
           <h2 id="school-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>School plan</h2>
           <p style={{ margin: "6px 0 14px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>

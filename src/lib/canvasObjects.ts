@@ -15,6 +15,15 @@
 // No `server-only` here: imported by both the client canvas and the server
 // actions. Keep it free of DB / Node-only imports (mirrors quiz.ts).
 
+import {
+  clampDivisions,
+  clampParts,
+  clampThickness,
+  isVectorKind,
+  SHAPE_KINDS,
+  type ShapeKind,
+} from "./canvasShapes";
+
 // Canvas model space (matches DrawingCanvas W×H). Object geometry is stored in
 // these units and scaled for display, so it is resolution-independent.
 export const OBJ_W = 1000;
@@ -26,8 +35,11 @@ export const MAX_OBJECT_PAGES = 60;
 export const MAX_LABEL_LEN = 500;
 export const MAX_COLOR_LEN = 32;
 
-export type ShapeKind = "rect" | "ellipse" | "triangle" | "star" | "speech";
-const SHAPE_KINDS: ShapeKind[] = ["rect", "ellipse", "triangle", "star", "speech"];
+// Shape geometry and the kind list live in canvasShapes.ts, which is the single
+// source of truth for both the validation gate below and the canvas palette.
+// Re-exported so existing importers of `ShapeKind` are unaffected.
+export type { ShapeKind };
+export { SHAPE_KINDS };
 
 // Fields shared by every placed object.
 type ObjCommon = {
@@ -60,6 +72,35 @@ export type ShapeObj = ObjCommon & {
   strokeWidth: number;
   text?: string;
   textColor?: string;
+  // grid: how many columns and rows the box is divided into. One kind fronts
+  // the base-10 rod and flat, the ten frame, the hundred square, the fraction
+  // bar and the array — the numbers are what tell them apart.
+  cols?: number;
+  rows?: number;
+  // pie / ring: how many equal parts the circle is cut into. (A clock is always
+  // twelve, so it stores none.)
+  parts?: number;
+  // ring: the band, as a percentage of the radius. A sorting hoop wants a thin
+  // one, a fraction ring a fat one.
+  thickness?: number;
+  // clock: whether the numerals 1–12 are drawn on the face.
+  numerals?: boolean;
+  // Teacher-set: this is a SOURCE, not a single piece of apparatus. A child
+  // dragging it gets a new copy and this one stays where it is, so a worksheet
+  // can hand out as many counters or ten-rods as a child needs without them
+  // ever opening a palette. Being a source pins it: a child never moves it,
+  // whatever the padlock says.
+  infinite?: boolean;
+  // Set from the palette preset when the shape only means what it means at a
+  // fixed proportion — a hundred flat squashed into a rectangle is not a
+  // hundred. Held on the OBJECT rather than the kind, because the same kind can
+  // mean different things: a plain circle should stretch, a counter must not.
+  lockAspect?: boolean;
+  // Rotation in degrees, 0–359, from the canvas's rotate handle. Applied to the
+  // object wrapper on screen and mirrored by the export renderer, so a turned
+  // shape lands in the child's hand-in exactly as they left it. Never stored as
+  // 0 — absent means upright.
+  rot?: number;
 };
 
 export type TextObj = ObjCommon & {
@@ -85,6 +126,49 @@ export function isAllowedImageSrc(v: unknown): v is string {
 
 function num(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+// The shape parameters worth storing for this kind, clamped into the range the
+// geometry can actually draw. A grid of zero columns is a divide-by-zero and a
+// grid of five hundred is an unreadable smear, so the bounds live beside the
+// geometry (canvasShapes) and are applied here.
+function shapeGeometryFields(shape: ShapeKind, o: Record<string, unknown>) {
+  const out: {
+    cols?: number;
+    rows?: number;
+    parts?: number;
+    thickness?: number;
+    numerals?: boolean;
+    lockAspect?: boolean;
+  } = {};
+  if (shape === "grid") {
+    out.cols = clampDivisions(o.cols);
+    out.rows = clampDivisions(o.rows);
+  }
+  if (shape === "pie") {
+    out.parts = clampParts(o.parts);
+  }
+  if (shape === "clock") {
+    // Twelve hours, always — the count is not a setting. Only whether the
+    // numbers are drawn.
+    if (o.numerals === true) out.numerals = true;
+  }
+  if (shape === "ring") {
+    // A ring may legitimately have no divisions at all — that is the plain
+    // ring — so 1 is allowed here where the pie's floor is 2.
+    const raw = typeof o.parts === "number" && Number.isFinite(o.parts) ? Math.round(o.parts) : 1;
+    out.parts = raw <= 1 ? 1 : clampParts(raw);
+    if (o.thickness !== undefined) out.thickness = clampThickness(o.thickness);
+  }
+  if (o.lockAspect === true) out.lockAspect = true;
+  return out;
+}
+
+// Degrees into the 0–359 half-open range, or 0 for anything that isn't a real
+// number. Returns a plain number so the caller can drop a falsy 0.
+function normaliseRotation(v: unknown): number {
+  if (typeof v !== "number" || !Number.isFinite(v)) return 0;
+  return (((Math.round(v) % 360) + 360) % 360);
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -117,9 +201,21 @@ function normalizeObject(raw: unknown): CanvasObj | null {
 
   if (o.type === "shape") {
     const shape = SHAPE_KINDS.includes(o.shape as ShapeKind) ? (o.shape as ShapeKind) : "rect";
-    const w = clamp(num(o.w, 100), 8, OBJ_W);
-    const h = clamp(num(o.h, 100), 8, OBJ_H);
+    // A number line or an axis is a box a couple of units tall, so the ordinary
+    // 8-unit floor would round it back into a square. Relaxed for vector kinds
+    // only — an area shape keeps the floor, so a rectangle can't be squashed to
+    // nothing and lost.
+    const minSide = isVectorKind(shape) ? 1 : 8;
+    const w = clamp(num(o.w, 100), minSide, OBJ_W);
+    const h = clamp(num(o.h, 100), minSide, OBJ_H);
     const text = typeof o.text === "string" ? str(o.text, MAX_LABEL_LEN) : undefined;
+    // Wrapped into 0–359 rather than clamped, so 360 and -90 mean 0 and 270
+    // rather than "as far round as we allow". Wrapped BEFORE the zero test, so
+    // a full turn is stored as no rotation at all rather than as `rot: 0`.
+    const rot = normaliseRotation(o.rot);
+    // Only stored for the kinds that read them, so a rectangle never carries a
+    // stray `parts` that nothing draws.
+    const geom = shapeGeometryFields(shape, o);
     const textColor = typeof o.textColor === "string" ? str(o.textColor, MAX_COLOR_LEN) : undefined;
     return {
       id,
@@ -134,6 +230,9 @@ function normalizeObject(raw: unknown): CanvasObj | null {
       strokeWidth: clamp(num(o.strokeWidth, 6), 0, 80),
       ...(text ? { text } : {}),
       ...(textColor ? { textColor } : {}),
+      ...(rot ? { rot } : {}),
+      ...geom,
+      ...(o.infinite === true ? { infinite: true } : {}),
       locked,
     };
   }

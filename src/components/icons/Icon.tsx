@@ -56,7 +56,11 @@ export type IconName =
   | "lock-open"
   | "lock-closed"
   | "bring-to-front"
-  | "send-to-back";
+  | "send-to-back"
+  | "duplicate"
+  | "maths-kit"
+  | "rotate"
+  | "infinite";
 
 type Glyph = { label: string; glyph: ReactNode };
 
@@ -194,6 +198,23 @@ const ICONS: Record<IconName, Glyph> = {
   ) },
   // Two overlapping cards: the accent one is the selected object. Bring-to-front
   // draws it on TOP; send-to-back draws it BEHIND the plain card.
+  // A lemniscate: there is always another one of these.
+  "infinite": { label: "Endless supply", glyph: (
+    <><path d="M8.6 12 C8.6 9.5 5.5 9.5 5.5 12 C5.5 14.5 8.6 14.5 8.6 12 C8.6 9.5 15.4 14.5 15.4 12 C15.4 9.5 8.6 14.5 8.6 12 Z" fill="none" /> <circle cx="18.4" cy="12" r="1.4" fill="#F0B441" stroke="none" /></>
+  ) },
+  // An arrow chasing its own circle: turn this.
+  "rotate": { label: "Turn", glyph: (
+    <><path d="M20 12 A8 8 0 1 1 12 4" fill="none" /> <path d="M12 1.2 L15 4 L12 6.8" fill="none" /></>
+  ) },
+  // A ten rod beside a counter: the two halves of the place-value kit, which is
+  // what most of this toolbox is for.
+  "maths-kit": { label: "Maths kit", glyph: (
+    <><rect x="3.5" y="4" width="6" height="16" rx="1.4" fill="#8AB9D6" /> <line x1="3.5" y1="9.3" x2="9.5" y2="9.3" /> <line x1="3.5" y1="14.6" x2="9.5" y2="14.6" /> <circle cx="16.5" cy="14.5" r="5" fill="#F0B441" /></>
+  ) },
+  // Two of the same thing, the front one offset — "make another one".
+  "duplicate": { label: "Make another one", glyph: (
+    <><rect x="4" y="4" width="12" height="12" rx="2.2" fill="#FFFDF7" /> <rect x="8" y="8" width="12" height="12" rx="2.2" fill="#8AB9D6" /></>
+  ) },
   "bring-to-front": { label: "Bring to front", glyph: (
     <><rect x="4.5" y="4.5" width="11" height="11" rx="2" fill="#FFFDF7" /> <rect x="9" y="9" width="11" height="11" rx="2" fill="#4E9C94" /></>
   ) },

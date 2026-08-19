@@ -35,10 +35,14 @@ are planned next (see [Roadmap](#roadmap-whats-next)).
     eraser) with the selected one lifted, **text boxes** (which can be
     re-selected, moved and re-edited), a **rainbow colour
     slider** + palette, brush sizes, **undo/redo**, and **multiple pages** with
-    a live thumbnail filmstrip. A ＋ button adds a photo, PDF, or **shape**
-    (rectangle, circle, triangle, star, speech bubble) onto the canvas as a
-    **movable, resizable object** — pick the **cursor tool** to select, drag to
-    move, pull the corner to resize, ✕ to remove. Shapes also have editable
+    a live thumbnail filmstrip. A ＋ button adds a photo, PDF, or a **shape** from
+    a **toolbox kit** onto the canvas as a **movable, resizable object** — pick
+    the **cursor tool** to select, drag to move, pull the corner to resize, ✕ to
+    remove, **＋1** to make another one, and a **rotate handle** that turns a
+    shape freely, all the way round. Dragged shapes **snap to a light grid**, so
+    a row of apparatus lines up without a child having to aim. Children get one
+    palette at every age — rectangle, circle, triangle, star, speech bubble,
+    line, arrow and ring. Shapes also have editable
     **fill and line colours**, and you can **double-tap a shape to add a label
     locked inside it** — the label wraps and auto-sizes to fit the shape's actual
     area (so it stays inside triangles, circles, stars, etc.), reflowing into new
@@ -50,6 +54,18 @@ are planned next (see [Roadmap](#roadmap-whats-next)).
   - Build **reusable templates** — a title, instructions, tags, and an optional
     template you **draw on the canvas** and/or **upload as a PDF or picture** (a
     worksheet) that children work directly on top of.
+  - A **Maths kit** on the template canvas — number lines, arrows, jump arrows
+    and braces; **base 10** ones, ten rods, hundred flats and thousand cubes;
+    **place-value counters** labelled 1, 10, 100 and 1000; **ten frames**,
+    hundred squares and arrays; **fraction bars, circles and rings**; and a
+    **clock face** whose numbers you can print or leave for a child to write on.
+    Shapes built from a number carry a **stepper**, so any denominator up to 24
+    is a tap away rather than a release away, and a ring's **band thickness** is
+    the ring's own.
+  - Mark any piece of apparatus **endless**, and a child drags a new one off it
+    while the original stays put — so they build twenty-four out of tens and
+    ones without ever opening a toolbox. The kit is the teacher's tool for
+    *building* the worksheet; what a child needs arrives **on** it.
   - **Assign** a template to a class as a **run** — whole class or chosen
     children — and **reassign** it to another class or next year; each run is
     independent and past responses are kept forever.

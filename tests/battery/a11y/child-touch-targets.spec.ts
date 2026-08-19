@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { SCHOOL_A, loginStudent } from "../helpers";
+import { SCHOOL_A, loginStudent, loginTeacher } from "../helpers";
 
 // ===========================================================================
 // B3 — Every control a CHILD taps is at least 64px
@@ -124,4 +124,115 @@ test("every control on the add-work screens meets the child touch floor", async 
     const small = await undersizedControls(page);
     expect(small, `${path} — controls below ${FLOOR}px: ${JSON.stringify(small)}`).toEqual([]);
   }
+});
+
+// ---------------------------------------------------------------------------
+// The shape palettes, measured where they actually live.
+//
+// The sweeps above visit whole pages. The drawing canvas is deliberately NOT
+// one of them yet: it carries a long tail of pre-existing sub-floor controls
+// (the tool shelf, the page filmstrip, undo/redo, the ＋ and ✓ buttons), and
+// adding it wholesale would turn a blocking gate red for reasons that have
+// nothing to do with the change that added this test. That debt is logged as
+// F37 in FINDINGS.md, with a repro under tests/battery/findings/.
+//
+// What IS asserted here is everything a child taps to place a shape. Those are
+// new or newly resized, they are the densest grid of controls on the canvas,
+// and there is no reason for them to be under the floor.
+// ---------------------------------------------------------------------------
+
+async function paletteButtonsUnderFloor(page: Page) {
+  return page.evaluate((floor) => {
+    const out: { label: string; w: number; h: number }[] = [];
+    for (const group of document.querySelectorAll<HTMLElement>('[role="group"]')) {
+      for (const el of group.querySelectorAll<HTMLElement>("button")) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;
+        if (r.height < floor || r.width < floor) {
+          out.push({
+            label: el.getAttribute("aria-label") || "(unlabelled)",
+            w: Math.round(r.width),
+            h: Math.round(r.height),
+          });
+        }
+      }
+    }
+    return out;
+  }, FLOOR);
+}
+
+// Walk every group of the currently-open palette, running `check` on each.
+// Every group, not just the one that opens first — a tab nobody clicks in a
+// test is still a tab a child will tap.
+async function forEachPaletteGroup(page: Page, check: () => Promise<void>) {
+  const tabs = page.getByRole("tab");
+  const count = await tabs.count();
+  for (let i = 0; i < Math.max(1, count); i++) {
+    if (count) await tabs.nth(i).click();
+    await check();
+  }
+}
+
+test("every shape a child can place is at least 64px", async ({ page }) => {
+  await loginStudent(page, SCHOOL_A.classCode, "Chloe");
+  await page.goto("/student/new/drawing");
+  await expect(page.locator("canvas")).toBeVisible();
+
+  // Children get one palette at every age. The maths kit is a teacher's tool
+  // for building a worksheet and is not reachable here at all — what a child
+  // needs arrives on the page, not in a menu.
+  await page.locator('button[title="Add"]').click();
+  await expect(page.getByRole("button", { name: "Maths kit" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Shapes" }).click();
+
+  await forEachPaletteGroup(page, async () => {
+    const small = await paletteButtonsUnderFloor(page);
+    expect(small, `controls below ${FLOOR}px: ${JSON.stringify(small)}`).toEqual([]);
+  });
+});
+
+async function paletteNames(page: Page): Promise<string[]> {
+  const names: string[] = [];
+  await forEachPaletteGroup(page, async () => {
+    names.push(
+      ...(await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[role="group"] button')).map(
+          (b) => b.getAttribute("aria-label") ?? "",
+        ),
+      )),
+    );
+  });
+  return names;
+}
+
+test("every shape button carries a name, and no two are the same", async ({ page }) => {
+  // A grid of unlabelled icon buttons is unusable with a screen reader, and two
+  // buttons sharing a name is the same problem wearing a disguise.
+  //
+  // Checked across BOTH palettes, because a teacher holds both at once: a
+  // duplicate between the two would be as confusing as a duplicate within one.
+  await loginStudent(page, SCHOOL_A.classCode, "Chloe");
+  await page.goto("/student/new/drawing");
+  await expect(page.locator("canvas")).toBeVisible();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Shapes" }).click();
+  const childNames = await paletteNames(page);
+
+  expect(childNames.length).toBeGreaterThan(5);
+  expect(childNames.filter((n) => !n)).toEqual([]);
+
+  // The maths kit lives on the template builder, so it is measured there.
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Palette names");
+  await page.getByRole("button", { name: /Build a template/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Maths kit" }).click();
+  const kitNames = await paletteNames(page);
+
+  expect(kitNames.length).toBeGreaterThan(20);
+  expect(kitNames.filter((n) => !n)).toEqual([]);
+
+  const all = [...childNames, ...kitNames];
+  expect([...new Set(all)].length).toBe(all.length);
 });

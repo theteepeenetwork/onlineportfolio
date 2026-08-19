@@ -1420,3 +1420,79 @@ it hands a thirty-line editing job to somebody in their first five minutes).
   `e2e/journal.spec.ts`, F39 into `e2e/auth.spec.ts` — which is what stops them
   coming back. Nothing is left in `findings/` for them.
 - Everything else is guarded by an ordinary passing test in its suite.
+
+## F40 · One failing test in the e2e suite takes eleven more down with it · Medium → Open
+
+*(Logged as F38 on the toolbox branch, renumbered on merge: `main` had already
+taken F37–F39 for the user-tester findings. The duplicate F37 that branch
+carried — the canvas touch targets — was the same defect as `main`'s F37, found
+independently a day later, and has been deleted rather than kept twice. What it
+said that `main`'s does not is now F41, below.)*
+
+Found on 2026-08-19, while establishing whether a red suite was caused by the
+toolbox work. It was not — the same failures reproduce on `main` — but working
+that out surfaced something worth recording.
+
+The suite has **no per-test draft cleanup**. When a test dies inside the template
+builder, the local-first draft it was midway through writing survives. Every
+later test that opens the builder is then met with the "restore your draft?"
+modal, which is `aria-modal` and intercepts pointer events, so the next click
+times out:
+
+```
+- <div role="dialog" aria-modal="true" aria-labelledby="draft-restore-title" …>
+  intercepts pointer events
+```
+
+The failure it reports has nothing to do with what it was testing. Observed
+concretely: `object-toolbar.spec.ts:6` leaves a draft, and
+`object-toolbar.spec.ts:56` then fails inside the same file — on `main`, with no
+changes applied, in isolation. In a full run this is worth eleven extra red
+tests, which is how a single broken PDF renderer presented as a suite-wide
+collapse.
+
+Two things follow. The first is diagnostic cost: a red suite that names twelve
+specs when one thing is broken is a suite people stop reading. The second is that
+`globalSetup` reseeds the database once per RUN, not per test, so state written
+mid-suite is shared by everything after it — drafts are simply the first place
+that has bitten.
+
+**To close this.** Clear drafts (local storage and the `Draft` table) between
+tests — an `afterEach` in a shared fixture rather than a line remembered in each
+spec. Worth checking at the same time whether the restore modal should be
+dismissible by pressing Escape, since a modal that can only be answered is also
+a modal that can only block.
+
+## F41 · The gate cannot see the controls that only appear once you tap something · Medium → Open
+
+Found on 2026-08-19, immediately after F37 was fixed. F37 grew every control on
+the drawing canvas to the 64px child floor and — the part that matters — added
+`/student/new/drawing` to the blocking sweep so it cannot drift back.
+
+The sweep loads that page and measures what is on it. Nothing is selected, so a
+whole class of controls is not on it: the chrome that appears **around an object
+once a child taps it**.
+
+| Control | Size | Floor |
+| --- | --- | --- |
+| Resize handle | 20×20 | 64 |
+| Turn (rotate) handle | 20×20 | 64 |
+| Delete (✕) | 24×24 | 64 |
+| Add / edit label (✏) | 24×24 | 64 |
+
+These are the controls a child uses to *arrange* their work rather than to draw
+it, and moving a counter into place is most of what an apparatus worksheet asks
+of them. F37's own lesson — "a page list is exactly as good as the pages on it"
+— has a sibling: **a page sweep is exactly as good as the states it visits.**
+
+**Why this is not just "grow them too".** A counter is 120 model units, about
+90px on a classroom iPad. Four 64px handles on a 90px shape would cover the
+shape entirely and overlap each other. Growing them needs a design answer, not a
+number: handles outside the shape's bounds, or a long-press menu, or handles
+that scale with the object down to a floor. That is a real decision and it is
+the owner's, which is why this is logged rather than guessed at.
+
+**To close this.** Decide the affordance, then extend the sweep to visit the
+selected state — place a shape, tap it, measure — so the answer stays true. The
+palette buttons a child taps to *place* a shape are already at 64px and already
+asserted, in the same spec.

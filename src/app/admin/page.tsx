@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { accountStateForTeacher, planLabel } from "@/lib/billing";
+import { accountStateForTeacher, governingSubscription, planLabel } from "@/lib/billing";
+import { stripeConfigured } from "@/lib/stripe";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
@@ -30,7 +31,12 @@ export default async function AdminPage() {
 
   // Plan label is derived from the school's subscription state (never a stored
   // free-text string). Reading it also settles a lapsed trial into FROZEN.
-  const account = await accountStateForTeacher({ id: user.teacher.id, schoolId: user.teacher.schoolId });
+  const teacherCtx = { id: user.teacher.id, schoolId: user.teacher.schoolId };
+  const account = await accountStateForTeacher(teacherCtx);
+  // The raw row too, for the billing pane: trial end, frozen date and whether a
+  // Stripe customer exists (which decides if there is a portal to open). No card
+  // data is stored here or anywhere — only Stripe ids.
+  const sub = await governingSubscription(teacherCtx);
 
   const staff: StaffRow[] = school.staff.map((s) => ({
     id: s.id,
@@ -55,18 +61,58 @@ export default async function AdminPage() {
     orderBy: { at: "desc" },
     take: 100,
   });
-  const audit: AuditEntry[] = auditRows.map((a) => ({
-    id: a.id,
-    atISO: a.at.toISOString(),
-    actorName: a.actorName ?? a.actorType,
-    action: a.action,
-    detail: a.detail,
-  }));
+  // An audit entry about a MOMENT names the child it belongs to ("Approved
+  // Poppy's moment"), because it is written for the teacher who did it. The
+  // school-wide console is read by admins who may teach none of those classes,
+  // and rule 5 says an admin is not all-seeing — so the WHO, WHAT and WHEN stay
+  // (that is the accountability), and the child's name is withheld from anyone
+  // but the member of staff who took the action.
+  //
+  // Redacted here, on the server, rather than by the client: the detail must not
+  // travel to a browser that isn't entitled to it. Deny by default — anything
+  // recorded against a child's work is treated as naming them, including audit
+  // actions added later.
+  const CHILD_SUBJECTS = new Set(["JOURNAL_ITEM", "STUDENT"]);
+  const audit: AuditEntry[] = auditRows.map((a) => {
+    const aboutAChild = CHILD_SUBJECTS.has(a.subjectType ?? "");
+    const mine = a.actorId === user.teacher.id;
+    return {
+      id: a.id,
+      atISO: a.at.toISOString(),
+      actorName: a.actorName ?? a.actorType,
+      action: a.action,
+      detail: aboutAChild && !mine ? null : a.detail,
+      redacted: aboutAChild && !mine,
+    };
+  });
+
+  const billing = {
+    schoolName: school.name,
+    status: account.status,
+    kind: account.kind,
+    trialDaysLeft: account.trialDaysLeft,
+    trialEndsISO: sub?.trialEndsAt ? sub.trialEndsAt.toISOString() : null,
+    currentPeriodEndISO: account.currentPeriodEnd ? account.currentPeriodEnd.toISOString() : null,
+    frozenAtISO: account.frozenAt ? account.frozenAt.toISOString() : null,
+    // The band bought isn't stored locally (the Stripe portal is the record of
+    // what is charged), so the picker simply suggests the band this school's
+    // roll falls into rather than claiming to know the current one.
+    currentPlanKey: null,
+    hasCustomer: Boolean(sub?.stripeCustomerId),
+    // "Live" means actually running, not merely once-bought: a frozen school
+    // keeps the id of the subscription that lapsed and must still be able to
+    // buy its way back.
+    hasLiveSubscription: Boolean(sub?.stripeSubscriptionId) && (account.status === "ACTIVE" || account.status === "PAST_DUE"),
+    configured: stripeConfigured(),
+    billingEmail: user.teacher.email,
+    pupilsOnRoll: childrenCount,
+  };
 
   return (
     <AdminConsole
       schoolName={school.name}
       plan={planLabel(account)}
+      billing={billing}
       meId={user.teacher.id}
       staff={staff}
       classes={classes}

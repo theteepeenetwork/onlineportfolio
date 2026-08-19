@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
+import { ALL_KITS } from "@/lib/canvasShapes";
 import type { QuizPayload } from "@/lib/quiz";
 import type { CanvasObj } from "@/lib/canvasObjects";
 
@@ -34,6 +35,9 @@ export function TemplatePreview({
         </span>
       </div>
       <DrawingCanvas
+        // Every kit, whatever age this template is for. An adult chooses what
+        // goes in front of a class, and a template is not bound to one age.
+        kits={ALL_KITS}
         name="__preview"
         fullScreen
         withCaption

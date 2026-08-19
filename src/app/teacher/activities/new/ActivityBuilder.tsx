@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useActionState, useRef, useState } from "react";
 import { createTemplate, updateTemplate } from "@/app/actions/activities";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
+import { ALL_KITS } from "@/lib/canvasShapes";
 import type { QuizPayload } from "@/lib/quiz";
 import type { CanvasObj } from "@/lib/canvasObjects";
 import { markDraftForClear } from "@/lib/draftStore";
@@ -143,6 +144,9 @@ export function ActivityBuilder({
 
       {editorOpen && (
         <DrawingCanvas
+          // Every kit, whatever age this template is for. An adult chooses what
+          // goes in front of a class, and a template is not bound to one age.
+          kits={ALL_KITS}
           name="__templateEditor"
           fullScreen
           allowImport
