@@ -3451,7 +3451,15 @@ function QuizBoxView({
   // the child as 57 real pixels. F37 found exactly that on the quiz a
   // four-year-old answers. `touch()` is px() with a floor at the real 64
   // SAFEGUARDING rule 18 asks for — use it for anything a child has to hit.
-  const touch = (n: number) => Math.max(px(n), 64);
+  //
+  // NOT in author mode, and the distinction is the whole point. On the teacher's
+  // worksheet a question box is a thing being DRAWN: shrink it and its contents
+  // scale down with it, which is what makes the box a usable design surface (and
+  // what `quiz.spec.ts` "shrinking a question box scales its contents" locks in).
+  // A floor there fights the teacher's own hand and spills the contents out of
+  // the box they just sized. The floor exists to protect a child's finger, so it
+  // applies where a child is actually tapping: answer mode.
+  const touch = (n: number) => (author ? px(n) : Math.max(px(n), 64));
   // The sync hint is an authoring affordance, not content: below about half
   // size it's unreadable anyway and the space is better spent on the question.
   const showSyncHint = editable && k > 0.55;
