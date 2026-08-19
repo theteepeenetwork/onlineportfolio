@@ -186,7 +186,7 @@ export function AdminConsole({
 
         {tab === "overview" && (
           <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
-            <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Welcome to {schoolName} on Storyjar</h2>
+            <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Welcome to {schoolName} on StoryJar</h2>
             <p style={{ margin: "10px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
               You have {staff.length} staff across {classes.length} classes and {childrenCount} pupils. Use <strong>Staff</strong> to invite colleagues and set roles, <strong>Classes</strong> to see who teaches what, and <strong>Billing</strong> for your plan.
             </p>

@@ -51,7 +51,7 @@ const STEP_TAG = (bg: string, tilt: string): React.CSSProperties => ({
 const PROGRESS_FILLS = ["#C2476B", "#F0B441", "#37796f", "#8AB9D6", "#A6C979"];
 
 const COUNTRIES = ["England", "Scotland", "Wales", "Northern Ireland", "Elsewhere"];
-// Storyjar is for ages 3–11, so the list runs the full primary phase — Nursery
+// StoryJar is for ages 3–11, so the list runs the full primary phase — Nursery
 // and Reception through to Year 6. "Mixed / other" stays last for the classes
 // that don't fit a single year (and for Scotland/NI naming).
 const YEAR_GROUPS = [

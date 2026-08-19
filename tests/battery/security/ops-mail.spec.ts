@@ -149,7 +149,7 @@ test("no public route advertises the mail screen (ruling R18)", async ({ page })
   expect(landing?.status()).toBe(200);
   const html = (await landing?.text()) ?? "";
   // Positive control: the page really is the landing page.
-  expect(html).toContain("Storyjar");
+  expect(html).toContain("StoryJar");
   expect(html, "no public surface may mention the operator area").not.toContain("/ops");
 });
 

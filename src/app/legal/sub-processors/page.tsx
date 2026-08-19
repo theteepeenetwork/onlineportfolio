@@ -1,10 +1,10 @@
 import { LegalShell } from "../LegalShell";
 
-export const metadata = { title: "Sub-processors — Storyjar" };
+export const metadata = { title: "Sub-processors — StoryJar" };
 
 export default function SubProcessors() {
   return (
-    <LegalShell title="Sub-processors" intro="The third parties Storyjar relies on to run the service, what they do, and where data is held. We keep this list short by design.">
+    <LegalShell title="Sub-processors" intro="The third parties StoryJar relies on to run the service, what they do, and where data is held. We keep this list short by design.">
       <p>Each sub-processor below operates under a data-processing agreement. We give schools prior notice before adding or changing a sub-processor.</p>
 
       <table>
@@ -19,7 +19,7 @@ export default function SubProcessors() {
           <tr>
             <td><strong>Stripe</strong></td>
             <td>Subscription billing &amp; payment processing (Checkout, Customer Portal, invoicing)</td>
-            <td><strong>Adult billing data only</strong> — the billing contact&apos;s name and email, or a school&apos;s name. No children&apos;s data is ever sent to Stripe. Card details are handled entirely by Stripe; Storyjar never sees or stores them.</td>
+            <td><strong>Adult billing data only</strong> — the billing contact&apos;s name and email, or a school&apos;s name. No children&apos;s data is ever sent to Stripe. Card details are handled entirely by Stripe; StoryJar never sees or stores them.</td>
             <td>Adult billing data only. <strong>[Residency assessment pending review]</strong></td>
           </tr>
           <tr>

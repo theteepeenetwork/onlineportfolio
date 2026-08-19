@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 /**
- * Storyjar icon set — one family of hand-inked, 24×24 keyline icons.
+ * StoryJar icon set — one family of hand-inked, 24×24 keyline icons.
  *
  * Every glyph is drawn on a 0 0 24 24 grid with a 2px ink stroke (round caps
  * and joins) plus a single accent fill from the brand palette. The outline
@@ -239,7 +239,7 @@ export type IconProps = {
   style?: CSSProperties;
 };
 
-/** Draw a Storyjar icon. See {@link IconName} for the full set. */
+/** Draw a StoryJar icon. See {@link IconName} for the full set. */
 export function Icon({ name, size = 24, title, decorative, className, style }: IconProps) {
   const entry = ICONS[name];
   const label = title ?? entry.label;

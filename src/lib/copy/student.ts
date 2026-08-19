@@ -11,7 +11,7 @@ import type { AgeMode } from "@/lib/ageMode";
 //     parties). Keeping the speakable strings in one static module is what makes
 //     "we only ever speak our own copy" a rule you can check, rather than a
 //     promise. See `src/lib/readAloud.ts`.
-//  2. **Three registers (SJ-06).** Storyjar is for ages 3–11. A Year 6 should
+//  2. **Three registers (SJ-06).** StoryJar is for ages 3–11. A Year 6 should
 //     not be told "Bye bye 👋", and a pre-reader in Reception should not be made
 //     to read at all. `studentCopy(mode)` returns the EYFS (3–5), KS1 (5–7) or
 //     KS2 (7–11) register for a class; the register is chosen once at class

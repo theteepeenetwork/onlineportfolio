@@ -20,7 +20,7 @@ model Teacher {
   displayName    String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
   email          String             @unique
   passwordHash   String
-  schoolName     String? // captured at signup (Storyjar onboarding); free text
+  schoolName     String? // captured at signup (StoryJar onboarding); free text
   country        String? // England / Scotland / Wales / NI / Elsewhere
   role           String             @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
   status         String             @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
@@ -51,8 +51,8 @@ model School {
   id           String        @id @default(cuid())
   name         String
   createdAt    DateTime      @default(now())
-  // What this school IS. "SCHOOL" is a real customer; "DEMO" is Storyjar
-  // Academy, the fictional school Storyjar staff work and troubleshoot in.
+  // What this school IS. "SCHOOL" is a real customer; "DEMO" is StoryJar
+  // Academy, the fictional school StoryJar staff work and troubleshoot in.
   //
   // The Academy is a REAL tenant on purpose. A sandbox that is a special case in
   // the code stops resembling the thing it rehearses, and the bug you are
@@ -61,14 +61,14 @@ model School {
   // decide to relax a rule.
   //
   // What it IS for is figures. The Academy must never appear in the pupil rolls,
-  // price bands or revenue the operator console reports, or Storyjar's own
+  // price bands or revenue the operator console reports, or StoryJar's own
   // numbers quietly include several hundred children who do not exist.
   kind         String        @default("SCHOOL")
   // May staff of this school publish a template into the shared library?
   //
   // False everywhere except the Academy, and settable only by a seed or a
   // migration. There is deliberately no screen, no action and no operator
-  // control that writes it, which is what keeps "only Storyjar publishes" true
+  // control that writes it, which is what keeps "only StoryJar publishes" true
   // while letting it be done on the real canvas, in a real teacher account.
   canPublishToLibrary Boolean @default(false)
   staff        Teacher[]
@@ -170,7 +170,7 @@ model Student {
   // this timestamp is new to them and drops into the jar when they next look.
   //
   // ONE timestamp, overwritten every visit — deliberately not a history. It is
-  // wayfinding, never a measure of how often a child uses Storyjar. Never
+  // wayfinding, never a measure of how often a child uses StoryJar. Never
   // aggregate, report or export it, and never show it to a parent: that is
   // profiling, which SAFEGUARDING rule 11 forbids. See RETENTION.md.
   jarSeenAt    DateTime?
@@ -189,7 +189,7 @@ model Student {
 // one child and hand the code to the school office to post home; the row exists
 // from that moment with `name` and `email` both NULL. The parent fills either in
 // themselves, and only if they want to (an email is needed solely for magic
-// links). So Storyjar holds no contact detail for a parent unless that parent
+// links). So StoryJar holds no contact detail for a parent unless that parent
 // chose to give it. See docs/DPIA.md and RETENTION.md.
 //
 // `email` is nullable AND unique: SQLite treats every NULL as distinct, so any
@@ -263,7 +263,7 @@ model ActivityTemplate {
   teacherId              String
   folder                 Folder?         @relation(fields: [folderId], references: [id], onDelete: SetNull)
   folderId               String?
-  // Where this template came from, when a teacher added it from the Storyjar
+  // Where this template came from, when a teacher added it from the StoryJar
   // library. It is provenance and nothing else: the row and its media are a
   // full copy, so the template works forever whatever happens to the original.
   // SetNull, not Cascade: removing a shared activity must never remove a
@@ -275,7 +275,7 @@ model ActivityTemplate {
   assignments            Assignment[]
 }
 
-// Storyjar's own published activities, browsable by any signed-in teacher and
+// StoryJar's own published activities, browsable by any signed-in teacher and
 // copied into their library on request.
 //
 // WHY A SEPARATE MODEL RATHER THAN A FLAG ON ActivityTemplate
@@ -292,7 +292,7 @@ model ActivityTemplate {
 // this file should ever give it one.
 //
 // It holds no child data, no teacher personal data and no teacher-authored
-// media. It is Storyjar's own teaching content, published from the repository
+// media. It is StoryJar's own teaching content, published from the repository
 // by scripts/ops/publish-shared-activities.mjs. No teacher-authenticated code
 // path may write to it; that is asserted in
 // tests/battery/security/shared-activities.spec.ts.
@@ -328,7 +328,7 @@ model SharedActivity {
   // every takedown. One column now is cheaper than a migration and a backfill.
   //
   // A community hub is NOT enabled by this column and must not be built on it
-  // alone. It needs a Storyjar-side review queue before anything is visible,
+  // alone. It needs a StoryJar-side review queue before anything is visible,
   // takedown mechanics, and its own DPIA: a teacher's template can carry a
   // photograph of a child, and no code can tell that from a file.
   origin    String  @default("STORYJAR")
@@ -562,7 +562,7 @@ model OpsAuditLog {
 // WHY NOT A ROW PER SEND, which is the obvious design and the one brief 03
 // asked for. Three reasons, in the order they matter:
 //
-//   1. A visible list of sign-in failures by address rebuilds, inside Storyjar,
+//   1. A visible list of sign-in failures by address rebuilds, inside StoryJar,
 //      the account-enumeration signal that FINDINGS F6 deliberately withholds
 //      from the public sign-in form. requestMagicLink answers the same way for
 //      an address on file and one that is not; an operator screen listing
@@ -572,7 +572,7 @@ model OpsAuditLog {
 //      backups and holds every child's photograph (owner amendment B1, decision
 //      D2 still open). The least data that answers the operational question is
 //      the right amount.
-//   3. Nothing operational needs it. "Is mail leaving Storyjar this morning"
+//   3. Nothing operational needs it. "Is mail leaving StoryJar this morning"
 //      and "is this one parent's address being refused" are both answerable
 //      without a per-send row: the first from a tally, the second from a keyed
 //      hash of the one address the operator already holds.

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { LogoutForm } from "@/components/LogoutForm";
 import { JarLogo } from "@/components/storyjar/JarLogo";
 
-// The Storyjar bar across the top of every signed-in teacher page.
+// The StoryJar bar across the top of every signed-in teacher page.
 export function TopBar({
   title,
   subtitle,

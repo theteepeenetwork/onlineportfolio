@@ -8,7 +8,7 @@ import { errorLabel } from "@/lib/safeLog";
 //
 // Stdout goes to Railway's log store. That is a third party's system with its
 // own retention and its own access model, and once a child's first name is in
-// it, nobody at Storyjar can take it back out. SAFEGUARDING rule 8 is explicit
+// it, nobody at StoryJar can take it back out. SAFEGUARDING rule 8 is explicit
 // that an error must never leak another user's data "in error messages, logs,
 // or responses", and rule 10 puts logs in the same UK/EU sentence as the
 // database and the media.

@@ -10,7 +10,7 @@ import { OpsBar, OpsFootnote } from "../shell";
 //
 // Owner decision D6, 17 August 2026, recorded in docs/ops-architecture.md:
 // manual payment recording is dropped from v1. The reasoning is worth repeating
-// where somebody might otherwise think it an omission. Storyjar's Subscription
+// where somebody might otherwise think it an omission. StoryJar's Subscription
 // row is a MIRROR of Stripe, written by the webhook at
 // src/app/api/stripe/webhook/route.ts. A "mark this school as paid" button
 // would write a value that the next Stripe event overwrites, without saying so,
@@ -36,7 +36,7 @@ import { OpsBar, OpsFootnote } from "../shell";
 //   - No exact headcount below the suppression threshold. The band is what
 //     billing needs and the band never needs the exact number.
 //   - No class names and no per-class figures. A class of one names that child.
-//   - No invoice amounts, no card details, no payment history. Storyjar holds
+//   - No invoice amounts, no card details, no payment history. StoryJar holds
 //     none of those; Stripe does, which is where the link goes.
 //   - No free teacher plans. A free plan has no price, no band and no Stripe
 //     customer.
@@ -73,7 +73,7 @@ function Fact({ term, value }: { term: string; value: ReactNode }) {
 //   anyway, because a rule you can read is worth more than one you have to know.
 //
 //   The link text names the destination, the object and the fact that it leaves
-//   Storyjar, so it makes sense read out of context by a screen reader and
+//   StoryJar, so it makes sense read out of context by a screen reader and
 //   nobody has to hover to find out where a bare id goes.
 function StripeLink({ what, id, href }: { what: string; id: string; href: string }) {
   return (
@@ -91,7 +91,7 @@ function StripeLink({ what, id, href }: { what: string; id: string; href: string
         overflowWrap: "anywhere",
       }}
     >
-      Open {what.toLowerCase()} {id} in Stripe (leaves Storyjar, opens in a new tab)
+      Open {what.toLowerCase()} {id} in Stripe (leaves StoryJar, opens in a new tab)
     </a>
   );
 }

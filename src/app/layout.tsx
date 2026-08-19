@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Fredoka, Atkinson_Hyperlegible } from "next/font/google";
 import "./globals.css";
 
-// Storyjar's two typefaces (self-hosted by next/font). Fredoka for display,
+// StoryJar's two typefaces (self-hosted by next/font). Fredoka for display,
 // buttons and headings; Atkinson Hyperlegible for body/UI text (chosen for
 // dyslexia-friendly legibility). Exposed as CSS variables for the tokens.
 const fredoka = Fredoka({
@@ -25,7 +25,7 @@ const atkinson = Atkinson_Hyperlegible({
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Storyjar — every child's story, collected",
+  title: "StoryJar — every child's story, collected",
   description:
     "A class journal and portfolio for ages 3–11. Children pop their photos, drawings and words into the jar — and nothing is kept until the teacher has seen it.",
 };

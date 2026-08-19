@@ -4,7 +4,7 @@ import { readMailStatus } from "@/lib/ops/reads";
 import type { MailWindowDto, MailTemplateTotalsDto } from "@/lib/ops/dto";
 import { OpsBar, OpsFootnote, type OpsPath } from "../shell";
 
-// Whether Storyjar's mail is going out, in numbers that describe the system
+// Whether StoryJar's mail is going out, in numbers that describe the system
 // rather than anybody using it (PR5, handbook ruling R9).
 //
 // WHAT IS ON THIS SCREEN
@@ -12,12 +12,12 @@ import { OpsBar, OpsFootnote, type OpsPath } from "../shell";
 //   Today and the last seven days: how many sign-in emails were attempted, how
 //   many Mailjet accepted, how many failed and why, in coarse classes.
 //   How many addresses Mailjet is currently refusing, as counts by state.
-//   When Storyjar last checked that, and how long ago that was.
+//   When StoryJar last checked that, and how long ago that was.
 //
 // WHAT IS NOT, on purpose
 //
 //   - No recipient and no domain, because none is stored. A visible list of
-//     sign-in failures by address would rebuild inside Storyjar the
+//     sign-in failures by address would rebuild inside StoryJar the
 //     account-enumeration signal FINDINGS F6 withholds from the public form:
 //     the form answers the same way for an address on file and one that is
 //     not, and a failure list answers the question it refuses to.
@@ -67,7 +67,7 @@ function TemplateRow({ row }: { row: MailTemplateTotalsDto }) {
       </dl>
       {row.unconfigured > 0 ? (
         <p className="mt-2" style={{ color: "var(--ink)" }}>
-          {row.unconfigured} attempt(s) were never made at all, because Storyjar had no Mailjet
+          {row.unconfigured} attempt(s) were never made at all, because StoryJar had no Mailjet
           credentials at the time. That is the failure nothing else notices: no attempt reaches the
           provider, so there is no bounce and no error there to find.
         </p>
@@ -151,7 +151,7 @@ export default async function OpsMailPage() {
 
         <section className="card mt-4 p-5">
           <h2 className="font-display text-xl" style={{ color: "var(--ink)" }}>
-            When Storyjar last checked
+            When StoryJar last checked
           </h2>
           {status.lastCheck ? (
             <dl className="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2">
@@ -166,7 +166,7 @@ export default async function OpsMailPage() {
           ) : (
             <p className="mt-2" style={{ color: "var(--ink)" }}>
               Never. Nothing has run the check against Mailjet on this deployment, so the counts
-              above are what Storyjar has never looked for rather than what it did not find. The
+              above are what StoryJar has never looked for rather than what it did not find. The
               check is <code>npm run mail:suppression-sync</code> and it has no schedule yet.
             </p>
           )}
@@ -179,7 +179,7 @@ export default async function OpsMailPage() {
         </section>
 
         <p className="mt-6 text-sm" style={{ color: "var(--ink-soft)" }}>
-          Nothing here can be changed. Storyjar cannot unblock an address from this page, and there
+          Nothing here can be changed. StoryJar cannot unblock an address from this page, and there
           is no list to search: the only way to ask about one family is to look their adult up under
           Find an adult, which records who asked and why.
         </p>

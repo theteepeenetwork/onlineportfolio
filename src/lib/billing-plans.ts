@@ -1,8 +1,8 @@
-// The fixed Storyjar plan catalogue. Prices are created in Stripe (test/live)
+// The fixed StoryJar plan catalogue. Prices are created in Stripe (test/live)
 // and referenced here only by env var — we never hard-code Stripe price ids, so
 // nothing here can drift from what Stripe actually charges. Currency is GBP only.
 //
-// Storyjar has TWO plans (docs/pricing-decisions.md):
+// StoryJar has TWO plans (docs/pricing-decisions.md):
 //
 //   • Teacher — FREE, permanently. One teacher, ALL of their own classes. No
 //     card, no trial clock, nothing to buy. It has no entry here precisely
@@ -65,7 +65,7 @@ export const CHEAPEST_SCHOOL_PRICE = SCHOOL_BANDS[0].price;
 
 // --- VAT --------------------------------------------------------------------
 //
-// Storyjar is NOT VAT registered (turnover is well under the £90,000 threshold),
+// StoryJar is NOT VAT registered (turnover is well under the £90,000 threshold),
 // so prices are simply the price. This flag is the ONE place that changes:
 // it is illegal to show "+ VAT" or "ex VAT" when you are not registered, so no
 // price copy anywhere may hard-code a VAT stance — read `priceNote()` instead.

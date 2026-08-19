@@ -200,7 +200,7 @@ function Result({ state }: { state: OpsLookupState }) {
 
           <p className="mt-4 text-sm" style={{ color: "var(--ink-soft)" }}>
             There is nothing else that can be done to this record from here. An operator cannot
-            change an adult&rsquo;s email address, in this area or anywhere else in Storyjar: a
+            change an adult&rsquo;s email address, in this area or anywhere else in StoryJar: a
             teacher changes their own, and a school admin re-invites them. Changing one here would
             be a way into that person&rsquo;s account.
           </p>

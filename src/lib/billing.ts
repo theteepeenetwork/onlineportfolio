@@ -19,7 +19,7 @@ import { recordAudit } from "@/lib/audit";
 // governed by the SCHOOL subscription; otherwise by their own FREE one.
 // The school is always the data controller regardless of who pays (RETENTION.md).
 //
-// Storyjar has two plans (docs/pricing-decisions.md): a permanently free teacher
+// StoryJar has two plans (docs/pricing-decisions.md): a permanently free teacher
 // plan covering all of that teacher's own classes, and a flat £299/yr school
 // plan. A FREE plan is ACTIVE from signup and has NOTHING TO LAPSE — no trial
 // clock, no payment, so no route to FROZEN. Only a SCHOOL plan can be evaluated
@@ -39,7 +39,7 @@ export function planKindOf(kind: string): PlanKind {
   return kind === "SCHOOL" ? "SCHOOL" : "FREE";
 }
 
-// The free "half term" a SCHOOL gets to evaluate Storyjar before raising a PO.
+// The free "half term" a SCHOOL gets to evaluate StoryJar before raising a PO.
 // Tracked locally — we do NOT use Stripe trials (the Stripe subscription is
 // created only at first payment). See RETENTION.md.
 //
@@ -64,7 +64,7 @@ export function isFoundingSignup(now: number = Date.now()): boolean {
 
 // User-facing refusal copy. Plain English (no jargon — error-string audit).
 export const FROZEN_TEACHER_MESSAGE =
-  "Your Storyjar plan has paused, so the class jar is read-only. You can still view and download everything — renew your plan to add or change work.";
+  "Your StoryJar plan has paused, so the class jar is read-only. You can still view and download everything — renew your plan to add or change work.";
 export const FROZEN_STUDENT_MESSAGE =
   "Your class jar is paused just now, so new work can’t be added. Please let your teacher know.";
 

@@ -161,7 +161,7 @@ Key places in the code:
 
 ## Billing (Stripe)
 
-Storyjar charges for subscriptions through **Stripe**. Card details never touch
+StoryJar charges for subscriptions through **Stripe**. Card details never touch
 our servers: buying happens on Stripe's hosted **Checkout**, plan changes on the
 Stripe **Customer Portal**, and we store only Stripe IDs. Apple Pay and Google
 Pay appear automatically in Checkout (enable them in the Stripe dashboard) — no
@@ -177,7 +177,7 @@ Plans (GBP, VAT-inclusive):
   band; the band is set once at purchase and fixed for the year, so growing
   mid-year costs nothing extra. No seats and no per-pupil metering. Card or
   invoice/PO (BACS).
-- **VAT** — Storyjar is **not VAT registered**, so prices are the price. Do not
+- **VAT** — StoryJar is **not VAT registered**, so prices are the price. Do not
   add "+ VAT" anywhere: `VAT_REGISTERED` in `src/lib/billing-plans.ts` is the one
   switch to flip if that changes.
 - **Trial** — 42 days, and only for a **school** evaluating the plan before a PO
@@ -207,22 +207,22 @@ a free account is never on a billing deletion clock.
    # Up to 105 pupils — £199 / year  → STRIPE_PRICE_SCHOOL_SMALL
    stripe prices create --currency=gbp --unit-amount=19900 \
      -d "recurring[interval]=year" \
-     -d "product_data[name]=Storyjar School — up to 105 pupils"
+     -d "product_data[name]=StoryJar School — up to 105 pupils"
 
    # Up to 210 pupils — £299 / year  → STRIPE_PRICE_SCHOOL_1FE
    stripe prices create --currency=gbp --unit-amount=29900 \
      -d "recurring[interval]=year" \
-     -d "product_data[name]=Storyjar School — up to 210 pupils"
+     -d "product_data[name]=StoryJar School — up to 210 pupils"
 
    # Up to 420 pupils — £449 / year  → STRIPE_PRICE_SCHOOL_2FE
    stripe prices create --currency=gbp --unit-amount=44900 \
      -d "recurring[interval]=year" \
-     -d "product_data[name]=Storyjar School — up to 420 pupils"
+     -d "product_data[name]=StoryJar School — up to 420 pupils"
 
    # Over 420 pupils — £649 / year  → STRIPE_PRICE_SCHOOL_LARGE
    stripe prices create --currency=gbp --unit-amount=64900 \
      -d "recurring[interval]=year" \
-     -d "product_data[name]=Storyjar School — over 420 pupils"
+     -d "product_data[name]=StoryJar School — over 420 pupils"
    ```
 
 3. Forward webhooks to the dev server and copy the printed `whsec_…` into
@@ -253,7 +253,7 @@ the next request.
 
 ## Transactional email (Mailjet)
 
-Storyjar sends exactly one email today: the **sign-in link a parent asks for**.
+StoryJar sends exactly one email today: the **sign-in link a parent asks for**.
 It goes through [Mailjet](https://www.mailjet.com) (Sinch) over its Send API
 v3.1. No SDK, no mail library, just a `fetch` (`src/lib/mailer.ts`). Mailjet
 stores in the EU only.

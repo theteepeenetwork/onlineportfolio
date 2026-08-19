@@ -1,4 +1,4 @@
-# Pricing decision log — Storyjar
+# Pricing decision log — StoryJar
 
 The written record of pricing and packaging decisions: what was decided, when,
 and why. Companion to [`docs/dpo-decisions.md`](./dpo-decisions.md) — same
@@ -12,7 +12,7 @@ the competitive rationale in [`COMPETITIVE_POSITIONING.md`](../COMPETITIVE_POSIT
 
 ## 2026-08-15 — Two tiers: free for a teacher, a paid plan for a school
 
-**Decision:** Storyjar ships with **two** plans.
+**Decision:** StoryJar ships with **two** plans.
 
 | Plan | Price | What it is |
 |---|---|---|
@@ -27,7 +27,7 @@ also puts the upgrade conversation at the wrong moment and about the wrong thing
 **What the school tier therefore sells:** not capacity — *oversight, continuity
 and the data relationship*. A school's DPO is generally uncomfortable with staff
 holding children's work in personal accounts; the school plan is what makes
-Storyjar the school's system of record rather than a teacher's private tool. That
+StoryJar the school's system of record rather than a teacher's private tool. That
 makes the upgrade a safeguarding conversation, which is on-brand, rather than a
 capacity one, which isn't.
 
@@ -48,7 +48,7 @@ not offered to new accounts and no new Stripe subscription is created against it
 
 **Why:** it sat between the free tier and the school tier and undercut the only
 revenue path we have. A teacher who had outgrown free could pay £40 personally
-instead of introducing Storyjar to their head — cannibalising the school
+instead of introducing StoryJar to their head — cannibalising the school
 sale with exactly the users most likely to convert. With free now uncapped, the
 plan also has nothing left to sell.
 
@@ -107,7 +107,7 @@ goes with it):
 
 **Honesty note for the comparison table:** Tapestry is usually bought for EYFS
 only, so its bands often cover a Reception cohort rather than a whole school.
-Comparing whole-school Storyjar to EYFS-only Tapestry flatters us and a sharp
+Comparing whole-school StoryJar to EYFS-only Tapestry flatters us and a sharp
 business manager will notice. **Seesaw is the honest whole-school comparator**
 (~£1,700/yr at 300 pupils). Lead with Seesaw; use Tapestry only for the
 "simple, no per-pupil metering" point.
@@ -123,13 +123,13 @@ schools are the beachhead.
 
 ## 2026-08-15 — VAT: not registered, so no VAT is shown
 
-**Decision:** Storyjar is **not VAT registered** (taxable turnover is far below
+**Decision:** StoryJar is **not VAT registered** (taxable turnover is far below
 the £90,000 threshold — at £199–£649 a school that is well over 150 schools away).
 Published prices are therefore simply the price, and **no surface may show
 "+ VAT" or "ex VAT"** — implying VAT is charged when you are not registered is not
 permitted.
 
-**Why not register voluntarily:** input VAT on Storyjar's costs (hosting, domain,
+**Why not register voluntarily:** input VAT on StoryJar's costs (hosting, domain,
 a little software) is small, so the reclaim is negligible, while registering adds
 20% to price or takes it off margin, plus quarterly MTD filing forever. Most
 school buyers are VAT-neutral anyway — maintained schools reclaim through the

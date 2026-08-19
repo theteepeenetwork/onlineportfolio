@@ -1,6 +1,6 @@
 "use client";
 
-// Speak a fixed piece of Storyjar's own copy aloud, for children who can't yet
+// Speak a fixed piece of StoryJar's own copy aloud, for children who can't yet
 // read it.
 //
 // ⚠️ THE RULE: only ever pass strings from `src/lib/copy/student.ts`.

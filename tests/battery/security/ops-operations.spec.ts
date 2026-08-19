@@ -15,7 +15,7 @@ import {
 // A27 - The operation registry, and the two operations in it (PR4)
 //
 // This is the first PR in the operator programme where the answer to "what can
-// Storyjar staff do?" stops being "look". So the spec is arranged around the
+// StoryJar staff do?" stops being "look". So the spec is arranged around the
 // three properties that have to hold before that is safe:
 //
 //   1. THE LIST IS CLOSED. There is one registry, it is frozen, and the ids in

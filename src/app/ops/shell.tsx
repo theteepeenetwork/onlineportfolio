@@ -28,7 +28,7 @@ import { opsSignOut } from "@/app/actions/ops/session";
 //
 // The bar is deliberately unlike the teacher product: dark, plain, and labelled
 // in words. Distinctness never rests on colour alone, which is why the label
-// says "Storyjar operations" rather than being a differently coloured logo.
+// says "StoryJar operations" rather than being a differently coloured logo.
 
 export const OPS_LINKS = [
   { href: "/ops", label: "Today" },
@@ -51,7 +51,7 @@ export function OpsBar({ current }: { current: OpsPath }) {
     <header style={{ background: "var(--ink)", color: "var(--paper)" }}>
       <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
         <p className="font-display text-base" style={{ color: "var(--paper)" }}>
-          Storyjar operations
+          StoryJar operations
         </p>
         <nav aria-label="Operations" className="flex flex-wrap items-center gap-x-5 gap-y-1">
           {OPS_LINKS.map((link) => (

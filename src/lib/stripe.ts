@@ -6,7 +6,7 @@ import { STRIPE_KEY_VAR, stripeConfigured, stripeLiveMode } from "@/lib/stripeMo
 // environment only — never the repo (SAFEGUARDING.md rule 12). We deliberately
 // let the SDK use its own pinned API version rather than hard-coding one here.
 //
-// Storyjar sends Stripe only ADULT billing data: a teacher's name/email or a
+// StoryJar sends Stripe only ADULT billing data: a teacher's name/email or a
 // school name. No child's name or work ever reaches Stripe (hard constraint).
 let client: Stripe | null = null;
 

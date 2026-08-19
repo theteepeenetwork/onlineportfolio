@@ -20,7 +20,7 @@ import { MEDIA_DIR } from "@/lib/mediaPath";
 // trace, and no name for the subsystem that failed. Two reasons, both real:
 //
 //  1. Anything that varies is a signal. A counter visible to anyone who polls
-//     this URL tells a stranger how many children are using Storyjar and when a
+//     this URL tells a stranger how many children are using StoryJar and when a
 //     school day starts. SAFEGUARDING rules 4 and 5 do not stop applying
 //     because the number is an aggregate.
 //  2. Naming the broken subsystem tells an attacker which part of the stack to

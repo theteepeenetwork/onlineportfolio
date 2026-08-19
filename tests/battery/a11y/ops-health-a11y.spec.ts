@@ -87,7 +87,7 @@ test("every status is words, and survives having every colour taken away", async
   // Scanned within `main`, and the scope is a finding rather than a
   // convenience. With forced colours emulated, axe reports a serious
   // color-contrast failure on all six elements of the operator bar (the
-  // "Storyjar operations" label, the four nav links and the sign-out button).
+  // "StoryJar operations" label, the four nav links and the sign-out button).
   // They are painted with inline `color: var(--paper)` on a `background:
   // var(--ink)` header, and in forced colours the background is replaced while
   // the near-white author text colour is not, so the whole bar disappears for a
@@ -154,7 +154,7 @@ test("the pane is completable with the keyboard alone", async ({ page }) => {
 
   const name = ((await link.textContent()) ?? "").toLowerCase();
   expect(name).toContain("railway");
-  expect(name, "a link that leaves Storyjar says so in its own text").toContain("leaves storyjar");
+  expect(name, "a link that leaves StoryJar says so in its own text").toContain("leaves storyjar");
   expect(name, "a new tab is announced rather than sprung (WCAG 3.2.5)").toContain("new tab");
 
   await page.keyboard.press("Tab");

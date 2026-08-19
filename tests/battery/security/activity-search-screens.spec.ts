@@ -21,7 +21,7 @@ test.beforeEach(async () => {
   await db.activityTemplate.deleteMany({ where: { sourceSharedActivityId: { not: null } } });
 });
 
-test("the Storyjar library filters as you type, and says how many are left", async ({ page }) => {
+test("the StoryJar library filters as you type, and says how many are left", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/teacher/activities/shared");
   const shared = await db.sharedActivity.findUnique({ where: { slug: "seed-autumn-walk" } });
@@ -93,7 +93,7 @@ test("a teacher's own grid filters, and cannot reach another teacher's activity"
 });
 
 test("an empty search result is not treated as an empty library", async ({ page }) => {
-  // The first-day empty state offers the Storyjar library. A teacher who has
+  // The first-day empty state offers the StoryJar library. A teacher who has
   // activities but has mistyped a search is not on their first day, and telling
   // them their library is empty would be a lie at the worst moment.
   await loginTeacher(page, SCHOOL_A.admin);
@@ -104,5 +104,5 @@ test("an empty search result is not treated as an empty library", async ({ page 
   await expect(
     page.locator("body"),
     "an empty RESULT must not render the empty-LIBRARY prompt",
-  ).not.toContainText("Browse the Storyjar library");
+  ).not.toContainText("Browse the StoryJar library");
 });

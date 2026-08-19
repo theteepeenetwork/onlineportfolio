@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { CARD } from "./tabs";
 
-// The reference pane: what Storyjar promises about children's work, and the
+// The reference pane: what StoryJar promises about children's work, and the
 // procedures that say what happens when something goes wrong or when somebody
 // has to step outside the ordinary path.
 //
-// This is a plain-English rendering of the rules Storyjar is built to
+// This is a plain-English rendering of the rules StoryJar is built to
 // (SAFEGUARDING.md), the retention schedule (RETENTION.md) and the exceptional
 // access procedure (docs/exceptional-access.md). It is static text: it states
 // what is true for every school, and reads nothing about this one.
@@ -29,7 +29,7 @@ const GROUPS: Group[] = [
       {
         rule: "Rule 2",
         title: "First names only",
-        body: "Storyjar stores a pupil's first name and their work. No surnames, birthdays, addresses, contact details or photographs of identity documents.",
+        body: "StoryJar stores a pupil's first name and their work. No surnames, birthdays, addresses, contact details or photographs of identity documents.",
       },
     ],
   },
@@ -58,8 +58,8 @@ const GROUPS: Group[] = [
       },
       {
         rule: "Rule 20",
-        title: "Neither is Storyjar's operator",
-        body: "The person who runs Storyjar cannot read a child's work through it. Their console can reach adult records, billing and counts too large for an individual to show through — never a child's name, work, caption, media, draft, quiz answer, class code or PIN, and never a way to sign in as somebody else. This is checked automatically before any change to that console can be released; a change that reached for a child's data would fail the build.",
+        title: "Neither is StoryJar's operator",
+        body: "The person who runs StoryJar cannot read a child's work through it. Their console can reach adult records, billing and counts too large for an individual to show through — never a child's name, work, caption, media, draft, quiz answer, class code or PIN, and never a way to sign in as somebody else. This is checked automatically before any change to that console can be released; a change that reached for a child's data would fail the build.",
       },
       {
         rule: "Rule 6",
@@ -69,7 +69,7 @@ const GROUPS: Group[] = [
       {
         rule: "Rule 6a",
         title: "A parent's contact details come only from that parent",
-        body: "Storyjar never takes a parent's email or phone number from a teacher, a school import or a child. Family access goes home on paper as a code, and the parent decides whether to add an address at all. We send them a sign-in link they asked for, or notices they switched on themselves. Nothing else, and nothing by default.",
+        body: "StoryJar never takes a parent's email or phone number from a teacher, a school import or a child. Family access goes home on paper as a code, and the parent decides whether to add an address at all. We send them a sign-in link they asked for, or notices they switched on themselves. Nothing else, and nothing by default.",
       },
       {
         rule: "Rule 7",
@@ -84,7 +84,7 @@ const GROUPS: Group[] = [
       {
         rule: "Rule 8",
         title: "Deny by default",
-        body: "Where there is any doubt about who is asking or what they may see, Storyjar refuses and returns nothing. An error never leaks somebody else's data.",
+        body: "Where there is any doubt about who is asking or what they may see, StoryJar refuses and returns nothing. An error never leaks somebody else's data.",
       },
       {
         rule: "Rule 9",
@@ -99,12 +99,12 @@ const GROUPS: Group[] = [
       {
         rule: "Rule 10",
         title: "UK/EU only",
-        body: "Every piece of personal data — the database, uploaded media and backups — is stored and processed in the UK or the EU. Storyjar's data is held in Amsterdam.",
+        body: "Every piece of personal data — the database, uploaded media and backups — is stored and processed in the UK or the EU. StoryJar's data is held in Amsterdam.",
       },
       {
         rule: "Rule 11",
         title: "Every third party is named",
-        body: "Each company involved in running Storyjar is listed publicly with what it does and where it holds data. No tracking, no profiling, no advertising, and children's data is never used to train anything.",
+        body: "Each company involved in running StoryJar is listed publicly with what it does and where it holds data. No tracking, no profiling, no advertising, and children's data is never used to train anything.",
       },
     ],
   },
@@ -129,7 +129,7 @@ const GROUPS: Group[] = [
       {
         rule: "Rule 19",
         title: "A child's face and voice are not identifiers",
-        body: "Storyjar never runs face or voice recognition over a child's photo or recording, and never builds a biometric profile from one.",
+        body: "StoryJar never runs face or voice recognition over a child's photo or recording, and never builds a biometric profile from one.",
       },
     ],
   },
@@ -141,14 +141,14 @@ export function Promises() {
       <div className="sj-card" style={{ ...CARD, padding: "22px 24px" }}>
         <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>What this is</h2>
         <p style={{ margin: "10px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
-          Storyjar holds the work of children aged 3–11, so it is built to a written set of rules rather than to
+          StoryJar holds the work of children aged 3–11, so it is built to a written set of rules rather than to
           whatever seemed reasonable that week. Below are the promises those rules make to your school, and the
           procedures that say what happens when something goes wrong. Most of them are enforced automatically:
           a change that broke one would fail its tests and never reach you. The rule numbers are permanent — quote
           them at us.
         </p>
         <p style={{ margin: "10px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "var(--sj-muted)" }}>
-          Your school is the data controller. Storyjar is the processor, acting on your instructions.
+          Your school is the data controller. StoryJar is the processor, acting on your instructions.
         </p>
       </div>
 
@@ -178,11 +178,11 @@ export function Promises() {
         </p>
         <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
           <Procedure
-            title="Break glass — when Storyjar's operator can reach a child's data outside the app"
-            summary="Five circumstances, all of them serious. Somebody outside Storyjar is told before anything is opened."
+            title="Break glass — when StoryJar's operator can reach a child's data outside the app"
+            summary="Five circumstances, all of them serious. Somebody outside StoryJar is told before anything is opened."
           >
             <p style={P}>
-              Rule 20 says the operator cannot read a child&apos;s work through Storyjar, and that is enforced in the
+              Rule 20 says the operator cannot read a child&apos;s work through StoryJar, and that is enforced in the
               code. It does not change the fact that the person who runs the service holds the hosting account, and
               so could reach the database and the stored files directly. Pretending otherwise would be dishonest, so
               that access is governed instead of ignored.
@@ -192,7 +192,7 @@ export function Promises() {
               <li>A court order, a police request, or a regulator using a statutory power.</li>
               <li>Your school, as the data controller, instructs it in writing — a subject access request, or a restore you have asked for.</li>
               <li>Reported illegal content, in particular child sexual abuse material. The material is preserved and reported to the police and the Internet Watch Foundation, and is not opened.</li>
-              <li>A safeguarding concern where the school itself, or a member of its staff, is the subject — because every other route in Storyjar ends at the school.</li>
+              <li>A safeguarding concern where the school itself, or a member of its staff, is the subject — because every other route in StoryJar ends at the school.</li>
               <li>Data loss or corruption where recovery cannot be done blind.</li>
             </ol>
             <h4 style={H4}>What is never a trigger</h4>
@@ -240,7 +240,7 @@ export function Promises() {
           >
             <p style={P}>
               A parent&apos;s request comes to the school, not to us — you are the controller. Most of it you can
-              answer yourself: <strong>My classes → Export class data</strong> gives you what Storyjar holds for a
+              answer yourself: <strong>My classes → Export class data</strong> gives you what StoryJar holds for a
               class, and a teacher can delete a moment, a pupil or a class outright.
             </p>
             <p style={P}>
@@ -269,10 +269,10 @@ export function Promises() {
             summary="Your DSL first. If the concern is about the school itself, there is a route that does not go through them."
           >
             <ul style={LIST}>
-              <li><strong>A concern about a child</strong> — your school&apos;s Designated Safeguarding Lead, in the first instance. Storyjar is not a reporting route and never replaces your own procedures.</li>
+              <li><strong>A concern about a child</strong> — your school&apos;s Designated Safeguarding Lead, in the first instance. StoryJar is not a reporting route and never replaces your own procedures.</li>
               <li><strong>A child at immediate risk</strong> — the police, or your local authority&apos;s children&apos;s services.</li>
-              <li><strong>Something wrong with how Storyjar handles work or data</strong> — <strong>hello@storyjar.co.uk</strong>, and we will work with the school.</li>
-              <li><strong>A concern about the school itself, or a member of its staff</strong> — the local authority&apos;s designated officer (LADO). This is circumstance 4 above, and the one case where Storyjar&apos;s operator may act outside the school.</li>
+              <li><strong>Something wrong with how StoryJar handles work or data</strong> — <strong>hello@storyjar.co.uk</strong>, and we will work with the school.</li>
+              <li><strong>A concern about the school itself, or a member of its staff</strong> — the local authority&apos;s designated officer (LADO). This is circumstance 4 above, and the one case where StoryJar&apos;s operator may act outside the school.</li>
             </ul>
           </Procedure>
         </div>
@@ -286,7 +286,7 @@ export function Promises() {
         <ul style={{ margin: "10px 0 0", paddingLeft: 20, font: "400 16px/1.8 var(--font-atkinson)", color: "#43506B" }}>
           <li><Link href="/legal/safeguarding" style={A}>Safeguarding &amp; child protection</Link></li>
           <li><Link href="/legal/privacy" style={A}>Privacy notice</Link> · <Link href="/legal/privacy-for-families" style={A}>the version for families</Link></li>
-          <li><Link href="/legal/data-processing" style={A}>Data processing terms</Link> — the contract between your school and Storyjar</li>
+          <li><Link href="/legal/data-processing" style={A}>Data processing terms</Link> — the contract between your school and StoryJar</li>
           <li><Link href="/legal/sub-processors" style={A}>Sub-processors</Link> — every company involved, and where it holds data</li>
           <li><Link href="/legal/accessibility" style={A}>Accessibility statement</Link></li>
         </ul>

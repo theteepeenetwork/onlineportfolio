@@ -39,7 +39,7 @@ const notFound = () => new NextResponse("Not found", { status: 404 });
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path: parts } = await params;
 
-  // Two shapes, and only two. Ordinary media is one flat segment; Storyjar's own
+  // Two shapes, and only two. Ordinary media is one flat segment; StoryJar's own
   // library media is exactly ["shared", <file>].
   //
   // The shape decides the DIRECTORY, and that is the whole point of the second
@@ -99,7 +99,7 @@ async function canAccess(urlPath: string): Promise<boolean> {
   const parent = user ? null : await getCurrentParent(); // only check parent if not a teacher/student
   if (!user && !parent) return false; // never serve to the unauthenticated
 
-  // 0) Storyjar's OWN library media, the one widening on this route.
+  // 0) StoryJar's OWN library media, the one widening on this route.
   //
   // A shared path is readable by any signed-in TEACHER, including one who has
   // not added the activity, because they have to be able to see what they are

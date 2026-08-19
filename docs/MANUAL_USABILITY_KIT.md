@@ -1,4 +1,4 @@
-# Storyjar — Moderated Usability Testing Kit
+# StoryJar — Moderated Usability Testing Kit
 
 A short, printable kit for running a moderated usability session with **3–5
 colleagues** (ideally teachers). One page per task. Print double-sided; the
@@ -18,7 +18,7 @@ misread, or get stuck — the things automated tests can't feel.
 ## Before you start (moderator checklist)
 
 - [ ] App running and reset to demo data (`teacher@school.uk` / `password`, class code `SUN234`).
-- [ ] Both devices open to the Storyjar sign-in page.
+- [ ] Both devices open to the StoryJar sign-in page.
 - [ ] Recording consent agreed (if recording). Screen + audio only; no faces.
 - [ ] Remind the participant: **"We're testing the software, not you. There are
       no wrong answers. Please think aloud."**
@@ -48,7 +48,7 @@ Record for each task: **completed?** (yes / with difficulty / no), **time**,
 ## Task 1 — Capture a piece of work and get it into a child's jar
 
 *Context to read aloud:* "You've just taken a photo of Amara's number work on
-this iPad. Add it to her Storyjar journal so her family will be able to see it
+this iPad. Add it to her StoryJar journal so her family will be able to see it
 once you've approved it."
 
 **Device:** iPad. **Start:** signed in as the demo teacher, on the dashboard.
@@ -148,16 +148,16 @@ agree)**. Don't explain the items; first instinct is best.
 
 | # | Statement | 1 | 2 | 3 | 4 | 5 |
 |---|---|:-:|:-:|:-:|:-:|:-:|
-| 1 | I think I would like to use Storyjar frequently. | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 2 | I found Storyjar unnecessarily complex. | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 3 | I thought Storyjar was easy to use. | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 4 | I think I would need support from a technical person to use Storyjar. | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 5 | I found the various functions in Storyjar were well integrated. | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 6 | I thought there was too much inconsistency in Storyjar. | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 7 | I imagine most teachers would learn Storyjar very quickly. | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 8 | I found Storyjar very cumbersome to use. | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 9 | I felt very confident using Storyjar. | ☐ | ☐ | ☐ | ☐ | ☐ |
-| 10 | I needed to learn a lot before I could get going with Storyjar. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 1 | I think I would like to use StoryJar frequently. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 2 | I found StoryJar unnecessarily complex. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 3 | I thought StoryJar was easy to use. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 4 | I think I would need support from a technical person to use StoryJar. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 5 | I found the various functions in StoryJar were well integrated. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 6 | I thought there was too much inconsistency in StoryJar. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 7 | I imagine most teachers would learn StoryJar very quickly. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 8 | I found StoryJar very cumbersome to use. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 9 | I felt very confident using StoryJar. | ☐ | ☐ | ☐ | ☐ | ☐ |
+| 10 | I needed to learn a lot before I could get going with StoryJar. | ☐ | ☐ | ☐ | ☐ | ☐ |
 
 **Scoring (0–100):** odd items → (score − 1); even items → (5 − score); sum, × 2.5.
 A SUS of **68 is average**; aim **> 75**. Record: **SUS = ______**

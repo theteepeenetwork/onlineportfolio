@@ -6,7 +6,7 @@ import { loginTeacher } from "../helpers";
 // ===========================================================================
 // The free teacher plan has nothing to lapse
 //
-// Storyjar's teacher plan is free permanently: one teacher, ALL of their own
+// StoryJar's teacher plan is free permanently: one teacher, ALL of their own
 // classes, no card and no countdown (docs/pricing-decisions.md). Two promises
 // follow, and both are the kind that rot silently:
 //

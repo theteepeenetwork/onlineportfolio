@@ -7,16 +7,16 @@ import type { StripeLinkDto, StripeRefDto } from "@/lib/ops/dto";
 //
 // WHAT THIS FILE IS, AND THE ONE THING IT IS NOT
 //
-// It turns a Stripe id that Storyjar already stores into a URL. That is all it
+// It turns a Stripe id that StoryJar already stores into a URL. That is all it
 // does. It makes no network call, it never reads the secret key, it never
 // touches the database, and there is no function here that changes anything in
-// Stripe or in Storyjar.
+// Stripe or in StoryJar.
 //
 // Owner decision D6, 17 August 2026, in docs/ops-architecture.md: "Manual
 // payment recording is dropped from v1. A manual override that the next Stripe
 // webhook silently reverts is worse than no control, because someone will trust
 // it. Billing screens are read-only with a link out to Stripe, which is where
-// the truth lives." The Subscription row in Storyjar is a MIRROR written by
+// the truth lives." The Subscription row in StoryJar is a MIRROR written by
 // src/app/api/stripe/webhook/route.ts. Anything an operator typed into it would
 // be overwritten by the next event, silently, and the operator would have no
 // way to know. So the answer to "this school says it has paid" is this link,
@@ -48,7 +48,7 @@ import type { StripeLinkDto, StripeRefDto } from "@/lib/ops/dto";
 // ENTIRELY for live mode, and ACCOUNT_ID optional: the same page names the
 // customers list as `https://dashboard.stripe.com/test/customers?` with no
 // account segment at all, which resolves against whichever account the reader
-// is signed in to. Storyjar has one Stripe account, so the account segment is
+// is signed in to. StoryJar has one Stripe account, so the account segment is
 // left out and the link follows the operator's own session. The mode segment
 // sits BEFORE the page, not after it, which is the detail brief 03 warns about.
 // An object's page is that page plus its id.

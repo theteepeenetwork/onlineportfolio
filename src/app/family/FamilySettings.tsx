@@ -50,7 +50,7 @@ function Message({ text, tone }: { text: string; tone: "good" | "bad" }) {
 //    other's classes, so the join has to be made by the one person holding both
 //    letters (SAFEGUARDING rules 4 and 6).
 //  - The email box is the only place an address is ever typed. A teacher is
-//    never asked for one and could not add one if they wanted to, so Storyjar
+//    never asked for one and could not add one if they wanted to, so StoryJar
 //    holds no way of contacting a parent unless the parent put it here.
 //
 // Neither is pushed. The section sits below the child's work, closed, and says

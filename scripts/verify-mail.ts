@@ -29,7 +29,7 @@
 // Credentials are never printed, never logged, and never written anywhere. On
 // failure it reports Mailjet's status code and body only.
 //
-// WHY THIS EXISTS. Storyjar sent through Brevo until August 2026. Brevo rewrote
+// WHY THIS EXISTS. StoryJar sent through Brevo until August 2026. Brevo rewrote
 // every link through its own redirect domain and injected an open pixel, and
 // ignored the tracking flag the code was sending. That is fatal here: a parent's
 // sign-in token works once, so anything that prefetches a rewritten link burns
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
   }
 
   const from = process.env.EMAIL_FROM_ADDRESS ?? "hello@mail.storyjar.co.uk";
-  const name = process.env.EMAIL_FROM_NAME ?? "Storyjar";
+  const name = process.env.EMAIL_FROM_NAME ?? "StoryJar";
   const replyTo = process.env.EMAIL_REPLY_TO ?? "hello@storyjar.co.uk";
 
   // An obviously fake token, on the real sign-in path. It is the shape of the
@@ -149,7 +149,7 @@ Three things to look for. All three must hold.
 3. UNSUBSCRIBE. Search the headers for "List-Unsubscribe". A one-click
    unsubscribe on a sign-in email lets a parent, or an automated mail
    scanner, permanently block their own delivery. They would then never
-   receive another sign-in link, and nothing in Storyjar would know.
+   receive another sign-in link, and nothing in StoryJar would know.
 `);
 }
 

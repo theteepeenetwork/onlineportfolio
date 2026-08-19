@@ -1,6 +1,6 @@
 // Turning a pasted class register into first-name-only display names.
 //
-// Storyjar stores a child's FIRST NAME only — never a surname (SAFEGUARDING.md
+// StoryJar stores a child's FIRST NAME only — never a surname (SAFEGUARDING.md
 // rule 2, data minimisation). Teachers, though, usually have a register with
 // full names, so we let them paste "Olivia Smith" and keep just "Olivia".
 //

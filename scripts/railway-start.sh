@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Railway release/start for Storyjar.
+# Railway release/start for StoryJar.
 #
 # A persistent volume is mounted at /data. We keep the SQLite database and the
 # uploaded photos/drawings there so they survive deploys and restarts:
@@ -30,7 +30,7 @@ set -euo pipefail
 
 echo "[start] preparing persistent storage under /data"
 mkdir -p "${MEDIA_DIR:-/data/media}"
-# Storyjar's OWN library media, kept separate from every teacher upload (see
+# StoryJar's OWN library media, kept separate from every teacher upload (see
 # src/lib/mediaPath.ts for why that separation is the access control rather than
 # tidiness). It needs the volume for the same reason MEDIA_DIR does.
 #

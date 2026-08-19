@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Storyjar Academy: the fictional school Storyjar staff work and troubleshoot in.
+// StoryJar Academy: the fictional school StoryJar staff work and troubleshoot in.
 //
 // WHY IT IS A REAL SCHOOL
 //
@@ -32,7 +32,7 @@
 // Usage:  ACADEMY_PASSWORD='…' node scripts/ops/seed-academy.mjs
 //
 // The password is required and has no default ON PURPOSE. These accounts are
-// real sign-ins that Storyjar staff share, so a default in the repository would
+// real sign-ins that StoryJar staff share, so a default in the repository would
 // be a published credential for a live school (SAFEGUARDING rule 12). It goes in
 // the password manager, and the operator console lists the addresses only.
 import { PrismaClient } from "@prisma/client";
@@ -40,7 +40,7 @@ import bcrypt from "bcryptjs";
 
 const db = new PrismaClient();
 
-const SCHOOL_NAME = "Storyjar Academy";
+const SCHOOL_NAME = "StoryJar Academy";
 const DOMAIN = "academy.storyjar.co.uk";
 
 // Two forms of entry, nursery through year 6, with the age mode each year group

@@ -8,7 +8,7 @@
 //
 // WHY THE BATTERY SETS ONE AT ALL
 //
-// With no MAIL_HMAC_KEY, Storyjar records no suppression and every screen and
+// With no MAIL_HMAC_KEY, StoryJar records no suppression and every screen and
 // record honestly answers "not monitored" (src/lib/ops/mailHmac.ts). That is a
 // real state and it is worth testing, but it is the state in which none of the
 // interesting behaviour exists: the suppression counts, the parent record's

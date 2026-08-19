@@ -14,7 +14,7 @@ import { SCHOOL_A, SCHOOL_B, loginTeacher, loginStudent, loginParent } from "../
 
 const WCAG_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
-// BASELINE (finding F11): the current Storyjar palette fails AA colour-contrast
+// BASELINE (finding F11): the current StoryJar palette fails AA colour-contrast
 // broadly, and legal prose uses colour-only links. These are tracked for
 // burn-down in FINDINGS.md. Until they're cleared, the gate blocks only NEW,
 // non-baseline serious/critical violations (a standard a11y baseline) — so it's
@@ -125,10 +125,10 @@ test("a11y (AA): a teacher's own activities grid", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "teacher activities grid");
 });
 
-test("a11y (AA): the Storyjar shared library", async ({ page }) => {
+test("a11y (AA): the StoryJar shared library", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/teacher/activities/shared");
-  await expect(page.getByRole("heading", { name: "Storyjar library" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "StoryJar library" })).toBeVisible();
   assertNoSeriousViolations(await scan(page), "shared activity library");
 });
 

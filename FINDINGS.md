@@ -1,4 +1,4 @@
-# FINDINGS — Storyjar QA battery
+# FINDINGS — StoryJar QA battery
 
 Defects and gaps found while building the test battery, and how each was
 resolved. Data-protection failures are treated as critical/high per the brief
@@ -73,7 +73,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanishes: the header paints background and text as inline colours, so a high-contrast operator loses all four nav links and the sign-out button on the one account that runs the service. Nothing in src/ handles forced-colors. | Open |
 | F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
 | **F34** | **High** | **Resilience / data loss** | Saved work was withheld from the person who made it. The restore prompt awaited the local draft and a cross-device server lookup **together**, and the lookup had no deadline, so a request that was accepted and never answered suppressed the prompt entirely, and a teacher's or a child's work sat safe in their own browser while they were told nothing. The same shape was found a second time on `loadImage`, where a stalled template background left a child on a permanent "Loading…" overlay. Both are now bounded. | **Fixed** | `e2e/drafts.spec.ts`: "the restore prompt still arrives when the cross-device lookup never answers" and "a stalled template background still lets a child draw and restore" |
-| F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
+| F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits StoryJar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
 | F36 | **Medium** | Test correctness | Every post-reload click in `drafts.spec.ts` raced hydration. Playwright's actionability checks pass on server-rendered HTML, so the click landed before React attached its handler, was swallowed without error, and the test failed one line later on a missing canvas that looked like a product fault. **Measured on 2026-08-18: F36 caused the one-in-two CI flake.** With it fixed the prompt appears in 38ms and all 133 functional tests pass; without it `main` failed at 33.9s. Raised from Low because a fault that fails a blocking gate every other run, and was twice misdiagnosed as a product defect, is not a low-severity test nit. | **Fixed** | `e2e/helpers.ts` `clickHydrated`, used at both post-reload click sites |
 
 ---
@@ -102,7 +102,7 @@ because backups are absent would be asserting a decision that has not been made,
 and the missing piece is not code.
 
 **What has been done instead:** the costed options, their RPO and RTO, their
-retention windows, and what each would oblige Storyjar to tell schools are
+retention windows, and what each would oblige StoryJar to tell schools are
 written up in [`docs/ops-backup-options.md`](./docs/ops-backup-options.md). No
 plan was changed, no provider was added, no money was spent, and the backup line
 in `RETENTION.md` was deliberately left exactly as it is: correcting it without
@@ -433,9 +433,9 @@ path at all.
 What changed is that one new road was built the other way, deliberately, so the
 finding does not grow. "Add to my activities" copies the FILES
 (`src/lib/sharedActivities.ts`), not the strings, so a teacher's copy of a
-Storyjar library activity shares no bytes with the original or with any other
+StoryJar library activity shares no bytes with the original or with any other
 teacher's copy. Had it been written the obvious way, every teacher's copy would
-have depended on a file Storyjar owns, and withdrawing or replacing a library
+have depended on a file StoryJar owns, and withdrawing or replacing a library
 background would have blanked that activity in every classroom that had added
 it, discovered by a teacher mid-lesson. That is this finding's exact shape, made
 structural instead of latent.
@@ -619,7 +619,7 @@ id is refused (now blocking gate).
 (family/magic). A correct sign-in clears the counter, so honest repeated logins
 are never blocked. Friendly, jargon-free message.
 **Note:** in-process store — sufficient for a single instance; swap for a shared
-store (Prisma table / Redis) behind the same interface if Storyjar scales out.
+store (Prisma table / Redis) behind the same interface if StoryJar scales out.
 **Guards:** `findings/rate-limit-enumeration.spec.ts` (report-only — the tests
 trip real 15-min blocks that would contaminate the gating run).
 

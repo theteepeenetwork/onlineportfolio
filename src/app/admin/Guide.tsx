@@ -47,7 +47,7 @@ const ADMIN_JOBS: Item[] = [
   {
     title: "See who did what",
     what: "A running record of the actions that matter for safeguarding — moments approved, sent back or deleted, and every staff and role change.",
-    how: "Audit log. It is written by Storyjar, not by hand, and nobody in the school can edit it.",
+    how: "Audit log. It is written by StoryJar, not by hand, and nobody in the school can edit it.",
     goTo: "audit",
   },
   {
@@ -90,7 +90,7 @@ const CLASSROOM_JOBS: Item[] = [
   {
     title: "Send a family their code",
     what: "A parent gets read-only access to their own child's approved work, and nothing else.",
-    how: "Open a child from Journals, then Family access. Print the letter and send the code home on paper — Storyjar never asks you for a parent's email or phone number.",
+    how: "Open a child from Journals, then Family access. Print the letter and send the code home on paper — StoryJar never asks you for a parent's email or phone number.",
     href: "/teacher",
     linkLabel: "Open journals",
   },
@@ -110,7 +110,7 @@ const NOT_POSSIBLE: string[] = [
   "Give a child a login, an email address or a password. Children sign in with a class code and their own name.",
   "Store a child's surname, birthday, address or contact details. First names and their work, and that is all.",
   "Take a parent's email or phone number from the school. A parent gives us an address themselves, or we hold none.",
-  "Let children message each other. There is no child-to-child contact in Storyjar of any kind.",
+  "Let children message each other. There is no child-to-child contact in StoryJar of any kind.",
   "Show a child's work to anybody before a teacher has approved it.",
 ];
 
@@ -122,7 +122,7 @@ export function Guide({ onGoTo }: { onGoTo: (tab: Tab) => void }) {
         <p style={{ margin: "10px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
           You wear two hats. As an <strong>admin</strong> you run the school side — staff, roles, classes and the
           plan. As a <strong>teacher</strong> you have your own classes, your own queue and your own children, in
-          exactly the same way as every colleague. This page is a map of both, and of the things Storyjar will not
+          exactly the same way as every colleague. This page is a map of both, and of the things StoryJar will not
           do at all. What we promise about children&apos;s work, and what happens when something goes wrong, is on the{" "}
           <button
             type="button"
@@ -150,7 +150,7 @@ export function Guide({ onGoTo }: { onGoTo: (tab: Tab) => void }) {
       />
 
       <div className="sj-card" style={{ ...CARD, padding: "22px 24px" }}>
-        <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Things Storyjar will not do</h2>
+        <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Things StoryJar will not do</h2>
         <p style={{ margin: "8px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "var(--sj-muted)" }}>
           These are missing on purpose, so you can stop looking for them — and tell a colleague or a parent why.
         </p>

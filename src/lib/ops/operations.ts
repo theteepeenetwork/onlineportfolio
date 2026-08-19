@@ -266,7 +266,7 @@ async function perform(
  * WHAT IT CANNOT REACH, which is a containment property rather than a gap
  *
  * A family space is reachable only through the exact-match email lookup, so
- * this can only act on a household that has already given Storyjar an address
+ * this can only act on a household that has already given StoryJar an address
  * and whose address the caller has already read out. A family who has never
  * redeemed their code has no address on file and cannot be found here at all;
  * for them the school reprints, which is a letter either way.
