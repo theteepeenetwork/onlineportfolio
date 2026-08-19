@@ -31,8 +31,9 @@ because they share one SQLite database. Do not run them after every edit:
 | --- | --- | --- |
 | Writing code | `npm run check` | ~2s |
 | Working on one area | that one suite, e.g. `npm run test:a11y`, or a single file: `npx playwright test -c playwright.battery.config.ts --project=security tests/battery/security/uploads.spec.ts` | seconds–3 min |
-| **Before you push** | `npm run test:changed` | ~5 min for a product change |
-| Before something lands on `main`, or when you are unsure | `npm run test:gate` | ~19 min (security 9, e2e 7, a11y 3) |
+| **Before you push** | `npm run test:changed` | ~6 min for a product change |
+| Before something lands on `main`, or when you are unsure | `npm run test:changed -- --all` | ~9 min (every blocking suite) |
+| The same thing, one suite at a time, on a small machine | `npm run test:gate` | ~19 min |
 | Changing anything a person has to *understand* — copy, a flow, a form, a child-facing screen | `npm run test:personas` | ~2 min |
 
 `npm run check` is the whole dev loop: typecheck plus every static gate
@@ -84,6 +85,22 @@ personas, findings, perf — has left the PR path entirely. None of it could eve
 block a merge, so paying for it on every PR bought nothing that reading it the
 next morning does not.
 
+**How it runs.** Both configs keep `workers: 1`: the suites share one SQLite
+database and mutate sessions and rows, so a second worker would buy speed by
+making the security gate flaky. What they can each have is their own database.
+`scripts/run-suites.mjs` gives every (suite, shard) job a lane — its own port,
+its own dev server, its own `dev-shard-N.db` and its own build output — and runs
+three lanes at once, which is the isolation CI gets from three runners, on one
+machine. `PW_SHARDS=1` turns it off; `PW_SHARDS=4` on a bigger machine turns it
+up. Nothing is skipped: `--shard` splits by file.
+
+The lanes run `next dev`, not a shared `next build`, and that is deliberate
+however tempting the 30-second build looks. A production build is a different
+application — `signInLinkMayBeShown()` withholds a parent's magic-link URL when
+`NODE_ENV` is production, which is the fix for F19 — so `family.spec.ts` fails
+against `next start` *because the gate is working*. Speed is not worth testing a
+build no school will ever be given.
+
 A red blocking gate is a blocked merge. Running `test:changed` before you push,
 and `test:gate` before you merge, is how you find out before CI does — and, while
 this repo has no branch protection, it is the only thing standing between a red
@@ -120,8 +137,10 @@ gate and `main`.
 - `npm run check` — static gates only, ~2s. The dev loop.
 - `npm run test:changed` — only the suites your branch's changes need, by the
   same rules the PR will use (`scripts/select-suites.mjs`). Run before pushing.
-- `npm run test:gate` — the three blocking suites (security, a11y, e2e),
-  unselected. Run before merging to `main`.
+- `npm run test:changed -- --all` — all three blocking suites, still across
+  lanes. The quick way to run everything.
+- `npm run test:gate` — the same three, one after another in a single lane.
+  Slower, but it is the plainest thing to read when a run has gone strange.
 - `npm run test:battery` — `test:gate` plus the report-only UX and persona suites.
 - `npm run test:personas` — the user-tester team, then rewrite `USER_TESTING.md`.
 - Individually: `test:security` / `test:a11y` / `test:ux` / `test:e2e` /

@@ -39,6 +39,14 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Where the build output goes. `.next` everywhere except a parallel test run,
+  // which sets NEXT_DIST_DIR per lane: Next refuses to start a second dev server
+  // for the same output directory, and the local battery runner
+  // (scripts/run-suites.mjs) wants three at once, each on its own port with its
+  // own database. Unset in development, in CI and in production, where it is
+  // `.next` exactly as before.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+
   // Custom hostnames used to reach the dev server on the local network. Next 16
   // blocks its /_next dev resources from unknown origins by default, which makes
   // the page load forever when opened via a nice hostname rather than the raw IP.
