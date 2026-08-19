@@ -66,12 +66,20 @@ test("removing a pupil deletes the row (cascade works)", async ({ page }) => {
   await page.getByRole("button", { name: /add pupil/i }).click();
   await page.locator('textarea[name="names"]').fill("Tempdeletee");
   await page.getByRole("button", { name: /add pupil/i }).last().click();
+  // Wait for the ADD to land, not merely for the name to be somewhere on the
+  // page: the box a teacher typed into still holds the name until the server
+  // action comes back, so "the name is visible" can be true while the register
+  // below is still the old one. The form clears itself on success, so an empty
+  // box is the signal that the roster on screen is the roster in the database —
+  // and the row locators below depend on that being true.
+  await expect(page.locator('textarea[name="names"]')).toHaveValue("");
   await expect(page.getByText("Tempdeletee")).toBeVisible();
 
   // Enter settings mode and remove them. Target the roster row that both shows
   // the name and carries a Remove button (settings mode reveals per-child forms).
   await page.getByRole("button", { name: /class settings/i }).click();
   const removeBtn = page
+    .getByRole("main")
     .locator("div")
     .filter({ hasText: "Tempdeletee" })
     .filter({ has: page.getByRole("button", { name: /^remove$/i }) })

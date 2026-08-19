@@ -3,8 +3,10 @@
 import { useActionState } from "react";
 import { updateEmail, changePassword } from "@/app/actions/account";
 
-const box: React.CSSProperties = { borderRadius: 16, padding: 20, border: "2px solid var(--calm-border)", background: "var(--paper)" };
-const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid var(--calm-border)", background: "var(--cream)", font: "400 16px var(--font-atkinson)", color: "var(--ink)" };
+// The account cards share the teacher area's card shell: a 3px ink outline and
+// an 18px radius, so a settings page reads as the same product as the register.
+const box: React.CSSProperties = { borderRadius: 18, padding: 20, border: "3px solid var(--ink)", background: "var(--cream)" };
+const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 12, border: "3px solid var(--ink)", background: "var(--cream)", font: "400 17px var(--font-atkinson)", color: "var(--ink)" };
 const label: React.CSSProperties = { display: "block", font: "700 14px var(--font-atkinson)", color: "var(--ink)", marginBottom: 6 };
 
 function Feedback({ ok, error, okText }: { ok?: boolean; error?: string; okText: string }) {
@@ -19,7 +21,7 @@ export function SecurityForms({ email }: { email: string }) {
 
   return (
     <section style={box} aria-labelledby="security-heading">
-      <h2 id="security-heading" style={{ margin: 0, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>Sign-in &amp; security</h2>
+      <h2 id="security-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>Signing in</h2>
 
       {/* Email */}
       <form action={emailAction} style={{ marginTop: 16 }}>

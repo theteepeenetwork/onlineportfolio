@@ -26,9 +26,10 @@ test("a student's drawing goes through approval into their journal", async ({ pa
   // The row leaves the queue once approved.
   await expect(finnCard).toHaveCount(0);
 
-  // It now shows as published in Finn's journal.
+  // It now shows as published in Finn's journal. Journals links to a child from
+  // two places — the "just added" row and the register — so take the first.
   await page.goto("/teacher");
-  await page.getByRole("link", { name: /Finn/ }).click();
+  await page.getByRole("link", { name: /Finn/ }).first().click();
   await expect(page.getByText("Published")).toBeVisible();
 });
 

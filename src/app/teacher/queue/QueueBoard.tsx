@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { approveItem, returnItem } from "@/app/actions/journal";
 import { JarLogo } from "@/components/storyjar/JarLogo";
-import { Icon, type IconName } from "@/components/icons/Icon";
+import { Icon } from "@/components/icons/Icon";
+import { momentKind } from "@/lib/momentKind";
+import { useTeacherShell } from "@/components/teacher/TeacherShell";
 
 type Skill = { id: string; name: string };
 type QuizLine = {
@@ -17,6 +19,11 @@ type Item = {
   id: string;
   child: string;
   color: string;
+  /** The class this moment came from. The queue spans every class a teacher
+   *  has, so the row has to say which one — and the rail's per-class waiting
+   *  count drops with it as the queue clears. */
+  classId: string;
+  className: string;
   type: string;
   mediaPath: string | null;
   text: string | null;
@@ -28,15 +35,8 @@ type Item = {
   quizReview: QuizLine[] | null;
 };
 
-const KIND: Record<string, { label: string; bg: string; icon: IconName }> = {
-  PHOTO: { label: "photo", bg: "#DEEAF3", icon: "camera" },
-  DRAWING: { label: "drawing", bg: "#FBEED3", icon: "draw" },
-  TEXT: { label: "their words", bg: "#F7E0E6", icon: "write" },
-  AUDIO: { label: "voice", bg: "#EAF4F1", icon: "voice" },
-};
-const kindOf = (t: string) => KIND[t] ?? KIND.PHOTO;
-
 export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }) {
+  const { clearPending } = useTeacherShell();
   const [live, setLive] = useState(items);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [noteOpen, setNoteOpen] = useState<string | null>(null);
@@ -57,7 +57,12 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
   };
 
   const remove = (ids: string[]) => {
-    setLive((prev) => prev.filter((it) => !ids.includes(it.id)));
+    setLive((prev) => {
+      // Tell the shell which classes just lost an item, so the rail badge and
+      // the per-class counts fall on this screen rather than on the next load.
+      clearPending(prev.filter((it) => ids.includes(it.id)).map((it) => it.classId));
+      return prev.filter((it) => !ids.includes(it.id));
+    });
     setSelected((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.delete(id));
@@ -157,20 +162,20 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
         <span style={{ font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>{live.length} moment{live.length === 1 ? "" : "s"}</span>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={toggleAll} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 20px", minHeight: 44, cursor: "pointer", whiteSpace: "nowrap" }}>{allSelected ? "Unselect all" : "Select all"}</button>
-          <button onClick={approveSelected} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "#37796f", border: "none", borderRadius: 999, padding: "12px 24px", minHeight: 44, cursor: "pointer", boxShadow: "0 3px 0 #35706A", whiteSpace: "nowrap", opacity: busy ? 0.7 : 1 }}>✓ Add {selCount} to their jars</button>
+          <button onClick={approveSelected} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--glass)", border: "none", borderRadius: 999, padding: "12px 24px", minHeight: 44, cursor: "pointer", boxShadow: "0 3px 0 var(--glass-ink)", whiteSpace: "nowrap", opacity: busy ? 0.7 : 1 }}>✓ Add {selCount} to their jars</button>
         </div>
       </div>
 
       {/* rows */}
       <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 22 }}>
         {live.map((it) => {
-          const k = kindOf(it.type);
+          const k = momentKind(it.type);
           const sel = selected.has(it.id);
           const chosen = skillSel[it.id] ?? new Set<string>();
           return (
-            <div key={it.id} data-child={it.child} style={{ background: "var(--cream)", border: `2px solid ${sel ? "#37796f" : "var(--calm-border)"}`, borderRadius: 14, padding: "16px 20px" }}>
+            <div key={it.id} data-child={it.child} style={{ background: "var(--cream)", border: `2px solid ${sel ? "var(--glass)" : "var(--calm-border)"}`, borderRadius: 14, padding: "16px 20px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                <input type="checkbox" checked={sel} onChange={() => toggleSel(it.id)} aria-label={`Select ${it.child}`} style={{ width: 20, height: 20, accentColor: "#37796f", cursor: "pointer", flexShrink: 0 }} />
+                <input type="checkbox" checked={sel} onChange={() => toggleSel(it.id)} aria-label={`Select ${it.child}`} style={{ width: 22, height: 22, accentColor: "var(--glass)", cursor: "pointer", flexShrink: 0 }} />
                 <div style={{ width: 84, height: 64, borderRadius: 10, background: k.bg, border: "2px solid var(--calm-border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0, overflow: "hidden" }}>
                   {it.type !== "AUDIO" && it.mediaPath ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -185,7 +190,7 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                 </div>
                 <div style={{ flex: 1, minWidth: 160 }}>
                   <p style={{ margin: 0, font: "700 17px var(--font-atkinson)" }}>{it.child} <span style={{ fontWeight: 400, color: "var(--sj-muted)" }}>· {k.label}</span></p>
-                  <p style={{ margin: "3px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{it.activity} · {it.when}</p>
+                  <p style={{ margin: "3px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{it.activity} · {it.when} · {it.className}</p>
                   {it.type === "AUDIO" && it.mediaPath && (
                     // The teacher plays the child's voice note right here before
                     // deciding. Approval still gates it (nothing publishes until
@@ -202,21 +207,32 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                       ❓ Quiz {it.quizScore}/{it.quizTotal} · {quizOpen === it.id ? "hide" : "review"}
                     </button>
                   )}
+                  {skills.length > 0 && (
+                    // The skill tags sit under the child's name, where the design
+                    // puts them. Banked against the right edge they pushed the two
+                    // decisions onto a line of their own — and a tag is a note
+                    // about the work, not one of the actions.
+                    <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 9 }}>
+                      {skills.map((sk) => {
+                        const on = chosen.has(sk.id);
+                        return (
+                          <button
+                            key={sk.id}
+                            onClick={() => toggleSkill(it.id, sk.id)}
+                            aria-pressed={on}
+                            style={{ font: "600 12px var(--font-atkinson)", color: on ? "var(--glass-ink)" : "var(--sj-muted)", background: on ? "var(--glass-jar)" : "var(--cream)", border: `2px solid ${on ? "var(--glass-light)" : "var(--calm-border)"}`, borderRadius: 999, padding: "4px 11px", minHeight: 32, cursor: "pointer" }}
+                          >
+                            {sk.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                {skills.length > 0 && (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 340 }}>
-                    {skills.map((sk) => {
-                      const on = chosen.has(sk.id);
-                      return (
-                        <button key={sk.id} onClick={() => toggleSkill(it.id, sk.id)} style={{ font: "700 13px var(--font-atkinson)", color: on ? "#2E6B64" : "var(--sj-muted)", background: on ? "var(--glass-light)" : "var(--cream)", border: `2px solid ${on ? "#37796f" : "var(--calm-border)"}`, borderRadius: 999, padding: "5px 12px", cursor: "pointer" }}>{sk.name}</button>
-                      );
-                    })}
-                  </div>
-                )}
                 <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                  <button onClick={() => approve(it)} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "#37796f", border: "none", borderRadius: 999, padding: "10px 20px", minHeight: 44, cursor: "pointer", boxShadow: "0 3px 0 #35706A", whiteSpace: "nowrap" }}>✓ Add to jar</button>
+                  <button onClick={() => approve(it)} disabled={busy} style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--glass)", border: "none", borderRadius: 999, padding: "11px 20px", minHeight: 44, cursor: "pointer", boxShadow: "0 3px 0 var(--glass-ink)", whiteSpace: "nowrap" }}>✓ Add to jar</button>
                   <Link href={`/teacher/queue/${it.id}`} style={{ display: "inline-flex", alignItems: "center", font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 18px", minHeight: 44, boxSizing: "border-box", textDecoration: "none", whiteSpace: "nowrap" }}>🌟 Stickers</Link>
-                  <button onClick={() => { setNoteOpen(noteOpen === it.id ? null : it.id); setNoteText(""); setKeepWork(true); }} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 999, padding: "10px 18px", minHeight: 44, cursor: "pointer", whiteSpace: "nowrap" }}>↩ Send back</button>
+                  <button onClick={() => { setNoteOpen(noteOpen === it.id ? null : it.id); setNoteText(""); setKeepWork(true); }} style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", border: "2px solid var(--ink)", borderRadius: 999, padding: "10px 18px", minHeight: 44, cursor: "pointer", whiteSpace: "nowrap" }}>↩ Send back</button>
                 </div>
               </div>
 

@@ -110,7 +110,7 @@ test.describe("School admin", () => {
     // This teacher has no admin school → /admin bounces to their teacher view.
     await page.goto("/admin");
     await expect(page).toHaveURL((url) => url.pathname === "/teacher");
-    await expect(page.getByRole("heading", { name: /Hello, Ms Khan/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Ms Khan$/ })).toBeVisible();
   });
 
   test("an anonymous visitor cannot reach /admin", async ({ page }) => {
@@ -145,6 +145,9 @@ test.describe("Admin billing", () => {
 
     const picker = page.locator('select[name="staffId"]').first();
     await expect(picker).toBeVisible();
+    // Hold on to WHICH class this is: handing it over re-sorts the list, so the
+    // row is found by its own label afterwards rather than by position.
+    const label = (await picker.getAttribute("aria-label")) ?? "";
     const before = await picker.inputValue();
     const other = await picker.locator(`option:not([value="${before}"])`).first().getAttribute("value");
     await picker.selectOption(other ?? "");
@@ -154,5 +157,17 @@ test.describe("Admin billing", () => {
     // The handover is recorded with the admin's name against it.
     await page.getByRole("button", { name: "Audit log" }).click();
     await expect(page.getByText("Assigned a class")).toBeVisible();
+
+    // …and then hand it straight back. This is the ONE test that permanently
+    // moves a seeded class out of the demo teacher's hands, and the demo
+    // teacher's first class is the fixture half the suite is built on: leaving
+    // it with a colleague empties their queue, their register and their
+    // dashboard for every file that runs after this one.
+    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    const back = page.getByLabel(label);
+    await expect(back).toBeVisible();
+    await back.selectOption(before);
+    await page.getByRole("button", { name: /^Hand to / }).click();
+    await expect(page.getByLabel(label)).toHaveValue(before);
   });
 });

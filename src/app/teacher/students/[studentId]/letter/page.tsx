@@ -85,7 +85,7 @@ export default async function FamilyLetterPage({
         </div>
       </nav>
 
-      <main className="letter-main" style={{ flex: 1, display: "flex", justifyContent: "center", padding: "8px 24px 80px" }}>
+      <div className="letter-main" style={{ flex: 1, display: "flex", justifyContent: "center", padding: "8px 24px 80px" }}>
         <div className="letter-sheet" style={{ width: "100%", maxWidth: 620 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <JarLogo width={28} height={34} />
@@ -152,7 +152,7 @@ export default async function FamilyLetterPage({
             </p>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

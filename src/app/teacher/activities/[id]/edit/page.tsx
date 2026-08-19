@@ -23,7 +23,7 @@ export default async function EditTemplatePage({
   if (!template) notFound();
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 p-4">
+    <div className="w-full max-w-4xl">
       <Link href={`/teacher/activities/${template.id}`} className="text-sm text-muted hover:text-foreground">
         ← Back to activity
       </Link>
@@ -44,6 +44,6 @@ export default async function EditTemplatePage({
           objects: readTemplateObjects(template.objectsJson).pages,
         }}
       />
-    </main>
+    </div>
   );
 }

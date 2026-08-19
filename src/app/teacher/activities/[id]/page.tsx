@@ -3,9 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TopBar } from "@/components/TopBar";
 import { Avatar } from "@/components/Avatar";
-import { teacherNav } from "@/lib/teacherNav";
 import { Icon } from "@/components/icons/Icon";
 import { jsonArray, type RunSummary } from "@/lib/activities";
 import { ClearMarkedDraft } from "@/components/ClearMarkedDraft";
@@ -43,14 +41,11 @@ export default async function TemplateDetail({
   });
   if (!template) notFound();
 
-  const [classes, pendingCount] = await Promise.all([
-    db.class.findMany({
-      where: { teacherId: user.teacher.id },
-      orderBy: { createdAt: "asc" },
-      include: { students: { orderBy: { name: "asc" }, select: { id: true, name: true, avatarColor: true } } },
-    }),
-    db.journalItem.count({ where: { status: "PENDING", class: { teacherId: user.teacher.id } } }),
-  ]);
+  const classes = await db.class.findMany({
+    where: { teacherId: user.teacher.id },
+    orderBy: { createdAt: "asc" },
+    include: { students: { orderBy: { name: "asc" }, select: { id: true, name: true, avatarColor: true } } },
+  });
 
   // LIVE runs first, then by newest.
   const runs = [...template.assignments].sort((a, b) => {
@@ -86,8 +81,7 @@ export default async function TemplateDetail({
   return (
     <>
       <ClearMarkedDraft />
-      <TopBar title="" links={teacherNav(pendingCount)} />
-      <main className="mx-auto w-full max-w-4xl flex-1 p-4">
+      <div className="w-full max-w-4xl">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">
           <Link href="/teacher/activities" className="hover:text-foreground">
             Library
@@ -208,7 +202,7 @@ export default async function TemplateDetail({
             </div>
           </>
         )}
-      </main>
+      </div>
     </>
   );
 }

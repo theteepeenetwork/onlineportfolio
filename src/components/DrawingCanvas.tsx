@@ -173,6 +173,15 @@ const DUPLICATE_OFFSET = SNAP_UNITS * 2;
 // really is a right angle rather than 89°.
 const ROTATE_STEP = 15;
 
+// The corner drag handle (F41). Edit and delete moved into the floating toolbar
+// at 64px, and the handle that stayed on the corner has to be pressable at the
+// same size — so the *press* is a 64px box centred on the corner and the dot a
+// child sees inside it stays small enough not to hide the work underneath.
+// Positioned by the caller with a matching -8 (32px) inset on the two sides it
+// hangs off.
+const HANDLE_HIT =
+  "pointer-events-auto absolute flex h-16 w-16 items-center justify-center touch-none";
+
 // Movable / resizable things placed on top of the drawing: imported pictures
 // (images / PDF pages) and shapes.
 // Placed-object lock state. `locked` is the teacher's decision (a child cannot
@@ -3677,9 +3686,9 @@ function MediaObjectView({
               aria-label="Edit text"
             >
               <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
-                <Icon name="rotate" size={11} decorative />
+                <Icon name="edit" size={11} decorative />
               </span>
-            </div>
+            </button>
           )}
           <button
             type="button"

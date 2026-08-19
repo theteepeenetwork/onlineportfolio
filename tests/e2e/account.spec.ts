@@ -50,8 +50,8 @@ test("a teacher can sign up through the wizard and gets a class code", async ({ 
 });
 
 test("the dashboard greets a formal teacher by title + surname, not just the title", async ({ page }) => {
-  // Regression: the old flow stored a raw name and greeted "Hello Mr". A teacher
-  // who picks the formal style must be greeted "Hello Mr Pearson".
+  // Regression: the old flow stored a raw name and greeted "Mr" alone. A teacher
+  // who picks the formal style must be greeted by title AND surname.
   await fillWizard(page, {
     title: "Mr",
     fullName: "Sam Pearson",
@@ -63,9 +63,10 @@ test("the dashboard greets a formal teacher by title + surname, not just the tit
   await page.getByRole("button", { name: "Add pupils" }).click();
   await expect(page.getByRole("heading", { name: /class code/ })).toBeVisible();
 
-  // Land on the teacher dashboard and check the greeting.
+  // Land on the teacher dashboard and check the greeting. The greeting word
+  // follows the clock; the NAME is what this test is about.
   await page.goto("/teacher");
-  await expect(page.getByRole("heading", { name: "Hello, Mr Pearson 👋" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Mr Pearson$/ })).toBeVisible();
 });
 
 test("signing up with an existing email is rejected", async ({ page }) => {
@@ -84,15 +85,17 @@ test("signing up with an existing email is rejected", async ({ page }) => {
 test("a teacher can create more than one class", async ({ page }) => {
   await teacherLogin(page);
   await page.goto("/teacher/class");
-  // The seeded classes appear as cards in the grid.
-  await expect(page.getByText("Sunflower Class", { exact: true })).toBeVisible();
+  // The seeded classes appear as cards in the grid. Scoped to the page content:
+  // the shell's rail also lists every class, on every teacher screen.
+  const grid = page.getByRole("main");
+  await expect(grid.getByText("Sunflower Class", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: /New class/ }).click();
   await page.locator("#className").fill("Bluebell Class");
   await page.getByRole("button", { name: /^Create class/ }).click();
 
-  await expect(page.getByText("Bluebell Class", { exact: true })).toBeVisible();
-  await expect(page.getByText("Sunflower Class", { exact: true })).toBeVisible();
+  await expect(grid.getByText("Bluebell Class", { exact: true })).toBeVisible();
+  await expect(grid.getByText("Sunflower Class", { exact: true })).toBeVisible();
 });
 
 test("a teacher can edit their profile from Account settings, and the greeting updates", async ({ page }) => {
@@ -116,7 +119,7 @@ test("a teacher can edit their profile from Account settings, and the greeting u
 
   // The dashboard greeting reflects the new style.
   await page.goto("/teacher");
-  await expect(page.getByRole("heading", { name: "Hello, Miss Bell 👋" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Miss Bell$/ })).toBeVisible();
 });
 
 test("changing password rejects a wrong current password (server-checked)", async ({ page }) => {

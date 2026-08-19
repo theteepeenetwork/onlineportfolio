@@ -7,7 +7,7 @@ export default async function NewTemplatePage() {
   if (user?.role !== "TEACHER") return null;
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 p-4">
+    <div className="w-full max-w-4xl">
       <Link href="/teacher/activities" className="text-sm text-muted hover:text-foreground">
         ← Back to library
       </Link>
@@ -16,6 +16,6 @@ export default async function NewTemplatePage() {
         Build a reusable template. You&apos;ll assign it to a class next.
       </p>
       <ActivityBuilder teacherId={user.teacher.id} />
-    </main>
+    </div>
   );
 }

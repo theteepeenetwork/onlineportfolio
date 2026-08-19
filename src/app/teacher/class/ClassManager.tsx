@@ -153,7 +153,8 @@ export function ClassManager({ classes }: { classes: ClassCard[] }) {
         <div>
           <h1 style={{ margin: 0, font: "600 32px var(--font-fredoka)" }}>Your classes</h1>
           <p style={{ margin: "6px 0 0", font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-            {classes.length === 1 ? "1 class" : `${classes.length} classes`} · tap a card to open its list
+            {classes.length === 1 ? "1 class" : `${classes.length} classes`} ·{" "}
+            {classes.reduce((n, c) => n + c.kids, 0)} pupils · tap a card to open its register
           </p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -179,37 +180,28 @@ export function ClassManager({ classes }: { classes: ClassCard[] }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
         {classes.map((c) => (
           <button
             key={c.id}
             onClick={() => openClass(c.id)}
-            style={{ textAlign: "left", cursor: "pointer", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: 0, overflow: "hidden", boxShadow: "0 4px 0 rgba(34,48,74,0.14)", display: "flex", flexDirection: "column" }}
+            style={{ textAlign: "left", cursor: "pointer", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, padding: 18, boxShadow: "var(--pop-shadow)", display: "flex", alignItems: "flex-start", gap: 14 }}
           >
-            <div style={{ background: c.color, borderBottom: "3px solid var(--ink)", position: "relative", display: "flex", alignItems: "center", padding: "18px 20px", gap: 14, alignSelf: "stretch" }}>
-              <JarMark width={46} height={55} jarFill={c.jarFill} />
-              <div style={{ minWidth: 0 }}>
-                <p style={{ margin: 0, font: "600 24px var(--font-fredoka)", color: "var(--ink)" }}>{c.name}</p>
-                <p style={{ margin: "2px 0 0", font: "700 13px var(--font-atkinson)", color: "var(--ink-soft)" }}>{c.year}</p>
-              </div>
-            </div>
-            <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 20 }}>
-              <div>
-                <p style={{ margin: 0, font: "600 26px var(--font-fredoka)", lineHeight: 1 }}>{c.kids}</p>
-                <p style={{ margin: "3px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>pupils</p>
-              </div>
-              <div style={{ width: 2, alignSelf: "stretch", background: "#EDE4D2" }} />
-              <div>
-                <p style={{ margin: 0, font: "600 26px var(--font-fredoka)", lineHeight: 1 }}>{c.moments}</p>
-                <p style={{ margin: "3px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>in the jar</p>
-              </div>
-            </div>
-            <div style={{ marginTop: "auto", padding: "12px 20px", borderTop: "2px dashed #EDE4D2", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, alignSelf: "stretch" }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, font: "700 13px var(--font-atkinson)", color: c.waiting > 0 ? "var(--jam)" : "var(--glass-ink)", minWidth: 0 }}>
-                <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: "50%", background: c.waiting > 0 ? "var(--jam)" : "var(--glass-ink)", flexShrink: 0 }} />
-                {c.waiting > 0 ? `${c.waiting} waiting to approve` : "All caught up"}
+            <JarMark width={52} height={62} jarFill={c.jarFill} />
+            <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <p style={{ margin: 0, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>{c.name}</p>
+                <span style={{ font: "600 12px var(--font-fredoka)", background: "var(--kraft-tag)", border: "2px solid var(--ink)", borderRadius: 8, padding: "1px 9px" }}>{c.year}</span>
               </span>
-              <span style={{ font: "700 14px var(--font-atkinson)", color: "var(--jam)", whiteSpace: "nowrap", flexShrink: 0 }}>Open →</span>
+              <p style={{ margin: 0, font: "700 14px ui-monospace, Menlo, monospace", letterSpacing: ".08em", color: "var(--ink-soft)" }}>{c.code}</p>
+              <p style={{ margin: 0, font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+                {c.kids} {c.kids === 1 ? "pupil" : "pupils"} · {c.moments} moments
+              </p>
+              {c.waiting > 0 && (
+                <span style={{ width: "fit-content", marginTop: 2, font: "700 13px var(--font-atkinson)", color: "var(--honey-ink)", background: "var(--honey-tint)", border: "2px solid var(--honey)", borderRadius: 999, padding: "4px 12px" }}>
+                  {c.waiting} waiting to approve
+                </span>
+              )}
             </div>
           </button>
         ))}

@@ -5,8 +5,10 @@ import { teacherLogin, studentLogin } from "./helpers";
 test.describe("Sign in", () => {
   test("teacher signs in and sees their dashboard", async ({ page }) => {
     await teacherLogin(page);
-    await expect(page.getByRole("heading", { name: /Hello,/ })).toBeVisible();
-    await expect(page.getByText("Sunflower Class")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening),/ })).toBeVisible();
+    // Scoped to the page content: the teacher shell's rail lists every class on
+    // every screen, so an unscoped match now finds the nav item as well.
+    await expect(page.getByRole("main").getByText("Sunflower Class")).toBeVisible();
   });
 
   test("teacher is rejected with a wrong password", async ({ page }) => {

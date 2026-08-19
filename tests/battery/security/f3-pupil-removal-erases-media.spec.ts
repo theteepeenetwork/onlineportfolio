@@ -29,11 +29,21 @@ test("removing a pupil also erases their media files [F3]", async ({ page }) => 
   await page.getByRole("button", { name: /add pupil/i }).click();
   await page.locator('textarea[name="names"]').fill("Orphantest");
   await page.getByRole("button", { name: /add pupil/i }).last().click();
+  // Wait for the ADD to land, not merely for the name to be somewhere on the
+  // page: the box a teacher typed into still holds the name until the server
+  // action comes back, so "the name is visible" can be true while the register
+  // below is still the old one. The form clears itself on success, so an empty
+  // box is the signal that the roster on screen is the roster in the database —
+  // and the row locators below depend on that being true.
+  await expect(page.locator('textarea[name="names"]')).toHaveValue("");
   await expect(page.getByText("Orphantest")).toBeVisible();
 
   // Open THIS pupil's journal (their own row's link — not just any) and add a
   // photo (publishes straight away for a teacher).
+  // Scoped to <main>: the teacher shell's rail sits outside it and carries a
+  // "Journals" nav item, so an unscoped /journal/i would match the chrome too.
   await page
+    .getByRole("main")
     .locator("div")
     .filter({ hasText: "Orphantest" })
     .filter({ has: page.getByRole("link", { name: /journal/i }) })
@@ -42,7 +52,9 @@ test("removing a pupil also erases their media files [F3]", async ({ page }) => 
     .click();
   await page.waitForURL(/\/teacher\/students\/[^/]+$/);
   const journalUrl = page.url();
-  await page.getByRole("link", { name: /^＋ Add$|add/i }).first().click();
+  // …and scoped for the same reason: /add/i would otherwise reach the rail's
+  // "Add a class", which is the first such link on every teacher page now.
+  await page.getByRole("main").getByRole("link", { name: /^＋ Add$|add/i }).first().click();
   await page.waitForURL(/\/new$/);
   await page.getByRole("button", { name: /photo/i }).click();
   await page.locator('input[type="file"][name="photo"]').setInputFiles(
@@ -61,6 +73,7 @@ test("removing a pupil also erases their media files [F3]", async ({ page }) => 
   await page.getByRole("button", { name: /acorn/i }).click();
   await page.getByRole("button", { name: /class settings/i }).click();
   const removeBtn = page
+    .getByRole("main")
     .locator("div")
     .filter({ hasText: "Orphantest" })
     .filter({ has: page.getByRole("button", { name: /^remove$/i }) })

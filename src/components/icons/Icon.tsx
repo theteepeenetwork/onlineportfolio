@@ -45,6 +45,7 @@ export type IconName =
   | "home"
   | "class"
   | "search"
+  | "calendar"
   | "settings"
   | "back"
   | "close"
@@ -163,6 +164,14 @@ const ICONS: Record<IconName, Glyph> = {
   ) },
   "search": { label: "Search", glyph: (
     <><circle cx="10.5" cy="10.5" r="6" fill="#D8ECE8" /> <line x1="15" y1="15" x2="20" y2="20" /></>
+  ) },
+  // Kraft band for the lid, two tilted "moment" squares for the days — the same
+  // squares that fill the jar mark, so a new glyph joins the family rather than
+  // arriving from a generic icon set. Days are jam + honey (never three), and the
+  // band replaces binder tabs: at 18px in the teacher rail the tabs closed up
+  // into the body and read as a smudge.
+  "calendar": { label: "Calendar", glyph: (
+    <><rect x="4.6" y="3.4" width="14.8" height="4" rx="2" fill="#C9A87C" /> <rect x="3.5" y="6" width="17" height="14.5" rx="2.5" fill="#FFFDF7" /> <rect x="6.3" y="11.8" width="4.6" height="4.6" rx="1" fill="#BD3F63" stroke="none" transform="rotate(-8 8.6 14.1)" /> <rect x="13.1" y="12.6" width="4.6" height="4.6" rx="1" fill="#F0B441" stroke="none" transform="rotate(6 15.4 14.9)" /></>
   ) },
   "settings": { label: "Settings", glyph: (
     <><line x1="4" y1="8" x2="20" y2="8" /> <circle cx="9" cy="8" r="2.6" fill="#F0B441" /> <line x1="4" y1="16" x2="20" y2="16" /> <circle cx="15" cy="16" r="2.6" fill="#4E9C94" /></>
