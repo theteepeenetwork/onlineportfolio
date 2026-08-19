@@ -34,7 +34,7 @@ export default async function RespondToActivity({
   const mine = await db.journalItem.findFirst({
     where: { assignmentId: id, studentId: user.student.id },
     orderBy: { createdAt: "desc" },
-    select: { status: true, returnMode: true, quizAnswersJson: true },
+    select: { status: true, returnMode: true, quizAnswersJson: true, teacherNote: true },
   });
   if (mine && mine.status !== "RETURNED") redirect("/student");
 
@@ -67,6 +67,10 @@ export default async function RespondToActivity({
       quiz={quiz}
       objects={readTemplateObjects(assignment.objectsSnapshotJson).pages}
       resumeMode={resumeMode}
+      // What the teacher asked them to change, on the work itself (F38). Read
+      // only when this child's own response is RETURNED, so it is never anyone
+      // else's words and never on a first attempt.
+      teacherNote={mine?.status === "RETURNED" ? mine.teacherNote ?? undefined : undefined}
       initialAnswers={initialAnswers}
       quizReview={resumeMode === "continue" && quiz.questions.length > 0}
     />

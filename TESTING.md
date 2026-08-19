@@ -17,9 +17,28 @@ npm run test:battery     # everything: security + a11y + ux + e2e
 npm run test:security    # tenant isolation, auth, uploads, headers, injection (BLOCKING gate)
 npm run test:a11y        # axe-core WCAG 2.2 AA + keyboard nav (BLOCKING gate)
 npm run test:ux          # core-flow step budgets, interruption, responsive (report-only)
+npm run test:personas    # the user-tester team → rewrites USER_TESTING.md (report-only)
 npm run test:perf        # Lighthouse budgets (report-only)
 npm run test:security:findings   # repro tests for KNOWN gaps — these fail on purpose
 ```
+
+### The user-tester team
+
+`tests/battery/personas/` is a team of people rather than a list of assertions:
+a platform operator, a brand-new teacher, a teacher mid-lesson on an iPad, a
+school business manager, an admin whose account has lapsed, a parent on a phone
+at 9pm, a child in each of the three registers, and a bot that taps everything
+twice inside a real child's session. They sign in to **their own school**
+(Bramblewood Primary, `prisma/seed-personas.ts` — separate from the fixtures the
+gates rely on, because these testers delete staff, classes and access) and do
+whole jobs of work: set a quiz, watch a child answer it, mark it, send it back
+with feedback, and pick that feedback up as the child.
+
+They write down what confused them, stalled them, broke, or was beyond them, and
+`npm run test:personas` turns the run into [`USER_TESTING.md`](./USER_TESTING.md)
+— worst first, with who hit it, on what device, doing what. Report-only, with one
+exception: a **blocker** (an unhandled error, a 5xx, or a job a tester could not
+finish) fails its test.
 
 Known defects and which test covers each are in [`FINDINGS.md`](./FINDINGS.md);
 the plan and rationale are in [`TEST_PLAN.md`](./TEST_PLAN.md); the moderated
