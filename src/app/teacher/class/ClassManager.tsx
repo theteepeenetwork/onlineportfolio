@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClass, deleteClass, rotateClassCode, updateAgeMode } from "@/app/actions/classes";
 import { addStudents, removeStudent } from "@/app/actions/roster";
+import { ImportClassForm } from "@/components/ImportClassForm";
 import { Icon } from "@/components/icons/Icon";
 import { AGE_MODE_OPTIONS, type AgeMode } from "@/lib/ageMode";
 
@@ -97,6 +98,7 @@ export function ClassManager({ classes }: { classes: ClassCard[] }) {
   const router = useRouter();
   const params = useSearchParams();
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [addingChild, setAddingChild] = useState(false);
   const [settings, setSettings] = useState(false);
 
@@ -154,15 +156,26 @@ export function ClassManager({ classes }: { classes: ClassCard[] }) {
             {classes.length === 1 ? "1 class" : `${classes.length} classes`} · tap a card to open its list
           </p>
         </div>
-        <button onClick={() => setCreating((v) => !v)} style={{ ...JAM_BTN, marginLeft: "auto" }}>＋ New class</button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={() => { setImporting((v) => !v); setCreating(false); }}
+            aria-expanded={importing}
+            style={{ ...OUTLINE_BTN, display: "inline-flex", alignItems: "center", gap: 8 }}
+          >
+            <Icon name="class" size={18} decorative /> Paste a class list
+          </button>
+          <button onClick={() => { setCreating((v) => !v); setImporting(false); }} aria-expanded={creating} style={JAM_BTN}>＋ New class</button>
+        </div>
       </div>
+
+      {importing && <ImportClassForm onDone={() => setImporting(false)} />}
 
       {creating && <NewClassForm onCreated={() => setCreating(false)} />}
 
-      {classes.length === 0 && !creating && (
+      {classes.length === 0 && !creating && !importing && (
         <div className="sj-card" style={{ padding: "40px 32px", textAlign: "center" }}>
           <JarMark width={54} height={65} jarFill="#C2476B" />
-          <p style={{ margin: "12px 0 0", font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>No classes yet — make your first jar with <strong>＋ New class</strong>.</p>
+          <p style={{ margin: "12px 0 0", font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>No classes yet. Make an empty jar with <strong>＋ New class</strong>, or set one up in a single step with <strong>Paste a class list</strong>.</p>
         </div>
       )}
 

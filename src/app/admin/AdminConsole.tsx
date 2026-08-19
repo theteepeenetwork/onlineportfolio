@@ -10,6 +10,8 @@ import {
   setStaffRole,
 } from "@/app/actions/admin";
 import { Icon, type IconName } from "@/components/icons/Icon";
+import { ImportClassForm } from "@/components/ImportClassForm";
+import { BillingPane } from "./BillingPane";
 import { Guide } from "./Guide";
 import { Promises } from "./Promises";
 import { CARD, TABS, TAB_HEADING, type Tab } from "./tabs";
@@ -26,7 +28,15 @@ export type StaffRow = {
 
 export type SchoolClass = { id: string; name: string; teacherId: string; teacherName: string; children: number };
 
-export type AuditEntry = { id: string; atISO: string; actorName: string; action: string; detail: string | null };
+export type AuditEntry = {
+  id: string;
+  atISO: string;
+  actorName: string;
+  action: string;
+  detail: string | null;
+  /** True when the detail names a child and was withheld on the server (rule 5). */
+  redacted?: boolean;
+};
 
 // Human labels for audit actions.
 const ACTION_LABEL: Record<string, string> = {
@@ -38,6 +48,15 @@ const ACTION_LABEL: Record<string, string> = {
   STAFF_REMOVED: "Removed staff",
   CLASS_ASSIGNED: "Assigned a class",
   CLASS_DELETED: "Deleted a class",
+  CLASS_IMPORTED: "Set up a class",
+  CLASS_AGE_MODE_CHANGED: "Changed a class register",
+  CLASS_CODE_ROTATED: "Issued a new class code",
+  BILLING_INVOICE_REQUESTED: "Requested an invoice",
+  BILLING_ACTIVATED: "Plan activated",
+  BILLING_PAST_DUE: "Payment retrying",
+  BILLING_FROZEN: "Plan paused",
+  BILLING_UPDATED: "Plan updated",
+  BILLING_JOINED_SCHOOL: "Joined the school plan",
 };
 
 const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#37796f", "#E8A06A", "#C2476B"];
@@ -78,9 +97,12 @@ const INPUT: React.CSSProperties = {
   color: "#22304A",
 };
 
+type BillingProps = React.ComponentProps<typeof BillingPane>;
+
 export function AdminConsole({
   schoolName,
   plan,
+  billing,
   meId,
   staff,
   classes,
@@ -89,6 +111,7 @@ export function AdminConsole({
 }: {
   schoolName: string;
   plan: string;
+  billing: Omit<BillingProps, "invoiceRequested">;
   meId: string;
   staff: StaffRow[];
   classes: SchoolClass[];
@@ -99,6 +122,7 @@ export function AdminConsole({
   const [menuId, setMenuId] = useState<string | null>(null);
   const [submenu, setSubmenu] = useState<"role" | "classes" | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const invited = staff.filter((s) => s.status === "INVITED").length;
   const closeMenus = () => { setMenuId(null); setSubmenu(null); };
@@ -109,7 +133,10 @@ export function AdminConsole({
     { id: "staff", value: `${staff.length}`, label: "Staff", sub: invited > 0 ? `${invited} invite${invited === 1 ? "" : "s"} pending` : "all active", color: "#22304A" },
     { id: "classes", value: `${classes.length}`, label: "Classes", sub: "across the school", color: "#37796f" },
     { id: "pupils", value: `${childrenCount}`, label: "Pupils", sub: "no pupil logins", color: "#C2476B" },
-    { id: "plan", value: `${staff.length}`, label: staff.length === 1 ? "Staff member" : "Staff", sub: plan.toLowerCase(), color: "#B07A1E" },
+    // The fourth card is the PLAN, not a second staff count. It used to repeat
+    // `staff.length` under a "Staff" label, which read as a seat count on a plan
+    // that has never had seats — exactly the wrong thing to imply.
+    { id: "plan", value: plan, label: "Plan", sub: "see the Billing tab", color: "#B07A1E", small: true },
   ];
 
   return (
@@ -152,6 +179,9 @@ export function AdminConsole({
           {tab === "staff" && (
             <button onClick={(e) => { e.stopPropagation(); setInviting((v) => !v); }} style={{ ...JAM_BTN, marginLeft: "auto" }} aria-expanded={inviting}>＋ Invite staff</button>
           )}
+          {tab === "classes" && (
+            <button onClick={(e) => { e.stopPropagation(); setImporting((v) => !v); }} style={{ ...JAM_BTN, marginLeft: "auto" }} aria-expanded={importing}>＋ Paste a class list</button>
+          )}
         </div>
 
         {/* stats strip (Staff + Overview) */}
@@ -159,7 +189,7 @@ export function AdminConsole({
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginTop: 22 }}>
             {stats.map((st) => (
               <div key={st.id} style={CARD}>
-                <p style={{ margin: 0, font: "600 30px var(--font-fredoka)", color: st.color }}>{st.value}</p>
+                <p style={{ margin: 0, font: `600 ${"small" in st && st.small ? 19 : 30}px var(--font-fredoka)`, color: st.color }}>{st.value}</p>
                 <p style={{ margin: "2px 0 0", font: "700 14px var(--font-atkinson)", color: "#43506B" }}>{st.label}</p>
                 <p style={{ margin: "2px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>{st.sub}</p>
               </div>
@@ -185,28 +215,62 @@ export function AdminConsole({
         )}
 
         {tab === "overview" && (
-          <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
-            <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Welcome to {schoolName} on Storyjar</h2>
-            <p style={{ margin: "10px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
-              You have {staff.length} staff across {classes.length} classes and {childrenCount} pupils. Use <strong>Staff</strong> to invite colleagues and set roles, <strong>Classes</strong> to see who teaches what, and <strong>Billing</strong> for your plan.
-            </p>
-          </div>
+          <>
+            <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
+              <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Welcome to {schoolName} on Storyjar</h2>
+              <p style={{ margin: "10px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
+                You have {staff.length} staff across {classes.length} {classes.length === 1 ? "class" : "classes"} and {childrenCount} pupils. Use <strong>Staff</strong> to invite colleagues and set roles, <strong>Classes</strong> to set classes up and hand them over, and <strong>Billing</strong> for the plan.
+              </p>
+            </div>
+            <ThingsToDo
+              invited={invited}
+              classes={classes}
+              staff={staff}
+              billing={billing}
+              onGoTo={(t) => { setTab(t); closeMenus(); }}
+            />
+          </>
         )}
 
         {tab === "classes" && (
-          <div style={{ ...CARD, marginTop: 24, padding: 0, overflow: "hidden" }}>
+          <>
+          <p style={{ margin: "18px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "var(--sj-muted)", maxWidth: 720 }}>
+            Every class in the school, and who teaches it. You can set a class up for a colleague from a pasted
+            register — that saves them the typing, and it does not give you access to the children&rsquo;s work.
+            Only the teacher who teaches a class ever sees what is in its jar.
+          </p>
+          {importing && (
+            <div style={{ marginTop: 18 }}>
+              <ImportClassForm
+                staff={staff.map((s) => ({ id: s.id, name: s.isYou ? `${s.name} (you)` : s.name }))}
+                defaultOwnerId={meId}
+                onDone={() => setImporting(false)}
+              />
+            </div>
+          )}
+          <div style={{ ...CARD, marginTop: 20, padding: 0, overflow: "hidden" }}>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 12, padding: "14px 22px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
               <span>Class</span><span>Teacher</span><span>Pupils</span>
             </div>
-            {classes.length === 0 && <p style={{ padding: "18px 22px", margin: 0, color: "var(--sj-muted)" }}>No classes yet.</p>}
+            {classes.length === 0 && (
+              <p style={{ padding: "18px 22px", margin: 0, color: "var(--sj-muted)" }}>
+                No classes yet. <strong>＋ Paste a class list</strong> sets the first one up in one step.
+              </p>
+            )}
             {classes.map((c) => (
               <div key={c.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 12, alignItems: "center", padding: "14px 22px", borderBottom: "1px solid #F5F0E6" }}>
                 <span style={{ font: "700 16px var(--font-atkinson)" }}>{c.name}</span>
-                <span style={{ font: "400 15px var(--font-atkinson)", color: "#43506B" }}>{c.teacherName}</span>
-                <span style={{ font: "700 15px var(--font-atkinson)" }}>{c.children}</span>
+                {/* Handing a class over is the single most common thing an admin
+                    needs in September, and it used to be buried three levels deep
+                    in a staff row's ⋯ menu. It IS the access control (whoever
+                    holds the class is the only one who sees its children's work),
+                    so it belongs on the class, in the open, and it is audited. */}
+                <ClassTeacherPicker klass={c} staff={staff} />
+                <span style={{ font: "700 15px var(--font-atkinson)" }}>{c.children === 0 ? <span style={{ color: "var(--sj-muted)", fontWeight: 400 }}>none yet</span> : c.children}</span>
               </div>
             ))}
           </div>
+          </>
         )}
 
         {tab === "guide" && <Guide onGoTo={(t) => { setTab(t); closeMenus(); }} />}
@@ -215,7 +279,12 @@ export function AdminConsole({
 
         {tab === "audit" && (
           <div style={{ marginTop: 24 }}>
-            <p style={{ margin: "0 0 14px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>A record of safeguarding-relevant actions across the school — approvals, moments sent back or deleted, and staff/role changes.</p>
+            <p style={{ margin: "0 0 14px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+              A record of safeguarding-relevant actions across the school — approvals, moments sent back or deleted,
+              and every staff, class and plan change. You can always see who did what and when. Where an entry is
+              about a particular child in a class you don&rsquo;t teach, the child is not named: being an admin
+              doesn&rsquo;t make you all-seeing.
+            </p>
             {audit.length === 0 ? (
               <div className="sj-card" style={{ ...CARD, padding: "28px 24px", textAlign: "center", color: "var(--sj-muted)" }}>Nothing recorded yet.</div>
             ) : (
@@ -227,7 +296,9 @@ export function AdminConsole({
                   <div key={e.id} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.4fr 2.2fr", gap: 12, alignItems: "baseline", padding: "12px 20px", borderBottom: "1px solid #F5F0E6" }}>
                     <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>{new Date(e.atISO).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                     <span style={{ font: "400 14px var(--font-atkinson)" }}><strong>{e.actorName}</strong> · {ACTION_LABEL[e.action] ?? e.action}</span>
-                    <span style={{ font: "400 14px var(--font-atkinson)", color: "#43506B" }}>{e.detail ?? "—"}</span>
+                    <span style={{ font: "400 14px var(--font-atkinson)", color: e.redacted ? "var(--sj-muted)" : "#43506B" }}>
+                      {e.redacted ? "About a child in a class you don’t teach" : e.detail ?? "—"}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -236,13 +307,123 @@ export function AdminConsole({
         )}
 
         {tab === "billing" && (
-          <div className="sj-card" style={{ ...CARD, marginTop: 24, padding: "22px 24px" }}>
-            <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Seats &amp; plan</h2>
-            <p style={{ margin: "10px 0 0", font: "600 40px var(--font-fredoka)" }}>{staff.length} <span style={{ font: "400 18px var(--font-atkinson)", color: "var(--sj-muted)" }}>{staff.length === 1 ? "staff member" : "staff members"} — the school plan covers every one</span></p>
-            <p style={{ margin: "4px 0 0", font: "400 15px var(--font-atkinson)", color: "#43506B" }}>{plan}{invited > 0 ? ` · ${invited} invited and not yet active` : ""}.</p>
+          <div onClick={(e) => e.stopPropagation()}>
+            <BillingPane {...billing} invoiceRequested={false} />
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+// A class's teacher, changeable in place. Submits the same admin-guarded,
+// audited action as the staff-row menu — this is only a shorter road to it.
+//
+// The change is confirmed with a button rather than fired on `change`: a native
+// select fires change on every arrow key, so an auto-submitting picker would
+// hand the class to each teacher in turn as a keyboard user moved through the
+// list. Reassignment IS the access control (SAFEGUARDING rule 4), so it takes a
+// deliberate press.
+function ClassTeacherPicker({ klass, staff }: { klass: SchoolClass; staff: StaffRow[] }) {
+  const [choice, setChoice] = useState(klass.teacherId);
+  const changed = choice !== klass.teacherId;
+  const target = staff.find((t) => t.id === choice);
+
+  return (
+    <form action={assignClassToStaff} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
+      <input type="hidden" name="classId" value={klass.id} />
+      <select
+        name="staffId"
+        aria-label={`Teacher for ${klass.name}`}
+        value={choice}
+        onChange={(e) => setChoice(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        style={{ font: "400 15px var(--font-atkinson)", color: "#43506B", background: "#FFFDF7", border: `2px solid ${changed ? "#22304A" : "#E4DCC8"}`, borderRadius: 8, padding: "7px 9px", minHeight: 44, maxWidth: "100%" }}
+      >
+        {staff.map((t) => (
+          <option key={t.id} value={t.id}>{t.name}{t.status === "INVITED" ? " (invited)" : ""}</option>
+        ))}
+      </select>
+      {changed && (
+        <button
+          type="submit"
+          style={{ font: "700 13px var(--font-atkinson)", color: "#FAF6EE", background: "#C2476B", border: "none", borderRadius: 999, padding: "9px 14px", minHeight: 44, cursor: "pointer", whiteSpace: "nowrap" }}
+        >
+          Hand to {target?.name.split(/\s+/)[0] ?? "them"}
+        </button>
+      )}
+    </form>
+  );
+}
+
+// The Overview's "what needs you" list. Only ever counts and adult-facing state —
+// never anything about a child (SAFEGUARDING rule 5).
+function ThingsToDo({
+  invited,
+  classes,
+  staff,
+  billing,
+  onGoTo,
+}: {
+  invited: number;
+  classes: SchoolClass[];
+  staff: StaffRow[];
+  billing: { status: string; kind: string | null; trialDaysLeft: number | null };
+  onGoTo: (t: Tab) => void;
+}) {
+  const emptyClasses = classes.filter((c) => c.children === 0);
+  const teachersWithoutClass = staff.filter((p) => p.role !== "ADMIN" && p.classes.length === 0);
+
+  const jobs: { key: string; text: React.ReactNode; tab: Tab; urgent?: boolean }[] = [];
+
+  if (billing.status === "FROZEN") {
+    jobs.push({ key: "frozen", urgent: true, tab: "billing", text: <>The plan has paused, so staff can view and download but cannot add or change work. Renewing puts it back straight away.</> });
+  } else if (billing.status === "PAST_DUE") {
+    jobs.push({ key: "pastdue", urgent: true, tab: "billing", text: <>A payment didn&rsquo;t go through and is being retried. Access is unaffected for now.</> });
+  } else if (billing.status === "TRIAL" && billing.trialDaysLeft !== null && billing.trialDaysLeft <= 21) {
+    jobs.push({ key: "trial", urgent: billing.trialDaysLeft <= 7, tab: "billing", text: <>{billing.trialDaysLeft} {billing.trialDaysLeft === 1 ? "day" : "days"} left to try Storyjar. Card or purchase order — both take a minute.</> });
+  } else if (billing.status === "NONE") {
+    jobs.push({ key: "noplan", tab: "billing", text: <>No school plan is set up yet. The Billing tab shows the price for a school your size and both ways of paying.</> });
+  }
+
+  if (classes.length === 0) {
+    jobs.push({ key: "noclasses", tab: "classes", text: <>No classes yet. Paste a register and the first one is ready in a minute.</> });
+  }
+  if (invited > 0) {
+    jobs.push({ key: "invites", tab: "staff", text: <>{invited} {invited === 1 ? "colleague has not" : "colleagues have not"} accepted their invite yet. You can resend it from their row.</> });
+  }
+  if (emptyClasses.length > 0) {
+    jobs.push({ key: "empty", tab: "classes", text: <>{emptyClasses.length} {emptyClasses.length === 1 ? "class has" : "classes have"} no children in yet — a pasted register fills one in one go.</> });
+  }
+  if (teachersWithoutClass.length > 0) {
+    jobs.push({ key: "noclass", tab: "classes", text: <>{teachersWithoutClass.length} {teachersWithoutClass.length === 1 ? "member of staff has" : "members of staff have"} no class. A teacher with no class has nothing to open.</> });
+  }
+
+  return (
+    <div className="sj-card" style={{ ...CARD, marginTop: 18, padding: "22px 24px" }}>
+      <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>What needs you</h2>
+      {jobs.length === 0 ? (
+        <p style={{ margin: "10px 0 0", font: "400 16px var(--font-atkinson)", color: "#2E6B64" }}>
+          Nothing right now — staff are set up, classes have children in them and the plan is in order.
+        </p>
+      ) : (
+        <ul style={{ margin: "12px 0 0", padding: 0, listStyle: "none", display: "grid", gap: 10 }}>
+          {jobs.map((j) => (
+            <li key={j.key} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <span aria-hidden style={{ marginTop: 6, width: 9, height: 9, borderRadius: "50%", background: j.urgent ? "#C2476B" : "#F0B441", flexShrink: 0 }} />
+              <span style={{ font: "400 15px/1.55 var(--font-atkinson)", color: "#43506B" }}>
+                {j.text}{" "}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onGoTo(j.tab); }}
+                  style={{ font: "700 15px var(--font-atkinson)", color: "#C2476B", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                >
+                  {TABS.find((t) => t.id === j.tab)?.label ?? "Open"} →
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
