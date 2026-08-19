@@ -35,10 +35,22 @@ are planned next (see [Roadmap](#roadmap-whats-next)).
     eraser) with the selected one lifted, **text boxes** (which can be
     re-selected, moved and re-edited), a **rainbow colour
     slider** + palette, brush sizes, **undo/redo**, and **multiple pages** with
-    a live thumbnail filmstrip. A ＋ button adds a photo, PDF, or **shape**
-    (rectangle, circle, triangle, star, speech bubble) onto the canvas as a
-    **movable, resizable object** — pick the **cursor tool** to select, drag to
-    move, pull the corner to resize, ✕ to remove. Shapes also have editable
+    a live thumbnail filmstrip. A ＋ button adds a photo, PDF, or a **shape** from
+    a **toolbox kit** onto the canvas as a **movable, resizable object** — pick
+    the **cursor tool** to select, drag to move, pull the corner to resize, ✕ to
+    remove, **＋1** to make another one. Dragged shapes **snap to a light grid**,
+    so a row of apparatus lines up without a child having to aim. Two kits ship:
+    **Shapes** (rectangle, circle, triangle, star, speech bubble) for every age,
+    and a **Maths kit** for KS1 and KS2 — number lines, arrows, jump arrows and
+    braces; **base 10** ones, ten rods, hundred flats and thousand cubes;
+    **place-value counters** labelled 1, 10, 100 and 1000; **ten frames**,
+    hundred squares and arrays; **fraction bars, circles and rings**; and a
+    blank **clock face**. Shapes built from a number — a fraction circle, an
+    array — carry a **stepper** on their toolbar, so any denominator up to 24 is
+    a tap away rather than a release away. Early years keeps the five plain
+    shapes: place-value apparatus is a teacher's to place, and **a template
+    built with it renders for every child, whatever their class is set to**.
+    Shapes also have editable
     **fill and line colours**, and you can **double-tap a shape to add a label
     locked inside it** — the label wraps and auto-sizes to fit the shape's actual
     area (so it stays inside triangles, circles, stars, etc.), reflowing into new

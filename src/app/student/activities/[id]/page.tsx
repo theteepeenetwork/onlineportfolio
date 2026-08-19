@@ -61,6 +61,7 @@ export default async function RespondToActivity({
     <ActivityResponseForm
       assignmentId={assignment.id}
       studentId={user.student.id}
+      mode={user.student.ageMode}
       title={assignment.title}
       instructions={assignment.instructions ?? undefined}
       template={jsonArray(assignment.templateSnapshotJson)}

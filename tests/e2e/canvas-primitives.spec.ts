@@ -9,9 +9,20 @@ import { studentLogin, openDrawing } from "./helpers";
 // before, freehand with the pen was it — and they matter more once apparatus
 // arrives, because a row of ten-rods is duplicate plus snap.
 
+// The five plain shapes, offered to every age.
 async function addShape(page: import("@playwright/test").Page, name: string) {
   await page.locator('button[title="Add"]').click();
   await page.getByRole("button", { name: "Shapes" }).click();
+  await page.getByRole("button", { name, exact: true }).click();
+}
+
+// The vector kinds. They live in the maths kit rather than in Shapes: a
+// straight line is generally useful, but the Shapes palette is the one every
+// age sees and the youngest register stays at five.
+async function addVector(page: import("@playwright/test").Page, name: string) {
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Maths kit" }).click();
+  await page.getByRole("tab", { name: "Number lines" }).click();
   await page.getByRole("button", { name, exact: true }).click();
 }
 
@@ -19,7 +30,7 @@ test("a child can draw a straight line and point an arrow the other way", async 
   await studentLogin(page, "Ella");
   await openDrawing(page);
 
-  await addShape(page, "Line");
+  await addVector(page, "Number line");
   const line = page.locator('svg[data-shape="line"] path').first();
   await expect(line).toBeVisible();
   // A line is a stroke, never an area: it must not arrive filled, or it reads
@@ -43,7 +54,7 @@ test("an arrow carries a head, and the head follows the flip", async ({ page }) 
   await studentLogin(page, "Ella");
   await openDrawing(page);
 
-  await addShape(page, "Arrow");
+  await addVector(page, "Arrow");
   const arrow = page.locator('svg[data-shape="arrow"] path').first();
   // Shaft plus two head strokes — three move/line runs in one path.
   const d = (await arrow.getAttribute("d"))!;

@@ -9,7 +9,7 @@ import { PhotoCapture } from "@/components/PhotoCapture";
 import { AudioCapture } from "@/components/AudioCapture";
 import { Icon } from "@/components/icons/Icon";
 import { studentCopy } from "@/lib/copy/student";
-import type { AgeMode } from "@/lib/ageMode";
+import { kitsForChild, type AgeMode } from "@/lib/ageMode";
 
 export type CaptureType = "PHOTO" | "TEXT" | "DRAWING" | "AUDIO";
 
@@ -119,7 +119,7 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
 // Drawing keeps its own full-screen, child-led surface: the canvas already owns
 // its caption and its ✓, and it is the best child UI in the app. All this adds
 // is a way back to the jar that lands on the jar, rather than in a photo tab.
-export function StudentDrawCapture() {
+export function StudentDrawCapture({ mode }: { mode: AgeMode }) {
   const router = useRouter();
   const [, action] = useActionState(createJournalItem, {});
 
@@ -130,6 +130,7 @@ export function StudentDrawCapture() {
         name="drawingPages"
         fullScreen
         withCaption
+        kits={kitsForChild(mode)}
         onClose={() => router.push("/student")}
       />
     </form>

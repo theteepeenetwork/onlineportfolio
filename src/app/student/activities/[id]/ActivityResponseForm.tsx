@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { createJournalItem } from "@/app/actions/journal";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
+import { kitsForChild, type AgeMode } from "@/lib/ageMode";
 import type { QuizPayload, QuizAnswer } from "@/lib/quiz";
 import type { CanvasObj } from "@/lib/canvasObjects";
 
@@ -20,6 +21,7 @@ export function ActivityResponseForm({
   resumeMode,
   initialAnswers,
   quizReview,
+  mode,
 }: {
   assignmentId: string;
   studentId: string;
@@ -28,6 +30,9 @@ export function ActivityResponseForm({
   template: string[];
   quiz?: QuizPayload;
   objects?: CanvasObj[][];
+  // The child's class register, which decides which toolbox kits they are
+  // offered. It never affects what the teacher's template renders.
+  mode: AgeMode;
   // Reopening a handed-back activity: "continue" restores the child's saved work
   // (fully editable), "fresh" starts them again on the blank template.
   resumeMode?: "continue" | "fresh";
@@ -56,6 +61,7 @@ export function ActivityResponseForm({
         initialQuiz={quiz}
         initialAnswers={initialAnswers}
         quizReview={quizReview}
+        kits={kitsForChild(mode)}
         objectMode={objects && objects.length ? "answer" : undefined}
         initialObjects={objects}
         resumeMode={resumeMode}

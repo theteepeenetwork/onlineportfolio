@@ -15,7 +15,13 @@
 // No `server-only` here: imported by both the client canvas and the server
 // actions. Keep it free of DB / Node-only imports (mirrors quiz.ts).
 
-import { isVectorKind, SHAPE_KINDS, type ShapeKind } from "./canvasShapes";
+import {
+  clampDivisions,
+  clampParts,
+  isVectorKind,
+  SHAPE_KINDS,
+  type ShapeKind,
+} from "./canvasShapes";
 
 // Canvas model space (matches DrawingCanvas W×H). Object geometry is stored in
 // these units and scaled for display, so it is resolution-independent.
@@ -68,6 +74,18 @@ export type ShapeObj = ObjCommon & {
   // Vector kinds (line / arrow): which diagonal of the box the stroke runs
   // along. Reaches all four quadrants without a rotation handle.
   flip?: boolean;
+  // grid: how many columns and rows the box is divided into. One kind fronts
+  // the base-10 rod and flat, the ten frame, the hundred square, the fraction
+  // bar and the array — the numbers are what tell them apart.
+  cols?: number;
+  rows?: number;
+  // pie / ring / clock: how many equal parts the circle is cut into.
+  parts?: number;
+  // Set from the palette preset when the shape only means what it means at a
+  // fixed proportion — a hundred flat squashed into a rectangle is not a
+  // hundred. Held on the OBJECT rather than the kind, because the same kind can
+  // mean different things: a plain circle should stretch, a counter must not.
+  lockAspect?: boolean;
   // Rotation in degrees, 0–359. RESERVED: nothing in the UI produces a non-zero
   // value yet, but both renderers honour it, so the data and the pixels agree
   // from the day the field exists and adding a rotate handle later is pure UI.
@@ -101,6 +119,29 @@ export function isAllowedImageSrc(v: unknown): v is string {
 
 function num(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+// The shape parameters worth storing for this kind, clamped into the range the
+// geometry can actually draw. A grid of zero columns is a divide-by-zero and a
+// grid of five hundred is an unreadable smear, so the bounds live beside the
+// geometry (canvasShapes) and are applied here.
+function shapeGeometryFields(shape: ShapeKind, o: Record<string, unknown>) {
+  const out: { cols?: number; rows?: number; parts?: number; lockAspect?: boolean } = {};
+  if (shape === "grid") {
+    out.cols = clampDivisions(o.cols);
+    out.rows = clampDivisions(o.rows);
+  }
+  if (shape === "pie" || shape === "clock") {
+    out.parts = clampParts(o.parts);
+  }
+  if (shape === "ring") {
+    // A ring may legitimately have no divisions at all — that is the plain
+    // ring — so 1 is allowed here where the pie's floor is 2.
+    const raw = typeof o.parts === "number" && Number.isFinite(o.parts) ? Math.round(o.parts) : 1;
+    out.parts = raw <= 1 ? 1 : clampParts(raw);
+  }
+  if (o.lockAspect === true) out.lockAspect = true;
+  return out;
 }
 
 // Degrees into the 0–359 half-open range, or 0 for anything that isn't a real
@@ -152,6 +193,9 @@ function normalizeObject(raw: unknown): CanvasObj | null {
     // rather than "as far round as we allow". Wrapped BEFORE the zero test, so
     // a full turn is stored as no rotation at all rather than as `rot: 0`.
     const rot = normaliseRotation(o.rot);
+    // Only stored for the kinds that read them, so a rectangle never carries a
+    // stray `parts` that nothing draws.
+    const geom = shapeGeometryFields(shape, o);
     const textColor = typeof o.textColor === "string" ? str(o.textColor, MAX_COLOR_LEN) : undefined;
     return {
       id,
@@ -168,6 +212,7 @@ function normalizeObject(raw: unknown): CanvasObj | null {
       ...(textColor ? { textColor } : {}),
       ...(o.flip === true ? { flip: true } : {}),
       ...(rot ? { rot } : {}),
+      ...geom,
       locked,
     };
   }

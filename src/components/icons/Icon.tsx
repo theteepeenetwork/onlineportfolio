@@ -58,7 +58,8 @@ export type IconName =
   | "bring-to-front"
   | "send-to-back"
   | "duplicate"
-  | "flip";
+  | "flip"
+  | "maths-kit";
 
 type Glyph = { label: string; glyph: ReactNode };
 
@@ -196,6 +197,11 @@ const ICONS: Record<IconName, Glyph> = {
   ) },
   // Two overlapping cards: the accent one is the selected object. Bring-to-front
   // draws it on TOP; send-to-back draws it BEHIND the plain card.
+  // A ten rod beside a counter: the two halves of the place-value kit, which is
+  // what most of this toolbox is for.
+  "maths-kit": { label: "Maths kit", glyph: (
+    <><rect x="3.5" y="4" width="6" height="16" rx="1.4" fill="#8AB9D6" /> <line x1="3.5" y1="9.3" x2="9.5" y2="9.3" /> <line x1="3.5" y1="14.6" x2="9.5" y2="14.6" /> <circle cx="16.5" cy="14.5" r="5" fill="#F0B441" /></>
+  ) },
   // Two of the same thing, the front one offset — "make another one".
   "duplicate": { label: "Make another one", glyph: (
     <><rect x="4" y="4" width="12" height="12" rx="2.2" fill="#FFFDF7" /> <rect x="8" y="8" width="12" height="12" rx="2.2" fill="#8AB9D6" /></>

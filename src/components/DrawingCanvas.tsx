@@ -25,8 +25,13 @@ import { MAX_OBJECTS_PER_PAGE, type CanvasObj } from "@/lib/canvasObjects";
 import {
   detailStrokeWidth,
   kitsToShow,
+  type Kit,
   isVectorKind,
   minShapeSize,
+  MAX_DIVISIONS,
+  MAX_PARTS,
+  MIN_DIVISIONS,
+  MIN_PARTS,
   shapeAspect,
   shapeFillRule,
   shapeInnerBox,
@@ -145,6 +150,15 @@ const QUIZ_MIN_H = 120;
 // Drag snap for placed shapes, in canvas model units (model space is 1000×700).
 const SNAP_UNITS = 10;
 
+// The ＋ fan icon for each toolbox kit. Exhaustive over KitId, so a kit added to
+// the registry cannot ship without someone choosing its icon.
+const KIT_ICON: Record<KitId, IconName> = {
+  shapes: "shapes",
+  maths: "maths-kit",
+  diagrams: "shapes",
+  writing: "text",
+};
+
 // How far a duplicate lands from the thing it was copied from. Two snap steps,
 // so the clone sits on the grid rather than half a step off it.
 const DUPLICATE_OFFSET = SNAP_UNITS * 2;
@@ -185,6 +199,14 @@ type ShapeObj = ObjLock & {
   textColor?: string;
   // Which diagonal a vector kind (line / arrow) runs along.
   flip?: boolean;
+  // grid: columns and rows. pie / ring / clock: equal parts. See canvasShapes —
+  // these are what let one kind front a ten rod, a ten frame and a fraction bar.
+  cols?: number;
+  rows?: number;
+  parts?: number;
+  // Locks the proportion on resize, for shapes that only mean what they mean at
+  // a fixed ratio (a hundred flat is square or it is not a hundred).
+  lockAspect?: boolean;
   // Rotation in degrees. RESERVED — see src/lib/canvasObjects. Both renderers
   // honour it; nothing in the UI sets it, and selection / hit testing stay
   // axis-aligned until something does.
@@ -537,7 +559,12 @@ export function DrawingCanvas({
   }, []);
 
   const [fanOpen, setFanOpen] = useState(false);
-  const [shapesOpen, setShapesOpen] = useState(false);
+  // Which kit's palette is open, by id — null when none is. One at a time, so
+  // two popovers can never overlap each other on the child canvas.
+  const [openKit, setOpenKit] = useState<KitId | null>(null);
+  // The active tab within each kit, remembered while the canvas is open so a
+  // teacher placing ten counters doesn't re-pick the group every time.
+  const [openGroup, setOpenGroup] = useState<Partial<Record<KitId, string>>>({});
   const [stripOpen, setStripOpen] = useState(true);
   // The line-thickness slider (child canvas). Closed by default; the line button
   // toggles it and a tap anywhere else on the stage puts it away again.
@@ -1544,6 +1571,11 @@ export function DrawingCanvas({
       stroke: preset.stroke ?? SHAPE_DEFAULTS.stroke,
       strokeWidth: preset.strokeWidth ?? SHAPE_DEFAULTS.strokeWidth,
       ...(preset.text ? { text: preset.text } : {}),
+      ...(preset.cols !== undefined ? { cols: preset.cols } : {}),
+      ...(preset.rows !== undefined ? { rows: preset.rows } : {}),
+      ...(preset.parts !== undefined ? { parts: preset.parts } : {}),
+      ...(preset.flip ? { flip: true } : {}),
+      ...(preset.lockAspect ? { lockAspect: true } : {}),
     };
     const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
     objectsRef.current[currentRef.current] = list;
@@ -1551,7 +1583,7 @@ export function DrawingCanvas({
     anyDrawnRef.current = true;
     setSelectedId(id);
     setTool("cursor"); // so it can be positioned straight away
-    setShapesOpen(false);
+    setOpenKit(null);
     setFanOpen(false);
     syncHidden();
     refreshThumbs();
@@ -1879,33 +1911,68 @@ export function DrawingCanvas({
   const objectsInteractive = tool === "cursor" || editingId !== null;
   const currentTemplate = templatesRef.current[current] ?? null;
 
-  // A palette of shapes to drop onto the canvas, built from the kit registry so
-  // the buttons and the canvas cannot disagree about what a shape looks like:
-  // each button's art is drawn by the same shapeParts the canvas renders with.
-  const shapesPalette = (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-2 shadow-lg">
-      {kitsToShow(kits).flatMap((kit) =>
-        kit.groups.map((group) => (
-          <div key={`${kit.id}-${group.id}`} role="group" aria-label={group.label}>
-            <div className="flex flex-wrap gap-1.5">
-              {group.presets.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => addShape(preset)}
-                  title={preset.label}
-                  aria-label={preset.label}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border hover:bg-background"
-                >
-                  <ShapeThumb preset={preset} />
-                </button>
-              ))}
-            </div>
+  // One palette per kit, built from the registry so the buttons and the canvas
+  // cannot disagree about what a shape looks like — each button's art is drawn
+  // by the same shapeParts the canvas renders with.
+  //
+  // A kit with several groups gets TABS rather than one long scroll. The maths
+  // kit is ~28 buttons; at the 64px child floor that is a popover about 500px
+  // tall, which does not fit beside the canvas on the 1024×768 iPad these
+  // screens are designed for. Tabs keep it to one group at a time and leave the
+  // ＋ fan behaving exactly as it did.
+  function palette(kit: Kit) {
+    const groups = kit.groups;
+    const activeId = openGroup[kit.id] ?? groups[0].id;
+    const active = groups.find((g) => g.id === activeId) ?? groups[0];
+    return (
+      <div className="flex max-w-[26rem] flex-col gap-2 rounded-xl border border-border bg-surface p-2 shadow-lg">
+        {groups.length > 1 && (
+          <div role="tablist" aria-label={`${kit.label} groups`} className="flex flex-wrap gap-1">
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                role="tab"
+                aria-selected={g.id === active.id}
+                onClick={() => setOpenGroup((prev) => ({ ...prev, [kit.id]: g.id }))}
+                className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                  g.id === active.id
+                    ? "bg-brand text-white"
+                    : "text-muted hover:bg-background"
+                }`}
+              >
+                {g.label}
+              </button>
+            ))}
           </div>
-        )),
-      )}
-    </div>
-  );
+        )}
+        <div
+          role="group"
+          aria-label={active.label}
+          className="flex flex-wrap gap-1.5"
+        >
+          {active.presets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => addShape(preset)}
+              title={preset.label}
+              aria-label={preset.label}
+              // 64px, the child touch floor (SAFEGUARDING rule 18). Everything
+              // a child taps to place apparatus is at the floor, including the
+              // five original shapes, which used to be 40.
+              className="flex h-16 w-16 items-center justify-center rounded-lg border border-border hover:bg-background"
+            >
+              <ShapeThumb preset={preset} />
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // The kits this canvas offers, in registry order.
+  const availableKits = kitsToShow(kits);
 
   const objectLayer = (
     <ObjectLayer
@@ -2089,15 +2156,23 @@ export function DrawingCanvas({
               <div className="flex w-44 flex-col gap-2">
                 <FanBtn label="Photo / PDF" onClick={() => fileRef.current?.click()}><Icon name="add-picture" size={26} decorative /></FanBtn>
                 <FanBtn label="Text" onClick={() => { setFanOpen(false); setTool("text"); }}><Icon name="text" size={26} decorative /></FanBtn>
-                <FanBtn label="Shapes" onClick={() => { setShapesOpen((v) => !v); }}><Icon name="shapes" size={26} decorative /></FanBtn>
+                {availableKits.map((kit) => (
+                  <FanBtn
+                    key={kit.id}
+                    label={kit.label}
+                    onClick={() => setOpenKit((v) => (v === kit.id ? null : kit.id))}
+                  >
+                    <Icon name={KIT_ICON[kit.id]} size={26} decorative />
+                  </FanBtn>
+                ))}
                 {isQuizAuthor && (
-                  <FanBtn label="Quiz" onClick={() => { setFanOpen(false); setShapesOpen(false); setTool("cursor"); openQuizPanel(); }}><Icon name="help" size={26} decorative /></FanBtn>
+                  <FanBtn label="Quiz" onClick={() => { setFanOpen(false); setOpenKit(null); setTool("cursor"); openQuizPanel(); }}><Icon name="help" size={26} decorative /></FanBtn>
                 )}
               </div>
             )}
             <button
               type="button"
-              onClick={() => { setFanOpen((v) => !v); setShapesOpen(false); }}
+              onClick={() => { setFanOpen((v) => !v); setOpenKit(null); }}
               className="flex h-14 w-14 items-center justify-center rounded-full bg-brand text-3xl font-light text-white shadow-lg transition-transform hover:scale-105"
               title={fanOpen ? "Close" : "Add"}
               aria-label={fanOpen ? "Close add menu" : "Add"}
@@ -2106,9 +2181,13 @@ export function DrawingCanvas({
             </button>
           </div>
 
-          {shapesOpen && (
-            // Sits to the right of the (labelled) add menu so the two don't overlap.
-            <div className="absolute left-52 top-1/2 -translate-y-1/2">{shapesPalette}</div>
+          {openKit && (
+            // Sits to the right of the (labelled) add menu so the two don't
+            // overlap. Capped in height and scrollable, because a kit's tallest
+            // group must not run off the top and bottom of a 768px-tall iPad.
+            <div className="absolute left-52 top-1/2 max-h-[80%] -translate-y-1/2 overflow-y-auto">
+              {palette(availableKits.find((k) => k.id === openKit) ?? availableKits[0])}
+            </div>
           )}
 
           {isQuizAuthor && !quizPanelOpen && <QuizLauncher onOpen={openQuizPanel} />}
@@ -2385,18 +2464,25 @@ export function DrawingCanvas({
             <Icon name="add-file" size={16} decorative /> {importing ? "Adding…" : "Add PDF / image"}
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => setShapesOpen((v) => !v)}
-          className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold ${
-            shapesOpen ? "border-brand bg-brand/10 text-brand" : "border-border bg-surface text-muted hover:bg-background"
-          }`}
-        >
-          <Icon name="shapes" size={16} decorative /> Shapes
-        </button>
+        {availableKits.map((kit) => (
+          <button
+            key={kit.id}
+            type="button"
+            onClick={() => setOpenKit((v) => (v === kit.id ? null : kit.id))}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold ${
+              openKit === kit.id ? "border-brand bg-brand/10 text-brand" : "border-border bg-surface text-muted hover:bg-background"
+            }`}
+          >
+            <Icon name={KIT_ICON[kit.id]} size={16} decorative /> {kit.label}
+          </button>
+        ))}
       </div>
 
-      {shapesOpen && <div className="mb-2">{shapesPalette}</div>}
+      {openKit && (
+        <div className="mb-2">
+          {palette(availableKits.find((k) => k.id === openKit) ?? availableKits[0])}
+        </div>
+      )}
 
       <div className="mb-2 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5">
@@ -2497,32 +2583,58 @@ function RoundBtn({
 }
 
 // A palette button's art. Drawn from the same shapeParts the canvas renders
-// with, at a fixed 24×24, so a button can never show something the canvas
-// doesn't draw — and so apparatus with no Unicode glyph (a base-10 rod) needs
-// no hand-drawn icon.
+// with, so a button can never show something the canvas doesn't draw — and so
+// apparatus with no Unicode glyph (a base-10 rod) needs no hand-drawn icon.
+//
+// The preview keeps the preset's PROPORTIONS inside a square box, letting the
+// long side fill it. Without that every base-10 button would be the same square
+// and a ten rod would be indistinguishable from a hundred flat.
 function ShapeThumb({ preset }: { preset: ShapePreset }) {
-  const box = { shape: preset.kind, w: 24, h: 24 };
+  const PX = 26;
+  const pw = preset.w ?? SHAPE_DEFAULTS.w;
+  const ph = preset.h ?? SHAPE_DEFAULTS.h;
+  const scale = PX / Math.max(pw, ph);
+  // A number line is 4 units tall against 700 wide; drawn to scale it would be
+  // invisible, so very thin presets get a floor.
+  const w = Math.max(pw * scale, isVectorKind(preset.kind) ? 0 : 3);
+  const h = Math.max(ph * scale, isVectorKind(preset.kind) ? 2 : 3);
+  const geom = {
+    shape: preset.kind,
+    w,
+    h,
+    flip: preset.flip,
+    cols: preset.cols,
+    rows: preset.rows,
+    parts: preset.parts,
+  };
   return (
-    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" className="overflow-visible">
-      {shapeParts(box).map((part, i) => (
+    <svg
+      viewBox={`${-(PX - w) / 2} ${-(PX - h) / 2} ${PX} ${PX}`}
+      width={PX}
+      height={PX}
+      aria-hidden="true"
+      className="overflow-visible"
+    >
+      {shapeParts(geom).map((part, i) => (
         <path
           key={i}
           d={part.d}
           fill={part.role === "detail" || preset.fill === "none" ? "none" : preset.fill ?? SHAPE_DEFAULTS.fill}
           fillRule={shapeFillRule(preset.kind)}
           stroke={preset.stroke ?? SHAPE_DEFAULTS.stroke}
-          strokeWidth={part.role === "detail" ? 0.6 : 1.5}
+          strokeWidth={part.role === "detail" ? 0.4 : 1.2}
           strokeLinejoin="round"
+          strokeLinecap="round"
         />
       ))}
       {preset.text && (
         <text
-          x="12"
-          y="12"
+          x={w / 2}
+          y={h / 2}
           textAnchor="middle"
           dominantBaseline="central"
-          fontSize="10"
-          fontWeight="600"
+          fontSize={preset.text.length > 2 ? 7 : 10}
+          fontWeight="700"
           fill="#1f2430"
           stroke="none"
         >
@@ -2530,6 +2642,57 @@ function ShapeThumb({ preset }: { preset: ShapePreset }) {
         </text>
       )}
     </svg>
+  );
+}
+
+function shapeHasParts(kind: ShapeKind): boolean {
+  return kind === "grid" || kind === "pie" || kind === "ring" || kind === "clock";
+}
+
+// A minus / value / plus control for one of a shape's numbers. Deliberately a
+// stepper rather than a text field: it is reachable with one tap per step on a
+// tablet, it cannot be given a value the geometry can't draw, and it needs no
+// keyboard — which matters when a child is holding a stylus.
+function Stepper({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  const btn =
+    "pointer-events-auto flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-lg font-bold hover:bg-surface disabled:opacity-40";
+  return (
+    <span className="pointer-events-auto inline-flex items-center gap-1">
+      <span className="text-sm font-semibold text-muted">{label}</span>
+      <button
+        type="button"
+        className={btn}
+        onClick={() => onChange(Math.max(min, value - 1))}
+        disabled={value <= min}
+        aria-label={`${label}: fewer`}
+      >
+        −
+      </button>
+      <output className="min-w-6 text-center text-base font-bold tabular-nums" aria-label={`${label}: ${value}`}>
+        {value}
+      </output>
+      <button
+        type="button"
+        className={btn}
+        onClick={() => onChange(Math.min(max, value + 1))}
+        disabled={value >= max}
+        aria-label={`${label}: more`}
+      >
+        +
+      </button>
+    </span>
   );
 }
 
@@ -2787,6 +2950,29 @@ function ObjectToolbar({
         >
           <Icon name="flip" size={30} decorative />
         </button>
+      )}
+
+      {/* The numbers behind a parameterised shape. This is what makes twelve
+          fraction buttons unnecessary: halves, quarters and eighths are on the
+          palette, and a teacher who wants ninths steps to nine here rather than
+          waiting on a release. */}
+      {showStyle && shape && shapeHasParts(shape.shape) && (
+        <Stepper
+          label={shape.shape === "grid" ? "Columns" : "Parts"}
+          value={shape.shape === "grid" ? shape.cols ?? 1 : shape.parts ?? 2}
+          min={shape.shape === "grid" ? MIN_DIVISIONS : shape.shape === "ring" ? 1 : MIN_PARTS}
+          max={shape.shape === "grid" ? MAX_DIVISIONS : MAX_PARTS}
+          onChange={(v) => onStyle(shape.shape === "grid" ? { cols: v } : { parts: v })}
+        />
+      )}
+      {showStyle && shape && shape.shape === "grid" && (
+        <Stepper
+          label="Rows"
+          value={shape.rows ?? 1}
+          min={MIN_DIVISIONS}
+          max={MAX_DIVISIONS}
+          onChange={(v) => onStyle({ rows: v })}
+        />
       )}
 
       {showStyle && <span className="mx-0.5 h-9 w-px bg-border" />}

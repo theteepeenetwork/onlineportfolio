@@ -61,4 +61,43 @@ test.describe("canvas object validation", () => {
     // nothing and lost off the page.
     expect(normaliseOne({ ...base, shape: "rect", h: 1 })?.h).toBe(8);
   });
+
+  test("grid divisions and circle parts are clamped into what can be drawn", () => {
+    const grid = normaliseOne({ ...base, shape: "grid", cols: 10, rows: 10 });
+    expect(grid?.cols).toBe(10);
+    expect(grid?.rows).toBe(10);
+
+    // A grid of zero columns is a divide-by-zero and a grid of five hundred is
+    // an unreadable smear, so both ends are pulled into range rather than
+    // dropping the object.
+    expect(normaliseOne({ ...base, shape: "grid", cols: 0, rows: 999 })?.cols).toBe(1);
+    expect(normaliseOne({ ...base, shape: "grid", cols: 0, rows: 999 })?.rows).toBe(20);
+    expect(normaliseOne({ ...base, shape: "grid", cols: "six" })?.cols).toBe(1);
+
+    expect(normaliseOne({ ...base, shape: "pie", parts: 9 })?.parts).toBe(9);
+    expect(normaliseOne({ ...base, shape: "pie", parts: 1 })?.parts).toBe(2);
+    expect(normaliseOne({ ...base, shape: "pie", parts: 99 })?.parts).toBe(24);
+  });
+
+  test("a ring may have no divisions at all, where a pie may not", () => {
+    // The plain ring — a hoop, not a fraction ring. The pie's floor of 2 would
+    // turn it into a semicircle diagram nobody asked for.
+    expect(normaliseOne({ ...base, shape: "ring", parts: 1 })?.parts).toBe(1);
+    expect(normaliseOne({ ...base, shape: "ring", parts: 4 })?.parts).toBe(4);
+  });
+
+  test("parameters are only stored for the kinds that read them", () => {
+    // A rectangle carrying a stray `parts` would be a field nothing draws and
+    // everything has to keep carrying.
+    const rect = normaliseOne({ ...base, shape: "rect", cols: 5, rows: 5, parts: 7 });
+    expect(rect?.cols).toBeUndefined();
+    expect(rect?.rows).toBeUndefined();
+    expect(rect?.parts).toBeUndefined();
+  });
+
+  test("lockAspect survives, because it is what keeps a hundred a hundred", () => {
+    expect(normaliseOne({ ...base, shape: "grid", lockAspect: true })?.lockAspect).toBe(true);
+    expect(normaliseOne({ ...base, shape: "grid" })?.lockAspect).toBeUndefined();
+    expect(normaliseOne({ ...base, shape: "grid", lockAspect: "yes" })?.lockAspect).toBeUndefined();
+  });
 });

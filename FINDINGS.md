@@ -1214,3 +1214,83 @@ across two sessions while masquerading as two different product faults.
   serious/critical violations block; the residual brand-badge contrast is
   counted and reported until the palette is finalised.
 - Everything else is guarded by an ordinary passing test in its suite.
+
+## F37 · The drawing canvas is full of controls a child cannot reliably hit · Medium → Open
+
+Found on 2026-08-19 while adding the maths kit to the canvas toolbox. The kit
+needed its palette buttons measured against SAFEGUARDING rule 18 (a 64px child
+touch floor), and measuring them meant looking at what else on that screen has
+never been measured.
+
+`tests/battery/a11y/child-touch-targets.spec.ts` sweeps whole pages for controls
+under the floor, and it is a **blocking** gate. It visits the class-code screen,
+the name picker, a child's jar and the photo / words / audio capture screens. It
+has never visited `/student/new/drawing`, which is the screen a child spends the
+longest on and the one with by far the most controls.
+
+Measured there, the canvas carries a long tail of controls below the floor:
+
+| Control | Size |
+| --- | --- |
+| ＋ fan, ✓ hand-in | 56px |
+| Object toolbar (order, padlock, colours, stroke width) | 44px |
+| Page filmstrip thumbnails, clear / undo / redo | 24–32px |
+
+None of this is new, and none of it was introduced by the toolbox work. It is
+recorded here because the work is what revealed it, and because "the gate is
+green" currently means "the gate does not look at this page".
+
+**What the toolbox work did fix.** Every button a child taps to *place* a shape
+is now 64px, including the five original shape buttons, which were 40. Those are
+asserted directly (`child-touch-targets.spec.ts`, "every shape a child can place
+is at least 64px, in every kit"), so the densest grid of controls on the canvas
+is at the floor and stays there.
+
+**What it deliberately did not do.** Add `/student/new/drawing` to the blanket
+sweep. That would turn a blocking gate red for a dozen controls unrelated to the
+change that found them, and the honest options at that point are to fix all of
+them in a toolbox PR or to weaken the gate. Neither is right. **The gate was not
+weakened and no control was exempted.**
+
+**To close this.** Bring the canvas controls to 64px — the ＋ and ✓ buttons and
+the object toolbar first, since those are the ones a child uses on every single
+drawing — then add `/student/new/drawing` to the page sweep above so it can
+never drift back. The filmstrip needs a design answer rather than a size bump:
+ten 64px thumbnails do not fit across an iPad, so it probably wants a different
+affordance rather than bigger squares.
+
+## F38 · One failing test in the e2e suite takes eleven more down with it · Medium → Open
+
+Found on 2026-08-19, while establishing whether a red suite was caused by the
+toolbox work. It was not — the same failures reproduce on `main` — but working
+that out surfaced something worth recording.
+
+The suite has **no per-test draft cleanup**. When a test dies inside the template
+builder, the local-first draft it was midway through writing survives. Every
+later test that opens the builder is then met with the "restore your draft?"
+modal, which is `aria-modal` and intercepts pointer events, so the next click
+times out:
+
+```
+- <div role="dialog" aria-modal="true" aria-labelledby="draft-restore-title" …>
+  intercepts pointer events
+```
+
+The failure it reports has nothing to do with what it was testing. Observed
+concretely: `object-toolbar.spec.ts:6` leaves a draft, and
+`object-toolbar.spec.ts:56` then fails inside the same file — on `main`, with no
+changes applied, in isolation. In a full run this is worth eleven extra red
+tests, which is how a single broken PDF renderer presented as a suite-wide
+collapse.
+
+Two things follow. The first is diagnostic cost: a red suite that names twelve
+specs when one thing is broken is a suite people stop reading. The second is that
+`globalSetup` reseeds the database once per RUN, not per test, so state written
+mid-suite is shared by everything after it — drafts are simply the first place
+that has bitten.
+
+**To close this.** Clear drafts (local storage and the `Draft` table) between
+tests — an `afterEach` in a shared fixture rather than a line remembered in each
+spec. Worth checking at the same time whether the restore modal should be
+dismissible by pressing Escape, since a modal that can only be answered is also
+a modal that can only block.
