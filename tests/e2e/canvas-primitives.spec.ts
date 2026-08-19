@@ -1,68 +1,109 @@
 import { test, expect } from "@playwright/test";
 import { studentLogin, openDrawing } from "./helpers";
 
-// The four small canvas primitives that everything else is built on: a straight
-// line, an arrow that can be pointed the other way, duplicating a placed object,
-// and snap-to-grid while dragging.
+// The small canvas primitives everything else is built on: a straight line, an
+// arrow, free rotation, duplicating a placed object, and snap-to-grid while
+// dragging.
 //
 // They matter on their own — there was no way to draw a straight line at all
 // before, freehand with the pen was it — and they matter more once apparatus
 // arrives, because a row of ten-rods is duplicate plus snap.
 
-// The five plain shapes, offered to every age.
+// Every shape a child is offered lives in one palette, at every age.
 async function addShape(page: import("@playwright/test").Page, name: string) {
   await page.locator('button[title="Add"]').click();
   await page.getByRole("button", { name: "Shapes" }).click();
   await page.getByRole("button", { name, exact: true }).click();
 }
 
-// The vector kinds. They live in the maths kit rather than in Shapes: a
-// straight line is generally useful, but the Shapes palette is the one every
-// age sees and the youngest register stays at five.
-async function addVector(page: import("@playwright/test").Page, name: string) {
-  await page.locator('button[title="Add"]').click();
-  await page.getByRole("button", { name: "Maths kit" }).click();
-  await page.getByRole("tab", { name: "Number lines" }).click();
-  await page.getByRole("button", { name, exact: true }).click();
+// Drag the rotate handle a given number of degrees around the shape's centre.
+async function turn(page: import("@playwright/test").Page, degrees: number) {
+  const wrapper = page.locator("div[data-object]").first();
+  const box = (await wrapper.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const handle = page.locator('div[title="Turn"]');
+  const hb = (await handle.boundingBox())!;
+  const hx = hb.x + hb.width / 2;
+  const hy = hb.y + hb.height / 2;
+  const radius = Math.hypot(hx - cx, hy - cy);
+  const start = Math.atan2(hy - cy, hx - cx);
+  const end = start + (degrees * Math.PI) / 180;
+  await page.mouse.move(hx, hy);
+  await page.mouse.down();
+  await page.mouse.move(cx + Math.cos(end) * radius, cy + Math.sin(end) * radius, { steps: 10 });
+  await page.mouse.up();
 }
 
-test("a child can draw a straight line and point an arrow the other way", async ({ page }) => {
+test("a child can draw a straight line, in one palette, at any age", async ({ page }) => {
   await studentLogin(page, "Ella");
   await openDrawing(page);
 
-  await addVector(page, "Number line");
+  await addShape(page, "Line");
   const line = page.locator('svg[data-shape="line"] path').first();
   await expect(line).toBeVisible();
   // A line is a stroke, never an area: it must not arrive filled, or it reads
   // as a thin rectangle rather than a rule.
   await expect(line).toHaveAttribute("fill", "none");
 
-  // A line runs corner to corner of its box, so the default wide, shallow box
-  // gives the horizontal rule a number line needs.
-  const d = await line.getAttribute("d");
-  expect(d).toMatch(/^M 0 0 L /);
-
-  // Flip sends it along the other diagonal — this is what we have instead of a
-  // rotate handle, and it is how the other two quadrants are reachable.
-  await page.getByRole("button", { name: "Flip direction" }).click();
-  await expect(line).toHaveAttribute("d", /^M 0 \d/);
-  const flipped = await line.getAttribute("d");
-  expect(flipped).not.toBe(d);
+  // It runs corner to corner of its box, so the default wide, shallow box gives
+  // the horizontal rule a number line needs. Any other angle is rotation.
+  expect(await line.getAttribute("d")).toMatch(/^M 0 0 L /);
 });
 
-test("an arrow carries a head, and the head follows the flip", async ({ page }) => {
+test("an arrow carries a head", async ({ page }) => {
   await studentLogin(page, "Ella");
   await openDrawing(page);
 
-  await addVector(page, "Arrow");
+  await addShape(page, "Arrow");
   const arrow = page.locator('svg[data-shape="arrow"] path').first();
-  // Shaft plus two head strokes — three move/line runs in one path.
+  // Shaft plus two head strokes — two move runs in one path.
   const d = (await arrow.getAttribute("d"))!;
   expect(d.match(/M /g)!.length).toBe(2);
   expect(d).toContain("L");
+});
 
-  await page.getByRole("button", { name: "Flip direction" }).click();
-  expect(await arrow.getAttribute("d")).not.toBe(d);
+test("a shape turns to any angle, all the way round", async ({ page }) => {
+  await studentLogin(page, "Ella");
+  await openDrawing(page);
+
+  await addShape(page, "Arrow");
+  const wrapper = page.locator("div[data-object]").first();
+  // Upright shapes carry no transform at all — 0 is never stored.
+  expect(await wrapper.evaluate((el) => getComputedStyle(el).transform)).toBe("none");
+
+  await turn(page, 90);
+  const t = await wrapper.evaluate((el) => getComputedStyle(el).transform);
+  expect(t).not.toBe("none");
+  // A quarter turn: the matrix is (cos, sin, -sin, cos) = (0, 1, -1, 0).
+  const m = t.match(/matrix\(([^)]+)\)/)![1].split(",").map(Number);
+  expect(m[0]).toBeCloseTo(0, 1);
+  expect(m[1]).toBeCloseTo(1, 1);
+
+  // And it keeps going the same way rather than stopping at a quadrant — this
+  // is what replaced the Flip button.
+  await turn(page, 150);
+  const t2 = await wrapper.evaluate((el) => getComputedStyle(el).transform);
+  expect(t2).not.toBe(t);
+});
+
+test("the delete button stays the right way up on a turned shape", async ({ page }) => {
+  await studentLogin(page, "Ella");
+  await openDrawing(page);
+
+  await addShape(page, "Rectangle");
+  await turn(page, 180);
+
+  // The controls are children of the rotating wrapper, so without a
+  // counter-rotation they hang upside-down. Their own transform must undo the
+  // wrapper's exactly, leaving them visually upright.
+  const del = page.locator('button[aria-label="Remove object"]');
+  const m = (await del.evaluate((el) => getComputedStyle(el).transform))
+    .match(/matrix\(([^)]+)\)/)![1]
+    .split(",")
+    .map(Number);
+  expect(m[0]).toBeCloseTo(-1, 1);
+  expect(m[1]).toBeCloseTo(0, 1);
 });
 
 test("duplicate makes a second object, offset and selected", async ({ page }) => {

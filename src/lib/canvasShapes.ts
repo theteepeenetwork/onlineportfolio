@@ -126,11 +126,6 @@ export type ShapeGeom = {
   shape: ShapeKind;
   w: number;
   h: number;
-  // Vector kinds: which diagonal of the box the stroke runs along. Absent /
-  // false runs top-left → bottom-right, true runs bottom-left → top-right.
-  // Together with a thin box that reaches all four quadrants without a rotation
-  // handle and without any negative geometry.
-  flip?: boolean;
   // grid: how many columns and rows it is divided into.
   cols?: number;
   rows?: number;
@@ -207,26 +202,21 @@ function speechPath(w: number, h: number) {
   ].join(" ");
 }
 
-// The two ends of a vector kind's stroke, given its box and which diagonal it
-// runs along.
-function vectorEnds(w: number, h: number, flip?: boolean) {
-  return flip
-    ? { x1: 0, y1: h, x2: w, y2: 0 }
-    : { x1: 0, y1: 0, x2: w, y2: h };
-}
-
-// A straight rule. Just the stroke — never an area, so its preset carries
-// fill: "none" and the renderer is not asked to guess.
-function linePath(w: number, h: number, flip?: boolean) {
-  const { x1, y1, x2, y2 } = vectorEnds(w, h, flip);
-  return `M ${x1} ${y1} L ${x2} ${y2}`;
+// A straight rule, corner to corner of its box. Just the stroke — never an
+// area, so its preset carries fill: "none" and the renderer is not asked to
+// guess. Any angle other than the box's own diagonal comes from rotation.
+function linePath(w: number, h: number) {
+  return `M 0 0 L ${n(w)} ${n(h)}`;
 }
 
 // A straight rule with a head on the far end. The head is drawn as two strokes
 // rather than a filled triangle so it inherits the line's colour and weight and
 // stays legible when a child recolours it.
-function arrowPath(w: number, h: number, flip?: boolean) {
-  const { x1, y1, x2, y2 } = vectorEnds(w, h, flip);
+function arrowPath(w: number, h: number) {
+  const x1 = 0;
+  const y1 = 0;
+  const x2 = w;
+  const y2 = h;
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.hypot(dx, dy) || 1;
@@ -386,11 +376,12 @@ function clockParts(w: number, h: number, parts: number): ShapePart[] {
 // fill "none" rather than leaving the renderer to guess what filling an arc
 // would even mean. The head sits on the tangent at the landing end, so it
 // points the way the jump is going.
-function jumpPath(w: number, h: number, flip?: boolean) {
+function jumpPath(w: number, h: number) {
   // Quadratic from one baseline end to the other; the control point is placed
-  // so the apex touches the top of the box exactly.
-  const y0 = flip ? 0 : h;
-  const ctrl = flip ? 2 * h : -h;
+  // so the apex touches the top of the box exactly. A hop the other way up is a
+  // 180° rotation, not a second code path.
+  const y0 = h;
+  const ctrl = -h;
   const yEnd = y0;
   const arc = `M 0 ${n(y0)} Q ${n(w / 2)} ${n(ctrl)} ${n(w)} ${n(yEnd)}`;
   // Tangent at the end of a quadratic is P2 − P1.
@@ -409,9 +400,9 @@ function jumpPath(w: number, h: number, flip?: boolean) {
 
 // A curly brace spanning the width — the bar-model bracket, and the part-whole
 // grouping. Tip up by default; flip puts it under the thing it groups.
-function bracePath(w: number, h: number, flip?: boolean) {
-  const tip = flip ? h : 0;
-  const arm = flip ? 0 : h;
+function bracePath(w: number, h: number) {
+  const tip = 0;
+  const arm = h;
   const mid = h / 2;
   return [
     `M 0 ${n(arm)}`,
@@ -422,12 +413,26 @@ function bracePath(w: number, h: number, flip?: boolean) {
   ].join(" ");
 }
 
+// The same arrow pointing back the other way, so a double-headed arrow is two
+// heads on one shaft rather than a second path helper.
+function arrowPathReversed(w: number, h: number) {
+  const len = Math.hypot(w, h) || 1;
+  const head = Math.min(len * 0.28, 46);
+  const ang = Math.atan2(-h, -w);
+  const spread = 0.42;
+  const hx1 = head * Math.cos(ang - spread);
+  const hy1 = head * Math.sin(ang - spread);
+  const hx2 = head * Math.cos(ang + spread);
+  const hy2 = head * Math.sin(ang + spread);
+  return `M ${n(hx1)} ${n(hy1)} L 0 0 L ${n(hx2)} ${n(hy2)}`;
+}
+
 // The parts a shape is drawn from, inside a w×h box at the origin.
 //
 // The switch is EXHAUSTIVE over ShapeKind with no `default`, on purpose: adding
 // a kind without drawing it should be a compile error, not a shape that renders
 // blank on a child's page. Keep it that way.
-export function shapeParts({ shape, w, h, flip, cols, rows, parts }: ShapeGeom): ShapePart[] {
+export function shapeParts({ shape, w, h, cols, rows, parts }: ShapeGeom): ShapePart[] {
   switch (shape) {
     case "rect":
       return [{ d: roundRectPath(w, h, Math.min(w, h) * 0.06), role: "outline" }];
@@ -445,19 +450,19 @@ export function shapeParts({ shape, w, h, flip, cols, rows, parts }: ShapeGeom):
     case "speech":
       return [{ d: speechPath(w, h), role: "outline" }];
     case "line":
-      return [{ d: linePath(w, h, flip), role: "outline" }];
+      return [{ d: linePath(w, h), role: "outline" }];
     case "arrow":
-      return [{ d: arrowPath(w, h, flip), role: "outline" }];
+      return [{ d: arrowPath(w, h), role: "outline" }];
     case "arrow-double":
       // Both ends headed, so it reads as a span or a difference rather than as
       // a direction. Drawn as the arrow plus the arrow reversed.
       return [
-        { d: `${arrowPath(w, h, flip)} ${arrowPath(w, h, !flip)}`, role: "outline" },
+        { d: `${arrowPath(w, h)} ${arrowPathReversed(w, h)}`, role: "outline" },
       ];
     case "arrow-jump":
-      return [{ d: jumpPath(w, h, flip), role: "outline" }];
+      return [{ d: jumpPath(w, h), role: "outline" }];
     case "brace":
-      return [{ d: bracePath(w, h, flip), role: "outline" }];
+      return [{ d: bracePath(w, h), role: "outline" }];
     case "grid":
       return gridParts(w, h, clampDivisions(cols), clampDivisions(rows));
     case "pie":
@@ -590,7 +595,6 @@ export type ShapePreset = {
   stroke?: string;
   strokeWidth?: number;
   text?: string;
-  flip?: boolean;
   cols?: number;
   rows?: number;
   parts?: number;
@@ -616,14 +620,15 @@ export type Kit = {
   groups: ShapeGroup[];
 };
 
-// Today's five shapes, unchanged: same order, same labels, same sizes, same
-// colours. `shapes.spec.ts` and `object-toolbar.spec.ts` drive these by
-// accessible name and must keep passing without an edit.
+// The shapes every child gets, at every age. The original five keep their order,
+// labels, sizes and colours — `shapes.spec.ts` and `object-toolbar.spec.ts`
+// drive them by accessible name and must keep passing without an edit.
 //
-// This kit is offered to EVERY age, so it is the one that must not grow. The
-// line and the arrow live in the maths kit rather than here, even though a
-// straight line is generally useful: the youngest register is deliberately
-// sparse, and five is what it has always been.
+// The line, the arrow and the ring live HERE rather than in the maths kit. None
+// of them is apparatus: a line is a road, a table rule or an underline as often
+// as it is a number line, an arrow points at things, and a ring is a hoop to
+// sort into. The maths kit is a teacher's tool for BUILDING a worksheet, and
+// what a child needs on the page arrives on the page — see `infinite`.
 const SHAPES_KIT: Kit = {
   id: "shapes",
   label: "Shapes",
@@ -637,6 +642,11 @@ const SHAPES_KIT: Kit = {
         { id: "triangle", kind: "triangle", label: "Triangle" },
         { id: "star", kind: "star", label: "Star", h: 280 },
         { id: "speech", kind: "speech", label: "Speech bubble", h: 280 },
+        // Vector kinds arrive as a wide, shallow box, which reads as a
+        // horizontal rule rather than a diagonal. Rotate for any other angle.
+        { id: "line", kind: "line", label: "Line", w: 420, h: 4, fill: "none" },
+        { id: "arrow", kind: "arrow", label: "Arrow", w: 360, h: 4, fill: "none" },
+        { id: "ring", kind: "ring", label: "Ring", parts: 1, w: 280, h: 280, lockAspect: true },
       ],
     },
   ],
@@ -663,6 +673,15 @@ const COUNTER_THOUSAND = "#C2476B";
 // multiple of it, so a ten rod really is ten ones long against a hundred flat.
 const UNIT = 48;
 
+// Apparatus for BUILDING a worksheet. Offered on the template builder and its
+// preview only — not to children, and not on the canvas a teacher uses to add
+// work on one child's behalf, because that canvas produces that child's own
+// journal entry rather than a reusable template.
+//
+// Children need no place-value palette: a teacher marks a placed counter or
+// base-10 block `infinite`, and a child drags as many as they need straight off
+// the worksheet. That is how the physical apparatus works, and it is what makes
+// taking this kit away from children cost them nothing.
 const MATHS_KIT: Kit = {
   id: "maths",
   label: "Maths kit",
@@ -671,11 +690,9 @@ const MATHS_KIT: Kit = {
       id: "number-line",
       label: "Number lines",
       presets: [
-        // Vector kinds arrive as a wide, shallow box, which reads as a
-        // horizontal rule — a number line, an axis, a table rule — rather than
-        // as a diagonal. Drag the corner up for a diagonal, or use Flip.
-        { id: "m-line", kind: "line", label: "Number line", w: 700, h: 4, fill: "none" },
-        { id: "m-arrow", kind: "arrow", label: "Arrow", w: 400, h: 4, fill: "none" },
+        // No plain line or arrow here: both are in Shapes, which a teacher also
+        // has. Duplicating them would put two buttons with the same accessible
+        // name in front of a screen reader, which the a11y gate refuses.
         { id: "m-arrow-double", kind: "arrow-double", label: "Double-headed arrow", w: 400, h: 4, fill: "none" },
         { id: "m-jump", kind: "arrow-jump", label: "Jump arrow", w: 300, h: 150, fill: "none" },
         { id: "m-brace", kind: "brace", label: "Brace", w: 400, h: 90, fill: "none" },
@@ -722,8 +739,9 @@ const MATHS_KIT: Kit = {
         { id: "m-bar-8", kind: "grid", label: "Fraction bar in eighths", cols: 8, rows: 1, w: 600, h: 140 },
         { id: "m-pie-2", kind: "pie", label: "Fraction circle in halves", parts: 2, w: 300, h: 300, lockAspect: true },
         { id: "m-pie-4", kind: "pie", label: "Fraction circle in quarters", parts: 4, w: 300, h: 300, lockAspect: true },
-        { id: "m-ring", kind: "ring", label: "Ring", parts: 1, w: 300, h: 300, lockAspect: true },
-        { id: "m-ring-4", kind: "ring", label: "Ring in quarters", parts: 4, w: 300, h: 300, lockAspect: true },
+        // The plain ring is in Shapes; this is the one that is actually about
+        // fractions. Any other denominator comes off the parts stepper.
+        { id: "m-ring-4", kind: "ring", label: "Fraction ring in quarters", parts: 4, w: 300, h: 300, lockAspect: true },
       ],
     },
     {

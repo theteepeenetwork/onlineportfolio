@@ -163,6 +163,11 @@ const KIT_ICON: Record<KitId, IconName> = {
 // so the clone sits on the grid rather than half a step off it.
 const DUPLICATE_OFFSET = SNAP_UNITS * 2;
 
+// Rotation snaps to this many degrees. 15° is 24 stops all the way round: fine
+// enough to point wherever a child means to, coarse enough that a right angle
+// really is a right angle rather than 89°.
+const ROTATE_STEP = 15;
+
 // Movable / resizable things placed on top of the drawing: imported pictures
 // (images / PDF pages) and shapes.
 // Placed-object lock state. `locked` is the teacher's decision (a child cannot
@@ -197,8 +202,6 @@ type ShapeObj = ObjLock & {
   // wraps and auto-sizes to fit the shape's current bounds.
   text?: string;
   textColor?: string;
-  // Which diagonal a vector kind (line / arrow) runs along.
-  flip?: boolean;
   // grid: columns and rows. pie / ring / clock: equal parts. See canvasShapes —
   // these are what let one kind front a ten rod, a ten frame and a fraction bar.
   cols?: number;
@@ -207,9 +210,9 @@ type ShapeObj = ObjLock & {
   // Locks the proportion on resize, for shapes that only mean what they mean at
   // a fixed ratio (a hundred flat is square or it is not a hundred).
   lockAspect?: boolean;
-  // Rotation in degrees. RESERVED — see src/lib/canvasObjects. Both renderers
-  // honour it; nothing in the UI sets it, and selection / hit testing stay
-  // axis-aligned until something does.
+  // Rotation in degrees, 0–359, set by the rotate handle. Applied to the object
+  // WRAPPER, so the browser rotates hit-testing and the selection outline with
+  // it, and honoured identically by the export renderer.
   rot?: number;
 };
 
@@ -1574,7 +1577,6 @@ export function DrawingCanvas({
       ...(preset.cols !== undefined ? { cols: preset.cols } : {}),
       ...(preset.rows !== undefined ? { rows: preset.rows } : {}),
       ...(preset.parts !== undefined ? { parts: preset.parts } : {}),
-      ...(preset.flip ? { flip: true } : {}),
       ...(preset.lockAspect ? { lockAspect: true } : {}),
     };
     const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
@@ -2602,7 +2604,6 @@ function ShapeThumb({ preset }: { preset: ShapePreset }) {
     shape: preset.kind,
     w,
     h,
-    flip: preset.flip,
     cols: preset.cols,
     rows: preset.rows,
     parts: preset.parts,
@@ -2845,6 +2846,7 @@ function ObjectToolbar({
   onStyle,
   onDuplicate,
   canDuplicate,
+  unrotate,
 }: {
   o: Obj;
   showAuthor: boolean; // teacher: show order + padlock
@@ -2858,6 +2860,10 @@ function ObjectToolbar({
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
   canDuplicate: boolean;
+  // The counter-rotation for a rotated object, so the toolbar reads the right
+  // way up over a shape that has been turned. Composed with the toolbar's own
+  // centring transform, never substituted for it.
+  unrotate?: string;
 }) {
   const shape = o.type === "shape" ? (o as ShapeObj) : null;
   const btn =
@@ -2893,7 +2899,13 @@ function ObjectToolbar({
       ref={ref}
       onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
-      style={{ transform: `translateX(calc(-50% + ${shift}px))` }}
+      // Order matters: centre it first, then spin it back upright about its own
+      // middle. Reversing these would swing the toolbar around the shape rather
+      // than turning it in place.
+      style={{
+        transform: `translateX(calc(-50% + ${shift}px))${unrotate ? ` ${unrotate}` : ""}`,
+        ...(unrotate ? { transformOrigin: "50% 50%" } : {}),
+      }}
       className={`pointer-events-auto absolute left-1/2 z-30 flex items-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg ${
         below ? "top-full mt-3" : "bottom-full mb-3"
       }`}
@@ -2936,21 +2948,6 @@ function ObjectToolbar({
       >
         <Icon name="duplicate" size={30} decorative />
       </button>
-
-      {/* Which diagonal a line or an arrow runs along. Two taps reach all four
-          quadrants, which is what we have instead of a rotate handle. */}
-      {shape && isVectorKind(shape.shape) && (
-        <button
-          type="button"
-          onClick={() => onStyle({ flip: !shape.flip })}
-          className={btn}
-          aria-pressed={!!shape.flip}
-          title="Flip which way it points"
-          aria-label="Flip direction"
-        >
-          <Icon name="flip" size={30} decorative />
-        </button>
-      )}
 
       {/* The numbers behind a parameterised shape. This is what makes twelve
           fraction buttons unnecessary: halves, quarters and eighths are on the
@@ -3101,15 +3098,38 @@ function MediaObjectView({
 }: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean; editing: boolean }) {
   const cap = objCapabilities(o, author);
   const canGrab = interactive && cap.movable;
+  // `rot: 0` is never persisted, so absent means upright.
+  const rot = o.type === "shape" ? o.rot ?? 0 : 0;
+  // The toolbar and the corner controls are children of the rotating wrapper,
+  // so without this they hang upside-down off a shape turned 180°. The label is
+  // deliberately NOT counter-rotated: it rides with the shape, which is what
+  // the export renderer already draws.
+  const unrotate = rot ? `rotate(${-rot}deg)` : "";
   // The floating toolbar shows when a shape is restyleable (author OR the
   // child's own shape) or whenever the teacher has an object selected.
   const showStyle = o.type === "shape" && cap.editable;
   const showToolbar = selected && !editing && (author || showStyle);
   // Drop the toolbar under the object when it would clip off the top edge.
-  const toolbarBelow = o.y * scale < 92;
+  // Measured against the top of the ROTATED box, not the unrotated one: a tall
+  // shape turned on its side reaches far above its own `y`, and the toolbar
+  // would be placed off the top of the canvas.
+  const halfSpan =
+    rot === 0
+      ? (o.h * scale) / 2
+      : ((Math.abs(o.w * Math.sin((rot * Math.PI) / 180)) +
+          Math.abs(o.h * Math.cos((rot * Math.PI) / 180))) *
+          scale) /
+        2;
+  const toolbarBelow = o.y * scale + (o.h * scale) / 2 - halfSpan < 92;
   const drag = useRef<
     | { mode: "move"; ax: number; ay: number }
-    | { mode: "resize"; ax: number; ay: number; sw: number; sh: number }
+    // Resize needs the starting x/y as well as w/h: rotating about the centre
+    // means a change in w/h moves the box, and x/y has to absorb that.
+    | { mode: "resize"; ax: number; ay: number; sw: number; sh: number; sx: number; sy: number }
+    // Rotate measures from the wrapper's on-screen centre, captured ONCE at
+    // drag start — reading it again mid-drag would read a centre that the
+    // rotation has already moved, and the handle would chase the pointer.
+    | { mode: "rotate"; cx: number; cy: number; base: number; startRot: number }
     | null
   >(null);
 
@@ -3135,7 +3155,29 @@ function MediaObjectView({
     e.preventDefault();
     onSelect(o.id);
     onStart();
-    drag.current = { mode: "resize", ax: e.clientX, ay: e.clientY, sw: o.w, sh: o.h };
+    drag.current = { mode: "resize", ax: e.clientX, ay: e.clientY, sw: o.w, sh: o.h, sx: o.x, sy: o.y };
+    capture(e);
+  }
+
+  function startRotate(e: React.PointerEvent) {
+    if (!cap.editable) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect(o.id);
+    onStart();
+    // The handle is a child of the wrapper, so it rotates as the shape does.
+    // Measuring the centre once, here, is what stops the handle chasing the
+    // pointer: from now on only the pointer moves, not the reference point.
+    const box = (e.currentTarget as HTMLElement).closest("[data-object]")?.getBoundingClientRect();
+    const cx = box ? box.left + box.width / 2 : e.clientX;
+    const cy = box ? box.top + box.height / 2 : e.clientY;
+    drag.current = {
+      mode: "rotate",
+      cx,
+      cy,
+      base: Math.atan2(e.clientY - cy, e.clientX - cx),
+      startRot: rot,
+    };
     capture(e);
   }
   function onPointerMove(e: React.PointerEvent) {
@@ -3156,21 +3198,50 @@ function MediaObjectView({
         x: Math.round(nx / snap) * snap,
         y: Math.round(ny / snap) * snap,
       });
+    } else if (d.mode === "rotate") {
+      const angle = Math.atan2(e.clientY - d.cy, e.clientX - d.cx);
+      const deg = d.startRot + ((angle - d.base) * 180) / Math.PI;
+      // Snapped to 15°, which is 24 stops all the way round: fine enough to
+      // point anywhere a child means to point, coarse enough that square is
+      // actually square and a right angle is actually a right angle.
+      const snapped = Math.round(deg / ROTATE_STEP) * ROTATE_STEP;
+      onChange(o.id, { rot: ((snapped % 360) + 360) % 360 });
     } else {
       // Vector kinds (line / arrow) get a much smaller floor: a number line or
       // a table rule IS a box a couple of units tall. Area shapes keep 24 so a
       // rectangle can't be squashed to nothing and lost.
       const min = o.type === "shape" ? minShapeSize(o.shape) : 24;
-      let w = Math.max(min, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
+
+      // Project the screen delta onto the shape's OWN axes. Drag right on a
+      // shape rotated 90° and it should get taller, not wider — the handle is
+      // at what is now the bottom-right of the shape, wherever that is on
+      // screen.
+      const th = (rot * Math.PI) / 180;
+      const cos = Math.cos(th);
+      const sin = Math.sin(th);
+      const dxScreen = (e.clientX - d.ax) / scale;
+      const dyScreen = (e.clientY - d.ay) / scale;
+      const dLocalX = dxScreen * cos + dyScreen * sin;
+      const dLocalY = -dxScreen * sin + dyScreen * cos;
+
+      let w = Math.max(min, Math.min(W, d.sw + dLocalX));
       // One lock rule for every object. A picture keeps the proportions it was
       // imported at; a shape keeps whatever proportion its geometry says it
       // means something at (a hundred flat squashed is not a hundred). Anything
-      // that returns null resizes freely on both axes, which is every shape
-      // today.
+      // that returns null resizes freely on both axes.
       const lock = o.type === "image" ? o.aspect : shapeAspect(o);
-      const h = lock ? w / lock : Math.max(min, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
+      const h = lock ? w / lock : Math.max(min, Math.min(H, d.sh + dLocalY));
       if (lock) w = Math.min(w, W);
-      onChange(o.id, { w, h });
+
+      // x/y pin the top-left but the rotation turns about the CENTRE, so
+      // growing w/h swings the whole box. Without this correction the shape
+      // slides out from under the finger as it is resized. Move the top-left by
+      // the amount the centre would otherwise have shifted.
+      const dw = w - d.sw;
+      const dh = h - d.sh;
+      const cxShift = (dw / 2) * (1 - cos) + (dh / 2) * sin;
+      const cyShift = (dh / 2) * (1 - cos) - (dw / 2) * sin;
+      onChange(o.id, { w, h, x: d.sx + cxShift, y: d.sy + cyShift });
     }
   }
   function onPointerUp() {
@@ -3188,6 +3259,7 @@ function MediaObjectView({
 
   return (
     <div
+      data-object
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -3197,7 +3269,20 @@ function MediaObjectView({
       } ${
         selected ? "ring-2 ring-brand" : author && o.locked ? "ring-2 ring-amber-400" : ""
       }`}
-      style={{ left: o.x * scale, top: o.y * scale, width: o.w * scale, height: o.h * scale }}
+      style={{
+        left: o.x * scale,
+        top: o.y * scale,
+        width: o.w * scale,
+        height: o.h * scale,
+        // Rotation lives on the WRAPPER, not on the shape's <svg>. That single
+        // choice buys three things for nothing: the browser rotates its own
+        // hit-testing to match, the `ring-2` selection outline becomes a
+        // correct rotated box, and the label rides along — which it must, since
+        // the export renderer already draws the label inside the same rotated
+        // frame. About the centre, so a shape spins in place rather than
+        // swinging off its own corner.
+        ...(rot ? { transform: `rotate(${rot}deg)`, transformOrigin: "50% 50%" } : {}),
+      }}
     >
       {o.type === "image" ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -3218,10 +3303,6 @@ function MediaObjectView({
           height="100%"
           preserveAspectRatio="none"
           className="pointer-events-none block h-full w-full overflow-visible"
-          // Reserved rotation, mirrored by the export renderer. About the
-          // centre, so a shape spins in place rather than swinging off its
-          // own corner.
-          style={o.rot ? { transform: `rotate(${o.rot}deg)`, transformOrigin: "50% 50%" } : undefined}
         >
           {shapeParts(o).map((part, i) => (
             <path
@@ -3298,6 +3379,7 @@ function MediaObjectView({
           onSendToBack={onSendToBack}
           onDuplicate={onDuplicate}
           canDuplicate={canDuplicate}
+          unrotate={unrotate || undefined}
           onStyle={(patch) => {
             onChange(o.id, patch);
             onEnd();
@@ -3307,11 +3389,16 @@ function MediaObjectView({
 
       {selected && !editing && cap.editable && (
         <>
+          {/* Every control here is a child of the rotating wrapper, so each one
+              is turned back the other way. Without it they hang upside-down
+              off a shape rotated 180°, and the "top-left" pencil ends up at
+              the bottom right. */}
           {o.type === "shape" && (
             <button
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => onEditText(o.id)}
+              style={unrotate ? { transform: unrotate } : undefined}
               className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white shadow"
               title={o.text ? "Edit label" : "Add label"}
               aria-label="Edit text"
@@ -3323,16 +3410,35 @@ function MediaObjectView({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onDelete(o.id)}
+            style={unrotate ? { transform: unrotate } : undefined}
             className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white shadow"
             title="Remove"
             aria-label="Remove object"
           >
             <Icon name="close" size={13} decorative />
           </button>
+          {/* Rotate. Shapes only: an image has no `rot` and the export renderer
+              draws pictures flat, so offering it there would spin on screen and
+              land straight in the hand-in. */}
+          {o.type === "shape" && (
+            <div
+              onPointerDown={startRotate}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              style={unrotate ? { transform: unrotate } : undefined}
+              className="pointer-events-auto absolute -bottom-2.5 -left-2.5 flex h-5 w-5 cursor-grab touch-none items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow"
+              title="Turn"
+              role="button"
+              aria-label="Turn shape"
+            >
+              <Icon name="rotate" size={11} decorative />
+            </div>
+          )}
           <div
             onPointerDown={startResize}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            style={unrotate ? { transform: unrotate } : undefined}
             className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
             title="Resize"
           />

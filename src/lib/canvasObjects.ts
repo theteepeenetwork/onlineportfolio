@@ -71,9 +71,6 @@ export type ShapeObj = ObjCommon & {
   strokeWidth: number;
   text?: string;
   textColor?: string;
-  // Vector kinds (line / arrow): which diagonal of the box the stroke runs
-  // along. Reaches all four quadrants without a rotation handle.
-  flip?: boolean;
   // grid: how many columns and rows the box is divided into. One kind fronts
   // the base-10 rod and flat, the ten frame, the hundred square, the fraction
   // bar and the array — the numbers are what tell them apart.
@@ -86,13 +83,10 @@ export type ShapeObj = ObjCommon & {
   // hundred. Held on the OBJECT rather than the kind, because the same kind can
   // mean different things: a plain circle should stretch, a counter must not.
   lockAspect?: boolean;
-  // Rotation in degrees, 0–359. RESERVED: nothing in the UI produces a non-zero
-  // value yet, but both renderers honour it, so the data and the pixels agree
-  // from the day the field exists and adding a rotate handle later is pure UI.
-  //
-  // Known gap while that is true: selection outlines, the resize handle and hit
-  // testing are all axis-aligned and will NOT follow a rotated shape. Anyone
-  // adding a handle has to fix those first.
+  // Rotation in degrees, 0–359, from the canvas's rotate handle. Applied to the
+  // object wrapper on screen and mirrored by the export renderer, so a turned
+  // shape lands in the child's hand-in exactly as they left it. Never stored as
+  // 0 — absent means upright.
   rot?: number;
 };
 
@@ -210,7 +204,6 @@ function normalizeObject(raw: unknown): CanvasObj | null {
       strokeWidth: clamp(num(o.strokeWidth, 6), 0, 80),
       ...(text ? { text } : {}),
       ...(textColor ? { textColor } : {}),
-      ...(o.flip === true ? { flip: true } : {}),
       ...(rot ? { rot } : {}),
       ...geom,
       locked,

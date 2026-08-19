@@ -3,7 +3,6 @@
 import { useActionState, useState } from "react";
 import { createJournalItem } from "@/app/actions/journal";
 import { DrawingCanvas } from "./DrawingCanvas";
-import { ALL_KITS } from "@/lib/canvasShapes";
 import { PhotoCapture } from "./PhotoCapture";
 import { AudioCapture } from "./AudioCapture";
 import { Icon, type IconName } from "./icons/Icon";
@@ -74,7 +73,7 @@ export function CreateForm({
       )}
 
       {/* Draw — inline for teachers; the child's canvas is full-screen. */}
-      {tab === "DRAWING" && <DrawingCanvas name="drawingPages" kits={ALL_KITS} />}
+      {tab === "DRAWING" && <DrawingCanvas name="drawingPages" />}
 
       {/* Voice — record a short note (publishes straight away on this path). */}
       {tab === "AUDIO" && <AudioCapture />}

@@ -25,8 +25,6 @@
 //      that is really KS2 shows a very juvenile UI until its teacher sets it.)
 //   2. Only "EYFS", "KS1" and "KS2" are ever stored. Anything else is NULL.
 
-import type { KitId } from "./canvasShapes";
-
 export type AgeMode = "EYFS" | "KS1" | "KS2";
 
 // Read a stored `Class.ageMode` column into a definite register. NULL, an old
@@ -59,23 +57,3 @@ export const AGE_MODE_OPTIONS: { value: AgeMode; label: string; hint: string }[]
   { value: "KS1", label: "Younger children", hint: "Years 1 and 2 · ages 5–7" },
   { value: "KS2", label: "Older children", hint: "Years 3 to 6 · ages 7–11" },
 ];
-
-// Which toolbox kits a CHILD's drawing canvas offers.
-//
-// EYFS keeps the smallest toolbox. Ten frames and dot patterns genuinely do
-// belong in Reception — but they belong in the TEACHER's hands: the teacher
-// builds the apparatus into the activity and the child works on top of it. A
-// Reception ＋ fan stays sparse, which is the whole point of the register.
-//
-// This is about what a canvas OFFERS. It never decides what renders: a template
-// full of hundred flats, assigned to a Reception class, still draws for that
-// child, still moves if the teacher left it unlocked, and still flattens into
-// their hand-in. They simply cannot add more.
-//
-// Teacher-facing canvases do NOT go through here — they pass ALL_KITS. A
-// class's age mode is a display choice for children, and a template is not
-// bound to one age, so a Reception teacher gets the same toolbox as a Year 6
-// one.
-export function kitsForChild(mode: AgeMode): KitId[] {
-  return mode === "EYFS" ? ["shapes"] : ["shapes", "maths"];
-}
