@@ -1,16 +1,18 @@
 name: QA battery
 
-# BLOCKING gates (must pass to merge): static-security, security, a11y, e2e.
+# BLOCKING gates (must pass to merge): static-security, security, a11y, e2e, ops.
 # REPORT-ONLY (never blocks): ux, personas, findings, perf.
 # See TEST_PLAN.md and FINDINGS.md.
 #
 # WHAT RUNS WHEN, AND WHY
 #
-# Every blocking gate runs on every code PR and every push to main. That is not
-# negotiable: they are the executable form of SAFEGUARDING.md, and a gate that
-# runs only sometimes is a gate that is red sometimes without anybody knowing.
+# Every blocking gate runs on every push to main, on the nightly and on demand,
+# unselected. That is the line that does not move: they are the executable form
+# of SAFEGUARDING.md, and a gate that never runs is not a gate.
 #
-# What changed is the price. The batteries used to be dominated by the operator
+# On a PR they are selected by what changed, and the price came down a long way
+# first — narrowing a suite that takes twenty minutes is a different decision
+# from narrowing one that takes three. The batteries used to be dominated by the operator
 # door: every ops test signed in for itself, TOTP replay protection is monotonic,
 # and so each one queued for its own 30-second window. The a11y project spent
 # 1,197 of its 1,305 seconds watching that clock. The door is now walked once per
@@ -20,10 +22,30 @@ name: QA battery
 # The blocking suites are then sharded across runners below, so wall-clock is
 # roughly a third of that again.
 #
-# The REPORT-ONLY suites are the ones that now run "only when necessary". They
-# never blocked a merge, so paying for them on every PR bought nothing but
-# waiting: they run on main, nightly, on demand, and on any PR labelled
-# `full-battery` when someone wants the personas' opinion before merging.
+# The REPORT-ONLY suites never blocked a merge, so paying for them on every PR
+# bought nothing but waiting: they run on main, nightly, on demand, and on any PR
+# labelled `full-battery` when someone wants the personas' opinion before merging.
+#
+# WHAT A PR RUNS, AND WHY THAT IS SAFE
+#
+# On a PR, the BLOCKING suites are selected by what changed
+# (scripts/select-suites.mjs, self-tested by `npm run check`). A change under
+# src/components cannot move the operator screens, so it does not run the
+# operator specs; a change under src/lib/ops cannot move a child's jar, so it
+# does not run the e2e suite. That is not a guess. It is what
+# check-ops-blindness.mjs already enforces, deny-by-default, on every PR: ops
+# code may import @/lib/ops/* and five named modules, and those five select both
+# sides. Anything the selector does not recognise — a new directory, a moved
+# file, a changed allowlist — selects EVERYTHING.
+#
+# And the net under all of it: every push to `main` runs the whole battery,
+# unselected, as does the nightly and `workflow_dispatch`. The worst a wrong
+# rule can do is move a red gate from the PR to the merge minutes later, not
+# hide it. `full-battery` on a PR opts back into the lot.
+#
+# The static gates are never selected away. They cost about a minute for the
+# whole repository and they catch the class of breakage that used to take three
+# suites down at once.
 
 on:
   pull_request:
@@ -50,10 +72,58 @@ env:
   DATABASE_URL: "file:./dev.db"
 
 jobs:
+  # ---- What does this change need? ----
+  # Only ever narrows a PR. Everything else in this file runs the lot.
+  select:
+    name: Select suites
+    runs-on: ubuntu-latest
+    outputs:
+      security: ${{ steps.pick.outputs.security }}
+      a11y: ${{ steps.pick.outputs.a11y }}
+      e2e: ${{ steps.pick.outputs.e2e }}
+      ops: ${{ steps.pick.outputs.ops }}
+      reason: ${{ steps.pick.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v5
+        with: { node-version: "22" }
+      - id: pick
+        shell: bash
+        run: |
+          set -euo pipefail
+          FULL_BATTERY="${{ contains(github.event.pull_request.labels.*.name, 'full-battery') }}"
+          if [ "${{ github.event_name }}" != "pull_request" ] || [ "$FULL_BATTERY" = "true" ]; then
+            echo "Not a PR, or labelled full-battery — running everything."
+            printf 'security=true\na11y=true\ne2e=true\nops=true\nreason=unselected\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          echo "Changed files:"; echo "$CHANGED" | sed 's/^/  /'
+          # Quoted: the selector splits on newlines itself, and a filename with a
+          # space must not word-split into fragments that look unclassified.
+          node scripts/select-suites.mjs --github "$CHANGED" >> "$GITHUB_OUTPUT"
+      - name: Say what was chosen
+        run: |
+          {
+            echo "### Suites selected for this change"
+            echo
+            echo "\`${{ steps.pick.outputs.reason }}\`"
+            echo
+            echo "| suite | runs |"
+            echo "| --- | --- |"
+            echo "| security | ${{ steps.pick.outputs.security }} |"
+            echo "| a11y | ${{ steps.pick.outputs.a11y }} |"
+            echo "| e2e | ${{ steps.pick.outputs.e2e }} |"
+            echo "| operator | ${{ steps.pick.outputs.ops }} |"
+            echo
+            echo "Every push to \`main\` runs all of it. Add the \`full-battery\` label to run it here."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # ---- Fast static gates (blocking) ----
   static-security:
     name: Static security gates (blocking)
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -97,48 +167,9 @@ jobs:
   # file, so nothing is skipped and no test sees a neighbour it did not see
   # before.
   security:
-    name: Security tests (blocking) ${{ matrix.shard }}/3
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with: { node-version: "22", cache: "npm" }
-      - run: npm ci
-      - uses: ./.github/actions/playwright-chromium
-      - run: npx prisma db push
-      - name: Security project
-        run: npx playwright test -c playwright.battery.config.ts --project=security --shard=${{ matrix.shard }}/3
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: security-report-${{ matrix.shard }}
-          path: playwright-report/battery
-          retention-days: 14
-
-  # ---- Accessibility battery (blocking, WCAG 2.2 AA baseline) ----
-  a11y:
-    name: Accessibility tests (blocking)
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with: { node-version: "22", cache: "npm" }
-      - run: npm ci
-      - uses: ./.github/actions/playwright-chromium
-      - run: npx prisma db push
-      - name: a11y project (fails on NEW serious/critical AA violations)
-        run: npx playwright test -c playwright.battery.config.ts --project=a11y
-
-  # ---- Functional E2E (blocking) ----
-  e2e:
-    name: Functional E2E (blocking) ${{ matrix.shard }}/2
-    if: github.event_name != 'schedule'
+    name: Security tests (blocking) ${{ matrix.shard }}/2
+    needs: select
+    if: needs.select.outputs.security == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -151,7 +182,75 @@ jobs:
       - run: npm ci
       - uses: ./.github/actions/playwright-chromium
       - run: npx prisma db push
-      - run: npx playwright test --shard=${{ matrix.shard }}/2
+      # The operator specs are their own job below, selected separately. The
+      # filter is a path regex, not a project: `--project=security` still means
+      # the whole security project everywhere else, and cannot quietly come to
+      # mean less than it says.
+      - name: Security project (product)
+        run: npx playwright test -c playwright.battery.config.ts --project=security 'security/(?!ops-)' --shard=${{ matrix.shard }}/2
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: security-report-${{ matrix.shard }}
+          path: playwright-report/battery
+          retention-days: 14
+
+  # ---- Accessibility battery (blocking, WCAG 2.2 AA baseline) ----
+  a11y:
+    name: Accessibility tests (blocking)
+    needs: select
+    if: needs.select.outputs.a11y == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - uses: ./.github/actions/playwright-chromium
+      - run: npx prisma db push
+      - name: a11y project, product screens (fails on NEW serious/critical AA violations)
+        run: npx playwright test -c playwright.battery.config.ts --project=a11y 'a11y/(?!ops-)'
+
+  # ---- Functional E2E (blocking) ----
+  e2e:
+    name: Functional E2E (blocking) ${{ matrix.shard }}/3
+    needs: select
+    if: needs.select.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - uses: ./.github/actions/playwright-chromium
+      - run: npx prisma db push
+      - run: npx playwright test --shard=${{ matrix.shard }}/3
+
+  # ---- The operator area (blocking, selected) ----
+  #
+  # Its own job because it is the expensive one and the most isolated one. The
+  # door is the slowest thing in the battery even after `asOperator`: three tests
+  # in ops-auth.spec.ts have to cross a real 30-second TOTP boundary to prove
+  # what they prove, and they should keep doing that. What changed is who waits
+  # for them — a change to a teacher's register no longer does.
+  ops:
+    name: Operator area (blocking)
+    needs: select
+    if: needs.select.outputs.ops == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "22", cache: "npm" }
+      - run: npm ci
+      - uses: ./.github/actions/playwright-chromium
+      - run: npx prisma db push
+      - name: Operator security + a11y specs
+        run: npx playwright test -c playwright.battery.config.ts --project=security --project=a11y '(security|a11y)/ops-'
 
   # ---- Report-only: UX + personas + findings + perf (never blocks merge) ----
   #
