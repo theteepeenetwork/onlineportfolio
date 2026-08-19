@@ -19,7 +19,7 @@ import { SCHOOL_A, SCHOOL_C, signInOperator } from "../helpers";
 //   somebody reading a printout.
 //
 //   The one outbound link in the operator area says where it goes and that it
-//   leaves Storyjar, in its own text, so it still makes sense read out of
+//   leaves StoryJar, in its own text, so it still makes sense read out of
 //   context in a list of links. It also opens in a new tab, which WCAG 3.2.5
 //   asks be announced rather than sprung, so the text says that too.
 //
@@ -87,7 +87,7 @@ test("the link out to Stripe names its destination and is reachable by keyboard"
   await expect(link).toBeVisible();
 
   // Its accessible name carries the destination, the object and the fact that
-  // it leaves Storyjar, so "Open customer cus_… in Stripe" still means
+  // it leaves StoryJar, so "Open customer cus_… in Stripe" still means
   // something in a screen reader's list of links with no surrounding text.
   const name = ((await link.textContent()) ?? "").toLowerCase();
   expect(name).toContain("stripe");

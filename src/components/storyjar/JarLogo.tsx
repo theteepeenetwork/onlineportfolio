@@ -1,4 +1,4 @@
-// The little Storyjar jar mark, reused in the nav, footer and "treasure" step.
+// The little StoryJar jar mark, reused in the nav, footer and "treasure" step.
 // One master SVG, sized by props — never redrawn per screen.
 export function JarLogo({
   width = 30,

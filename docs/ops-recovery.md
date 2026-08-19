@@ -1,6 +1,6 @@
 # Operator recovery: what to do when you cannot get in
 
-**Who this is for:** the person who runs Storyjar. Today that is one person, and
+**Who this is for:** the person who runs StoryJar. Today that is one person, and
 that is exactly why this document exists. There is no colleague to reset your
 account, no "forgot password" email, and nothing in the repository that can
 issue a signed-in session. Those absences are deliberate (handbook ruling R8: a

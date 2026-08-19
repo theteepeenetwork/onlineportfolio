@@ -1,7 +1,7 @@
-# Data-protection decision log — Storyjar
+# Data-protection decision log — StoryJar
 
-Storyjar is a one-person operation; the founder is the **data protection lead**.
-Storyjar is **not required to appoint a Data Protection Officer** — it does not
+StoryJar is a one-person operation; the founder is the **data protection lead**.
+StoryJar is **not required to appoint a Data Protection Officer** — it does not
 process special category data on a large scale as a core activity, and it does no
 regular systematic monitoring (see SAFEGUARDING rule 19). We deliberately do not
 call the role "DPO": appointing one voluntarily imports the full statutory
@@ -18,7 +18,7 @@ deliberately, not by default.
 
 ## 2026-07-18 — Stated age range widened 3–7 → 3–11
 
-**Decision:** Approved changing the stated age range of Storyjar's data subjects
+**Decision:** Approved changing the stated age range of StoryJar's data subjects
 from **3–7** to **3–11** across every customer-facing surface: the Privacy
 policy, Terms, the Data Processing Agreement (data-subjects clause), the
 Safeguarding statement, the Policies landing page, and the two marketing/metadata
@@ -88,7 +88,7 @@ remains a *permitted, optional* future feature); this is a decision not to
 implement it yet.
 
 **Why (the data-protection reasoning):** the PIN would be the **only** place
-Storyjar asks a child for a credential, and a PIN hash is the first per-child
+StoryJar asks a child for a credential, and a PIN hash is the first per-child
 data field beyond a first name. Data minimisation says don't add that surface
 without a concrete need, and there isn't one today — every child can already
 reach their own work without it. Parking it is the more protective choice.

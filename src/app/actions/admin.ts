@@ -34,7 +34,7 @@ export async function inviteStaff(
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "That email doesn’t look quite right." };
 
   const existing = await db.teacher.findUnique({ where: { email } });
-  if (existing) return { error: "Someone with that email is already on Storyjar." };
+  if (existing) return { error: "Someone with that email is already on StoryJar." };
 
   const { displayName } = deriveTeacherName({ title: "", fullName: name, displayStyle: "first" });
   const created = await db.teacher.create({

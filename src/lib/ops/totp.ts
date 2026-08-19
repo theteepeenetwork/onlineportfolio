@@ -41,7 +41,7 @@ export const TOTP_PERIOD_SECONDS = 30;
 export const TOTP_DIGITS = 6;
 // Plus or minus one step, so a clock a few seconds out still works.
 export const TOTP_WINDOW_STEPS = 1;
-export const TOTP_ISSUER = "Storyjar";
+export const TOTP_ISSUER = "StoryJar";
 
 // 20 random bytes, Base32, which is what authenticator apps expect.
 export function newTotpSecret(): string {

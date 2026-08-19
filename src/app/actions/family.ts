@@ -217,11 +217,11 @@ export async function addChildWithFamilyCode(
   return { added: children.map((c) => c.name).join(", ") };
 }
 
-// A parent tells Storyjar who they are and where to send a sign-in link.
+// A parent tells StoryJar who they are and where to send a sign-in link.
 //
 // Nobody else can do this, which is the whole point of the design: a teacher
 // creates a family place holding a code and nothing else, and every contact
-// detail Storyjar ever holds for a parent was typed by that parent, here, about
+// detail StoryJar ever holds for a parent was typed by that parent, here, about
 // themselves. Both fields are optional and both can be cleared again.
 export async function saveFamilyDetails(
   _prev: { error?: string; saved?: boolean } | undefined,
@@ -241,7 +241,7 @@ export async function saveFamilyDetails(
     await db.parent.update({
       where: { id: parent.id },
       // Empty means "don't hold this" rather than an empty string, so a parent
-      // can take their address back off Storyjar as easily as they gave it.
+      // can take their address back off StoryJar as easily as they gave it.
       data: { name: rawName || null, email: rawEmail || null },
     });
   } catch {

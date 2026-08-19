@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { SCHOOL_A, loginTeacher } from "../helpers";
 
 // ===========================================================================
@@ -63,6 +65,32 @@ test("a tampered/garbage session token grants nothing", async ({ page, context }
   ]);
   const res = await page.goto("/teacher");
   expect(new URL(res!.url()).pathname).not.toBe("/teacher"); // redirected to entry
+});
+
+test("sign-out clears the cookie even when the session row cannot be deleted", () => {
+  // A dev database reseeded under a running server, a full disk, a read-only
+  // volume: the DELETE fails and `destroySession` is mid-flight. If the cookie
+  // is only cleared after that write succeeds, the child taps "Sign out", sees
+  // an error, and is STILL SIGNED IN — on a device the next child picks up.
+  // So the order is the control, and it is asserted here rather than by
+  // breaking a real database mid-suite.
+  const src = readFileSync(path.join(process.cwd(), "src/lib/auth.ts"), "utf8");
+  const body = src.slice(src.indexOf("export async function destroySession"));
+  const fn = body.slice(0, body.indexOf("\n}") + 2);
+
+  const clearsCookie = fn.indexOf("cookieStore.delete(COOKIE_NAME)");
+  const deletesRow = fn.indexOf("deleteMany");
+
+  expect(clearsCookie, "destroySession must clear the cookie").toBeGreaterThan(-1);
+  expect(deletesRow, "destroySession must delete the session row").toBeGreaterThan(-1);
+  expect(
+    clearsCookie,
+    "clear the cookie BEFORE the write that can fail: on error, deny",
+  ).toBeLessThan(deletesRow);
+  expect(
+    /catch\s*\(/.test(fn),
+    "the row delete must be caught, so a failed write still redirects a signed-out user away",
+  ).toBe(true);
 });
 
 // The page origin, needed to plant cookies via context.addCookies.

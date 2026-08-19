@@ -18,7 +18,7 @@ import { mailAddressHmac, MAIL_HMAC_KEY_VAR } from "@/lib/ops/mailHmac";
 // event webhook offers one that can be verified is not established anywhere in
 // this repository, and an unauthenticated ingest endpoint that writes rows is
 // not a thing to add on an assumption. Polling adds no inbound surface at all:
-// it is an outbound read with credentials Storyjar already holds.
+// it is an outbound read with credentials StoryJar already holds.
 //
 // WHAT IT READS, and how that was established
 //
@@ -58,12 +58,12 @@ import { mailAddressHmac, MAIL_HMAC_KEY_VAR } from "@/lib/ops/mailHmac";
 // ---------------------------------------------------------------------------
 
 const DEFAULT_DAYS = 30;
-// A ceiling on one run rather than pagination. Storyjar sends one kind of email
+// A ceiling on one run rather than pagination. StoryJar sends one kind of email
 // at pilot volume; this exists so a bad argument cannot turn into a long walk
 // through somebody else's API.
 const MESSAGE_LIMIT = 1000;
 
-// Mailjet's `Status` vocabulary, mapped onto the four states Storyjar records.
+// Mailjet's `Status` vocabulary, mapped onto the four states StoryJar records.
 // Anything not in this map is not a suppression and is ignored: "sent",
 // "queued", "deferred" and the tracking states all mean the address is fine or
 // the answer is not known yet. Matched case-insensitively on the exact word,
@@ -163,7 +163,7 @@ async function main(): Promise<void> {
           firstSeenAt: row.at,
           lastSeenAt: row.at,
         },
-        // firstSeenAt is never moved: it is when Storyjar first knew, and a
+        // firstSeenAt is never moved: it is when StoryJar first knew, and a
         // later message from the same address does not change that.
         update: { state: row.state, lastSeenAt: row.at },
       });

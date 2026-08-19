@@ -44,7 +44,7 @@ import { mailAddressHmac, mailHmacConfigured } from "@/lib/ops/mailHmac";
 //
 // One of the three modules permitted to import the Prisma client under the ops
 // roots. Every figure and every field an operator can ever see passes through a
-// named function in this file, so the answer to "what can Storyjar staff see?"
+// named function in this file, so the answer to "what can StoryJar staff see?"
 // is the export list below rather than a promise.
 //
 // THE RULES THIS FILE IS SHAPED BY, quoted rather than cited by number, because
@@ -427,7 +427,7 @@ async function readParent(email: string): Promise<AdultRecordDto | null> {
  * Is Mailjet refusing this one address (PR5)?
  *
  * This is the support call owner amendment C4 describes: a school reports that
- * a parent is receiving nothing, and until now the honest answer was "Storyjar
+ * a parent is receiving nothing, and until now the honest answer was "StoryJar
  * has no idea". It is asked one address at a time, about an address the
  * operator has already typed in full to find the record, and it is answered
  * from a keyed hash computed HERE on the server. Brief 05 imposes both halves
@@ -450,7 +450,7 @@ async function mailStateFor(address: string): Promise<MailStateDto> {
   if (!suppression) return "NOT_SUPPRESSED";
   // A state the vocabulary does not know is not rendered as calm. It should be
   // impossible: the sync job maps the provider's words onto the closed list
-  // before writing. If it ever happens, the honest answer is that Storyjar
+  // before writing. If it ever happens, the honest answer is that StoryJar
   // cannot say.
   return isMailSuppressionState(suppression.state) ? suppression.state : "NOT_MONITORED";
 }
@@ -539,7 +539,7 @@ function windowFrom(label: string, from: string, to: string, rows: CounterRow[])
     failed: sum((t) => t.failed),
     unconfigured: sum((t) => t.unconfigured),
     // An unconfigured attempt counts against the verdict: nothing left
-    // Storyjar, which is the thing the verdict is about.
+    // StoryJar, which is the thing the verdict is about.
     verdictLabel: MAIL_VERDICT_LABEL[mailVerdict(attempted, failed)],
     byTemplate,
   };
@@ -567,15 +567,15 @@ async function readSuppression(lastCheck: JobRunDto | null): Promise<MailSuppres
   let statement: string;
   if (!configured) {
     statement =
-      "Not monitored. No MAIL_HMAC_KEY is set in this environment, so Storyjar records nothing about which addresses Mailjet is refusing, and the figures below are not evidence of anything.";
+      "Not monitored. No MAIL_HMAC_KEY is set in this environment, so StoryJar records nothing about which addresses Mailjet is refusing, and the figures below are not evidence of anything.";
   } else if (lastCheck === null) {
     statement =
       "Not monitored yet. The key is set but the check against Mailjet has never run, so an empty list here means nobody has looked, not that nobody is blocked.";
   } else if (total === 0) {
-    statement = "Mailjet is not refusing any address that Storyjar has checked.";
+    statement = "Mailjet is not refusing any address that StoryJar has checked.";
   } else {
     statement =
-      "Addresses Mailjet is refusing. These are counts. There is no list, and there cannot be: Storyjar stores a one-way keyed label for each address and never the address, so the only way to ask about a particular parent is from their own record under Find an adult.";
+      "Addresses Mailjet is refusing. These are counts. There is no list, and there cannot be: StoryJar stores a one-way keyed label for each address and never the address, so the only way to ask about a particular parent is from their own record under Find an adult.";
   }
 
   return { monitored, total, states: counts, statement };
@@ -634,7 +634,7 @@ export async function readMailStatus(): Promise<MailStatusDto> {
     suppression: await readSuppression(lastCheck),
     lastCheck,
     acceptedStatement:
-      "Accepted means Mailjet took the message. It is not a delivery receipt: open and click tracking are switched off at account level and again on every message, deliberately, because a rewritten link is followed by whatever scans it, and a parent's sign-in link works exactly once. Storyjar therefore cannot tell whether a message arrived or was read, and never will while that stays true.",
+      "Accepted means Mailjet took the message. It is not a delivery receipt: open and click tracking are switched off at account level and again on every message, deliberately, because a rewritten link is followed by whatever scans it, and a parent's sign-in link works exactly once. StoryJar therefore cannot tell whether a message arrived or was read, and never will while that stays true.",
     scopeStatement:
       "These figures cover every school together. They cannot be split by school, because splitting them would mean storing who each message went to, and no counter here holds a recipient or even a domain. To ask about one family, look their adult up under Find an adult.",
   };

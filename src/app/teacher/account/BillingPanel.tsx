@@ -59,7 +59,7 @@ export function BillingPanel(props: Props) {
         <h2 id="plan-heading" style={{ margin: 0, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>Your plan</h2>
         <p style={{ margin: "8px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>
           {kind === "FREE" && (foundingMember
-            ? "You’re a Founding teacher — free, unlimited, permanently. All your classes, every feature, no card and no end date. Thank you for backing Storyjar early."
+            ? "You’re a Founding teacher — free, unlimited, permanently. All your classes, every feature, no card and no end date. Thank you for backing StoryJar early."
             : "You’re on the free teacher plan — all your own classes, every feature, no card and no end date.")}
           {kind !== "FREE" && status === "TRIAL" && `Your school is trying the school plan — ${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} left. No card needed until you subscribe.`}
           {kind !== "FREE" && status === "ACTIVE" && (periodEnd ? `School plan — renews ${periodEnd}.` : "Your school plan is active.")}

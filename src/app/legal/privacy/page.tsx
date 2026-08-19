@@ -1,21 +1,21 @@
 import { LegalShell } from "../LegalShell";
 
-export const metadata = { title: "Privacy Policy — Storyjar" };
+export const metadata = { title: "Privacy Policy — StoryJar" };
 
 export default function Privacy() {
   return (
-    <LegalShell title="Privacy Policy" intro="This policy explains what personal data Storyjar processes, why, on whose behalf, and the rights people have. A short plain-English version for families is also available.">
+    <LegalShell title="Privacy Policy" intro="This policy explains what personal data StoryJar processes, why, on whose behalf, and the rights people have. A short plain-English version for families is also available.">
       <h2>1. Who is responsible for your data</h2>
       <p>
-        Storyjar is a service provided by <strong>[Full name]</strong>, a sole trader trading as
-        &ldquo;Storyjar&rdquo;, of <strong>[business address]</strong> (&ldquo;Storyjar&rdquo;, &ldquo;we&rdquo;).
-        Storyjar is a one-person business: the founder is also the person responsible for data protection, and can be
+        StoryJar is a service provided by <strong>[Full name]</strong>, a sole trader trading as
+        &ldquo;StoryJar&rdquo;, of <strong>[business address]</strong> (&ldquo;StoryJar&rdquo;, &ldquo;we&rdquo;).
+        StoryJar is a one-person business: the founder is also the person responsible for data protection, and can be
         reached at <strong>hello@storyjar.co.uk</strong>. We are registered with the Information Commissioner&apos;s
         Office (ICO) under <strong>[registration number]</strong>.
       </p>
       <p>
         For the data of <strong>children, parents and staff</strong>, the <strong>school is the data controller</strong>
-        {" "}and <strong>Storyjar is a data processor</strong> acting only on the school&apos;s documented instructions.
+        {" "}and <strong>StoryJar is a data processor</strong> acting only on the school&apos;s documented instructions.
         The school decides why children&apos;s data is collected; we only handle it to provide the service. For a small
         amount of data about the <strong>account holder</strong> (e.g. a teacher&apos;s login email), we act as controller.
       </p>
@@ -38,7 +38,7 @@ export default function Privacy() {
       <p>
         The school determines and documents the lawful basis for processing children&apos;s data — typically
         <strong> public task</strong> (UK GDPR Art. 6(1)(e)) for state schools carrying out their educational function,
-        with appropriate conditions for any special-category data (e.g. images). Storyjar processes this data solely as
+        with appropriate conditions for any special-category data (e.g. images). StoryJar processes this data solely as
         the school&apos;s processor under Art. 28. For account-holder data we rely on <strong>legitimate interests /
         contract</strong> to operate the service. Photographs of children are handled under the school&apos;s own
         photography consent arrangements.
@@ -92,7 +92,7 @@ export default function Privacy() {
 
       <h2>10. Children&apos;s Code</h2>
       <p>
-        Storyjar is designed to meet the ICO&apos;s Age Appropriate Design Code: high-privacy defaults, data
+        StoryJar is designed to meet the ICO&apos;s Age Appropriate Design Code: high-privacy defaults, data
         minimisation, no profiling of children, no nudge techniques, and transparency in language families can
         understand (see the <a href="/legal/privacy-for-families">plain-English version</a>).
       </p>

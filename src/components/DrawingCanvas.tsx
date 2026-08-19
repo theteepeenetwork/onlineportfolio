@@ -173,14 +173,6 @@ const DUPLICATE_OFFSET = SNAP_UNITS * 2;
 // really is a right angle rather than 89°.
 const ROTATE_STEP = 15;
 
-// A drag handle's press area: 64px, the child touch floor (SAFEGUARDING rule
-// 18), wrapped around a much smaller visible dot. The dot is what a child aims
-// at; the box is what they actually hit. Positioned so the 64px box straddles
-// the object's corner, which keeps the two handles a clear 64px apart on any
-// shape big enough to have two corners worth aiming at.
-const HANDLE_HIT =
-  "pointer-events-auto absolute flex h-16 w-16 touch-none items-center justify-center";
-
 // Movable / resizable things placed on top of the drawing: imported pictures
 // (images / PDF pages) and shapes.
 // Placed-object lock state. `locked` is the teacher's decision (a child cannot
@@ -2273,11 +2265,7 @@ export function DrawingCanvas({
             // Sits to the right of the (labelled) add menu so the two don't
             // overlap. Capped in height and scrollable, because a kit's tallest
             // group must not run off the top and bottom of a 768px-tall iPad.
-            // z-40, above the selected object's toolbar (z-30). The toolbar is
-            // a wide panel now, and with a shape selected it otherwise sits on
-            // top of this palette — so placing a SECOND shape became impossible
-            // once you had placed a first.
-            <div className="absolute left-52 top-1/2 z-40 max-h-[80%] -translate-y-1/2 overflow-y-auto">
+            <div className="absolute left-52 top-1/2 max-h-[80%] -translate-y-1/2 overflow-y-auto">
               {palette(availableKits.find((k) => k.id === openKit) ?? availableKits[0])}
             </div>
           )}
@@ -2981,9 +2969,6 @@ function ObjectToolbar({
   onStyle,
   onDuplicate,
   canDuplicate,
-  onDelete,
-  onEditText,
-  hasText,
   unrotate,
 }: {
   o: Obj;
@@ -2998,11 +2983,6 @@ function ObjectToolbar({
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
   canDuplicate: boolean;
-  onDelete: (id: string) => void;
-  // Adding / editing the label the shape carries inside it. Absent for objects
-  // that cannot hold one (a picture), which is what hides the button.
-  onEditText?: (id: string) => void;
-  hasText?: boolean;
   // The counter-rotation for a rotated object, so the toolbar reads the right
   // way up over a shape that has been turned. Composed with the toolbar's own
   // centring transform, never substituted for it.
@@ -3079,19 +3059,11 @@ function ObjectToolbar({
       // middle. Reversing these would swing the toolbar around the shape rather
       // than turning it in place.
       style={{
-        transform: `translate(calc(-50% + ${shift}px), ${lift}px)${unrotate ? ` ${unrotate}` : ""}`,
+        transform: `translateX(calc(-50% + ${shift}px))${unrotate ? ` ${unrotate}` : ""}`,
         ...(unrotate ? { transformOrigin: "50% 50%" } : {}),
       }}
-      // Wraps, and never wider than the canvas. With 64px buttons (F37) and a
-      // stepper or two, this row reached about 1000px — wider than the stage it
-      // floats over, so both ends ran off the screen. Two short rows beat one
-      // row you cannot see the ends of.
-      // `w-max` matters: this is absolutely positioned INSIDE the object's own
-      // wrapper, so without it the available width — and therefore where the
-      // flex wraps — is the object's width. A narrow shape turned the toolbar
-      // into a tall column standing on top of the thing it was editing.
-      className={`pointer-events-auto absolute left-1/2 z-30 flex w-max max-w-[620px] flex-wrap items-center justify-center gap-2 rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg ${
-        flip ? "top-full mt-3" : "bottom-full mb-3"
+      className={`pointer-events-auto absolute left-1/2 z-30 flex items-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg ${
+        below ? "top-full mt-3" : "bottom-full mb-3"
       }`}
     >
       {showAuthor && (
@@ -3202,32 +3174,6 @@ function ObjectToolbar({
           <span className="text-sm font-bold">12</span>
         </button>
       )}
-
-      {/* Add or change the label locked inside the shape. Used to be a 24px
-          badge on the object's top-left corner (F41). */}
-      {onEditText && (
-        <button
-          type="button"
-          onClick={() => onEditText(o.id)}
-          className={btn}
-          title={hasText ? "Edit label" : "Add label"}
-          aria-label="Edit text"
-        >
-          <Icon name="edit" size={26} decorative />
-        </button>
-      )}
-
-      {/* Delete. Last, and the only red thing here, so it is the hardest to hit
-          by accident — it used to be a 24px badge on the top-right corner. */}
-      <button
-        type="button"
-        onClick={() => onDelete(o.id)}
-        className={`${btn} border-rose-300 text-rose-600 hover:bg-rose-50`}
-        title="Remove"
-        aria-label="Remove object"
-      >
-        <Icon name="close" size={26} decorative />
-      </button>
 
       {showStyle && <span className="mx-0.5 h-9 w-px bg-border" />}
 
@@ -3706,9 +3652,6 @@ function MediaObjectView({
           onSendToBack={onSendToBack}
           onDuplicate={onDuplicate}
           canDuplicate={canDuplicate}
-          onDelete={onDelete}
-          onEditText={o.type === "shape" && cap.editable ? onEditText : undefined}
-          hasText={o.type === "shape" ? !!o.text : false}
           unrotate={unrotate || undefined}
           onStyle={(patch) => {
             onChange(o.id, patch);
@@ -3719,33 +3662,51 @@ function MediaObjectView({
 
       {selected && !editing && cap.editable && (
         <>
-          {/* Only the two DRAG handles live on the object now. Delete and "add a
-              label" moved into the floating toolbar (F41), where every other
-              action on an object already is and where the buttons are already
-              at the 64px child floor.
-
-              These two have to stay on the corners — you cannot drag a corner
-              from a toolbar — so each is a small visual dot inside a 64px
-              transparent press. A counter is about 90px on a classroom iPad;
-              four 64px buttons on a 90px shape would bury it, and this is the
-              way to meet the floor without spending the shape.
-
-              Both are children of the rotating wrapper, so each is turned back
-              the other way or it hangs upside-down off a rotated shape. */}
+          {/* Every control here is a child of the rotating wrapper, so each one
+              is turned back the other way. Without it they hang upside-down
+              off a shape rotated 180°, and the "top-left" pencil ends up at
+              the bottom right. */}
+          {o.type === "shape" && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => onEditText(o.id)}
+              style={unrotate ? { transform: unrotate } : undefined}
+              className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white shadow"
+              title={o.text ? "Edit label" : "Add label"}
+              aria-label="Edit text"
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
+                <Icon name="rotate" size={11} decorative />
+              </span>
+            </div>
+          )}
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onDelete(o.id)}
+            style={unrotate ? { transform: unrotate } : undefined}
+            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white shadow"
+            title="Remove"
+            aria-label="Remove object"
+          >
+            <Icon name="close" size={13} decorative />
+          </button>
+          {/* Rotate. Shapes only: an image has no `rot` and the export renderer
+              draws pictures flat, so offering it there would spin on screen and
+              land straight in the hand-in. */}
           {o.type === "shape" && (
             <div
               onPointerDown={startRotate}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               style={unrotate ? { transform: unrotate } : undefined}
-              className={`${HANDLE_HIT} -bottom-8 -left-8 cursor-grab`}
+              className="pointer-events-auto absolute -bottom-2.5 -left-2.5 flex h-5 w-5 cursor-grab touch-none items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow"
               title="Turn"
               role="button"
               aria-label="Turn shape"
             >
-              <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
-                <Icon name="rotate" size={11} decorative />
-              </span>
+              <Icon name="rotate" size={11} decorative />
             </div>
           )}
           <div
@@ -3753,7 +3714,7 @@ function MediaObjectView({
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             style={unrotate ? { transform: unrotate } : undefined}
-            className={`${HANDLE_HIT} -bottom-8 -right-8 cursor-nwse-resize`}
+            className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
             title="Resize"
             role="button"
             aria-label="Resize shape"
@@ -3898,9 +3859,6 @@ function TextObjectView({
           onSendToBack={onSendToBack}
           onDuplicate={onDuplicate}
           canDuplicate={canDuplicate}
-          onDelete={onDelete}
-          onEditText={cap.editable ? onEditText : undefined}
-          hasText={!!o.text}
           onStyle={() => {}}
         />
       )}

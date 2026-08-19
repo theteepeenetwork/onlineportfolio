@@ -41,7 +41,7 @@ function writeSvg(name: string, svg: string) {
   return `/uploads/${name}`;
 }
 
-// Storyjar's OWN library media lives in its own directory, separate from every
+// StoryJar's OWN library media lives in its own directory, separate from every
 // teacher upload. See src/lib/mediaPath.ts for why that separation is the
 // security control rather than tidiness.
 const SHARED_MEDIA_DIR = process.env.SHARED_MEDIA_DIR || path.join(process.cwd(), ".media-shared");
@@ -539,7 +539,7 @@ async function main() {
   });
 
   // -------------------------------------------------------------------------
-  // Storyjar's shared activity library.
+  // StoryJar's shared activity library.
   //
   // Two rows, and the second one is the point: an UNPUBLISHED activity must be
   // invisible to every teacher, and its media unreadable, so the specs need one
@@ -599,7 +599,7 @@ async function main() {
   console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)  /uploads/seed-oak-quiz.svg (quiz option)");
   console.log("  School B voice: /uploads/seed-oak-voice.m4a (APPROVED)  /uploads/seed-oak-voice-pending.webm (PENDING)");
   console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class ARCH22 (Willow)  read-only");
-  console.log("  Storyjar library: seed-autumn-walk (published, /uploads/shared/seed-shared-bg.svg)  seed-not-published-yet (unpublished)");
+  console.log("  StoryJar library: seed-autumn-walk (published, /uploads/shared/seed-shared-bg.svg)  seed-not-published-yet (unpublished)");
   console.log("  Platform operator: ops@storyjar.test / fixture-operator-pass-9271 + a real TOTP code (no bypass exists)");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).

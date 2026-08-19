@@ -8,7 +8,7 @@ import { headers } from "next/headers";
 // is never locked out — only repeated failures from one source are throttled.
 //
 // Storage is in-process. On a single instance (the current deployment) that is
-// sufficient; if Storyjar scales to multiple instances, swap this Map for a
+// sufficient; if StoryJar scales to multiple instances, swap this Map for a
 // shared store (e.g. a small Prisma table or Redis) behind the same interface.
 // SAFEGUARDING.md rule 13 (auth hardening).
 

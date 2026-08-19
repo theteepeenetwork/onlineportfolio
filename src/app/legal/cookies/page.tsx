@@ -1,12 +1,12 @@
 import { LegalShell } from "../LegalShell";
 
-export const metadata = { title: "Cookie Policy — Storyjar" };
+export const metadata = { title: "Cookie Policy — StoryJar" };
 
 export default function Cookies() {
   return (
-    <LegalShell title="Cookie Policy" intro="Storyjar uses the smallest possible number of cookies. We do not use any analytics, advertising or tracking cookies.">
+    <LegalShell title="Cookie Policy" intro="StoryJar uses the smallest possible number of cookies. We do not use any analytics, advertising or tracking cookies.">
       <h2>What we use</h2>
-      <p>Storyjar sets one <strong>strictly necessary</strong> cookie:</p>
+      <p>StoryJar sets one <strong>strictly necessary</strong> cookie:</p>
       <table>
         <thead><tr><th>Cookie</th><th>Purpose</th><th>Type</th><th>Expiry</th></tr></thead>
         <tbody>

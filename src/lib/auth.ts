@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { resolveAgeMode, type AgeMode } from "@/lib/ageMode";
+import { errorLabel } from "@/lib/safeLog";
 
 export const COOKIE_NAME = "portfolio_session";
 const SESSION_DAYS = 30;
@@ -121,11 +122,28 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 }
 
 // Delete the current session and clear the cookie.
+//
+// The cookie goes FIRST, and goes whatever the database does. It is the only
+// thing keeping this browser signed in, so a failed write must never be the
+// reason a child on a shared classroom device walks away still signed in —
+// SAFEGUARDING.md, on error: deny. Clearing it first also means sign-out cannot
+// throw before it has done the part that actually protects the next child.
 export async function destroySession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
-  if (token) {
-    await db.session.deleteMany({ where: { token } });
-  }
+
   cookieStore.delete(COOKIE_NAME);
+
+  if (token) {
+    try {
+      await db.session.deleteMany({ where: { token } });
+    } catch (err) {
+      // The row now outlives the cookie until it expires. That is the lesser
+      // harm, but it is still a fault worth seeing: an unwritable database
+      // means sessions stop being revoked server-side. errorLabel keeps the
+      // rejected Prisma argument — which carries the session credential — out
+      // of the log store (rule 8).
+      console.error("[auth] session row not deleted on sign-out", errorLabel(err));
+    }
+  }
 }

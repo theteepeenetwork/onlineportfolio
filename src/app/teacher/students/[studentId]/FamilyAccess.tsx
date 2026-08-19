@@ -11,7 +11,7 @@ import { createFamilyCode, rotateFamilyCode, removeFamilyAccess } from "@/app/ac
 // been used yet (they have to know if the letter arrived), and the three things
 // they can do to it. It does NOT carry the parent's name or email, even when the
 // parent has since typed one in: those are the parent's own details, given to
-// Storyjar so it can send them a sign-in link, not given to the school. The
+// StoryJar so it can send them a sign-in link, not given to the school. The
 // school already knows who it posted the letter to, and that record is the
 // honest one. See the note the section prints under the list.
 export type FamilyLink = {
@@ -85,7 +85,7 @@ export function FamilyAccess({
       </form>
 
       <p className="mt-4 text-xs text-muted">
-        A code works for whoever has the letter, so Storyjar cannot tell you who is using one. The
+        A code works for whoever has the letter, so StoryJar cannot tell you who is using one. The
         school&rsquo;s record of where each letter went is the record of who has access. If a letter goes
         astray, choose <strong>New code</strong> and send a fresh one.
       </p>

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// The emails Storyjar sends. Two of them.
+// The emails StoryJar sends. Two of them.
 //
 // **This module deliberately does NOT import `server-only`.** Its predecessor,
 // `src/lib/emails.ts`, did, and the cost of that guard was that nothing outside
@@ -64,7 +64,7 @@ const FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 const FOOTER_TEXT =
-  "Storyjar is a learning journal for primary schools. A child's work is only ever seen by their teacher and their own family.";
+  "StoryJar is a learning journal for primary schools. A child's work is only ever seen by their teacher and their own family.";
 const REPLY_TEXT = "You can reply to this email and a real person will read it.";
 
 /**
@@ -82,7 +82,7 @@ function shell(preheader: string, cardHtml: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
-<title>Storyjar</title>
+<title>StoryJar</title>
 </head>
 <body style="margin:0;padding:0;background:${CREAM_PAGE};">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;height:0;width:0;">${preheader}</div>
@@ -90,7 +90,7 @@ function shell(preheader: string, cardHtml: string): string {
 <tr><td align="center" style="padding:32px 16px;">
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
-<tr><td style="padding:0 4px 16px;font-family:${FONT};font-size:21px;font-weight:700;letter-spacing:-0.2px;color:${RASPBERRY};">Storyjar</td></tr>
+<tr><td style="padding:0 4px 16px;font-family:${FONT};font-size:21px;font-weight:700;letter-spacing:-0.2px;color:${RASPBERRY};">StoryJar</td></tr>
 
 <tr><td style="background:${CREAM_CARD};border:1px solid ${RULE};border-radius:16px;padding:32px 28px;font-family:${FONT};">
 ${cardHtml}
@@ -124,13 +124,13 @@ function button(href: string, label: string): string {
  * mention of what is waiting for them. "Your child's" is as specific as it gets.
  */
 export function magicLinkEmail(url: string): { subject: string; text: string; html: string } {
-  const subject = "Your Storyjar sign-in link";
+  const subject = "Your StoryJar sign-in link";
   const preheader = "Tap to sign in. The link works once and lasts 30 minutes.";
 
   const text = [
     "Here's your sign-in link",
     "",
-    "Tap the link below to sign in to Storyjar and see your child's latest work.",
+    "Tap the link below to sign in to StoryJar and see your child's latest work.",
     "",
     url,
     "",
@@ -148,8 +148,8 @@ export function magicLinkEmail(url: string): { subject: string; text: string; ht
   const html = shell(
     preheader,
     `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">Here's your sign-in link</h1>
-<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">Tap the button below to sign in to Storyjar and see your child's latest work.</p>
-${button(url, "Sign in to Storyjar")}
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">Tap the button below to sign in to StoryJar and see your child's latest work.</p>
+${button(url, "Sign in to StoryJar")}
 <p style="margin:0;font-size:15px;line-height:1.6;color:${BODY};">The link works once and lasts 30 minutes. If it runs out, just ask for a new one from the sign-in page and we'll send another straight away.</p>
 <div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
 <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>
@@ -168,13 +168,13 @@ export function staffInviteEmail(
   schoolName: string,
   url: string,
 ): { subject: string; text: string; html: string } {
-  const subject = "You've been invited to Storyjar";
+  const subject = "You've been invited to StoryJar";
   const preheader = "Set your password and you're in. Takes about a minute.";
 
   const text = [
-    "You've been invited to Storyjar",
+    "You've been invited to StoryJar",
     "",
-    `A colleague has added you to ${schoolName}'s Storyjar account.`,
+    `A colleague has added you to ${schoolName}'s StoryJar account.`,
     "",
     "Set your password here and you're in:",
     url,
@@ -189,8 +189,8 @@ export function staffInviteEmail(
 
   const html = shell(
     preheader,
-    `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">You've been invited to Storyjar</h1>
-<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">A colleague has added you to <strong style="color:${INK};">${escapeHtml(schoolName)}</strong>'s Storyjar account.</p>
+    `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">You've been invited to StoryJar</h1>
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">A colleague has added you to <strong style="color:${INK};">${escapeHtml(schoolName)}</strong>'s StoryJar account.</p>
 ${button(url, "Set your password")}
 <div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
 <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>

@@ -376,7 +376,7 @@ export async function sendStickerBack(formData: FormData) {
 // an empty room and they never learn that the queue gives their work back.
 //
 // One timestamp, overwritten. Deliberately not a visit log: this is wayfinding,
-// not a measure of how often a child uses Storyjar, and it must never become
+// not a measure of how often a child uses StoryJar, and it must never become
 // one (SAFEGUARDING rule 11 — children are never profiled). See RETENTION.md.
 //
 // Not write-gated: a frozen account is read-only for *content*, but a child

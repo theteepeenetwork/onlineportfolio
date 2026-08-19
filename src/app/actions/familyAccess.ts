@@ -16,13 +16,13 @@ import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 //
 // A teacher creates a family PLACE for a child. That mints a code and an empty
 // Parent row linked to that one child. The teacher never types a name and never
-// types an email. They do not know who at home will use it, and Storyjar has no
+// types an email. They do not know who at home will use it, and StoryJar has no
 // business holding a contact detail nobody volunteered. The code travels home on
 // paper from the school. The parent redeems it, and only then, and only if they
 // want magic links later, do they add their own address.
 //
 // Consequences worth stating, because the code below only makes sense with them:
-//  - Storyjar never sends an unsolicited email to a parent. There is no "you
+//  - StoryJar never sends an unsolicited email to a parent. There is no "you
 //    have been added" message anywhere in this file.
 //  - The code IS the credential until it is redeemed, so it is generated with
 //    the crypto RNG, is never written to the audit log, and is revocable

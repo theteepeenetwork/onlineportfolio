@@ -12,11 +12,11 @@ import { deriveChildNames } from "@/lib/childNames";
 import { normaliseAgeModeInput } from "@/lib/ageMode";
 import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 
-// Storyjar avatar palette — children get a colour bubble in rotation.
+// StoryJar avatar palette — children get a colour bubble in rotation.
 
 export type SignupResult = { error?: string; step?: number };
 
-// The Storyjar 5-step signup wizard submits everything at once: it creates the
+// The StoryJar 5-step signup wizard submits everything at once: it creates the
 // teacher, their first class jar (with a generated class code), and the class
 // list, signs them in, and returns the class code to show on the success step.
 export async function createTeacherAccount(input: {

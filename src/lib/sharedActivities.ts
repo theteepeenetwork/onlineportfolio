@@ -4,20 +4,20 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { MEDIA_DIR, SHARED_MEDIA_DIR, SHARED_UPLOADS_PREFIX, sharedMediaPathsIn } from "@/lib/mediaPath";
 
-// Turning one of Storyjar's library activities into a template the teacher owns.
+// Turning one of StoryJar's library activities into a template the teacher owns.
 //
 // THE COPY IS A REAL COPY, FILES INCLUDED, AND THAT IS THE WHOLE POINT.
 //
 // `duplicateTemplate` copies the path STRINGS of a template's images, so an
 // original and its duplicate point at the same bytes on disk. That is logged as
 // FINDINGS F27 and is a latent bug there. Doing the same thing here would make
-// it structural: every teacher's copy would depend on a file Storyjar owns, and
+// it structural: every teacher's copy would depend on a file StoryJar owns, and
 // replacing or removing a library background would silently blank that activity
 // in every classroom that had added it, discovered by a teacher mid-lesson.
 //
 // So adding copies the bytes into the teacher's own media directory under fresh
 // names, and rewrites the payload columns to point at them. After that the
-// teacher's template shares nothing with the original, and Storyjar can delete,
+// teacher's template shares nothing with the original, and StoryJar can delete,
 // replace or rewrite the shared activity with no effect on anybody's classroom.
 //
 // This does NOT fix F27. `duplicateTemplate` still copies strings, template

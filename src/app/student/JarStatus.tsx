@@ -10,7 +10,7 @@ const c = studentCopyNeutral.status;
 
 // The jar, doing the job the sentences were doing badly.
 //
-// Storyjar's whole promise is: you make something → your teacher sees it → it
+// StoryJar's whole promise is: you make something → your teacher sees it → it
 // goes in your jar. A child could only ever read that loop in prose ("Waiting
 // for your teacher to see it ⏳"), which is invisible to a five-year-old. The
 // jar itself was the one non-text status in the app and it only counted.

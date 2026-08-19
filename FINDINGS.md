@@ -1,4 +1,4 @@
-# FINDINGS — Storyjar QA battery
+# FINDINGS — StoryJar QA battery
 
 Defects and gaps found while building the test battery, and how each was
 resolved. Data-protection failures are treated as critical/high per the brief
@@ -86,7 +86,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanishes: the header paints background and text as inline colours, so a high-contrast operator loses all four nav links and the sign-out button on the one account that runs the service. Nothing in src/ handles forced-colors. | Open |
 | F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
 | **F34** | **High** | **Resilience / data loss** | Saved work was withheld from the person who made it. The restore prompt awaited the local draft and a cross-device server lookup **together**, and the lookup had no deadline, so a request that was accepted and never answered suppressed the prompt entirely, and a teacher's or a child's work sat safe in their own browser while they were told nothing. The same shape was found a second time on `loadImage`, where a stalled template background left a child on a permanent "Loading…" overlay. Both are now bounded. | **Fixed** | `e2e/drafts.spec.ts`: "the restore prompt still arrives when the cross-device lookup never answers" and "a stalled template background still lets a child draw and restore" |
-| F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits Storyjar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
+| F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits StoryJar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
 | F36 | **Medium** | Test correctness | Every post-reload click in `drafts.spec.ts` raced hydration. Playwright's actionability checks pass on server-rendered HTML, so the click landed before React attached its handler, was swallowed without error, and the test failed one line later on a missing canvas that looked like a product fault. **Measured on 2026-08-18: F36 caused the one-in-two CI flake.** With it fixed the prompt appears in 38ms and all 133 functional tests pass; without it `main` failed at 33.9s. Raised from Low because a fault that fails a blocking gate every other run, and was twice misdiagnosed as a product defect, is not a low-severity test nit. | **Fixed** | `e2e/helpers.ts` `clickHydrated`, used at both post-reload click sites |
 | **F37** | **High** | A11y (child-facing) | The blocking 64px child touch-target gate covered neither **canvas** — `/student/new/drawing` or an activity response — nor the **EYFS jar**, a different shell for the youngest children in the product. Every tool on them was under the floor: pens 58 wide, undo/redo/clear/close at 44×44, Done and ＋ at 56×56, the Text tool at 48×48, page tiles at 57, and the colour slider **24px wide**. The quiz answers a pre-reader taps measured 57 because the canvas sized them in MODEL units and scaled them down — a floor in the wrong coordinate space is not a floor. Same shape as F18: a gate reading as "child touch targets are covered" while the busiest child screens sat outside its list of URLs | **Fixed** | `a11y/child-touch-targets.spec.ts` (both canvases and the EYFS jar now in the blocking gate) |
 | **F38** | **Medium** | Feedback loop / child-facing | A teacher sent work back with a note — the queue asks for one and gives an example — and the child was never shown it. `/student` rendered a returned moment with a fixed status line ("Have another go") and nothing else; `teacherNote` was rendered by one component, on the teacher's own view. The child was told something came back and left to guess which part | **Fixed** | `e2e/journal.spec.ts` ("the teacher's note reaches the child…") |
@@ -118,7 +118,7 @@ because backups are absent would be asserting a decision that has not been made,
 and the missing piece is not code.
 
 **What has been done instead:** the costed options, their RPO and RTO, their
-retention windows, and what each would oblige Storyjar to tell schools are
+retention windows, and what each would oblige StoryJar to tell schools are
 written up in [`docs/ops-backup-options.md`](./docs/ops-backup-options.md). No
 plan was changed, no provider was added, no money was spent, and the backup line
 in `RETENTION.md` was deliberately left exactly as it is: correcting it without
@@ -449,9 +449,9 @@ path at all.
 What changed is that one new road was built the other way, deliberately, so the
 finding does not grow. "Add to my activities" copies the FILES
 (`src/lib/sharedActivities.ts`), not the strings, so a teacher's copy of a
-Storyjar library activity shares no bytes with the original or with any other
+StoryJar library activity shares no bytes with the original or with any other
 teacher's copy. Had it been written the obvious way, every teacher's copy would
-have depended on a file Storyjar owns, and withdrawing or replacing a library
+have depended on a file StoryJar owns, and withdrawing or replacing a library
 background would have blanked that activity in every classroom that had added
 it, discovered by a teacher mid-lesson. That is this finding's exact shape, made
 structural instead of latent.
@@ -635,7 +635,7 @@ id is refused (now blocking gate).
 (family/magic). A correct sign-in clears the counter, so honest repeated logins
 are never blocked. Friendly, jargon-free message.
 **Note:** in-process store — sufficient for a single instance; swap for a shared
-store (Prisma table / Redis) behind the same interface if Storyjar scales out.
+store (Prisma table / Redis) behind the same interface if StoryJar scales out.
 **Guards:** `findings/rate-limit-enumeration.spec.ts` (report-only — the tests
 trip real 15-min blocks that would contaminate the gating run).
 
@@ -1463,7 +1463,7 @@ spec. Worth checking at the same time whether the restore modal should be
 dismissible by pressing Escape, since a modal that can only be answered is also
 a modal that can only block.
 
-## F41 · The gate cannot see the controls that only appear once you tap something · Medium → Fixed
+## F41 · The gate cannot see the controls that only appear once you tap something · Medium → Open
 
 Found on 2026-08-19, immediately after F37 was fixed. F37 grew every control on
 the drawing canvas to the 64px child floor and — the part that matters — added
@@ -1492,59 +1492,7 @@ number: handles outside the shape's bounds, or a long-press menu, or handles
 that scale with the object down to a floor. That is a real decision and it is
 the owner's, which is why this is logged rather than guessed at.
 
-**The fix (19 August 2026).** Two of the four did not need to be on the object
-at all. **Delete and "add a label" moved into the floating toolbar**, where
-every other action on an object already lives and where the buttons are already
-64px. That halves the problem rather than arguing with it.
-
-The other two are drags — you cannot pull a corner from a toolbar — so **resize
-and turn stay on the corners as a small visible dot inside a 64px transparent
-press.** The dot is what a child aims at; the box is what they hit. It meets the
-floor without spending the shape, which growing the dots would have done.
-
-Making the toolbar the answer meant it had to *be* there: it used to appear only
-for a teacher or for a restyleable shape, so a child's own imported picture had
-a delete button on its corner and no toolbar at all. It now appears whenever
-there is anything to do.
-
-**And the sweep now visits the selected state** — places a shape, taps it,
-measures — which is what stops this coming back. Doing that immediately found
-six more controls the page sweep had never seen, all in the toolbar's style
-section: the fill and line colour wells at 60px (the border ate 2px a side, so
-the `<input>` that takes the press was under the box that looked right), "No
-fill" at 59×30, and the three line-width buttons at 44px. All fixed.
-
-The lesson, alongside F37's "a page list is exactly as good as the pages on it":
-**a page sweep is exactly as good as the states it visits.**
-
-## F42 · The object toolbar has outgrown the object it floats over · Low → Open
-
-Found on 2026-08-19, doing the visual pass on a classroom-iPad viewport rather
-than trusting that the tests passing meant it looked right. It did not.
-
-With every button at 64px (F37) and the maths kit's steppers added, the toolbar
-for a base-10 grid carries **eighteen controls** — order, lock, endless,
-duplicate, columns, rows, edit, delete, fill, no-fill, line, three widths. Three
-things went wrong at once, and all three are now fixed:
-
-- It was **wider than the canvas it floats over**, running off both edges,
-  because it was `whitespace-nowrap` from when it held six buttons.
-- Letting it wrap made it worse in a new way: it is absolutely positioned inside
-  the object's own wrapper, so the available width — and therefore where it
-  wrapped — was the *object's* width. On a narrow shape it became a tall column
-  standing on top of the thing it was editing. `w-max` fixes that.
-- It was **clipped off the top of the screen**, because whether to hang above or
-  below was decided by a constant (`o.y * scale < 92`) written when the toolbar
-  was one short row. It is now decided by measuring, and clamped into the stage
-  the same way it was already clamped horizontally — preferring the top, since
-  the resize and turn handles live on the object's bottom corners.
-
-**What is still true, and is the finding.** Eighteen 64px controls is three rows
-about 200px tall. It fits, it is legible, and it no longer covers the handles —
-but it is a large panel to float over a child's work, and on a big shape it will
-sit on top of it. The floor is not negotiable, so the answer is fewer controls
-or a different home for them: a bar docked to the edge of the canvas would never
-cover the work and would delete the clamping logic entirely.
-
-That is a design decision with a real cost either way, and the current state is
-correct and usable, so it is recorded rather than guessed at.
+**To close this.** Decide the affordance, then extend the sweep to visit the
+selected state — place a shape, tap it, measure — so the answer stays true. The
+palette buttons a child taps to *place* a shape are already at 64px and already
+asserted, in the same spec.

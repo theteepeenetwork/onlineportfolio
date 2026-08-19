@@ -5,7 +5,7 @@ import { teacherNav } from "@/lib/teacherNav";
 import { jsonArray } from "@/lib/activities";
 import { SharedLibrary, type SharedSummary } from "./SharedLibrary";
 
-// Browsing Storyjar's own activities.
+// Browsing StoryJar's own activities.
 //
 // Two queries, and the shape of them is the feature. The shared activities are
 // read from their own table, which has no teacherId, so nothing here can leak

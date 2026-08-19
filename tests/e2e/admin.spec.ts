@@ -62,12 +62,12 @@ test.describe("School admin", () => {
     await expect(page.getByRole("heading", { name: "Staff & whole-school" })).toBeVisible();
   });
 
-  test("the guide names what Storyjar deliberately will not do", async ({ page }) => {
+  test("the guide names what StoryJar deliberately will not do", async ({ page }) => {
     await teacherLogin(page);
     await page.goto("/admin");
     await page.getByRole("button", { name: "Guide", exact: true }).click();
 
-    await expect(page.getByRole("heading", { name: "Things Storyjar will not do" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Things StoryJar will not do" })).toBeVisible();
     // Rule 5, stated where an admin will look for it rather than only in the policy.
     await expect(page.getByText(/you see a child.s work only if you teach that class/i)).toBeVisible();
   });

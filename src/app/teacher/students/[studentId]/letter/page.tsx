@@ -15,11 +15,11 @@ const CODE_TILTS = ["-2deg", "1.5deg", "-1deg", "2deg", "-1.5deg", "1deg", "-2de
 // The letter that carries a family code home.
 //
 // Without this the whole feature is theoretical: the code has no route to the
-// parent, because Storyjar has no way to reach them and deliberately never asks
+// parent, because StoryJar has no way to reach them and deliberately never asks
 // the teacher for one. The school prints this, puts it in a bag, and that is the
 // entire delivery mechanism.
 //
-// Written for someone who has never heard of Storyjar and is reading it at the
+// Written for someone who has never heard of StoryJar and is reading it at the
 // kitchen table. Short, plain, no jargon, and it says who to ask when it does
 // not work.
 export default async function FamilyLetterPage({
@@ -143,7 +143,7 @@ export default async function FamilyLetterPage({
               what is in the jar. There is no password to remember and nothing to pay.
             </p>
             <p style={{ margin: "10px 0 0" }}>
-              If you have another child using Storyjar, sign in first and then add their code, so both
+              If you have another child using StoryJar, sign in first and then add their code, so both
               children sit behind the one sign-in.
             </p>
             <p style={{ margin: "10px 0 0" }}>

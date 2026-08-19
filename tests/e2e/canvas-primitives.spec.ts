@@ -87,30 +87,23 @@ test("a shape turns to any angle, all the way round", async ({ page }) => {
   expect(t2).not.toBe(t);
 });
 
-test("the handles stay the right way up on a turned shape", async ({ page }) => {
+test("the delete button stays the right way up on a turned shape", async ({ page }) => {
   await studentLogin(page, "Ella");
   await openDrawing(page);
 
   await addShape(page, "Rectangle");
   await turn(page, 180);
 
-  // The drag handles are children of the rotating wrapper, so without a
-  // counter-rotation they hang upside-down off a shape turned 180°. Their own
-  // transform must undo the wrapper's exactly, leaving them visually upright.
-  //
-  // Delete and "add a label" are not checked here because they are no longer on
-  // the object at all — they moved into the floating toolbar (F41), where the
-  // buttons are already at the child touch floor.
-  for (const name of ["Resize shape", "Turn shape"]) {
-    const m = (await page
-      .getByRole("button", { name })
-      .evaluate((el) => getComputedStyle(el).transform))
-      .match(/matrix\(([^)]+)\)/)![1]
-      .split(",")
-      .map(Number);
-    expect(m[0], `${name} cos`).toBeCloseTo(-1, 1);
-    expect(m[1], `${name} sin`).toBeCloseTo(0, 1);
-  }
+  // The controls are children of the rotating wrapper, so without a
+  // counter-rotation they hang upside-down. Their own transform must undo the
+  // wrapper's exactly, leaving them visually upright.
+  const del = page.locator('button[aria-label="Remove object"]');
+  const m = (await del.evaluate((el) => getComputedStyle(el).transform))
+    .match(/matrix\(([^)]+)\)/)![1]
+    .split(",")
+    .map(Number);
+  expect(m[0]).toBeCloseTo(-1, 1);
+  expect(m[1]).toBeCloseTo(0, 1);
 });
 
 test("duplicate makes a second object, offset and selected", async ({ page }) => {

@@ -13,7 +13,7 @@ on these pages. Six things below have to be real first.
 
 | # | What's needed | Where it appears | Notes |
 |---|---|---|---|
-| **B1** | **Your full legal name** | Privacy Policy §1, Safeguarding statement | You trade as a sole trader, so the notice names you personally. There is no company to hide behind and that is fine — but it must be your real name, not "Storyjar". |
+| **B1** | **Your full legal name** | Privacy Policy §1, Safeguarding statement | You trade as a sole trader, so the notice names you personally. There is no company to hide behind and that is fine — but it must be your real name, not "StoryJar". |
 | **B2** | **A business address you're willing to publish** | Privacy Policy §1 | A sole trader must give a contactable address. **Do not publish your home address.** Options: a virtual office (~£10–30/month), your accountant's address, or a PO Box. A school's business manager will look for it, and once it is in a signed DPA it is in their filing system. |
 | **B3** | **ICO registration number** | Privacy Policy §1 | See below — you almost certainly need to register. |
 | **B4** | **A working `hello@storyjar.co.uk` mailbox** | Every policy page | All four role addresses now point here. Every policy tells a school this is how to raise a rights request or a safeguarding concern; if it bounces, the policy is worse than no policy. |

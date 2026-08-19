@@ -3,8 +3,8 @@
 /* A warm, friendly classroom palette. Kept light-only so colours stay
    predictable for young children and on classroom projectors. */
 :root {
-  /* Base UI tokens repointed to the Storyjar palette, so every page still using
-     the shared .card/.btn/.input classes (the teacher area) is Storyjar too. */
+  /* Base UI tokens repointed to the StoryJar palette, so every page still using
+     the shared .card/.btn/.input classes (the teacher area) is StoryJar too. */
   --background: #faf6ee; /* paper */
   --surface: #fffdf7; /* cream */
   --foreground: #22304a; /* ink */
@@ -14,7 +14,7 @@
   --brand-dark: #a93a5c;
   --accent: #f0b441; /* honey */
 
-  /* ── Storyjar design tokens ─────────────────────────────────────────────
+  /* ── StoryJar design tokens ─────────────────────────────────────────────
      The brand palette from the design handoff. Warm paper, hand-inked ink,
      jam-red CTAs, glass-green product colour, honey highlights, kraft jars. */
   --paper: #faf6ee; /* page background (warm off-white) */
@@ -332,7 +332,7 @@ body {
   font-family: var(--font-body);
 }
 
-/* Headings default to the Storyjar display face. Screens that set fonts inline
+/* Headings default to the StoryJar display face. Screens that set fonts inline
    (landing, signup, child/queue) are unaffected; this catches the teacher pages
    that still use plain Tailwind headings. */
 h1,
@@ -357,7 +357,7 @@ h4 {
    can't @apply another custom class, so each button variant lists its base
    utilities directly. */
 @layer components {
-  /* Storyjar-ified shared components: cream cards with a 3px ink register + flat
+  /* StoryJar-ified shared components: cream cards with a 3px ink register + flat
      pop shadow, jam/glass pill buttons, and paper inputs with an ink border. */
   .card {
     background: var(--cream);
@@ -421,7 +421,7 @@ h4 {
   }
 }
 
-/* ── Storyjar shared styles ───────────────────────────────────────────────
+/* ── StoryJar shared styles ───────────────────────────────────────────────
    Font helpers, an accessible focus ring, and the handful of components that
    repeat across the landing page and product screens (jam CTA, outline pill,
    pop card, kraft tag, status chip, uppercase kicker). One-off bespoke pieces
@@ -609,7 +609,7 @@ h4 {
   }
 }
 
-/* Legal / policy pages — readable long-form prose in the Storyjar register. */
+/* Legal / policy pages — readable long-form prose in the StoryJar register. */
 .legal-prose {
   font: 400 17px/1.65 var(--font-atkinson);
   color: var(--ink-soft);

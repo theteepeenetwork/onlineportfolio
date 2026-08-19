@@ -6,7 +6,7 @@ budgeted for. D2 is the owner's decision and nobody else's.**
 This document exists so that the choice can be made with the numbers in front of
 it rather than in a hurry. It sets out what each option costs, how much work it
 could lose (RPO), how long a school would be down (RTO), and, for each one, what
-Storyjar would then have to tell schools. It changes nothing: no plan has been
+StoryJar would then have to tell schools. It changes nothing: no plan has been
 changed, no provider has been signed up, no money has been spent, and
 `RETENTION.md` has deliberately not been edited.
 
@@ -103,7 +103,7 @@ also means the runbook is "provision and swap", not "roll back in place", and
 the app has to redeploy against the new volume. Until it has actually been done
 once, the honest RTO is unknown.
 
-**What Storyjar would have to tell schools.**
+**What StoryJar would have to tell schools.**
 
 - The retention windows are **6 days, 1 month and 3 months**, not 35 days. That
   does not match what `RETENTION.md` currently promises, so the schedule line has
@@ -151,7 +151,7 @@ instead of a day.
 boot. Realistically tens of minutes to a couple of hours, and it must be measured
 in a rehearsal rather than estimated.
 
-**What Storyjar would have to tell schools.**
+**What StoryJar would have to tell schools.**
 
 - **A new sub-processor.** That means a row on `/legal/sub-processors`, a signed
   DPA with the provider, a `docs/DPIA.md` entry, and, because the schools are the
@@ -160,7 +160,7 @@ in a rehearsal rather than estimated.
   period when the pilot is being sold.
 - The destination region, named, so the privacy notice can say where the copies
   actually are.
-- The retention window, which is now a number Storyjar chooses rather than one
+- The retention window, which is now a number StoryJar chooses rather than one
   the platform imposes, and which must be the same number in the runbook and in
   `RETENTION.md`.
 
@@ -205,7 +205,7 @@ problem.
 Railway. The off-provider copy exists for the day the account is gone, and would
 have a worse RPO, on whatever cycle it runs.
 
-**What Storyjar would have to tell schools:** everything in Option B, since the
+**What StoryJar would have to tell schools:** everything in Option B, since the
 new sub-processor is still new, plus the accurate Railway retention numbers from
 Option A. Two retention windows to state instead of one, and the erasure window
 is set by the longer of the two.
@@ -225,7 +225,7 @@ listed here so the choice is visible rather than implied.
 **RPO and RTO: there is no recovery.** If the volume is lost, every photograph,
 drawing and voice note is lost with it, permanently.
 
-**What Storyjar would have to tell schools:** that their children's work has no
+**What StoryJar would have to tell schools:** that their children's work has no
 disaster recovery. `RETENTION.md`, `/legal/privacy` and `/legal/data-processing`
 would all have to say so plainly, because the current text says the opposite and
 a school's data protection lead reads it during procurement. A school may

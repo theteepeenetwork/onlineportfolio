@@ -116,6 +116,38 @@ on their own, and cost an hour before the cause was found by polling the
 database during a run. If a battery result surprises you, check nothing else is
 running first (`ps aux | grep playwright`), then re-run cold on its own.
 
+**"attempt to write a readonly database" is a warm server, not a permission.**
+If a page dies with `PrismaClientUnknownRequestError` and SQLite's *"attempt to
+write a readonly database"*, check the extended code in the message before you
+touch a single file permission:
+
+| code | meaning | what to do |
+| --- | --- | --- |
+| `1032` | `SQLITE_READONLY_DBMOVED` — the file was replaced under an open connection | restart `next dev` |
+| `8` | `SQLITE_READONLY` — genuinely not writable | fix the file/volume permissions |
+
+`1032` is by far the common one here, and it is not a permission problem at all.
+`npm run db:reset` runs `prisma db push --force-reset`, which **deletes and
+recreates** `dev.db`; so does `prisma migrate reset`, and so does deleting the
+file by hand. SQLite compares the file it opened against the file now on disk,
+sees a different one, and refuses every write to avoid corrupting it. The dev
+server never notices, because `src/lib/db.ts` deliberately caches one
+`PrismaClient` on `globalThis` so that Next's module reloading does not open a
+new connection per edit — and that cached client is still holding the deleted
+file. Every write then fails: the first one most people hit is signing out,
+because that deletes the session row.
+
+Restarting the dev server is the whole fix — the new process opens the new file:
+
+```bash
+pkill -f "next dev"; npm run dev
+```
+
+Signing out is the exception that no longer breaks: `destroySession` clears the
+cookie before it touches the database and tolerates the write failing, so a
+stale connection cannot leave someone signed in on a shared device. Everything
+else on the page will still fail until you restart.
+
 The battery's config injects one more variable for the same reason:
 `STRIPE_SECRET_KEY`, set to the obviously fictional test key in
 `tests/battery/stripeFixtureKey.ts`. The operator billing screen offers a link

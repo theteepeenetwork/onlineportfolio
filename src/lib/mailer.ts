@@ -7,7 +7,7 @@ import "server-only";
 // no SDK, no SMTP library. Fewer moving parts in the one path a parent depends
 // on to reach their child's work.
 //
-// WHY NOT BREVO. Storyjar sent transactional mail through Brevo until August
+// WHY NOT BREVO. StoryJar sent transactional mail through Brevo until August
 // 2026. Brevo rewrites every link in every message through its own redirect
 // domain and injects an open-tracking pixel, and it does not let non-Enterprise
 // accounts turn either off. Their API has no tracking parameter at all: the
@@ -22,7 +22,7 @@ import "server-only";
 //
 // So the rule this module exists to enforce:
 //
-//   **A sign-in link must arrive exactly as Storyjar wrote it.**
+//   **A sign-in link must arrive exactly as StoryJar wrote it.**
 //
 // Tracking is switched off three ways below (per-message properties, per-message
 // headers, and the account setting) because one silent failure already cost us
@@ -80,7 +80,7 @@ function senderEmail(): string {
   return process.env.EMAIL_FROM_ADDRESS ?? "hello@mail.storyjar.co.uk";
 }
 function senderName(): string {
-  return process.env.EMAIL_FROM_NAME ?? "Storyjar";
+  return process.env.EMAIL_FROM_NAME ?? "StoryJar";
 }
 /** Where a human reply actually lands — a real, monitored mailbox. */
 function replyTo(): string {
