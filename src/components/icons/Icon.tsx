@@ -198,22 +198,25 @@ const ICONS: Record<IconName, Glyph> = {
   ) },
   // Two overlapping cards: the accent one is the selected object. Bring-to-front
   // draws it on TOP; send-to-back draws it BEHIND the plain card.
-  // A lemniscate: there is always another one of these.
+  // From the icon library ("Infinite").
   "infinite": { label: "Endless supply", glyph: (
-    <><path d="M8.6 12 C8.6 9.5 5.5 9.5 5.5 12 C5.5 14.5 8.6 14.5 8.6 12 C8.6 9.5 15.4 14.5 15.4 12 C15.4 9.5 8.6 14.5 8.6 12 Z" fill="none" /> <circle cx="18.4" cy="12" r="1.4" fill="#F0B441" stroke="none" /></>
+    <><path d="M12 12 C9.6 7.8 3.6 7.8 3.6 12 C3.6 16.2 9.6 16.2 12 12 C14.4 7.8 20.4 7.8 20.4 12 C20.4 16.2 14.4 16.2 12 12 Z" fill="#D8ECE8" /></>
   ) },
-  // An arrow chasing its own circle: turn this.
+  // From the Storyjar icon library ("Rotate"). Drawn there while rotation was
+  // still a reserved field, so it carried a grey "not live yet" stroke; that is
+  // dropped here and it inherits the ink colour like every other glyph.
   "rotate": { label: "Turn", glyph: (
-    <><path d="M20 12 A8 8 0 1 1 12 4" fill="none" /> <path d="M12 1.2 L15 4 L12 6.8" fill="none" /></>
+    <><rect x="8" y="8" width="8" height="8" rx="1.2" fill="#E8EEF4" /> <path d="M19.36 16.25 A8.5 8.5 0 1 1 12 3.5 M12 3.5 L9 1.7 M12 3.5 L9 5.3" /></>
   ) },
-  // A ten rod beside a counter: the two halves of the place-value kit, which is
-  // what most of this toolbox is for.
+  // From the icon library ("Maths kit, base-10 trio") — a hundred flat, a ten
+  // rod and a one, which is what most of this kit is for.
   "maths-kit": { label: "Maths kit", glyph: (
-    <><rect x="3.5" y="4" width="6" height="16" rx="1.4" fill="#8AB9D6" /> <line x1="3.5" y1="9.3" x2="9.5" y2="9.3" /> <line x1="3.5" y1="14.6" x2="9.5" y2="14.6" /> <circle cx="16.5" cy="14.5" r="5" fill="#F0B441" /></>
+    <><rect x="2.5" y="9.5" width="11" height="11" rx="1" fill="#8AB9D6" /> <path d="M6.2 9.5 V20.5 M9.9 9.5 V20.5 M2.5 13.2 H13.5 M2.5 16.8 H13.5" strokeWidth="0.8" /> <rect x="16" y="5" width="4" height="15.5" rx="1" fill="#F0B441" /> <path d="M16 8.1 H20 M16 11.2 H20 M16 14.3 H20 M16 17.4 H20" strokeWidth="0.8" /> <rect x="16.5" y="1" width="3" height="3" rx="0.7" fill="#C2476B" /></>
   ) },
-  // Two of the same thing, the front one offset — "make another one".
+  // From the icon library ("Duplicate"): two cards, the front one carrying the
+  // plus, which is what makes it "another one" rather than "two things".
   "duplicate": { label: "Make another one", glyph: (
-    <><rect x="4" y="4" width="12" height="12" rx="2.2" fill="#FFFDF7" /> <rect x="8" y="8" width="12" height="12" rx="2.2" fill="#8AB9D6" /></>
+    <><rect x="3" y="3" width="12" height="12" rx="2" fill="#FFFDF7" /> <rect x="9" y="9" width="12" height="12" rx="2" fill="#4E9C94" /> <path d="M15 12.5 V17.5 M12.5 15 H17.5" stroke="#FFFDF7" strokeWidth="2.2" /></>
   ) },
   "bring-to-front": { label: "Bring to front", glyph: (
     <><rect x="4.5" y="4.5" width="11" height="11" rx="2" fill="#FFFDF7" /> <rect x="9" y="9" width="11" height="11" rx="2" fill="#4E9C94" /></>

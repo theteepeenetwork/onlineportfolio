@@ -727,10 +727,15 @@ const SHAPES_KIT: Kit = {
 // number. The two-colour pair is red/yellow, the common UK convention; some
 // schemes use red/blue, and that is a one-line change here rather than anywhere
 // else.
+//
+// The four place-value colours are deliberately NOT red or amber: those belong
+// to the two-colour pair, and when 100 was amber and 1000 was crimson the
+// palette showed four buttons that read as two. Every one of these stays light
+// enough for the dark label to sit on it.
 const COUNTER_ONE = "#8AB9D6";
 const COUNTER_TEN = "#4E9C94";
-const COUNTER_HUNDRED = "#F0B441";
-const COUNTER_THOUSAND = "#C2476B";
+const COUNTER_HUNDRED = "#B79BE0";
+const COUNTER_THOUSAND = "#E8A87C";
 
 // One base-10 unit, in model units. Everything in the place-value group is a
 // multiple of it, so a ten rod really is ten ones long against a hundred flat.
@@ -750,8 +755,11 @@ const MATHS_KIT: Kit = {
   label: "Maths kit",
   groups: [
     {
-      id: "number-line",
-      label: "Number lines",
+      id: "arrows",
+      // Not "Number lines" any more: the line itself moved to Shapes, where
+      // every child can reach it, and a group named for something it no longer
+      // contains is worse than a plain one.
+      label: "Arrows & braces",
       presets: [
         // No plain line or arrow here: both are in Shapes, which a teacher also
         // has. Duplicating them would put two buttons with the same accessible

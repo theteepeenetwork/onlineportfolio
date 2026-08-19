@@ -1463,7 +1463,7 @@ spec. Worth checking at the same time whether the restore modal should be
 dismissible by pressing Escape, since a modal that can only be answered is also
 a modal that can only block.
 
-## F41 · The gate cannot see the controls that only appear once you tap something · Medium → Open
+## F41 · The gate cannot see the controls that only appear once you tap something · Medium → Fixed
 
 Found on 2026-08-19, immediately after F37 was fixed. F37 grew every control on
 the drawing canvas to the 64px child floor and — the part that matters — added
@@ -1492,7 +1492,59 @@ number: handles outside the shape's bounds, or a long-press menu, or handles
 that scale with the object down to a floor. That is a real decision and it is
 the owner's, which is why this is logged rather than guessed at.
 
-**To close this.** Decide the affordance, then extend the sweep to visit the
-selected state — place a shape, tap it, measure — so the answer stays true. The
-palette buttons a child taps to *place* a shape are already at 64px and already
-asserted, in the same spec.
+**The fix (19 August 2026).** Two of the four did not need to be on the object
+at all. **Delete and "add a label" moved into the floating toolbar**, where
+every other action on an object already lives and where the buttons are already
+64px. That halves the problem rather than arguing with it.
+
+The other two are drags — you cannot pull a corner from a toolbar — so **resize
+and turn stay on the corners as a small visible dot inside a 64px transparent
+press.** The dot is what a child aims at; the box is what they hit. It meets the
+floor without spending the shape, which growing the dots would have done.
+
+Making the toolbar the answer meant it had to *be* there: it used to appear only
+for a teacher or for a restyleable shape, so a child's own imported picture had
+a delete button on its corner and no toolbar at all. It now appears whenever
+there is anything to do.
+
+**And the sweep now visits the selected state** — places a shape, taps it,
+measures — which is what stops this coming back. Doing that immediately found
+six more controls the page sweep had never seen, all in the toolbar's style
+section: the fill and line colour wells at 60px (the border ate 2px a side, so
+the `<input>` that takes the press was under the box that looked right), "No
+fill" at 59×30, and the three line-width buttons at 44px. All fixed.
+
+The lesson, alongside F37's "a page list is exactly as good as the pages on it":
+**a page sweep is exactly as good as the states it visits.**
+
+## F42 · The object toolbar has outgrown the object it floats over · Low → Open
+
+Found on 2026-08-19, doing the visual pass on a classroom-iPad viewport rather
+than trusting that the tests passing meant it looked right. It did not.
+
+With every button at 64px (F37) and the maths kit's steppers added, the toolbar
+for a base-10 grid carries **eighteen controls** — order, lock, endless,
+duplicate, columns, rows, edit, delete, fill, no-fill, line, three widths. Three
+things went wrong at once, and all three are now fixed:
+
+- It was **wider than the canvas it floats over**, running off both edges,
+  because it was `whitespace-nowrap` from when it held six buttons.
+- Letting it wrap made it worse in a new way: it is absolutely positioned inside
+  the object's own wrapper, so the available width — and therefore where it
+  wrapped — was the *object's* width. On a narrow shape it became a tall column
+  standing on top of the thing it was editing. `w-max` fixes that.
+- It was **clipped off the top of the screen**, because whether to hang above or
+  below was decided by a constant (`o.y * scale < 92`) written when the toolbar
+  was one short row. It is now decided by measuring, and clamped into the stage
+  the same way it was already clamped horizontally — preferring the top, since
+  the resize and turn handles live on the object's bottom corners.
+
+**What is still true, and is the finding.** Eighteen 64px controls is three rows
+about 200px tall. It fits, it is legible, and it no longer covers the handles —
+but it is a large panel to float over a child's work, and on a big shape it will
+sit on top of it. The floor is not negotiable, so the answer is fewer controls
+or a different home for them: a bar docked to the edge of the canvas would never
+cover the work and would delete the clamping logic entirely.
+
+That is a design decision with a real cost either way, and the current state is
+correct and usable, so it is recorded rather than guessed at.

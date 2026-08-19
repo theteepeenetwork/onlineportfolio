@@ -236,3 +236,37 @@ test("every shape button carries a name, and no two are the same", async ({ page
   const all = [...childNames, ...kitNames];
   expect([...new Set(all)].length).toBe(all.length);
 });
+
+test("every control that appears once a child taps a shape meets the floor", async ({ page }) => {
+  // F41. The sweeps above load a page and measure what is on it — which never
+  // includes the chrome that only exists once something is SELECTED. A page
+  // sweep is exactly as good as the states it visits, so this one visits the
+  // state.
+  await loginStudent(page, SCHOOL_A.classCode, "Chloe");
+  await page.goto("/student/new/drawing");
+  await expect(page.locator("canvas")).toBeVisible();
+
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Shapes" }).click();
+  // A counter-sized shape, which is the hard case: small enough that four 64px
+  // buttons on its corners would have buried it.
+  await page.getByRole("button", { name: "Circle", exact: true }).click();
+
+  const small = await undersizedControls(page);
+  expect(
+    small,
+    `controls below ${FLOOR}px with a shape selected: ${JSON.stringify(small)}`,
+  ).toEqual([]);
+
+  // The two drag handles have to stay on the corners — you cannot drag a corner
+  // from a toolbar — so they are measured by their press area, not their dot.
+  for (const name of ["Resize shape", "Turn shape"]) {
+    const box = (await page.getByRole("button", { name }).boundingBox())!;
+    expect(box.width, `${name} width`).toBeGreaterThanOrEqual(FLOOR);
+    expect(box.height, `${name} height`).toBeGreaterThanOrEqual(FLOOR);
+  }
+
+  // And the two that did not have to stay are now in the toolbar, at its size.
+  await expect(page.getByRole("button", { name: "Remove object" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit text" })).toBeVisible();
+});
