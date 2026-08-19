@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { CODE_ALPHABET, CODE_LENGTH } from "@/lib/classCodeChars";
 import { teacherLogin, studentLogin } from "./helpers";
 
 test.describe("Sign in", () => {
@@ -154,8 +155,21 @@ test("a register pasted at sign-up is stored as first names only", async ({ page
   await page.waitForURL((url) => !/\/signup\/teacher$/.test(url.pathname), { timeout: 30_000 });
 
   await expect(page.getByRole("heading", { name: /class code/i })).toBeVisible();
-  const code = ((await page.locator("body").innerText()).match(/\b[A-Z]{3}[A-Z0-9]{3}\b/) ?? [""])[0];
-  expect(code).toMatch(/^[A-Z0-9]{4,8}$/);
+
+  // Read the code off the "How your pupils sign in" panel, where it is rendered
+  // whole. The big display above it prints one character per element, so body
+  // text there is not contiguous and cannot be matched.
+  //
+  // Matched against the REAL alphabet rather than a guessed shape: codes are six
+  // characters from CODE_ALPHABET, which omits 0/O/1/I/L so a five-year-old
+  // reading one off the board cannot confuse two glyphs — and may therefore
+  // start with a digit. An earlier version of this assumed three leading
+  // letters, and went red on a perfectly good code (6W3TSN).
+  const codeBox = page.getByText("1 · Type the code").locator("xpath=preceding-sibling::div[1]");
+  const code = (await codeBox.innerText()).trim();
+  expect(code, "the new class has a code a child could type").toMatch(
+    new RegExp(`^[${CODE_ALPHABET}]{${CODE_LENGTH}}$`),
+  );
 
   // The children's own sign-in screen is where those names are shown, so it is
   // where the rule has to hold.
