@@ -13,12 +13,6 @@ import { teacherLogin, logout } from "./helpers";
 // the work they hand in. If gating ever leaked into rendering, this is the test
 // that would say so, and it is the common case rather than an edge one.
 
-// This test drives the template builder, which writes a local-first draft as it
-// goes. A draft left behind is not a private mess: the restore modal is
-// `aria-modal` and intercepts pointer events, so the next test to open the
-// builder fails on a click that has nothing to do with what it was testing.
-// That fragility is logged as F38 and wants a shared fixture; until then, a test
-// that creates the problem clears up after itself.
 // These tests open the template builder, which autosaves a local-first draft.
 // A draft left behind blocks the NEXT test — anywhere in the suite — with a
 // restore modal that is `aria-modal` and intercepts pointer events, so the next

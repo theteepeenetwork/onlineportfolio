@@ -32,11 +32,29 @@ async function clearDrafts() {
   }
 }
 
-test.beforeEach(clearDrafts);
+// One test here hands work in, which puts a PENDING item in the teacher's queue
+// and a "waiting" card on the child's jar. Several OTHER specs — journal,
+// stickers — are written around a child having exactly one of those, so work
+// left behind here fails them somewhere else entirely, with an error that says
+// nothing about this file. Picking a different child only moves the problem to
+// whoever is written next, so instead this cleans up everything it created.
+let startedAt = new Date(0);
+
+test.beforeEach(async () => {
+  startedAt = new Date();
+  await clearDrafts();
+});
 
 test.afterEach(async ({ page }) => {
   await page.goto("about:blank");
   await clearDrafts();
+  const db = new PrismaClient();
+  try {
+    // Scoped to this test's own window, so seeded fixtures are untouched.
+    await db.journalItem.deleteMany({ where: { createdAt: { gte: startedAt } } });
+  } finally {
+    await db.$disconnect();
+  }
 });
 
 async function buildTemplateWithSource(page: import("@playwright/test").Page, title: string) {
