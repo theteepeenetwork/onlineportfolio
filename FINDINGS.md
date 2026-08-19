@@ -1496,3 +1496,32 @@ the owner's, which is why this is logged rather than guessed at.
 selected state — place a shape, tap it, measure — so the answer stays true. The
 palette buttons a child taps to *place* a shape are already at 64px and already
 asserted, in the same spec.
+
+## F42 · A child can write, but cannot get back into what they wrote · Medium → Open
+
+Found on 2026-08-19 while reading a red gate rather than a screen, which is the
+only reason it was found at all: `tests/e2e/text.spec.ts` fails on `main` at
+"re-edit via the ✎ button", and the button is genuinely not there.
+
+A text box on the canvas has exactly one way back into it: **double-click**.
+`TextObjectView` wires `onDoubleClick` and nothing else. A shape still carries a
+corner ✎ (`aria-label="Edit text"`, 24×24), so the two object types disagree,
+and the one that is *made of words* is the one with no visible way in.
+
+Double-tap is the wrong affordance here twice over. It is invisible — nothing on
+screen says the box can be reopened — and on a classroom iPad a three-year-old's
+second tap is frequently not read as a double-tap at all. A child who mistypes
+their sentence has to delete it and start again.
+
+**Why this is not just "add the ✎ back".** The shape's ✎ is 24×24 against a 64px
+child floor, so copying it onto text objects would ship a fifth control below the
+floor — see **F41**, which logs those four and explains why growing them needs a
+design answer rather than a number. `TextObjectView`'s own comment says edit and
+delete now live "in the floating toolbar at 64px", but `ObjectToolbar` has no
+edit control: order, padlock, duplicate, style, and that is all. So the intended
+home for this affordance exists and is empty.
+
+**To close this.** Put edit in `ObjectToolbar` at 64px for both object types,
+delete the shape's 24px corner leftover, and let `text.spec.ts` find it by its
+accessible name — which closes a slice of F41 with the same change. Until then
+the e2e gate is red on this one test, and it is red for a true reason.

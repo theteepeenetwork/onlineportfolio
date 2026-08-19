@@ -15,8 +15,10 @@ test("a teacher sets up a whole class from a pasted register", async ({ page }) 
   await page.getByRole("radio", { name: /Older children/ }).check();
   await page.fill("#import-names", "Olivia Smith\nOlivia Small\nJack Brown\nAmara");
 
-  // The button counts what will be created before it is clicked.
-  const submit = page.getByRole("button", { name: /Create the class with 4 pupils/ });
+  // The button counts what will be created before it is clicked. It counts
+  // NAMES, which is what has been typed — the children do not exist yet, and
+  // a surname on a line is not a second child.
+  const submit = page.getByRole("button", { name: /Create the class from 4 names/ });
   await expect(submit).toBeVisible();
   await submit.click();
 
@@ -52,5 +54,7 @@ test("a second class cannot reuse a name the teacher already has", async ({ page
   await page.fill("#import-name", "Twice Class");
   await page.fill("#import-names", "Grace");
   await page.getByRole("button", { name: /Create the class/ }).click();
-  await expect(page.getByRole("alert")).toContainText(/already have a class called/i);
+  // Scoped to main: Next's route announcer is also role="alert", and a locator
+  // that matches two things fails strictly instead of saying what the screen said.
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(/already have a class called/i);
 });
