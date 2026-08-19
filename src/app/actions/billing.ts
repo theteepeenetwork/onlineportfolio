@@ -6,7 +6,7 @@ import type { Subscription } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
-import { governingSubscription } from "@/lib/billing";
+import { governingSubscription, trialEndFromNow } from "@/lib/billing";
 import { priceIdFor, isPlanKey, bandFor, type PlanKey } from "@/lib/billing-plans";
 import { recordAudit } from "@/lib/audit";
 // A Stripe error echoes back the parameter it objected to, and on customer
@@ -75,6 +75,35 @@ async function ensureCustomer(sub: Subscription, actor: Actor): Promise<string> 
   return customer.id;
 }
 
+
+// Make sure the school this admin runs actually HAS a school subscription to buy
+// against, creating one if it doesn't.
+//
+// Until now a SCHOOL row only ever came from a seed, so an admin whose school
+// had none was governed by their own FREE teacher row — and pressing "buy the
+// school plan" would have checked out against that personal row, naming the
+// teacher rather than the school as the customer and covering nobody else. That
+// is the whole-school purchase silently not being a whole-school purchase.
+//
+// A new row starts on TRIAL with the usual half term rather than on ACTIVE:
+// the money hasn't moved yet, and TRIAL is the state that keeps every teacher in
+// the school writable in the gap between pressing the button and Stripe
+// confirming. The webhook moves it to ACTIVE when payment lands.
+async function ensureSchoolSubscription(actor: Actor) {
+  if (!actor.schoolId) return null;
+  const existing = await db.subscription.findUnique({ where: { schoolId: actor.schoolId } });
+  if (existing) return existing;
+  const created = await db.subscription.create({
+    data: { kind: "SCHOOL", status: "TRIAL", trialEndsAt: trialEndFromNow(), schoolId: actor.schoolId },
+  });
+  await recordAudit({
+    action: "BILLING_SCHOOL_PLAN_STARTED", actorType: "ADMIN", actorId: actor.teacherId, actorName: actor.name,
+    schoolId: actor.schoolId, subjectType: "SUBSCRIPTION", subjectId: created.id,
+    detail: "School plan opened for the whole school",
+  });
+  return created;
+}
+
 // Start a hosted Checkout session and redirect the admin to Stripe.
 //
 // The only purchasable plan is School, in one of four bands by pupils on roll
@@ -98,8 +127,21 @@ export async function startCheckout(
     return { error: "Only a school admin can buy the school plan." };
   }
 
-  const sub = await governingSubscription({ id: actor.teacherId, schoolId: actor.schoolId });
-  if (!sub) return { error: "We couldn’t find your account’s plan. Please refresh and try again." };
+  // Always buy against the SCHOOL's subscription, never the admin's own free
+  // teacher row — otherwise the purchase covers one person and names the wrong
+  // customer.
+  const sub = await ensureSchoolSubscription(actor);
+  if (!sub || sub.kind !== "SCHOOL") {
+    return { error: "We couldn’t open your school’s plan. Please refresh and try again." };
+  }
+  // Refuse a SECOND purchase only while one is actually running: buying again
+  // would create a second Stripe subscription and bill the school twice. A
+  // FROZEN school still carries the id of the subscription that lapsed, and must
+  // be able to buy its way back — so the id alone is not the test, the live
+  // paying state is.
+  if (sub.stripeSubscriptionId && (sub.status === "ACTIVE" || sub.status === "PAST_DUE")) {
+    return { error: "Your school already has a plan running. Use “Open the billing portal” to change or cancel it." };
+  }
 
   const stripe = getStripe();
   const customerId = await ensureCustomer(sub, actor);
@@ -147,8 +189,16 @@ export async function requestSchoolInvoice(
   if (!stripeConfigured()) return { error: "Billing isn’t set up in this environment yet." };
   if (!actor.isAdmin || !actor.schoolId) return { error: "Only a school admin can arrange invoice billing." };
 
-  const sub = await governingSubscription({ id: actor.teacherId, schoolId: actor.schoolId });
-  if (!sub || sub.kind !== "SCHOOL") return { error: "This school doesn’t have a school plan set up." };
+  const sub = await ensureSchoolSubscription(actor);
+  if (!sub || sub.kind !== "SCHOOL") return { error: "We couldn’t open your school’s plan. Please refresh and try again." };
+  // Refuse a SECOND purchase only while one is actually running: buying again
+  // would create a second Stripe subscription and bill the school twice. A
+  // FROZEN school still carries the id of the subscription that lapsed, and must
+  // be able to buy its way back — so the id alone is not the test, the live
+  // paying state is.
+  if (sub.stripeSubscriptionId && (sub.status === "ACTIVE" || sub.status === "PAST_DUE")) {
+    return { error: "Your school already has a plan running. Use “Open the billing portal” to change or cancel it." };
+  }
 
   const planRaw = String(formData.get("plan") ?? "");
   if (!isPlanKey(planRaw)) return { error: "Please choose the size of your school." };
@@ -158,12 +208,28 @@ export async function requestSchoolInvoice(
   const customerId = await ensureCustomer(sub, actor);
 
   try {
-    await stripe.subscriptions.create({
+    const created = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: priceIdFor(planRaw), quantity: 1 }],
       collection_method: "send_invoice",
       days_until_due: 30,
       metadata: { storyjar_subscription_id: sub.id, storyjar_kind: "SCHOOL" },
+    });
+    // Record the Stripe subscription against our row IMMEDIATELY, rather than
+    // waiting for a webhook.
+    //
+    // A lapsed trial freezes on local state alone — TRIAL, past `trialEndsAt`,
+    // with no `stripeSubscriptionId` (see settleStatus in src/lib/billing.ts).
+    // A school that raises a purchase order in the last fortnight of its trial
+    // would otherwise go read-only on day 42 while its invoice sat in finance,
+    // which is exactly the school that has done everything right. Storing the id
+    // here closes that window without waiting on a delivery we don't control.
+    // The webhook still owns every status change from here (paid → ACTIVE,
+    // unpaid → PAST_DUE → FROZEN), so a school that never settles is not
+    // permanently free.
+    await db.subscription.update({
+      where: { id: sub.id },
+      data: { status: "ACTIVE", stripeSubscriptionId: created.id },
     });
   } catch (e) {
     console.error("[billing] invoice subscription create failed", errorLabel(e));

@@ -120,3 +120,39 @@ test.describe("School admin", () => {
     await expect(page).toHaveURL((url) => url.pathname === "/");
   });
 });
+
+test.describe("Admin billing", () => {
+  test("the billing tab says where the school stands and what to do next", async ({ page }) => {
+    await teacherLogin(page);
+    await page.goto("/admin");
+    await page.getByRole("button", { name: "Billing", exact: true }).click();
+
+    await expect(page.getByRole("heading", { name: /Where .* stands/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What happens next" })).toBeVisible();
+    // Both ways a school can actually pay are offered, card first.
+    await expect(page.getByRole("button", { name: /Pay £\d+ by card/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Request an invoice \/ PO/ })).toBeVisible();
+    // The bands are priced on the page rather than hidden behind a link.
+    await expect(page.getByText(/Up to 210 pupils/)).toBeVisible();
+    // And the school knows who the paperwork goes to.
+    await expect(page.getByRole("heading", { name: "Billing contact" })).toBeVisible();
+  });
+
+  test("an admin can hand a class to a different teacher from the Classes tab", async ({ page }) => {
+    await teacherLogin(page);
+    await page.goto("/admin");
+    await page.getByRole("button", { name: "Classes", exact: true }).click();
+
+    const picker = page.locator('select[name="staffId"]').first();
+    await expect(picker).toBeVisible();
+    const before = await picker.inputValue();
+    const other = await picker.locator(`option:not([value="${before}"])`).first().getAttribute("value");
+    await picker.selectOption(other ?? "");
+    // Reassignment takes a deliberate press — it is the access control.
+    await page.getByRole("button", { name: /^Hand to / }).click();
+
+    // The handover is recorded with the admin's name against it.
+    await page.getByRole("button", { name: "Audit log" }).click();
+    await expect(page.getByText("Assigned a class")).toBeVisible();
+  });
+});

@@ -134,12 +134,61 @@ Legend: ✅ build now · 🟡 build now, forward-looking (feature not yet in cod
 
 | # | Test | Plan | Notes |
 | --- | --- | --- | --- |
-| B1 | **Accessibility** | axe-core scan on every page, gated at WCAG 2.2 AA; keyboard-only nav for core flows; check ≥64px child touch targets (rule 18, stricter than the brief's 44px). | ✅ |
+| B1 | **Accessibility** | axe-core scan on every page, gated at WCAG 2.2 AA; keyboard-only nav for core flows; check ≥64px child touch targets (rule 18, stricter than the brief's 44px). **Extended 19 August 2026 (F37):** the child touch-target sweep now covers the drawing canvas, an activity response and the EYFS jar — the three busiest child-facing screens, all of which sat outside its page list while the gate's name said otherwise — and counts `[role="button"]` and `[role="slider"]`, so a control that is not a `<button>` cannot slip past it. | ✅ |
 | B2 | **Core task flows** | Playwright: teacher login → capture photo → tag pupil(s) → publish, assert step count ≤ N + no dead ends; admin: add teacher, add class, bulk-import pupils. | ✅ (extends existing specs) |
 | B3 | **Interruption resilience** | Half-finished upload/form survives tab close/reopen + flaky connection without data loss. | ✅ (will surface whether any draft-persistence exists) |
 | B4 | **Responsive & device** | Playwright projects: iPad viewport + low-end laptop; assert no horizontal scroll, touch targets ≥44px on core flows. | ✅ |
 | B5 | **Performance budgets** | Lighthouse CI on journal feed + upload pages: LCP < 2.5s throttled, image-payload cap. | ✅ |
 | B6 | **Error-message audit** | Script collects every user-facing error string; flags jargon ("500", "Prisma", "payload"). | ✅ |
+| B7 | **The user-tester team** (added 2026-08-18) | `tests/battery/personas/` — a platform operator, a brand-new teacher, a teacher mid-lesson on an iPad, a school business manager, an admin of a lapsed account, a parent on a phone, a child in each of the three registers, and a fuzzing bot inside a real child's session. Each drives a whole job of work end to end in their own school (`prisma/seed-personas.ts`): author an activity and a quiz → assign it → the child answers it → mark it → send it back with feedback → the child picks the feedback up; the September staff-and-classes jobs; a support call about a family code; a lapsed account; and a bot tapping everything twice with a reload in the middle. The harness attributes every unhandled error, 5xx, broken image and browser dialog to the screen the tester was on, and sweeps each screen for the things that decide whether it works FOR THAT PERSON: targets at their finger size (64px for a child, 44px on a touch device, WCAG 2.2 AA's 24px for a mouse), words at their reading age, a way back out, no developer jargon, no sideways scroll, labelled fields. Findings are aggregated by `scripts/persona-report.mjs` into `USER_TESTING.md`. | ✅ Report-only, EXCEPT a **blocker** — an unhandled error, a 5xx, or a job the tester could not finish — which fails the test. |
+
+### B7 — why the personas are not more assertions
+
+The rest of the battery asks *is this correct?*. A user tester asks *could I do
+it, and did I understand what happened?* — which has no single expected value,
+so it cannot be written as `expect(x).toBe(y)` without inventing one. Writing
+these as assertions would have produced exactly two outcomes: a gate that fails
+on taste (and gets weakened until it passes, which the a11y baseline already
+taught us) or a gate so loose it proves nothing.
+
+So a persona records an OBSERVATION with a severity, in their own voice, and the
+run produces a document. The single exception is a blocker, because "I could not
+hand in my work" is not a matter of taste.
+
+Two mistakes the harness made on its first run, both fixed, both worth knowing:
+
+1. **It reported a 345px horizontal overflow on `/family` that was an artefact of
+   its own test rig** — a 390px window is a narrow DESKTOP unless mobile
+   emulation is on, and without it the `width=device-width` viewport is ignored.
+   A tester that cannot be trusted about the device is not a tester. The persona
+   now carries `touch` and `mobile` flags and the fixture emulates them. (With
+   emulation on, the overflow is real on the signed-out screen and gone once
+   signed in — which is a finding rather than a rig fault.)
+2. **It reported that a correct family code had been refused**, because it
+   checked for the signed-in heading the instant after submitting, and then hung
+   for the whole two-minute timeout looking for a form that had already been
+   replaced (Playwright's default action timeout is *wait for ever*). `t.sees()`
+   waits as long as the persona's patience and then concludes, and the project
+   sets a real action timeout.
+3. **It reported a safeguarding breach that did not exist.** The operator
+   journey checks that no child's name is on the operator's screen, and matched
+   the name as a substring: "Bo" matched the "bo" in "about", in the screen's own
+   explanatory copy. Word boundaries now. A tester that cries wolf about the one
+   promise the product rests on is worse than no tester, so this one is worth
+   more than a line in a changelog.
+4. **It reported "there is nowhere to attach a photo"** about a screen that has
+   one, by counting file inputs on the server-rendered HTML before the capture
+   component had hydrated — the same race as F36, met from the other side. It
+   waits for the control now.
+5. **Every spec file deleted the previous file's findings.** The observations
+   directory was cleared behind a module-scoped "have I done this yet" flag, and
+   Playwright re-evaluates the module graph per test FILE, so the flag reset nine
+   times in one run. The report was assembled from whichever journey ran last and
+   read like a clean sweep. It is cleared once, in the battery's global setup.
+
+The first two were found by reading a failure; the last three were found by
+disbelieving a *result*. That asymmetry is the argument for keeping this suite
+report-only: a persona's claim is evidence, and evidence gets checked.
 
 ### C. Manual usability protocol
 

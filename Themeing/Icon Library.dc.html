@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #FAF6EE; }
+  a { color: #22304A; } a:hover { color: #C2476B; }
+</style>
+</helmet>
+
+<div data-screen-label="Icon library" style="--ink: {{ inkColor }}; --sw: {{ strokeW }}; --sz: {{ tileSize }}; font-family: 'Atkinson Hyperlegible', sans-serif; color: #22304A; background: #FAF6EE; padding: 70px 24px 110px;">
+<div style="max-width: 1080px; margin: 0 auto;">
+
+  <!-- header -->
+  <header style="display: flex; align-items: center; gap: 20px; padding-bottom: 34px; border-bottom: 3px solid #22304A;">
+    <svg width="52" height="64" viewBox="0 0 100 120" aria-hidden="true">
+      <rect x="26" y="4" width="48" height="14" rx="7" fill="#C9A87C"></rect>
+      <path d="M30,20 L70,20 L70,30 C82,36 86,46 86,58 L86,98 Q86,114 70,114 L30,114 Q14,114 14,98 L14,58 C14,46 18,36 30,30 Z" fill="#D8ECE8" stroke="#22304A" stroke-width="5" stroke-linejoin="round"></path>
+      <rect x="30" y="76" width="16" height="16" rx="3" fill="#C2476B" transform="rotate(-8 38 84)"></rect>
+      <rect x="52" y="82" width="16" height="16" rx="3" fill="#F0B441" transform="rotate(6 60 90)"></rect>
+      <rect x="42" y="58" width="16" height="16" rx="3" fill="#4E9C94" transform="rotate(-4 50 66)"></rect>
+    </svg>
+    <div>
+      <h1 style="margin: 0; font: 600 42px 'Fredoka', sans-serif;">Storyjar icon set</h1>
+      <p style="margin: 6px 0 0; font: 400 17px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">One family of hand-inked icons children learn once and read everywhere — tools, adding a moment, the jar, and getting around.</p>
+    </div>
+  </header>
+
+  <!-- ═══ anatomy ═══ -->
+  <section style="margin-top: 48px;">
+    <h2 style="margin: 0 0 8px; font: 600 30px 'Fredoka', sans-serif;">The standard</h2>
+    <p style="margin: 0 0 22px; font: 400 17px/1.6 'Atkinson Hyperlegible', sans-serif; color: #43506B; max-width: 52em;">Every icon is drawn on one 24-unit keyline grid so weight, corners and optical size match — a child who learns the pen recognises the whole set. One shape, one accent colour, ink everywhere else.</p>
+    <div style="display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: stretch;">
+
+      <!-- big keyline specimen -->
+      <div style="background: #FFFDF7; border: 3px solid #22304A; border-radius: 16px; padding: 26px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: relative; width: 168px; height: 168px; border-radius: 12px; background-image: linear-gradient(#EDE6D4 1px, transparent 1px), linear-gradient(90deg, #EDE6D4 1px, transparent 1px); background-size: 14px 14px; background-position: center; border: 2px dashed #DDD3BC;">
+          <svg viewBox="0 0 24 24" width="168" height="168" style="position: absolute; inset: 0; stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="3" y="5" width="13" height="13" rx="2.5" fill="#D8ECE8"></rect>
+            <circle cx="7.4" cy="9" r="1.8" fill="#F0B441" stroke="none"></circle>
+            <path d="M3.4 15 L8 10.5 L11.5 13.8 L13.5 12.2 L16 14.6"></path>
+            <circle cx="18" cy="17" r="4.4" fill="#C2476B"></circle>
+            <path d="M18 15 v4 M16 17 h4" stroke="#FFFDF7" stroke-width="1.8"></path>
+          </svg>
+        </div>
+      </div>
+
+      <!-- rule chips -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+        <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 20px;">
+          <p style="margin: 0; font: 600 18px 'Fredoka', sans-serif;">24-unit keyline</p>
+          <p style="margin: 5px 0 0; font: 400 14px/1.5 'Atkinson Hyperlegible', sans-serif; color: #43506B;">All artwork lives in a <code style="font-family: monospace;">0 0 24 24</code> box. Shapes snap to the grid so nothing looks heavier than its neighbour.</p>
+        </div>
+        <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 20px;">
+          <p style="margin: 0; font: 600 18px 'Fredoka', sans-serif;">2px ink stroke</p>
+          <p style="margin: 5px 0 0; font: 400 14px/1.5 'Atkinson Hyperlegible', sans-serif; color: #43506B;">Outlines are <code style="font-family: monospace;">#22304A</code>, 2px, with round caps &amp; joins — the same friendly hand as the jar.</p>
+        </div>
+        <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 20px;">
+          <p style="margin: 0; font: 600 18px 'Fredoka', sans-serif;">One accent</p>
+          <p style="margin: 5px 0 0; font: 400 14px/1.5 'Atkinson Hyperlegible', sans-serif; color: #43506B;">A single fill from the tile palette per icon. Never two accents fighting; the rest stays ink-on-paper.</p>
+        </div>
+        <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 20px;">
+          <p style="margin: 0; font: 600 18px 'Fredoka', sans-serif;">Two sizes</p>
+          <p style="margin: 5px 0 0; font: 400 14px/1.5 'Atkinson Hyperlegible', sans-serif; color: #43506B;">Child <strong>44px</strong> inside a ≥64px target; teacher <strong>24px</strong>. Same file, no redraw.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ making tools ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">Making tools</h2>
+    <p style="margin: 0 0 20px; font: 400 16px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">The drawing canvas rail. The first icons a child meets.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px;">
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Pen" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <g transform="rotate(45 12 12)"><rect x="10" y="3" width="4" height="8" rx="1.2" fill="#4E9C94"></rect><path d="M10 11 L14 11 L12.6 17 L11.4 17 Z" fill="#FFFDF7"></path><line x1="10" y1="13.5" x2="14" y2="13.5"></line><line x1="12" y1="17" x2="12" y2="19.5"></line></g>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Pen</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">thin line</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Felt tip" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <g transform="rotate(45 12 12)"><rect x="9" y="3" width="6" height="8" rx="1.6" fill="#C2476B"></rect><path d="M9 11 L15 11 L12.8 18 L11.2 18 Z" fill="#22304A"></path></g>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Felt tip</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">thick line</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Highlighter" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <g transform="rotate(32 12 12)"><rect x="8.5" y="3" width="7" height="7" rx="1.5" fill="#F0B441"></rect><path d="M8.5 10 L15.5 10 L13.6 16 L10.4 16 Z" fill="#F7E7A6"></path><path d="M10.4 16 L13.6 16 L13.2 19 L10.8 19 Z" fill="#F7E7A6"></path></g>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Highlighter</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">wide chisel</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Eraser" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <g transform="rotate(-20 12 12)"><path d="M5 13.5 Q5 11.5 7 11.5 L16 11.5 Q18 11.5 18 13.5 L18 16.5 L5 16.5 Z" fill="#8AB9D6"></path><path d="M5 16.5 L18 16.5 L18 18 Q18 19 17 19 L6 19 Q5 19 5 18 Z" fill="#E08A9B"></path></g>
+          <path d="M4 21 h3 M9 21 h2.5" stroke-linecap="round"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Eraser</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">rub out</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Fill" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <g transform="rotate(35 11 11)">
+            <path d="M5.6 6 L7.4 15.8 Q7.6 17.3 9.1 17.3 L12.9 17.3 Q14.4 17.3 14.6 15.8 L16.4 6" fill="#D8ECE8"></path>
+            <ellipse cx="11" cy="6" rx="5.4" ry="1.7" fill="#D8ECE8"></ellipse>
+            <path d="M6.6 5.2 Q6.1 1.8 11 1.8 Q15.9 1.8 15.4 5.2"></path>
+          </g>
+          <path d="M17.6 10 Q19.4 12.8 19.4 14.7 Q19.4 16.5 17.6 16.5 Q15.8 16.5 15.8 14.7 Q15.8 12.8 17.6 10 Z" fill="#C2476B"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Fill</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">flood colour</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Line thickness" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <line x1="4" y1="6.5" x2="20" y2="6.5" stroke-width="1.5"></line>
+          <line x1="4" y1="12" x2="20" y2="12" stroke-width="3.5"></line>
+          <line x1="4" y1="18" x2="20" y2="18" stroke-width="6"></line>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Line</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">choose weight</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Colour" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M12 4 C6.5 4 3 7.5 3 11.5 C3 14.5 5 16.5 7.5 16 C9 15.7 9.6 17.4 9 18.4 C8.5 19.3 9.3 20 10.5 20 C16 20 21 16 21 11 C21 7 17 4 12 4 Z" fill="#FFFDF7"></path>
+          <circle cx="8" cy="9" r="1.5" fill="#C2476B" stroke="none"></circle>
+          <circle cx="12" cy="7" r="1.5" fill="#F0B441" stroke="none"></circle>
+          <circle cx="16" cy="9" r="1.5" fill="#4E9C94" stroke="none"></circle>
+          <circle cx="16.5" cy="13" r="1.5" fill="#8AB9D6" stroke="none"></circle>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Colour</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">palette</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Shapes" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <rect x="3.5" y="8" width="10" height="10" rx="1.5" fill="#8AB9D6"></rect>
+          <circle cx="16" cy="9" r="5" fill="#F0B441"></circle>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Shapes</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">stamp shape</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Text" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <text x="8.5" y="19.5" text-anchor="middle" style="font: 500 21px 'Fredoka', sans-serif; fill: var(--ink, #22304A); stroke: none;">A</text>
+          <path d="M18.6 5.5 V19.5 M16.6 5.5 H20.6 M16.6 19.5 H20.6" stroke="#C2476B" stroke-width="1.8"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Text</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">add words</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Undo" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M4.5 9 H13.5 A5 5 0 1 1 8.5 16"></path>
+          <path d="M4.5 9 L7.5 6 M4.5 9 L7.5 12"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Undo</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">step back</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Redo" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M19.5 9 H10.5 A5 5 0 1 0 15.5 16"></path>
+          <path d="M19.5 9 L16.5 6 M19.5 9 L16.5 12"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Redo</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">step forward</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Bring forward" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <rect x="3.5" y="3.5" width="10.5" height="10.5" rx="2" fill="#FFFDF7"></rect>
+          <rect x="10" y="10" width="10.5" height="10.5" rx="2" fill="#4E9C94"></rect>
+          <path d="M15.25 18.2 L15.25 13 M13 15.1 L15.25 12.8 L17.5 15.1" stroke="#FFFDF7" stroke-width="1.8"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Bring forward</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">layer up</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Send backward" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <rect x="3.5" y="3.5" width="10.5" height="10.5" rx="2" fill="#4E9C94"></rect>
+          <path d="M8.75 5.8 L8.75 11 M6.5 8.9 L8.75 11.2 L11 8.9" stroke="#FFFDF7" stroke-width="1.8"></path>
+          <rect x="10" y="10" width="10.5" height="10.5" rx="2" fill="#FFFDF7"></rect>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Send backward</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">layer down</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ toolbox (bigger upright tools) ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">Toolbox</h2>
+    <p style="margin: 0 0 20px; font: 400 16px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">Bigger, upright instruments for the picker cup — same hand, drawn tip-up on a taller 36×88 keyline.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px;">
+
+      <!-- pen -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 24px 10px 16px;">
+        <svg viewBox="0 0 36 88" role="img" aria-label="Pen (upright)" style="height: calc(var(--sz, 52px) * 1.95); width: auto; stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M12 33 L24 33 L24 79 Q24 83 18 83 Q12 83 12 79 Z" fill="#4E9C94"></path>
+          <path d="M13 33 L18 11 L23 33 Z" fill="#FFFDF7"></path>
+          <path d="M16.1 18 L18 9 L19.9 18 Z" fill="#22304A"></path>
+          <path d="M24 37 Q27.5 37 27.5 42 L27.5 55 Q27.5 57.5 25 57"></path>
+          <line x1="12" y1="41" x2="24" y2="41"></line>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Pen</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">fine liner</span>
+      </div>
+
+      <!-- felt tip -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 24px 10px 16px;">
+        <svg viewBox="0 0 36 88" role="img" aria-label="Felt tip (upright)" style="height: calc(var(--sz, 52px) * 1.95); width: auto; stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M11 36 L25 36 L25 79 Q25 83 18 83 Q11 83 11 79 Z" fill="#C2476B"></path>
+          <path d="M11 36 L11 30 Q11 27.5 13 27 L23 27 Q25 27.5 25 30 L25 36 Z" fill="#FFFDF7"></path>
+          <path d="M13.6 27 L14.6 16 Q14.6 12 18 12 Q21.4 12 21.4 16 L22.4 27 Z" fill="#22304A"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Felt tip</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">bold marker</span>
+      </div>
+
+      <!-- highlighter -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 24px 10px 16px;">
+        <svg viewBox="0 0 36 88" role="img" aria-label="Highlighter (upright)" style="height: calc(var(--sz, 52px) * 1.95); width: auto; stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M9 38 L27 38 L27 79 Q27 83 18 83 Q9 83 9 79 Z" fill="#F0B441"></path>
+          <path d="M11 38 L11 30 Q11 28 13 27.5 L23 27.5 Q25 28 25 30 L25 38 Z" fill="#F0B441"></path>
+          <path d="M12 27.5 L24 27.5 L24 23 L12 23 Z" fill="#FFFDF7"></path>
+          <path d="M12 23 L24 23 L21.5 9 L13.5 12 Z" fill="#F7E7A6"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Highlighter</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">chisel tip</span>
+      </div>
+
+      <!-- eraser -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 24px 10px 16px;">
+        <svg viewBox="0 0 36 88" role="img" aria-label="Eraser (upright)" style="height: calc(var(--sz, 52px) * 1.95); width: auto; stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M11 32 Q11 24 18 24 Q25 24 25 32 L25 79 Q25 83 18 83 Q11 83 11 79 Z" fill="#8AB9D6"></path>
+          <path d="M11 42 L25 34 L25 32 Q25 24 18 24 Q11 24 11 32 Z" fill="#E08A9B"></path>
+          <rect x="9.5" y="52" width="17" height="12" rx="2" fill="#F3E3C3"></rect>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Eraser</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">rub out</span>
+      </div>
+
+      <!-- finger pointer -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 24px 10px 16px;">
+        <svg viewBox="0 0 60 80" role="img" aria-label="Pointing hand cursor" style="height: calc(var(--sz, 52px) * 1.9); width: auto; stroke: var(--ink, #22304A); stroke-width: 4; fill: #FFFDF7; stroke-linecap: round; stroke-linejoin: round;">
+          <!-- pointer hand: raised index, three curled knuckles, thumb, palm -->
+          <path d="M19 42 L19 13 A5 5 0 0 1 29 13 L29 29 Q33 23 37 29 Q41 24 45 30 Q49 26 52 31 Q54 33 54 39 L54 50 Q54 58 45 58 L26 58 Q19 58 19 51 L19 48 Q15 50 12 47 Q9 44 11 40 Q13 42 16 44 Q17 44 19 42 Z"></path>
+          <!-- knuckle divisions -->
+          <path d="M29 31 L29 41" stroke-width="3"></path>
+          <path d="M37 31 L37 41" stroke-width="3"></path>
+          <path d="M45 32 L45 41" stroke-width="3"></path>
+          <!-- cuff -->
+          <rect x="17" y="61" width="38" height="14" rx="5"></rect>
+          <circle cx="46" cy="68" r="2.4" fill="var(--ink, #22304A)" stroke="none"></circle>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Finger</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">tap &amp; poke</span>
+      </div>
+
+      <!-- select pointer (arrow cursor) -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 24px 10px 16px;">
+        <svg viewBox="0 0 60 80" role="img" aria-label="Select arrow cursor" style="height: calc(var(--sz, 52px) * 1.9); width: auto; stroke: var(--ink, #22304A); stroke-width: 4; fill: #FFFDF7; stroke-linecap: round; stroke-linejoin: round;">
+          <!-- classic arrow cursor: tip top-left, notched tail, kicked-out foot -->
+          <path d="M18 13 L18 55 L28 46 L34 60 L41 57 L35 43 L48 43 Z"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Select</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">point &amp; click</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ add a moment ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">Adding a moment</h2>
+    <p style="margin: 0 0 20px; font: 400 16px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">The ways work gets into the jar. Each carries a small accent badge for "add".</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px;">
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Add a picture" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <rect x="3" y="5" width="13" height="13" rx="2.5" fill="#D8ECE8"></rect>
+          <circle cx="7.4" cy="9" r="1.8" fill="#F0B441" stroke="none"></circle>
+          <path d="M3.4 15 L8 10.5 L11.5 13.8 L13.5 12.2 L16 14.6"></path>
+          <circle cx="18" cy="17" r="4.4" fill="#C2476B"></circle>
+          <path d="M18 15 v4 M16 17 h4" stroke="#FFFDF7" stroke-width="1.8"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Add picture</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">photo / image</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Add a file" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M5 4 Q5 3 6 3 L12 3 L16 7 L16 16 L16 16 Q16 17 15 17 L6 17 Q5 17 5 16 Z" fill="#FFFDF7"></path>
+          <path d="M12 3 L12 7 L16 7"></path>
+          <line x1="8" y1="11" x2="13" y2="11"></line>
+          <line x1="8" y1="13.6" x2="11.5" y2="13.6"></line>
+          <circle cx="17.5" cy="17.5" r="4.4" fill="#4E9C94"></circle>
+          <path d="M17.5 15.5 v4 M15.5 17.5 h4" stroke="#FFFDF7" stroke-width="1.8"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Add file</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">worksheet / doc</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Take a photo" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M3 9 Q3 7.5 4.5 7.5 L7 7.5 L8.5 5.5 L15.5 5.5 L17 7.5 L19.5 7.5 Q21 7.5 21 9 L21 17 Q21 18.5 19.5 18.5 L4.5 18.5 Q3 18.5 3 17 Z" fill="#FFFDF7"></path>
+          <circle cx="12" cy="12.5" r="3.4" fill="#8AB9D6"></circle>
+          <circle cx="18" cy="10.5" r="0.8" fill="#F0B441" stroke="none"></circle>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Camera</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">take a photo</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Record your voice" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <rect x="9" y="3" width="6" height="10" rx="3" fill="#C2476B"></rect>
+          <path d="M6 11 A6 6 0 0 0 18 11"></path>
+          <line x1="12" y1="17" x2="12" y2="20"></line>
+          <line x1="9" y1="20.5" x2="15" y2="20.5"></line>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Voice</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">record words</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Draw a picture" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M16.5 3.5 L20.5 7.5 L12 16 L8 17 L9 13 Z" fill="#A6C979"></path>
+          <path d="M13.5 6.5 L17.5 10.5"></path>
+          <path d="M3.5 20 Q6 16 8.5 19 T13.5 19" stroke-width="2"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Draw</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">open canvas</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Write words" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <line x1="3.5" y1="7" x2="16" y2="7"></line>
+          <line x1="3.5" y1="11.5" x2="13.5" y2="11.5"></line>
+          <line x1="3.5" y1="16" x2="11" y2="16"></line>
+          <path d="M16.5 12.5 L20 16 L14.5 21.5 L11.5 22 L12 19 Z" fill="#F0B441"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Write</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">type / dictate</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ the jar ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">The jar</h2>
+    <p style="margin: 0 0 20px; font: 400 16px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">The signature verbs, drawn from the master jar so the metaphor never breaks.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px;">
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="My jar" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <rect x="8" y="3" width="8" height="2.4" rx="1.2" fill="#C9A87C"></rect>
+          <rect x="7.4" y="5.4" width="9.2" height="1.9" rx="0.9" fill="#C9A87C"></rect>
+          <path d="M8 7.3 Q5 8.7 5 12.6 L5 18.5 Q5 21 7.6 21 L16.4 21 Q19 21 19 18.5 L19 12.6 Q19 8.7 16 7.3 Z" fill="#D8ECE8"></path>
+          <rect x="7.6" y="15.4" width="4" height="4" rx="0.8" fill="#E08A9B" stroke="none" transform="rotate(-8 9.6 17.4)"></rect>
+          <rect x="12" y="16" width="4" height="4" rx="0.8" fill="#F0B441" stroke="none" transform="rotate(6 14 18)"></rect>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">My jar</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">journal home</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Pop it in" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M12 2 L12 7.5 M9.6 5.1 L12 7.5 L14.4 5.1" stroke="#C2476B"></path>
+          <path d="M6.5 9.5 Q5 10.4 5 13 L5 18.5 Q5 21 7.6 21 L16.4 21 Q19 21 19 18.5 L19 13 Q19 10.4 17.5 9.5" fill="#D8ECE8"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Pop it in</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">child submit</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Add to the jar" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <rect x="6" y="4" width="7" height="2.1" rx="1" fill="#C9A87C"></rect>
+          <path d="M6.3 6.1 Q4 7.4 4 10.6 L4 17.5 Q4 20 6.4 20 L13.6 20 Q16 20 16 17.5 L16 12.5" fill="#D8ECE8"></path>
+          <circle cx="18" cy="7.5" r="4.4" fill="#4E9C94"></circle>
+          <path d="M16.1 7.6 L17.6 9.1 L20 6.3" stroke="#FFFDF7" stroke-width="1.8"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Add to jar</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">teacher approve</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Waiting" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M6.5 3 H17.5 M6.5 21 H17.5"></path>
+          <path d="M7.5 3 Q7.5 9 12 12 Q7.5 15 7.5 21 M16.5 3 Q16.5 9 12 12 Q16.5 15 16.5 21"></path>
+          <path d="M9 5.5 L15 5.5 L12 9 Z" fill="#F0B441" stroke="none"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Waiting</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">in the queue</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ everyday actions ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">Everyday actions</h2>
+    <p style="margin: 0 0 20px; font: 400 16px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">Mostly teacher register — the same geometry, sitting happily at 24px.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px;">
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Edit" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M14.5 4 L18.5 8 L9 17.5 L5 18.5 L6 14.5 Z" fill="#4E9C94"></path>
+          <path d="M12.5 6 L16.5 10"></path>
+          <line x1="4" y1="21" x2="20" y2="21"></line>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Edit</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">change it</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Delete" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M5 6 H19"></path>
+          <path d="M7 6 L7.8 19.5 Q7.9 21 9.3 21 L14.7 21 Q16.1 21 16.2 19.5 L17 6 Z" fill="#F7E0E6"></path>
+          <path d="M9.5 6 V4.2 Q9.5 3 10.7 3 L13.3 3 Q14.5 3 14.5 4.2 V6"></path>
+          <line x1="10.3" y1="9.5" x2="10.6" y2="17.5"></line>
+          <line x1="13.7" y1="9.5" x2="13.4" y2="17.5"></line>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Delete</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">remove</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Share" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M12 3 L12 14"></path>
+          <path d="M8.5 6.5 L12 3 L15.5 6.5" stroke="#4E9C94"></path>
+          <path d="M7 10 H5.5 Q4.5 10 4.5 11 L4.5 19 Q4.5 20 5.5 20 L18.5 20 Q19.5 20 19.5 19 L19.5 11 Q19.5 10 18.5 10 H17"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Share</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">send home</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Print" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M7 8 V4 H17 V8"></path>
+          <path d="M7 8 H5 Q4 8 4 9 L4 15 Q4 16 5 16 H7 M17 16 H19 Q20 16 20 15 L20 9 Q20 8 19 8 H17" fill="#D8ECE8"></path>
+          <rect x="7" y="13.5" width="10" height="6.5" rx="1" fill="#FFFDF7"></rect>
+          <circle cx="17" cy="11" r="0.9" fill="#F0B441" stroke="none"></circle>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Print</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">on paper</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Download" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M12 3 L12 14"></path>
+          <path d="M8 10.5 L12 14 L16 10.5" stroke="#4E9C94"></path>
+          <path d="M5 16.5 L5 19 Q5 20 6 20 L18 20 Q19 20 19 19 L19 16.5"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Download</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">save a copy</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Next" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M6 4 L14 12 L6 20"></path>
+          <line x1="17.5" y1="4" x2="17.5" y2="20" stroke="#C2476B"></line>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Next</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">skip ahead</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Point" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M9.7 13.4 L9.7 5 Q9.7 3.4 11.3 3.4 Q12.9 3.4 12.9 5 L12.9 10.3 Q13 9.3 14 9.3 Q15 9.3 15 10.3 L15 11.1 Q15.2 10.1 16.2 10.1 Q17.2 10.1 17.2 11.1 L17.2 11.9 Q17.4 11 18.4 11.2 Q19.3 11.4 19.2 12.5 L18.9 16 Q18.6 20.2 14.4 20.2 L13 20.2 Q10.7 20.2 9.4 18.3 L9.4 15.4 Q8.3 15.8 7.2 15.1 Q5.9 14.3 6.5 13.1 Q6.9 12.3 8.1 12.6 Q9.1 12.9 9.7 13.9 Z" fill="#FFFDF7"></path>
+          <path d="M12.9 11.2 L12.9 13.4 M15 11.5 L15 13.6 M17.2 12.1 L17.2 14.2"></path>
+          <path d="M9.5 17.8 Q11 20 14.6 19.6 L18.9 19 L18.3 22.3 Q18.2 22.6 17.8 22.6 L10.3 22.6 Q9.9 22.6 9.8 22.3 Z" fill="#8AB9D6"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Point</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">tap / choose</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ getting around ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">Getting around</h2>
+    <p style="margin: 0 0 20px; font: 400 16px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">Navigation &amp; status. Kept plainest of all — ink first, accent only where it helps.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px;">
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Home" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M4 11 L12 4 L20 11"></path>
+          <path d="M6 10 L6 20 L18 20 L18 10"></path>
+          <path d="M10 20 L10 14 L14 14 L14 20 Z" fill="#C2476B"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Home</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">start screen</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Class" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <circle cx="9" cy="8" r="3" fill="#8AB9D6"></circle>
+          <path d="M3.5 19 Q3.5 13 9 13 Q14.5 13 14.5 19"></path>
+          <circle cx="16.5" cy="8.5" r="2.5" fill="#A6C979"></circle>
+          <path d="M14 13.2 Q20.5 12.8 20.5 19"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Class</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">the children</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Search" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <circle cx="10.5" cy="10.5" r="6" fill="#D8ECE8"></circle>
+          <line x1="15" y1="15" x2="20" y2="20"></line>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Search</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">find a moment</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Settings" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <line x1="4" y1="8" x2="20" y2="8"></line>
+          <circle cx="9" cy="8" r="2.6" fill="#F0B441"></circle>
+          <line x1="4" y1="16" x2="20" y2="16"></line>
+          <circle cx="15" cy="16" r="2.6" fill="#4E9C94"></circle>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Settings</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">preferences</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Back" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <line x1="20" y1="12" x2="5" y2="12"></line>
+          <path d="M11 6 L5 12 L11 18"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Back</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">go back</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Close" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M6.5 6.5 L17.5 17.5 M17.5 6.5 L6.5 17.5"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Close</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">not now</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Menu" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <line x1="4" y1="7" x2="20" y2="7"></line>
+          <line x1="4" y1="12" x2="20" y2="12"></line>
+          <line x1="4" y1="17" x2="20" y2="17"></line>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Menu</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">more</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Help" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <circle cx="12" cy="12" r="8.5" fill="#D8ECE8"></circle>
+          <path d="M9.4 9.4 Q9.4 6.8 12 6.8 Q14.6 6.8 14.6 9.2 Q14.6 11 12 12 L12 13.6"></path>
+          <circle cx="12" cy="16.6" r="0.9" fill="#22304A" stroke="none"></circle>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Help</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">ask a grown-up</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Star" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M12 3 L14.5 8.6 L20.6 9.3 L16.1 13.5 L17.4 19.6 L12 16.5 L6.6 19.6 L7.9 13.5 L3.4 9.3 L9.5 8.6 Z" fill="#F0B441"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Star</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">favourite</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Love" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M12 20 C12 20 4 15 4 9 Q4 5 7.5 5 Q10.5 5 12 8 Q13.5 5 16.5 5 Q20 5 20 9 C20 15 12 20 12 20 Z" fill="#C2476B"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Love</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">teacher heart</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Done" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <circle cx="12" cy="12" r="8.5" fill="#4E9C94"></circle>
+          <path d="M8 12.2 L11 15 L16.5 8.5" stroke="#FFFDF7" stroke-width="2.4"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Done</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">all finished</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Locked" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M7.5 10.5 V7 A4.5 4.5 0 0 1 16.5 7 V10.5"></path>
+          <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" fill="#4E9C94"></rect>
+          <circle cx="12" cy="14.8" r="1.6" fill="#FFFDF7" stroke="none"></circle>
+          <path d="M12 15.7 L12 18" stroke="#FFFDF7" stroke-width="1.8"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Locked</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">private</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Unlocked" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M7.5 10.5 V6.6 A4.5 4.5 0 0 1 16.2 5.2"></path>
+          <rect x="4" y="10.5" width="16" height="10.5" rx="2.5" fill="#F0B441"></rect>
+          <circle cx="12" cy="14.8" r="1.6" fill="#FFFDF7" stroke="none"></circle>
+          <path d="M12 15.7 L12 18" stroke="#FFFDF7" stroke-width="1.8"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Unlocked</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">shared</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- in context -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">In place</h2>
+    <p style="margin: 0 0 20px; font: 400 16px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">The same icons on a child button, a teacher row and a plain nav — one family, both registers.</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
+
+      <!-- child button -->
+      <span style="display: inline-flex; align-items: center; gap: 12px; min-height: 64px; font: 600 24px 'Fredoka', sans-serif; color: #FAF6EE; background: #C2476B; border: 3px solid #22304A; padding: 8px 30px; border-radius: 999px; box-shadow: 0 5px 0 #93304F;">
+        <svg viewBox="0 0 24 24" width="30" height="30" style="stroke: #FAF6EE; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M12 2 L12 7.5 M9.6 5.1 L12 7.5 L14.4 5.1"></path><path d="M6.5 9.5 Q5 10.4 5 13 L5 18.5 Q5 21 7.6 21 L16.4 21 Q19 21 19 18.5 L19 13 Q19 10.4 17.5 9.5" fill="rgba(255,255,255,0.18)"></path></svg>
+        Pop it in!
+      </span>
+
+      <!-- teacher row -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 12px;">
+        <span style="width: 40px; height: 40px; border-radius: 50%; background: #E08A9B; display: flex; align-items: center; justify-content: center; font: 600 18px 'Fredoka', sans-serif; color: #FFFDF7;">P</span>
+        <span style="font: 700 15px 'Atkinson Hyperlegible', sans-serif;">Poppy <span style="font-weight: 400; color: #6B7690;">· drawing</span></span>
+        <span style="display: inline-flex; align-items: center; gap: 7px; font: 700 13px 'Atkinson Hyperlegible', sans-serif; color: #FAF6EE; background: #4E9C94; border-radius: 999px; padding: 8px 14px;">
+          <svg viewBox="0 0 24 24" width="18" height="18" style="stroke: #FAF6EE; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M8 12.2 L11 15 L16.5 8.5"></path></svg>
+          Add to jar
+        </span>
+      </div>
+
+      <!-- plain nav -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 12px; padding: 8px 10px; display: flex; align-items: center; gap: 4px;">
+        <span style="width: 44px; height: 44px; border-radius: 10px; background: #F3EDDE; display: flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" width="24" height="24" style="stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M4 11 L12 4 L20 11"></path><path d="M6 10 L6 20 L18 20 L18 10"></path><path d="M10 20 L10 14 L14 14 L14 20 Z" fill="#C2476B"></path></svg></span>
+        <span style="width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" width="24" height="24" style="stroke: #6B7690; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19 Q3.5 13 9 13 Q14.5 13 14.5 19"></path><circle cx="16.5" cy="8.5" r="2.5"></circle><path d="M14 13.2 Q20.5 12.8 20.5 19"></path></svg></span>
+        <span style="width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" width="24" height="24" style="stroke: #6B7690; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><circle cx="10.5" cy="10.5" r="6"></circle><line x1="15" y1="15" x2="20" y2="20"></line></svg></span>
+        <span style="width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" width="24" height="24" style="stroke: #6B7690; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><line x1="4" y1="8" x2="20" y2="8"></line><circle cx="9" cy="8" r="2.6"></circle><line x1="4" y1="16" x2="20" y2="16"></line><circle cx="15" cy="16" r="2.6"></circle></svg></span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ canvas toolbox: kit glyphs ═══ -->
+  <section style="margin-top: 72px; padding-top: 34px; border-top: 3px solid #22304A;">
+    <span style="display: inline-block; font: 700 12px 'Atkinson Hyperlegible', sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: #C2476B; background: #F7DDE4; border-radius: 999px; padding: 6px 13px;">Canvas toolbox · new</span>
+    <h2 style="margin: 14px 0 4px; font: 600 30px 'Fredoka', sans-serif;">Kit glyphs</h2>
+    <p style="margin: 0 0 8px; font: 400 17px/1.6 'Atkinson Hyperlegible', sans-serif; color: #43506B; max-width: 52em;">One glyph per kit in the ＋ fan, sibling to Shapes. The hard constraint: a kit glyph must not read as another cluster of shapes, or a child taps Shapes expecting the kit. Five candidates for Maths — pick one and I'll drop the rest.</p>
+    <p style="margin: 0 0 20px; font: 400 15px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">Each shown at fan size (44px) and at the 64px touch floor.</p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 14px;">
+
+      <!-- A base-10 trio -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; background: #FFFDF7; border: 3px solid #4E9C94; border-radius: 14px; padding: 20px 12px 15px;">
+        <div style="display: flex; align-items: flex-end; gap: 16px;">
+          <svg viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="Maths kit, base-10 trio" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="2.5" y="9.5" width="11" height="11" rx="1" fill="#8AB9D6"></rect>
+            <path d="M6.2 9.5 V20.5 M9.9 9.5 V20.5 M2.5 13.2 H13.5 M2.5 16.8 H13.5" stroke-width="0.8"></path>
+            <rect x="16" y="5" width="4" height="15.5" rx="1" fill="#F0B441"></rect>
+            <path d="M16 8.1 H20 M16 11.2 H20 M16 14.3 H20 M16 17.4 H20" stroke-width="0.8"></path>
+            <rect x="16.5" y="1" width="3" height="3" rx="0.7" fill="#C2476B"></rect>
+          </svg>
+          <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="2.5" y="9.5" width="11" height="11" rx="1" fill="#8AB9D6"></rect>
+            <path d="M6.2 9.5 V20.5 M9.9 9.5 V20.5 M2.5 13.2 H13.5 M2.5 16.8 H13.5" stroke-width="0.8"></path>
+            <rect x="16" y="5" width="4" height="15.5" rx="1" fill="#F0B441"></rect>
+            <path d="M16 8.1 H20 M16 11.2 H20 M16 14.3 H20 M16 17.4 H20" stroke-width="0.8"></path>
+            <rect x="16.5" y="1" width="3" height="3" rx="0.7" fill="#C2476B"></rect>
+          </svg>
+        </div>
+        <span style="font: 600 16px 'Fredoka', sans-serif;">A · Base-10 trio</span>
+        <span style="font: 400 12.5px/1.45 'Atkinson Hyperlegible', sans-serif; color: #6B7690; text-align: center;">Flat, rod, one. Says "apparatus" instantly to anyone who teaches KS1. Busiest of the five at 44px.</span>
+      </div>
+
+      <!-- B ten frame -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 20px 12px 15px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <svg viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="Maths kit, ten frame" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="1.5" y="7" width="21" height="10" rx="1.4" fill="#FFFDF7"></rect>
+            <path d="M5.7 7 V17 M9.9 7 V17 M14.1 7 V17 M18.3 7 V17 M1.5 12 H22.5" stroke-width="1"></path>
+            <circle cx="3.6" cy="9.5" r="1.5" fill="#C2476B" stroke="none"></circle>
+            <circle cx="7.8" cy="9.5" r="1.5" fill="#C2476B" stroke="none"></circle>
+            <circle cx="12" cy="9.5" r="1.5" fill="#C2476B" stroke="none"></circle>
+          </svg>
+          <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="1.5" y="7" width="21" height="10" rx="1.4" fill="#FFFDF7"></rect>
+            <path d="M5.7 7 V17 M9.9 7 V17 M14.1 7 V17 M18.3 7 V17 M1.5 12 H22.5" stroke-width="1"></path>
+            <circle cx="3.6" cy="9.5" r="1.5" fill="#C2476B" stroke="none"></circle>
+            <circle cx="7.8" cy="9.5" r="1.5" fill="#C2476B" stroke="none"></circle>
+            <circle cx="12" cy="9.5" r="1.5" fill="#C2476B" stroke="none"></circle>
+          </svg>
+        </div>
+        <span style="font: 600 16px 'Fredoka', sans-serif;">B · Ten frame</span>
+        <span style="font: 400 12.5px/1.45 'Atkinson Hyperlegible', sans-serif; color: #6B7690; text-align: center;">Three counters in a 5×2. Reads as counting, not shapes. Wide box wastes the square fan button.</span>
+      </div>
+
+      <!-- C number line -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 20px 12px 15px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <svg viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="Maths kit, number line" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <path d="M2 17.5 H22" stroke="#8AB9D6" stroke-width="3"></path>
+            <path d="M2 17.5 H22"></path>
+            <path d="M6 15.5 V19.5 M12 15.5 V19.5 M18 15.5 V19.5"></path>
+            <path d="M6 14 Q12 4.5 18 14" stroke="#C2476B"></path>
+            <path d="M18 14 L15.7 11 M18 14 L19.6 10.7" stroke="#C2476B"></path>
+          </svg>
+          <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <path d="M2 17.5 H22" stroke="#8AB9D6" stroke-width="3"></path>
+            <path d="M2 17.5 H22"></path>
+            <path d="M6 15.5 V19.5 M12 15.5 V19.5 M18 15.5 V19.5"></path>
+            <path d="M6 14 Q12 4.5 18 14" stroke="#C2476B"></path>
+            <path d="M18 14 L15.7 11 M18 14 L19.6 10.7" stroke="#C2476B"></path>
+          </svg>
+        </div>
+        <span style="font: 600 16px 'Fredoka', sans-serif;">C · Number line + hop</span>
+        <span style="font: 400 12.5px/1.45 'Atkinson Hyperlegible', sans-serif; color: #6B7690; text-align: center;">Survives 44px best of the five, and the hop reads as doing maths rather than owning maths objects.</span>
+      </div>
+
+      <!-- D abacus -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 20px 12px 15px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <svg viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="Maths kit, abacus" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="2" y="4" width="20" height="16" rx="2" fill="#FFFDF7"></rect>
+            <path d="M2 9.5 H22 M2 15 H22" stroke-width="1.2"></path>
+            <circle cx="6" cy="9.5" r="2" fill="#C2476B" stroke-width="1.4"></circle>
+            <circle cx="10.5" cy="9.5" r="2" fill="#F0B441" stroke-width="1.4"></circle>
+            <circle cx="17.5" cy="9.5" r="2" fill="#FFFDF7" stroke-width="1.4"></circle>
+            <circle cx="6" cy="15" r="2" fill="#4E9C94" stroke-width="1.4"></circle>
+            <circle cx="13" cy="15" r="2" fill="#FFFDF7" stroke-width="1.4"></circle>
+            <circle cx="17.5" cy="15" r="2" fill="#FFFDF7" stroke-width="1.4"></circle>
+          </svg>
+          <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="2" y="4" width="20" height="16" rx="2" fill="#FFFDF7"></rect>
+            <path d="M2 9.5 H22 M2 15 H22" stroke-width="1.2"></path>
+            <circle cx="6" cy="9.5" r="2" fill="#C2476B" stroke-width="1.4"></circle>
+            <circle cx="10.5" cy="9.5" r="2" fill="#F0B441" stroke-width="1.4"></circle>
+            <circle cx="17.5" cy="9.5" r="2" fill="#FFFDF7" stroke-width="1.4"></circle>
+            <circle cx="6" cy="15" r="2" fill="#4E9C94" stroke-width="1.4"></circle>
+            <circle cx="13" cy="15" r="2" fill="#FFFDF7" stroke-width="1.4"></circle>
+            <circle cx="17.5" cy="15" r="2" fill="#FFFDF7" stroke-width="1.4"></circle>
+          </svg>
+        </div>
+        <span style="font: 600 16px 'Fredoka', sans-serif;">D · Abacus</span>
+        <span style="font: 400 12.5px/1.45 'Atkinson Hyperlegible', sans-serif; color: #6B7690; text-align: center;">Warmest and most physical. Caveat: the kit contains no abacus, so it promises a thing that isn't there.</span>
+      </div>
+
+      <!-- E mixed apparatus -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 20px 12px 15px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <svg viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="Maths kit, mixed apparatus" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="2.5" y="4" width="4.5" height="16" rx="1" fill="#F0B441"></rect>
+            <path d="M2.5 7.2 H7 M2.5 10.4 H7 M2.5 13.6 H7 M2.5 16.8 H7" stroke-width="0.8"></path>
+            <path d="M15 5.5 A6.5 6.5 0 1 1 15 18.5 Z" fill="#8AB9D6"></path>
+            <circle cx="15" cy="12" r="6.5"></circle>
+            <circle cx="10.5" cy="17.5" r="4" fill="#C2476B"></circle>
+          </svg>
+          <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="2.5" y="4" width="4.5" height="16" rx="1" fill="#F0B441"></rect>
+            <path d="M2.5 7.2 H7 M2.5 10.4 H7 M2.5 13.6 H7 M2.5 16.8 H7" stroke-width="0.8"></path>
+            <path d="M15 5.5 A6.5 6.5 0 1 1 15 18.5 Z" fill="#8AB9D6"></path>
+            <circle cx="15" cy="12" r="6.5"></circle>
+            <circle cx="10.5" cy="17.5" r="4" fill="#C2476B"></circle>
+          </svg>
+        </div>
+        <span style="font: 600 16px 'Fredoka', sans-serif;">E · Mixed apparatus</span>
+        <span style="font: 400 12.5px/1.45 'Atkinson Hyperlegible', sans-serif; color: #6B7690; text-align: center;">Rod, half-circle, counter. Covers the kit's breadth, and is the one that most risks reading as "shapes".</span>
+      </div>
+
+    </div>
+
+    <h3 style="margin: 30px 0 12px; font: 600 21px 'Fredoka', sans-serif;">The other two kits</h3>
+    <p style="margin: 0 0 16px; font: 400 15px/1.6 'Atkinson Hyperlegible', sans-serif; color: #6B7690; max-width: 52em;">Designed now so the registry ships with four entries and no later art scramble. Both use kinds Phase 1 already provides.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 14px;">
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 20px 12px 15px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <svg viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="Diagrams kit" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <circle cx="9" cy="12" r="6.8" fill="#8AB9D6"></circle>
+            <circle cx="15" cy="12" r="6.8" fill="#F0B441" fill-opacity="0.85"></circle>
+          </svg>
+          <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <circle cx="9" cy="12" r="6.8" fill="#8AB9D6"></circle>
+            <circle cx="15" cy="12" r="6.8" fill="#F0B441" fill-opacity="0.85"></circle>
+          </svg>
+        </div>
+        <span style="font: 600 16px 'Fredoka', sans-serif;">Diagrams</span>
+        <span style="font: 400 12px monospace; color: #9C9484; text-align: center;">two ellipse presets</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 20px 12px 15px;">
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <svg viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="Writing kit" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <path d="M4 13 Q2.5 9.5 5.5 8 Q5.5 4 9.5 4.5 Q11.5 2 14.5 4 Q18.5 3.5 18.5 7.5 Q21.5 9 19.5 12.5 Q17.5 15.5 12 15 Q6.5 15.5 4 13 Z" fill="#D8ECE8"></path>
+            <circle cx="8" cy="18" r="1.5" fill="#4E9C94" stroke-width="1.4"></circle>
+            <circle cx="4.5" cy="21" r="1" fill="#4E9C94" stroke-width="1.2"></circle>
+            <rect x="15" y="16" width="7" height="6.5" rx="1" fill="#F0B441"></rect>
+          </svg>
+          <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <path d="M4 13 Q2.5 9.5 5.5 8 Q5.5 4 9.5 4.5 Q11.5 2 14.5 4 Q18.5 3.5 18.5 7.5 Q21.5 9 19.5 12.5 Q17.5 15.5 12 15 Q6.5 15.5 4 13 Z" fill="#D8ECE8"></path>
+            <circle cx="8" cy="18" r="1.5" fill="#4E9C94" stroke-width="1.4"></circle>
+            <circle cx="4.5" cy="21" r="1" fill="#4E9C94" stroke-width="1.2"></circle>
+            <rect x="15" y="16" width="7" height="6.5" rx="1" fill="#F0B441"></rect>
+          </svg>
+        </div>
+        <span style="font: 600 16px 'Fredoka', sans-serif;">Writing</span>
+        <span style="font: 400 12px monospace; color: #9C9484; text-align: center;">thought + sticky</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ primitives ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">Object toolbar primitives</h2>
+    <p style="margin: 0 0 20px; font: 400 16px/1.6 'Atkinson Hyperlegible', sans-serif; color: #6B7690; max-width: 52em;">Four controls that sit beside the existing order and padlock buttons. Drawn at 24 so they sit in the same row, and checked at 64.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px;">
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Duplicate" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <rect x="3" y="3" width="12" height="12" rx="2" fill="#FFFDF7"></rect>
+          <rect x="9" y="9" width="12" height="12" rx="2" fill="#4E9C94"></rect>
+          <path d="M15 12.5 V17.5 M12.5 15 H17.5" stroke="#FFFDF7" stroke-width="2.2"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Duplicate</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">＋1 · offset 20</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Flip" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M12 2.5 V21.5" stroke="#9C9484" stroke-width="1.4" stroke-dasharray="2 2.2"></path>
+          <path d="M9.5 5 L3.5 19 L9.5 19 Z" fill="#8AB9D6"></path>
+          <path d="M14.5 5 L20.5 19 L14.5 19 Z" fill="#F0B441"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Flip</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">line · arrow · brace</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px dashed #C9BFA6; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Rotate, reserved" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: #6B7690; stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <rect x="8" y="8" width="8" height="8" rx="1.2" fill="#E8EEF4" stroke="#6B7690"></rect>
+          <path d="M19.36 16.25 A8.5 8.5 0 1 1 12 3.5 M12 3.5 L9 1.7 M12 3.5 L9 5.3"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif; color: #6B7690;">Rotate</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">reserved · no UI</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Snap to guide" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M6 2.5 V21.5" stroke="#C2476B" stroke-width="1.4" stroke-dasharray="2 2.2"></path>
+          <rect x="6" y="4.5" width="12" height="5.5" rx="1.4" fill="#F0B441"></rect>
+          <rect x="6" y="14" width="9" height="5.5" rx="1.4" fill="#8AB9D6"></rect>
+          <path d="M21 16.75 L17 16.75 M18.6 15.2 L17 16.75 L18.6 18.3"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Snap</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">10 units · shapes only</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 22px 10px 15px;">
+        <svg viewBox="0 0 24 24" role="img" aria-label="Infinite" style="width: var(--sz, 52px); height: var(--sz, 52px); stroke: var(--ink, #22304A); stroke-width: var(--sw, 2); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M12 12 C9.6 7.8 3.6 7.8 3.6 12 C3.6 16.2 9.6 16.2 12 12 C14.4 7.8 20.4 7.8 20.4 12 C20.4 16.2 14.4 16.2 12 12 Z" fill="#D8ECE8"></path>
+        </svg>
+        <span style="font: 600 15px 'Fredoka', sans-serif;">Infinite</span>
+        <span style="font: 400 11px monospace; color: #9C9484;">no cap</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ group tabs ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">Kit group tabs</h2>
+    <p style="margin: 0 0 20px; font: 400 16px/1.6 'Atkinson Hyperlegible', sans-serif; color: #6B7690; max-width: 52em;">Four tabs inside the maths popover. Glyphs are 20px and always paired with their label — they disambiguate a scanned row, they don't replace words.</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 16px; padding: 14px;">
+
+      <span style="display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 8px 18px; border-radius: 999px; background: #22304A; color: #FAF6EE; font: 600 16px 'Fredoka', sans-serif;">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="stroke: #FAF6EE; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M2.5 18 H21.5"></path><path d="M7 16 V20 M12 16 V20 M17 16 V20"></path><path d="M7 14 Q12 5.5 17 14"></path></svg>
+        Number
+      </span>
+
+      <span style="display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 8px 18px; border-radius: 999px; background: #F3EDDE; color: #22304A; font: 600 16px 'Fredoka', sans-serif;">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><rect x="2.5" y="9" width="10" height="11" rx="1" fill="#8AB9D6"></rect><path d="M2.5 12.7 H12.5 M2.5 16.3 H12.5 M6 9 V20 M9 9 V20" stroke-width="0.8"></path><rect x="15.5" y="4" width="4" height="16" rx="1" fill="#F0B441"></rect><path d="M15.5 7.2 H19.5 M15.5 10.4 H19.5 M15.5 13.6 H19.5 M15.5 16.8 H19.5" stroke-width="0.8"></path></svg>
+        Place value
+      </span>
+
+      <span style="display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 8px 18px; border-radius: 999px; background: #F3EDDE; color: #22304A; font: 600 16px 'Fredoka', sans-serif;">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M12 3.5 A8.5 8.5 0 1 1 12 20.5 Z" fill="#C2476B"></path><circle cx="12" cy="12" r="8.5"></circle><path d="M12 3.5 V20.5"></path></svg>
+        Fractions
+      </span>
+
+      <span style="display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 8px 18px; border-radius: 999px; background: #F3EDDE; color: #22304A; font: 600 16px 'Fredoka', sans-serif;">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><circle cx="12" cy="12" r="8.5" fill="#D8ECE8"></circle><path d="M12 7 V12 L15.5 14.5"></path></svg>
+        Shape &amp; measure
+      </span>
+
+    </div>
+  </section>
+
+  <!-- ═══ generated geometry spec ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">Preset geometry — the spec, not the art</h2>
+    <p style="margin: 0 0 8px; font: 400 17px/1.6 'Atkinson Hyperlegible', sans-serif; color: #43506B; max-width: 52em;">These are not icons. Each one is what <span style="font-family: monospace; font-size: 15px; background: #F3EDDE; padding: 1px 5px; border-radius: 4px;">shapeParts</span> must output, drawn on a 100-unit model box at the same ratio the renderers use: outline stroked at 4, detail at 4 × 0.4 = 1.6, floored at 1 model unit. The palette button and the canvas object come from this one function, so they cannot drift.</p>
+    <p style="margin: 0 0 20px; font: 400 15px/1.6 'Atkinson Hyperlegible', sans-serif; color: #6B7690; max-width: 52em;">Each card shows the preset at button size (64px) and at half size (32px), which is the legibility test the detail ratio exists to pass.</p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px;">
+
+      <!-- grid 1x1 -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Base ten one" style="stroke: var(--ink, #22304A); fill: #F7DDE4; stroke-linejoin: round;"><rect x="22" y="22" width="56" height="56" rx="4" stroke-width="4"></rect></svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: #F7DDE4; stroke-linejoin: round;"><rect x="22" y="22" width="56" height="56" rx="4" stroke-width="4"></rect></svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Base-10 one</span><span style="font: 400 11.5px monospace; color: #9C9484;">grid 1×1</span></div>
+      </div>
+
+      <!-- grid 1x10 rod -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 30 100" height="64" role="img" aria-label="Ten rod" style="stroke: var(--ink, #22304A); fill: #F7DDE4; stroke-linejoin: round;">
+            <rect x="10.4" y="4" width="9.2" height="92" rx="1.2" stroke-width="4"></rect>
+            <path d="M10.4 13.2 H19.6 M10.4 22.4 H19.6 M10.4 31.6 H19.6 M10.4 40.8 H19.6 M10.4 50 H19.6 M10.4 59.2 H19.6 M10.4 68.4 H19.6 M10.4 77.6 H19.6 M10.4 86.8 H19.6" fill="none" stroke-width="1.6"></path>
+          </svg>
+          <svg viewBox="0 0 30 100" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: #F7DDE4; stroke-linejoin: round;">
+            <rect x="10.4" y="4" width="9.2" height="92" rx="1.2" stroke-width="4"></rect>
+            <path d="M10.4 13.2 H19.6 M10.4 22.4 H19.6 M10.4 31.6 H19.6 M10.4 40.8 H19.6 M10.4 50 H19.6 M10.4 59.2 H19.6 M10.4 68.4 H19.6 M10.4 77.6 H19.6 M10.4 86.8 H19.6" fill="none" stroke-width="1.6"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Ten rod</span><span style="font: 400 11.5px monospace; color: #9C9484;">grid 1×10 · locked</span></div>
+      </div>
+
+      <!-- grid 10x10 flat -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Hundred flat" style="stroke: var(--ink, #22304A); fill: #F7DDE4; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="92" rx="3" stroke-width="4"></rect>
+            <path d="M13.2 4 V96 M22.4 4 V96 M31.6 4 V96 M40.8 4 V96 M50 4 V96 M59.2 4 V96 M68.4 4 V96 M77.6 4 V96 M86.8 4 V96 M4 13.2 H96 M4 22.4 H96 M4 31.6 H96 M4 40.8 H96 M4 50 H96 M4 59.2 H96 M4 68.4 H96 M4 77.6 H96 M4 86.8 H96" fill="none" stroke-width="1.6"></path>
+          </svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: #F7DDE4; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="92" rx="3" stroke-width="4"></rect>
+            <path d="M13.2 4 V96 M22.4 4 V96 M31.6 4 V96 M40.8 4 V96 M50 4 V96 M59.2 4 V96 M68.4 4 V96 M77.6 4 V96 M86.8 4 V96 M4 13.2 H96 M4 22.4 H96 M4 31.6 H96 M4 40.8 H96 M4 50 H96 M4 59.2 H96 M4 68.4 H96 M4 77.6 H96 M4 86.8 H96" fill="none" stroke-width="1.6"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Hundred flat / square</span><span style="font: 400 11.5px monospace; color: #9C9484;">grid 10×10 · locked</span></div>
+      </div>
+
+      <!-- ten frame -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 46" width="64" role="img" aria-label="Ten frame" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="37" rx="3" stroke-width="4"></rect>
+            <path d="M22.5 4 V41 M41 4 V41 M59.5 4 V41 M78 4 V41 M4 22.5 H96" fill="none" stroke-width="1.6"></path>
+          </svg>
+          <svg viewBox="0 0 100 46" width="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="37" rx="3" stroke-width="4"></rect>
+            <path d="M22.5 4 V41 M41 4 V41 M59.5 4 V41 M78 4 V41 M4 22.5 H96" fill="none" stroke-width="1.6"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Ten frame</span><span style="font: 400 11.5px monospace; color: #9C9484;">grid 5×2 · locked</span></div>
+      </div>
+
+      <!-- fraction bar -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 30" width="64" role="img" aria-label="Fraction bar in quarters" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="22" rx="3" stroke-width="4"></rect>
+            <path d="M27 4 V26 M50 4 V26 M73 4 V26" fill="none" stroke-width="1.6"></path>
+          </svg>
+          <svg viewBox="0 0 100 30" width="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="22" rx="3" stroke-width="4"></rect>
+            <path d="M27 4 V26 M50 4 V26 M73 4 V26" fill="none" stroke-width="1.6"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Fraction bar</span><span style="font: 400 11.5px monospace; color: #9C9484;">grid n×1 · free</span></div>
+      </div>
+
+      <!-- carroll -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Carroll diagram" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="92" rx="3" stroke-width="4"></rect>
+            <path d="M50 4 V96 M4 50 H96" fill="none" stroke-width="1.6"></path>
+          </svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="92" rx="3" stroke-width="4"></rect>
+            <path d="M50 4 V96 M4 50 H96" fill="none" stroke-width="1.6"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Carroll diagram</span><span style="font: 400 11.5px monospace; color: #9C9484;">grid 2×2 · Diagrams kit</span></div>
+      </div>
+
+      <!-- array -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Blank array" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="92" rx="3" stroke-width="4"></rect>
+            <path d="M27 4 V96 M50 4 V96 M73 4 V96 M4 34.7 H96 M4 65.3 H96" fill="none" stroke-width="1.6"></path>
+          </svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <rect x="4" y="4" width="92" height="92" rx="3" stroke-width="4"></rect>
+            <path d="M27 4 V96 M50 4 V96 M73 4 V96 M4 34.7 H96 M4 65.3 H96" fill="none" stroke-width="1.6"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Blank array</span><span style="font: 400 11.5px monospace; color: #9C9484;">grid m×n · free</span></div>
+      </div>
+
+      <!-- pie 6 -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Fraction circle in sixths" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <circle cx="50" cy="50" r="46" stroke-width="4"></circle>
+            <path d="M50 50 L96 50 M50 50 L73 89.8 M50 50 L27 89.8 M50 50 L4 50 M50 50 L27 10.2 M50 50 L73 10.2" fill="none" stroke-width="1.6"></path>
+          </svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: #FFFDF7; stroke-linejoin: round;">
+            <circle cx="50" cy="50" r="46" stroke-width="4"></circle>
+            <path d="M50 50 L96 50 M50 50 L73 89.8 M50 50 L27 89.8 M50 50 L4 50 M50 50 L27 10.2 M50 50 L73 10.2" fill="none" stroke-width="1.6"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Fraction circle</span><span style="font: 400 11.5px monospace; color: #9C9484;">pie parts 6 · locked</span></div>
+      </div>
+
+      <!-- ring plain -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Ring" style="stroke: var(--ink, #22304A); stroke-linejoin: round;">
+            <path d="M50 4 A46 46 0 1 0 50 96 A46 46 0 1 0 50 4 Z M50 28 A22 22 0 1 1 50 72 A22 22 0 1 1 50 28 Z" fill="#8AB9D6" fill-rule="evenodd" stroke-width="4"></path>
+          </svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-linejoin: round;">
+            <path d="M50 4 A46 46 0 1 0 50 96 A46 46 0 1 0 50 4 Z M50 28 A22 22 0 1 1 50 72 A22 22 0 1 1 50 28 Z" fill="#8AB9D6" fill-rule="evenodd" stroke-width="4"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Ring</span><span style="font: 400 11.5px monospace; color: #9C9484;">ring parts 1 · evenodd</span></div>
+      </div>
+
+      <!-- ring divided -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Divided ring in quarters" style="stroke: var(--ink, #22304A); stroke-linejoin: round;">
+            <path d="M50 4 A46 46 0 1 0 50 96 A46 46 0 1 0 50 4 Z M50 28 A22 22 0 1 1 50 72 A22 22 0 1 1 50 28 Z" fill="#D8ECE8" fill-rule="evenodd" stroke-width="4"></path>
+            <path d="M72 50 H96 M50 72 V96 M28 50 H4 M50 28 V4" fill="none" stroke-width="1.6"></path>
+          </svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-linejoin: round;">
+            <path d="M50 4 A46 46 0 1 0 50 96 A46 46 0 1 0 50 4 Z M50 28 A22 22 0 1 1 50 72 A22 22 0 1 1 50 28 Z" fill="#D8ECE8" fill-rule="evenodd" stroke-width="4"></path>
+            <path d="M72 50 H96 M50 72 V96 M28 50 H4 M50 28 V4" fill="none" stroke-width="1.6"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Divided ring</span><span style="font: 400 11.5px monospace; color: #9C9484;">ring parts 4 · locked</span></div>
+      </div>
+
+      <!-- line -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Line" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round;"><path d="M8 8 L92 92" stroke-width="4"></path></svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round;"><path d="M8 8 L92 92" stroke-width="4"></path></svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Line</span><span style="font: 400 11.5px monospace; color: #9C9484;">line · fill none · flip</span></div>
+      </div>
+
+      <!-- arrow -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Arrow" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M8 50 H88 M88 50 L72 38 M88 50 L72 62" stroke-width="4"></path></svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M8 50 H88 M88 50 L72 38 M88 50 L72 62" stroke-width="4"></path></svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Arrow</span><span style="font: 400 11.5px monospace; color: #9C9484;">arrow · flip</span></div>
+      </div>
+
+      <!-- arrow-jump -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Jump arrow" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M10 78 Q50 6 90 78" stroke-width="4"></path><path d="M90 78 L76 70 M90 78 L92 62" stroke-width="4"></path></svg>
+          <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M10 78 Q50 6 90 78" stroke-width="4"></path><path d="M90 78 L76 70 M90 78 L92 62" stroke-width="4"></path></svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Jump arrow</span><span style="font: 400 11.5px monospace; color: #9C9484;">arrow-jump · fill none</span></div>
+      </div>
+
+      <!-- brace -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 72px;">
+          <svg viewBox="0 0 100 60" width="64" role="img" aria-label="Brace" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M6 12 Q6 34 26 34 L42 34 Q50 34 50 50 Q50 34 58 34 L74 34 Q94 34 94 12" stroke-width="4"></path></svg>
+          <svg viewBox="0 0 100 60" width="32" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M6 12 Q6 34 26 34 L42 34 Q50 34 50 50 Q50 34 58 34 L74 34 Q94 34 94 12" stroke-width="4"></path></svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Brace</span><span style="font: 400 11.5px monospace; color: #9C9484;">brace · flip</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ the four inked ones ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">The four that need a hand</h2>
+    <p style="margin: 0 0 20px; font: 400 17px/1.6 'Atkinson Hyperlegible', sans-serif; color: #43506B; max-width: 52em;">Generated geometry gets these wrong or dull, so they are drawn. Each is still a single kind with params — the drawing tells the renderer what "right" looks like.</p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: 14px;">
+
+      <!-- thousand cube -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 78px;">
+          <svg viewBox="0 0 100 100" width="70" height="70" role="img" aria-label="Thousand cube" style="stroke: var(--ink, #22304A); stroke-linejoin: round; stroke-linecap: round;">
+            <path d="M50 8 L86 28 L86 70 L50 90 L14 70 L14 28 Z" fill="#8AB9D6" stroke-width="4"></path>
+            <path d="M50 48 L50 90 M50 48 L14 28 M50 48 L86 28" fill="none" stroke-width="4"></path>
+            <path d="M32 18 L68 38 M41 13 L77 33 M23 23 L59 43 M68 38 L68 80 M32 18 L32 60 M23 23 L23 65 M41 13 L41 55 M14 38 L50 58 M14 49 L50 69 M14 60 L50 80 M86 38 L50 58 M86 49 L50 69 M86 60 L50 80" fill="none" stroke-width="1.2" stroke-opacity="0.55"></path>
+          </svg>
+          <svg viewBox="0 0 100 100" width="35" height="35" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-linejoin: round; stroke-linecap: round;">
+            <path d="M50 8 L86 28 L86 70 L50 90 L14 70 L14 28 Z" fill="#8AB9D6" stroke-width="4"></path>
+            <path d="M50 48 L50 90 M50 48 L14 28 M50 48 L86 28" fill="none" stroke-width="4"></path>
+            <path d="M32 18 L68 38 M41 13 L77 33 M23 23 L59 43 M68 38 L68 80 M32 18 L32 60 M23 23 L23 65 M41 13 L41 55 M14 38 L50 58 M14 49 L50 69 M14 60 L50 80 M86 38 L50 58 M86 49 L50 69 M86 60 L50 80" fill="none" stroke-width="1.2" stroke-opacity="0.55"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Thousand cube</span><span style="font: 400 11.5px monospace; color: #9C9484;">cube · locked · the one true isometric</span></div>
+      </div>
+
+      <!-- clock face -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 78px;">
+          <svg viewBox="0 0 100 100" width="70" height="70" role="img" aria-label="Clock face" style="stroke: var(--ink, #22304A); stroke-linejoin: round; stroke-linecap: round;">
+            <circle cx="50" cy="50" r="46" fill="#FFFDF7" stroke-width="4"></circle>
+            <path d="M88 50 H96 M82.9 69 L89.8 73 M69 82.9 L73 89.8 M50 88 V96 M31 82.9 L27 89.8 M17.1 69 L10.2 73 M12 50 H4 M17.1 31 L10.2 27 M31 17.1 L27 10.2 M50 12 V4 M69 17.1 L73 10.2 M82.9 31 L89.8 27" fill="none" stroke-width="1.6"></path>
+            <text x="50" y="26" text-anchor="middle" style="font: 700 15px 'Atkinson Hyperlegible', sans-serif; fill: #22304A; stroke: none;">12</text>
+            <text x="76" y="56" text-anchor="middle" style="font: 700 15px 'Atkinson Hyperlegible', sans-serif; fill: #22304A; stroke: none;">3</text>
+            <text x="50" y="84" text-anchor="middle" style="font: 700 15px 'Atkinson Hyperlegible', sans-serif; fill: #22304A; stroke: none;">6</text>
+            <text x="24" y="56" text-anchor="middle" style="font: 700 15px 'Atkinson Hyperlegible', sans-serif; fill: #22304A; stroke: none;">9</text>
+            <circle cx="50" cy="50" r="3" fill="#C2476B" stroke="none"></circle>
+          </svg>
+          <svg viewBox="0 0 100 100" width="35" height="35" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-linejoin: round; stroke-linecap: round;">
+            <circle cx="50" cy="50" r="46" fill="#FFFDF7" stroke-width="4"></circle>
+            <path d="M88 50 H96 M82.9 69 L89.8 73 M69 82.9 L73 89.8 M50 88 V96 M31 82.9 L27 89.8 M17.1 69 L10.2 73 M12 50 H4 M17.1 31 L10.2 27 M31 17.1 L27 10.2 M50 12 V4 M69 17.1 L73 10.2 M82.9 31 L89.8 27" fill="none" stroke-width="1.6"></path>
+            <circle cx="50" cy="50" r="3" fill="#C2476B" stroke="none"></circle>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Clock face</span><span style="font: 400 11.5px monospace; color: #9C9484;">pie parts 12 · numerals drop at 35px</span></div>
+      </div>
+
+      <!-- two-colour counters -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 78px;">
+          <svg viewBox="0 0 100 100" width="70" height="70" role="img" aria-label="Two colour counters, red and yellow" style="stroke: var(--ink, #22304A); stroke-linejoin: round;">
+            <circle cx="38" cy="40" r="32" fill="#C2476B" stroke-width="4"></circle>
+            <circle cx="62" cy="62" r="32" fill="#F0B441" stroke-width="4"></circle>
+          </svg>
+          <svg viewBox="0 0 100 100" width="35" height="35" aria-hidden="true" style="stroke: var(--ink, #22304A); stroke-linejoin: round;">
+            <circle cx="38" cy="40" r="32" fill="#C2476B" stroke-width="4"></circle>
+            <circle cx="62" cy="62" r="32" fill="#F0B441" stroke-width="4"></circle>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Two-colour counters</span><span style="font: 400 11.5px monospace; color: #9C9484;">ellipse ×2 · locked · red + yellow</span></div>
+      </div>
+
+      <!-- inked brace -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 78px;">
+          <svg viewBox="0 0 100 62" width="70" role="img" aria-label="Brace under a bar model span" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="6" y="6" width="42" height="16" rx="3" fill="#8AB9D6" stroke-width="3"></rect>
+            <rect x="52" y="6" width="42" height="16" rx="3" fill="#F0B441" stroke-width="3"></rect>
+            <path d="M7 30 Q7 42 24 42 L42 42 Q50 42 50 54 Q50 42 58 42 L76 42 Q93 42 93 30" stroke-width="4"></path>
+          </svg>
+          <svg viewBox="0 0 100 62" width="35" aria-hidden="true" style="stroke: var(--ink, #22304A); fill: none; stroke-linecap: round; stroke-linejoin: round;">
+            <rect x="6" y="6" width="42" height="16" rx="3" fill="#8AB9D6" stroke-width="3"></rect>
+            <rect x="52" y="6" width="42" height="16" rx="3" fill="#F0B441" stroke-width="3"></rect>
+            <path d="M7 30 Q7 42 24 42 L42 42 Q50 42 50 54 Q50 42 58 42 L76 42 Q93 42 93 30" stroke-width="4"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Brace</span><span style="font: 400 11.5px monospace; color: #9C9484;">brace · flip · nub centred on the span</span></div>
+      </div>
+
+      <!-- ring over pen stroke -->
+      <div style="background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 14px; padding: 18px 14px 14px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 78px;">
+          <svg viewBox="0 0 100 100" width="70" height="70" role="img" aria-label="Ring hole transparent over a pen stroke" style="stroke-linejoin: round; stroke-linecap: round;">
+            <path d="M6 82 Q34 22 52 58 Q68 88 94 24" fill="none" stroke="#A6C979" stroke-width="7"></path>
+            <path d="M50 4 A46 46 0 1 0 50 96 A46 46 0 1 0 50 4 Z M50 28 A22 22 0 1 1 50 72 A22 22 0 1 1 50 28 Z" fill="#8AB9D6" fill-rule="evenodd" stroke="var(--ink, #22304A)" stroke-width="4"></path>
+          </svg>
+          <svg viewBox="0 0 100 100" width="35" height="35" aria-hidden="true" style="stroke-linejoin: round; stroke-linecap: round;">
+            <path d="M6 82 Q34 22 52 58 Q68 88 94 24" fill="none" stroke="#A6C979" stroke-width="7"></path>
+            <path d="M50 4 A46 46 0 1 0 50 96 A46 46 0 1 0 50 4 Z M50 28 A22 22 0 1 1 50 72 A22 22 0 1 1 50 28 Z" fill="#8AB9D6" fill-rule="evenodd" stroke="var(--ink, #22304A)" stroke-width="4"></path>
+          </svg>
+        </div>
+        <div style="margin-top: 12px; text-align: center;"><span style="display: block; font: 600 15px 'Fredoka', sans-serif;">Hole test</span><span style="font: 400 11.5px monospace; color: #9C9484;">evenodd must hold in SVG and export</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══ fraction stepper ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">Fractions: two buttons and a stepper</h2>
+    <p style="margin: 0 0 20px; font: 400 17px/1.6 'Atkinson Hyperlegible', sans-serif; color: #43506B; max-width: 52em;">Two presets in the palette, and <span style="font-family: monospace; font-size: 15px; background: #F3EDDE; padding: 1px 5px; border-radius: 4px;">parts</span> as a stepper on the object toolbar once a shape is selected. Reaches any denominator to 24 in one control instead of twelve buttons, and the same stepper serves pie, ring and grid.</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: #FFFDF7; border: 2px solid #E4DCC8; border-radius: 16px; padding: 18px;">
+
+      <span style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 14px; background: #F3EDDE; border: 2px solid #22304A;">
+        <svg viewBox="0 0 100 30" width="44" aria-label="Fraction bar" role="img" style="stroke: #22304A; fill: #FFFDF7; stroke-linejoin: round;"><rect x="4" y="4" width="92" height="22" rx="3" stroke-width="4"></rect><path d="M27 4 V26 M50 4 V26 M73 4 V26" fill="none" stroke-width="1.6"></path></svg>
+      </span>
+
+      <span style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 14px; background: #F3EDDE; border: 2px solid #22304A;">
+        <svg viewBox="0 0 100 100" width="44" height="44" aria-label="Fraction circle" role="img" style="stroke: #22304A; fill: #FFFDF7; stroke-linejoin: round;"><circle cx="50" cy="50" r="46" stroke-width="4"></circle><path d="M50 50 L96 50 M50 50 L73 89.8 M50 50 L27 89.8 M50 50 L4 50 M50 50 L27 10.2 M50 50 L73 10.2" fill="none" stroke-width="1.6"></path></svg>
+      </span>
+
+      <span style="width: 2px; height: 48px; background: #E4DCC8;"></span>
+
+      <span style="display: inline-flex; align-items: center; gap: 4px;">
+        <span style="font: 400 15px 'Atkinson Hyperlegible', sans-serif; color: #43506B; margin-right: 8px;">Parts</span>
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 14px 4px 4px 14px; background: #F3EDDE; border: 2px solid #22304A;">
+          <svg viewBox="0 0 24 24" width="26" height="26" role="img" aria-label="Fewer parts" style="stroke: #22304A; stroke-width: 2.6; fill: none; stroke-linecap: round;"><path d="M6 12 H18"></path></svg>
+        </span>
+        <span style="display: inline-flex; align-items: center; justify-content: center; min-width: 56px; height: 64px; font: 600 26px 'Fredoka', sans-serif; background: #FFFDF7; border-top: 2px solid #22304A; border-bottom: 2px solid #22304A;">6</span>
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 4px 14px 14px 4px; background: #F3EDDE; border: 2px solid #22304A;">
+          <svg viewBox="0 0 24 24" width="26" height="26" role="img" aria-label="More parts" style="stroke: #22304A; stroke-width: 2.6; fill: none; stroke-linecap: round;"><path d="M12 6 V18 M6 12 H18"></path></svg>
+        </span>
+      </span>
+
+    </div>
+  </section>
+
+  <!-- ═══ flyout prototype ═══ -->
+  <section style="margin-top: 56px;">
+    <h2 style="margin: 0 0 4px; font: 600 30px 'Fredoka', sans-serif;">The flyout, at 1024×768</h2>
+    <p style="margin: 0 0 8px; font: 400 17px/1.6 'Atkinson Hyperlegible', sans-serif; color: #43506B; max-width: 52em;">Tabs version, drawn to scale against the child canvas viewport with a real ten-button group rather than a placeholder. The popover lands at 384 × 268, which clears the canvas and leaves the ＋ fan behaving exactly as it does today.</p>
+    <p style="margin: 0 0 20px; font: 400 15px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">Shown at 62% here. Every palette button is 64px.</p>
+
+    <div style="width: 100%; box-sizing: border-box; overflow: hidden; border-radius: 16px; border: 2px solid #E4DCC8; background: #F3EDDE; padding: 20px;">
+      <div style="width: 1024px; height: 768px; transform: scale(0.62); transform-origin: top left; margin-bottom: -292px; position: relative; background: #FAF6EE; border: 3px solid #22304A; border-radius: 18px; overflow: hidden; display: flex;">
+
+        <!-- fan rail -->
+        <div style="width: 96px; flex: 0 0 96px; background: #F3EDDE; border-right: 3px solid #22304A; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 20px 0;">
+          <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: #C2476B; border: 3px solid #22304A; box-shadow: 0 4px 0 #93304F;">
+            <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true" style="stroke: #FAF6EE; stroke-width: 2.6; fill: none; stroke-linecap: round;"><path d="M12 5 V19 M5 12 H19"></path></svg>
+          </span>
+          <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 16px; background: #FFFDF7; border: 2px solid #22304A;">
+            <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true" style="stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><g transform="rotate(45 12 12)"><rect x="10" y="3" width="4" height="8" rx="1.2" fill="#4E9C94"></rect><path d="M10 11 L14 11 L12.6 17 L11.4 17 Z" fill="#FFFDF7"></path></g></svg>
+          </span>
+          <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 16px; background: #FFFDF7; border: 2px solid #22304A;">
+            <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true" style="stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><rect x="3.5" y="8" width="10" height="10" rx="1.5" fill="#8AB9D6"></rect><circle cx="16" cy="9" r="5" fill="#F0B441"></circle></svg>
+          </span>
+          <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 16px; background: #4E9C94; border: 3px solid #22304A; box-shadow: 0 4px 0 #2A6E64;">
+            <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true" style="stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round;"><path d="M2 17.5 H22"></path><path d="M6 15.5 V19.5 M12 15.5 V19.5 M18 15.5 V19.5"></path><path d="M6 14 Q12 4.5 18 14" stroke="#FFFDF7"></path><path d="M18 14 L15.7 11 M18 14 L19.6 10.7" stroke="#FFFDF7"></path></svg>
+          </span>
+        </div>
+
+        <!-- canvas + popover -->
+        <div style="flex: 1; position: relative;">
+          <div style="position: absolute; inset: 24px; background: #FFFDF7; border: 2px dashed #C9BFA6; border-radius: 12px;"></div>
+
+          <!-- popover -->
+          <div style="position: absolute; left: 28px; top: 130px; width: 384px; background: #FFFDF7; border: 3px solid #22304A; border-radius: 18px; box-shadow: 0 10px 0 rgba(34,48,74,0.18); padding: 12px;">
+            <div style="display: flex; gap: 5px; padding-bottom: 10px; border-bottom: 2px solid #E4DCC8;">
+              <span style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; border-radius: 999px; background: #F3EDDE; font: 600 13px 'Fredoka', sans-serif;">
+                <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style="stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round;"><path d="M2.5 18 H21.5"></path><path d="M7 16 V20 M12 16 V20 M17 16 V20"></path><path d="M7 14 Q12 5.5 17 14"></path></svg>
+                Number
+              </span>
+              <span style="flex: 1.25; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; border-radius: 999px; background: #22304A; color: #FAF6EE; font: 600 13px 'Fredoka', sans-serif;">
+                <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style="stroke: #FAF6EE; stroke-width: 2; fill: none; stroke-linejoin: round;"><rect x="2.5" y="9" width="10" height="11" rx="1"></rect><rect x="15.5" y="4" width="4" height="16" rx="1"></rect></svg>
+                Place value
+              </span>
+              <span style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; border-radius: 999px; background: #F3EDDE; font: 600 13px 'Fredoka', sans-serif;">
+                <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style="stroke: #22304A; stroke-width: 2; fill: none;"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 3.5 V20.5"></path></svg>
+                Fractions
+              </span>
+              <span style="flex: 0.9; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; border-radius: 999px; background: #F3EDDE; font: 600 13px 'Fredoka', sans-serif;">
+                <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style="stroke: #22304A; stroke-width: 2; fill: none; stroke-linecap: round;"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7 V12 L15.5 14.5"></path></svg>
+                Shape
+              </span>
+            </div>
+
+            <div role="group" aria-label="Place value" style="display: grid; grid-template-columns: repeat(5, 64px); gap: 8px; padding-top: 10px;">
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 100 100" width="40" height="40" role="img" aria-label="Base-10 one" style="stroke: #22304A; fill: #F7DDE4; stroke-linejoin: round;"><rect x="22" y="22" width="56" height="56" rx="4" stroke-width="4"></rect></svg></span>
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 30 100" height="40" role="img" aria-label="Ten rod" style="stroke: #22304A; fill: #F7DDE4; stroke-linejoin: round;"><rect x="10.4" y="4" width="9.2" height="92" rx="1.2" stroke-width="4"></rect><path d="M10.4 13.2 H19.6 M10.4 22.4 H19.6 M10.4 31.6 H19.6 M10.4 40.8 H19.6 M10.4 50 H19.6 M10.4 59.2 H19.6 M10.4 68.4 H19.6 M10.4 77.6 H19.6 M10.4 86.8 H19.6" fill="none" stroke-width="1.6"></path></svg></span>
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 100 100" width="40" height="40" role="img" aria-label="Hundred flat" style="stroke: #22304A; fill: #F7DDE4; stroke-linejoin: round;"><rect x="4" y="4" width="92" height="92" rx="3" stroke-width="4"></rect><path d="M13.2 4 V96 M22.4 4 V96 M31.6 4 V96 M40.8 4 V96 M50 4 V96 M59.2 4 V96 M68.4 4 V96 M77.6 4 V96 M86.8 4 V96 M4 13.2 H96 M4 22.4 H96 M4 31.6 H96 M4 40.8 H96 M4 50 H96 M4 59.2 H96 M4 68.4 H96 M4 77.6 H96 M4 86.8 H96" fill="none" stroke-width="1.6"></path></svg></span>
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 100 100" width="40" height="40" role="img" aria-label="Thousand cube" style="stroke: #22304A; stroke-linejoin: round;"><path d="M50 8 L86 28 L86 70 L50 90 L14 70 L14 28 Z" fill="#8AB9D6" stroke-width="4"></path><path d="M50 48 L50 90 M50 48 L14 28 M50 48 L86 28" fill="none" stroke-width="4"></path></svg></span>
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 100 100" width="40" height="40" role="img" aria-label="Two colour counters" style="stroke: #22304A; stroke-linejoin: round;"><circle cx="38" cy="40" r="32" fill="#C2476B" stroke-width="4"></circle><circle cx="62" cy="62" r="32" fill="#F0B441" stroke-width="4"></circle></svg></span>
+
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 100 100" width="40" height="40" role="img" aria-label="Counter one" style="stroke: #22304A;"><circle cx="50" cy="50" r="44" fill="#8AB9D6" stroke-width="4"></circle><text x="50" y="59" text-anchor="middle" style="font: 700 26px 'Fredoka', sans-serif; fill: #22304A; stroke: none;">1</text></svg></span>
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 100 100" width="40" height="40" role="img" aria-label="Counter ten" style="stroke: #22304A;"><circle cx="50" cy="50" r="44" fill="#F0B441" stroke-width="4"></circle><text x="50" y="59" text-anchor="middle" style="font: 700 26px 'Fredoka', sans-serif; fill: #22304A; stroke: none;">10</text></svg></span>
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 100 100" width="40" height="40" role="img" aria-label="Counter one hundred" style="stroke: #22304A;"><circle cx="50" cy="50" r="44" fill="#4E9C94" stroke-width="4"></circle><text x="50" y="59" text-anchor="middle" style="font: 700 26px 'Fredoka', sans-serif; fill: #FFFDF7; stroke: none;">100</text></svg></span>
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 100 100" width="40" height="40" role="img" aria-label="Counter one thousand" style="stroke: #22304A;"><circle cx="50" cy="50" r="44" fill="#C2476B" stroke-width="4"></circle><text x="50" y="59" text-anchor="middle" style="font: 700 26px 'Fredoka', sans-serif; fill: #FFFDF7; stroke: none;">1000</text></svg></span>
+              <span style="display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 12px; background: #F3EDDE; border: 2px solid #22304A;"><svg viewBox="0 0 100 100" width="40" height="40" role="img" aria-label="Blank counter" style="stroke: #22304A;"><circle cx="50" cy="50" r="44" fill="#FFFDF7" stroke-width="4"></circle></svg></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <p style="margin: 20px 0 0; font: 400 15.5px/1.65 'Atkinson Hyperlegible', sans-serif; color: #43506B; max-width: 52em;">The counters are drawn at one fixed <span style="font-family: monospace; font-size: 14.5px; background: #F3EDDE; padding: 1px 5px; border-radius: 4px;">fontPx</span> so 1, 10, 100 and 1000 read as a set. Auto-fitting them to the box makes 1000 the smallest number on the page, which is exactly backwards in place value.</p>
+  </section>
+
+  <footer style="margin-top: 64px; padding-top: 24px; border-top: 2px solid #E4DCC8; display: flex; gap: 22px; flex-wrap: wrap; font: 400 15px 'Atkinson Hyperlegible', sans-serif; color: #6B7690;">
+    <span>See also:</span>
+    <a href="Design System.dc.html">Design system</a>
+    <a href="Drawing Canvas.dc.html">Canvas</a>
+    <a href="Submit Moment.dc.html">Submit</a>
+    <a href="Teacher Approval Queue.dc.html">Queue</a>
+  </footer>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;inkColor&quot;: {&quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#22304A&quot;, &quot;options&quot;: [&quot;#22304A&quot;, &quot;#43506B&quot;, &quot;#2A6E64&quot;, &quot;#7A3350&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Icon style&quot;},
+  &quot;strokeW&quot;: {&quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 2, &quot;min&quot;: 1.5, &quot;max&quot;: 3, &quot;step&quot;: 0.25, &quot;unit&quot;: &quot;px&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Icon style&quot;},
+  &quot;tileSize&quot;: {&quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 52, &quot;min&quot;: 40, &quot;max&quot;: 72, &quot;step&quot;: 4, &quot;unit&quot;: &quot;px&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Icon style&quot;}
+}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props || {};
+    return {
+      inkColor: p.inkColor ?? '#22304A',
+      strokeW: p.strokeW ?? 2,
+      tileSize: (p.tileSize ?? 52) + 'px',
+    };
+  }
+}
+</script>
+</body>
+</html>

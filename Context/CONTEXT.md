@@ -674,7 +674,7 @@ operator a11y spec runs against an empty baseline.
    notice must not claim EU backups until Railway confirms the region.
 6. **`AGENTS.md` line 42 says two seeded schools.** There are three, including
    Larchwood.
-7. **Brand casing is inconsistent** across documents: StoryJar, StoryJar and
+7. **Brand casing is inconsistent** across documents: StoryJar, Storyjar and
    storyjar all appear. The decided form is StoryJar with the capital J, except
    the in-app product name, which `AGE_MODE_COPY.md` keeps as storyjar. Settle
    this before the landing page rebuild.

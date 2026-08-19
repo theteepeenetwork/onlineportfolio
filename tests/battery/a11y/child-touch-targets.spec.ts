@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { SCHOOL_A, loginStudent } from "../helpers";
+import { SCHOOL_A, loginStudent, loginTeacher } from "../helpers";
 
 // ===========================================================================
 // B3 — Every control a CHILD taps is at least 64px
@@ -36,7 +36,9 @@ async function undersizedControls(page: Page) {
   return page.evaluate(
     ({ floor, exempt }) => {
       const out: { label: string; w: number; h: number }[] = [];
-      const controls = document.querySelectorAll<HTMLElement>("button, a[href], input:not([type=hidden]), select, textarea");
+      const controls = document.querySelectorAll<HTMLElement>(
+        'button, a[href], input:not([type=hidden]), select, textarea, [role="button"], [role="slider"]',
+      );
       for (const el of controls) {
         if (exempt.some((sel) => el.matches(sel) || el.closest(sel))) continue;
         const r = el.getBoundingClientRect();
@@ -77,6 +79,42 @@ test("every control on a child's jar meets the child touch floor", async ({ page
   await loginStudent(page, SCHOOL_A.classCode, "Chloe");
   const small = await undersizedControls(page);
   expect(small, `controls below ${FLOOR}px: ${JSON.stringify(small)}`).toEqual([]);
+});
+
+// The two full-screen CANVASES and the EYFS jar (F37). They were outside this
+// gate's list of URLs until 19 August 2026, which is how a child's most-used
+// screens came to carry ten controls under the floor while a gate named "child
+// touch targets" passed. A page list is exactly as good as the pages on it.
+test("every tool on a child's drawing canvas meets the child touch floor", async ({ page }) => {
+  await loginStudent(page, SCHOOL_A.classCode, "Chloe");
+  await page.goto("/student/new/drawing");
+  await expect(page.locator("canvas")).toBeVisible();
+
+  const small = await undersizedControls(page);
+  expect(small, `controls below ${FLOOR}px on the drawing canvas: ${JSON.stringify(small)}`).toEqual([]);
+});
+
+test("every tool on an activity response meets the child touch floor", async ({ page }) => {
+  await loginStudent(page, SCHOOL_A.classCode, "Dev");
+  await page.goto("/student/activities");
+  const activity = page.locator('a[href^="/student/activities/"]').first();
+  await expect(activity).toBeVisible();
+  await activity.click();
+  await expect(page.locator("canvas")).toBeVisible();
+
+  const small = await undersizedControls(page);
+  expect(small, `controls below ${FLOOR}px on an activity response: ${JSON.stringify(small)}`).toEqual([]);
+});
+
+test("every control on an EYFS child's jar meets the child touch floor", async ({ page }) => {
+  // A different shell entirely (EyfsHome), for the youngest children in the
+  // product, and measured the way a Reception child holds a tablet: portrait.
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await loginStudent(page, "ACO789", "Ava");
+  await expect(page.getByRole("heading", { name: /hello/i })).toBeVisible();
+
+  const small = await undersizedControls(page);
+  expect(small, `controls below ${FLOOR}px on an EYFS jar: ${JSON.stringify(small)}`).toEqual([]);
 });
 
 test("every control on the add-work screens meets the child touch floor", async ({ page }) => {
@@ -123,55 +161,78 @@ async function paletteButtonsUnderFloor(page: Page) {
   }, FLOOR);
 }
 
-test("every shape a child can place is at least 64px, in every kit", async ({ page }) => {
+// Walk every group of the currently-open palette, running `check` on each.
+// Every group, not just the one that opens first — a tab nobody clicks in a
+// test is still a tab a child will tap.
+async function forEachPaletteGroup(page: Page, check: () => Promise<void>) {
+  const tabs = page.getByRole("tab");
+  const count = await tabs.count();
+  for (let i = 0; i < Math.max(1, count); i++) {
+    if (count) await tabs.nth(i).click();
+    await check();
+  }
+}
+
+test("every shape a child can place is at least 64px", async ({ page }) => {
   await loginStudent(page, SCHOOL_A.classCode, "Chloe");
   await page.goto("/student/new/drawing");
   await expect(page.locator("canvas")).toBeVisible();
 
-  // The fan stays open once opened — picking a kit swaps the palette rather
-  // than closing the menu — so it is opened once, not once per kit.
+  // Children get one palette at every age. The maths kit is a teacher's tool
+  // for building a worksheet and is not reachable here at all — what a child
+  // needs arrives on the page, not in a menu.
   await page.locator('button[title="Add"]').click();
-  for (const kit of ["Shapes", "Maths kit"]) {
-    await page.getByRole("button", { name: kit }).click();
+  await expect(page.getByRole("button", { name: "Maths kit" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Shapes" }).click();
 
-    // Every group in the kit, not just the one that opens first — a tab nobody
-    // clicks is still a tab a child will.
-    const tabs = page.getByRole("tab");
-    const count = await tabs.count();
-    for (let i = 0; i < Math.max(1, count); i++) {
-      if (count) await tabs.nth(i).click();
-      const small = await paletteButtonsUnderFloor(page);
-      expect(small, `${kit} — controls below ${FLOOR}px: ${JSON.stringify(small)}`).toEqual([]);
-    }
-  }
+  await forEachPaletteGroup(page, async () => {
+    const small = await paletteButtonsUnderFloor(page);
+    expect(small, `controls below ${FLOOR}px: ${JSON.stringify(small)}`).toEqual([]);
+  });
 });
+
+async function paletteNames(page: Page): Promise<string[]> {
+  const names: string[] = [];
+  await forEachPaletteGroup(page, async () => {
+    names.push(
+      ...(await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[role="group"] button')).map(
+          (b) => b.getAttribute("aria-label") ?? "",
+        ),
+      )),
+    );
+  });
+  return names;
+}
 
 test("every shape button carries a name, and no two are the same", async ({ page }) => {
   // A grid of unlabelled icon buttons is unusable with a screen reader, and two
   // buttons sharing a name is the same problem wearing a disguise.
+  //
+  // Checked across BOTH palettes, because a teacher holds both at once: a
+  // duplicate between the two would be as confusing as a duplicate within one.
   await loginStudent(page, SCHOOL_A.classCode, "Chloe");
   await page.goto("/student/new/drawing");
   await expect(page.locator("canvas")).toBeVisible();
-
-  const names: string[] = [];
   await page.locator('button[title="Add"]').click();
-  for (const kit of ["Shapes", "Maths kit"]) {
-    await page.getByRole("button", { name: kit }).click();
-    const tabs = page.getByRole("tab");
-    const count = await tabs.count();
-    for (let i = 0; i < Math.max(1, count); i++) {
-      if (count) await tabs.nth(i).click();
-      names.push(
-        ...(await page.evaluate(() =>
-          Array.from(document.querySelectorAll('[role="group"] button')).map(
-            (b) => b.getAttribute("aria-label") ?? "",
-          ),
-        )),
-      );
-    }
-  }
+  await page.getByRole("button", { name: "Shapes" }).click();
+  const childNames = await paletteNames(page);
 
-  expect(names.length).toBeGreaterThan(20);
-  expect(names.filter((n) => !n)).toEqual([]);
-  expect([...new Set(names)].length).toBe(names.length);
+  expect(childNames.length).toBeGreaterThan(5);
+  expect(childNames.filter((n) => !n)).toEqual([]);
+
+  // The maths kit lives on the template builder, so it is measured there.
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Palette names");
+  await page.getByRole("button", { name: /Build a template/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Maths kit" }).click();
+  const kitNames = await paletteNames(page);
+
+  expect(kitNames.length).toBeGreaterThan(20);
+  expect(kitNames.filter((n) => !n)).toEqual([]);
+
+  const all = [...childNames, ...kitNames];
+  expect([...new Set(all)].length).toBe(all.length);
 });

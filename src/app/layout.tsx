@@ -1,24 +1,35 @@
 import type { Metadata } from "next";
-import { Fredoka, Atkinson_Hyperlegible } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-// StoryJar's two typefaces (self-hosted by next/font). Fredoka for display,
-// buttons and headings; Atkinson Hyperlegible for body/UI text (chosen for
-// dyslexia-friendly legibility). Exposed as CSS variables for the tokens.
-const fredoka = Fredoka({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// Storyjar's two typefaces, VENDORED rather than fetched from Google at build
+// time. Fredoka for display, buttons and headings; Atkinson Hyperlegible for
+// body and UI text, chosen by the Braille Institute's design for legibility at
+// low vision rather than for looks (SAFEGUARDING rule 18). Exposed as CSS
+// variables for the design tokens.
+//
+// next/font/google downloaded these during `next build`, which put
+// fonts.gstatic.com on the critical path of every deploy: an outage there fails
+// the build outright (FINDINGS F28, which took out a CI job on 2026-08-17). The
+// files now live in ./fonts with their licences. See ./fonts/README.md.
+const fredoka = localFont({
+  // One variable file covering 400 to 700, which is the range the old
+  // weight: ["400","500","600","700"] declaration asked for.
+  src: "./fonts/fredoka-normal-400-700.woff2",
+  weight: "400 700",
   variable: "--font-fredoka",
   display: "swap",
 });
-const atkinson = Atkinson_Hyperlegible({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
+const atkinson = localFont({
+  src: [
+    { path: "./fonts/atkinson-normal-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/atkinson-normal-700.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/atkinson-italic-400.woff2", weight: "400", style: "italic" },
+    { path: "./fonts/atkinson-italic-700.woff2", weight: "700", style: "italic" },
+  ],
   variable: "--font-atkinson",
   display: "swap",
 });
-
 // Every route reads the session cookie + database per request, so nothing is
 // statically prerendered. Declaring it here keeps the production build from
 // touching the database (the volume-mounted SQLite file only exists at runtime).

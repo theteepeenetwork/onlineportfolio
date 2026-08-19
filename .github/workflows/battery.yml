@@ -2,7 +2,7 @@ name: QA battery
 
 # Runs the UX / security / a11y battery on every PR and on pushes to main.
 # BLOCKING gates (must pass to merge): static-security, security, a11y, e2e.
-# REPORT-ONLY (non-blocking, informational): ux, findings, perf.
+# REPORT-ONLY (non-blocking, informational): ux, findings, personas, perf.
 # See TEST_PLAN.md and FINDINGS.md.
 
 on:
@@ -102,7 +102,7 @@ jobs:
 
   # ---- Report-only: UX + findings + perf (never blocks merge) ----
   report-only:
-    name: UX / findings / perf (report-only)
+    name: UX / personas / findings / perf (report-only)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -115,6 +115,24 @@ jobs:
       - name: UX project
         run: npx playwright test -c playwright.battery.config.ts --project=ux
         continue-on-error: true
+      # The user-tester team: personas who use the product for real (a platform
+      # operator, teachers, a business manager, parents, a child in each
+      # register, and a fuzzing bot in a child's session) and write down what
+      # confused, stalled or broke. Report-only for the same reason as `ux`: a
+      # persona's judgement is evidence for a person to weigh, not a merge gate.
+      # A persona test only fails on a BLOCKER — an unhandled error, a 5xx, or a
+      # job the tester could not finish — which is why it is worth reading the
+      # step even though it cannot block.
+      - name: User-tester team (personas)
+        run: npx playwright test -c playwright.battery.config.ts --project=personas
+        continue-on-error: true
+      - name: Rebuild the tester report
+        if: ${{ !cancelled() }}
+        run: node scripts/persona-report.mjs
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with: { name: user-testing-report, path: USER_TESTING.md, retention-days: 14 }
       - name: Security findings (documents open gaps — expected to fail)
         run: npx playwright test -c playwright.battery.config.ts --project=security-findings
         continue-on-error: true

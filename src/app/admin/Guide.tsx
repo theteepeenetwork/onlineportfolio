@@ -51,9 +51,21 @@ const ADMIN_JOBS: Item[] = [
     goTo: "audit",
   },
   {
-    title: "Check the plan",
-    what: "Which plan the school is on and how many staff it covers.",
-    how: "Billing. The school plan covers every member of staff — there is nothing to count per seat.",
+    title: "Set a class up from your register",
+    what: "Creates a class with its children already in it, from a pasted list of names.",
+    how: "Classes → Paste a class list. Choose whose class it is, paste the names column out of SIMS, Arbor, Bromcom or a spreadsheet, and it is ready. Only first names are kept — surnames are dropped as they arrive. Setting a class up does not give you access to the children's work.",
+    goTo: "classes",
+  },
+  {
+    title: "Hand a class to a different teacher",
+    what: "Moves a class, its children and its queue to someone else.",
+    how: "Classes → change the teacher on that row. The old teacher loses access to it the moment you do, and the change is in the audit log.",
+    goTo: "classes",
+  },
+  {
+    title: "Start, renew or pay for the plan",
+    what: "Everything the school needs to buy Storyjar or keep it running — the band, the price, the renewal date, and both ways of paying.",
+    how: "Billing. Pick the band by pupils on roll, then pay by card (a school credit or purchasing card is fine) or ask for an invoice against a purchase order with 30 days to pay. One price for the whole school — nothing is counted per teacher.",
     goTo: "billing",
   },
 ];

@@ -14,6 +14,7 @@ import { MarkSeenOnView } from "./MarkSeenOnView";
 import { AddToJar } from "./AddToJar";
 import { MyActivities } from "./MyActivities";
 import { EyfsHome } from "./registers/EyfsHome";
+import { TeacherNote } from "./TeacherNote";
 
 // Look of a moment by its kind.
 const KIND = {
@@ -129,6 +130,18 @@ export default async function StudentHome() {
         jarCount={published.length}
         waitingCount={waitingCount}
         activitiesCount={todoActivities.length}
+        // Work the teacher has sent back, with what they asked for (F38). The
+        // youngest register used to show none of this: a three-year-old got no
+        // strip, no note and no way back into the activity. Same scoping as
+        // every other field here — this child's own moments only.
+        returned={inProgress
+          .filter((i) => i.status === "RETURNED")
+          .map((i) => ({
+            id: i.id,
+            title: i.caption || kindOf(i.type).fallback,
+            note: i.teacherNote,
+            assignmentId: i.assignmentId,
+          }))}
       />
     );
   }
@@ -213,6 +226,10 @@ export default async function StudentHome() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, font: "600 calc(22px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
                 <StatusStrip returned={!waiting} mode={mode} />
+                {/* What the teacher actually asked for (F38). The tag above says
+                    something came back; this says WHICH part to change, which is
+                    the half the child was never shown. */}
+                {!waiting && item.teacherNote && <TeacherNote note={item.teacherNote} mode={mode} />}
               </div>
               {canRetry && (
                 <span style={{ flexShrink: 0, background: "#37796f", color: "#FFFDF7", border: "3px solid var(--ink)", borderRadius: 999, padding: "8px 20px", font: "700 calc(17px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>{c.status.tryAgain}</span>

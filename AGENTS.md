@@ -32,6 +32,7 @@ against a dev server and take minutes. Do not run it after every edit. Instead:
 | Writing code | `npm run check` | ~2s |
 | Working on one area | that one suite, e.g. `npm run test:a11y`, or a single file: `npx playwright test -c playwright.battery.config.ts --project=security tests/battery/security/uploads.spec.ts` | seconds–a minute |
 | **Before anything lands on `main`** — the merge, not each commit on the branch | `npm run test:gate` | minutes |
+| Changing anything a person has to *understand* — copy, a flow, a form, a child-facing screen | `npm run test:personas` | ~2 min |
 
 `npm run check` is the whole dev loop: typecheck plus every static gate
 (raw-query/`dangerouslySetInnerHTML`, reduced-motion, R2 tripwire, ops blindness
@@ -56,7 +57,17 @@ standing between a red gate and `main`.
 - `tests/battery/findings/` — repro tests for **known, logged gaps** (see
   `FINDINGS.md`). They assert the *intended* secure behaviour and **fail on
   purpose** until fixed. Report-only.
+- `tests/battery/personas/` — **the user-tester team**: an operator, teachers, a
+  school business manager, parents, a child in each register and a fuzzing bot,
+  each using the real product on their own device with their own reading age.
+  They record OBSERVATIONS rather than assertions; `npm run test:personas`
+  rewrites [`USER_TESTING.md`](./USER_TESTING.md). Report-only, with one hard
+  rule: a **blocker** (an unhandled error, a 5xx, or a job the tester could not
+  finish) fails the test. They work in their own school
+  (`prisma/seed-personas.ts`) because they delete staff, classes and access —
+  never point them at the fixtures the gates depend on.
 - `tests/e2e/` — the original functional suite. Blocking gate.
+- `scripts/persona-report.mjs` (turns a persona run into `USER_TESTING.md`),
 - `scripts/audit-static.mjs` (raw-query / `dangerouslySetInnerHTML` gate),
   `scripts/check-r2-tripwire.mjs` (R2 migration guard),
   `scripts/error-string-audit.mjs` (jargon in user copy).
@@ -67,9 +78,10 @@ standing between a red gate and `main`.
 - `npm run check` — static gates only, ~2s. The dev loop.
 - `npm run test:gate` — the three blocking suites (security, a11y, e2e). Run
   before merging to `main`.
-- `npm run test:battery` — `test:gate` plus the report-only UX suite.
+- `npm run test:battery` — `test:gate` plus the report-only UX and persona suites.
+- `npm run test:personas` — the user-tester team, then rewrite `USER_TESTING.md`.
 - Individually: `test:security` / `test:a11y` / `test:ux` / `test:e2e` /
-  `test:security:findings` / `test:perf`.
+  `test:security:findings` / `test:personas` / `test:perf`.
 - CI: `.github/workflows/battery.yml`.
 
 **Conventions when adding tests**
@@ -80,3 +92,8 @@ standing between a red gate and `main`.
 - Closing the a11y contrast debt (F11) → empty `BASELINE_RULES` in
   `a11y/axe.spec.ts` to make the gate strict.
 - Never weaken a gate to make it pass. Fix the app or log a finding.
+- Adding a persona journey → it goes in `tests/battery/personas/`, uses
+  `t.say()` / `t.expects()` rather than `expect()`, and speaks in the persona's
+  voice ("I could not find…"), because the output is read by whoever has to fix
+  it. Reserve `blocker` for "could not do the job" and errors — a severity that
+  is used for taste is a severity that gets muted.

@@ -62,6 +62,7 @@ export default async function AccountPage({
             isAdmin={user.teacher.staffRole === "ADMIN"}
             hasSchool={Boolean(user.teacher.schoolId)}
             hasCustomer={Boolean(sub?.stripeCustomerId)}
+            hasLiveSubscription={Boolean(sub?.stripeSubscriptionId) && (account.status === "ACTIVE" || account.status === "PAST_DUE")}
             configured={stripeConfigured()}
             checkout={checkout === "success" ? "success" : checkout === "cancelled" ? "cancelled" : null}
             frozenNotice={frozen === "1"}
