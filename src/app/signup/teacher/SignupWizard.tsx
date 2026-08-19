@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createTeacherAccount } from "@/app/actions/auth";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
+import { deriveChildNames } from "@/lib/childNames";
 import { AGE_MODE_OPTIONS, type AgeMode } from "@/lib/ageMode";
 
 const CARD: React.CSSProperties = {
@@ -111,7 +112,15 @@ export function SignupWizard() {
   const [childrenText, setChildrenText] = useState("");
 
   const childrenNames = childrenText.split("\n").map((s) => s.trim()).filter(Boolean);
-  const n = new Set(childrenNames.map((c) => c.toLowerCase())).size;
+  // Exactly what the server will store (F39). `deriveChildNames` is a pure
+  // module shared with the roster's paste path and the server action below it,
+  // so this preview cannot drift from the thing it is previewing.
+  const storedNames = deriveChildNames(childrenNames);
+  const n = storedNames.length;
+  // Did the teacher paste a register with surnames on it? Only then is there
+  // anything to explain — a list of plain first names previews as itself, and a
+  // panel that says "we kept what you typed" is noise.
+  const surnamesDropped = childrenNames.some((entry) => /\s/.test(entry));
   const classNamePreview = className.trim() || "Hedgehogs";
 
   // Live preview of how the class will be greeted, from title + name + style.
@@ -343,6 +352,27 @@ export function SignupWizard() {
             <label htmlFor="su-children" style={FIELD_LABEL}>First names</label>
             <textarea id="su-children" rows={8} value={childrenText} onChange={(e) => setChildrenText(e.target.value)} placeholder={"Poppy\nJesse\nAmara\nOliver\n…"} style={{ ...INPUT, font: "400 18px/1.7 var(--font-atkinson)", resize: "vertical" }} />
           </div>
+          {/* What will actually be stored, when that differs from what they typed.
+              F39: the wizard used to keep surnames while the roster dropped them,
+              and this is the half a teacher can see — being told "Ali Hassan" is
+              stored as "Ali" is the difference between a rule and a surprise. */}
+          {surnamesDropped && (
+            <div
+              style={{ marginTop: 16, background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 12, padding: "12px 16px" }}
+            >
+              <p style={{ margin: 0, font: "700 15px var(--font-atkinson)", color: "var(--ink)" }}>
+                Stored as first names only
+              </p>
+              <p style={{ margin: "4px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "var(--ink-soft)" }}>
+                {storedNames.slice(0, 8).join(", ")}
+                {storedNames.length > 8 ? `, and ${storedNames.length - 8} more` : ""}.
+              </p>
+              <p style={{ margin: "6px 0 0", font: "400 14px/1.5 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+                Storyjar keeps a child’s first name and their work — never a surname. Where two children share a
+                first name we add just enough of the surname to tell them apart.
+              </p>
+            </div>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16, background: "#D8ECE8", borderRadius: 12, padding: "12px 16px" }}>
             <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="10" fill="#37796f" /><path d="M6.5,11 L9.8,14.5 L15.5,7.5" fill="none" stroke="#FFFDF7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <p style={{ margin: 0, font: "400 15px/1.5 var(--font-atkinson)", color: "var(--ink)" }}>

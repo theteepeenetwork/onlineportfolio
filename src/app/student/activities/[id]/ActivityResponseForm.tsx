@@ -18,6 +18,7 @@ export function ActivityResponseForm({
   quiz,
   objects,
   resumeMode,
+  teacherNote,
   initialAnswers,
   quizReview,
 }: {
@@ -31,6 +32,8 @@ export function ActivityResponseForm({
   // Reopening a handed-back activity: "continue" restores the child's saved work
   // (fully editable), "fresh" starts them again on the blank template.
   resumeMode?: "continue" | "fresh";
+  /** What the teacher asked them to change, when this is a reopened piece (F38). */
+  teacherNote?: string;
   // On a "carry on" quiz reopen: the answers they got right (pre-filled + locked
   // green), with the review flag; wrong ones are omitted so they retry them.
   initialAnswers?: QuizAnswer[];
@@ -59,6 +62,7 @@ export function ActivityResponseForm({
         objectMode={objects && objects.length ? "answer" : undefined}
         initialObjects={objects}
         resumeMode={resumeMode}
+        teacherNote={teacherNote}
         draftKey={`resp:${assignmentId}:${studentId}`}
         ownerId={studentId}
         confirmSubmit

@@ -46,11 +46,13 @@ export default async function StudentActivities() {
             <p className="text-lg font-bold">{student.name}</p>
             <p className="text-sm text-muted">{student.className}</p>
           </div>
-          <Link href="/student" className="btn-ghost px-3 py-1.5 text-sm">
+          {/* 64px, because a child taps these (SAFEGUARDING rule 18, F37): they
+              were 36px tall — the shortest controls on any child-facing screen. */}
+          <Link href="/student" className="btn-ghost flex min-h-16 items-center px-4 text-sm">
             My journal
           </Link>
           <LogoutForm>
-            <button className="btn-ghost px-3 py-1.5 text-sm" type="submit">
+            <button className="btn-ghost flex min-h-16 items-center px-4 text-sm" type="submit">
               Sign out
             </button>
           </LogoutForm>

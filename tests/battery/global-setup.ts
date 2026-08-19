@@ -18,4 +18,18 @@ export default async function globalSetup() {
     stdio: "inherit",
     env: { ...process.env, FORCE_SEED: "1", MAIL_HMAC_KEY: BATTERY_MAIL_HMAC_KEY },
   });
+
+  // The user-tester team's own school (Bramblewood Primary), appended after the
+  // fixtures above. It is separate for one reason: the personas WRITE. They
+  // invite and remove staff, delete a class, return work, rotate codes and hand
+  // pupils on to the next year. Pointed at St Bede's or Oakfield they would take
+  // the security and a11y gates' fixtures apart, and the first thing anyone
+  // would see is an unrelated suite going red.
+  //
+  // Seeded for EVERY battery run, not only the personas project, so that a
+  // developer running one suite never gets a database the next suite cannot use.
+  // It appends; it deletes nothing outside its own school.
+  console.log("[battery] Appending the tester team's school …");
+  execSync("npx tsx prisma/seed-personas.ts", { stdio: "inherit" });
 }
+

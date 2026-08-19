@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "./icons/Icon";
+import { TeacherNote } from "@/app/student/TeacherNote";
 import {
   MIN_OPTIONS,
   MAX_OPTIONS,
@@ -321,6 +322,7 @@ export function DrawingCanvas({
   fullScreen = false,
   title,
   subtitle,
+  teacherNote,
   withCaption = false,
   onClose,
   onDone,
@@ -345,6 +347,12 @@ export function DrawingCanvas({
   fullScreen?: boolean;
   title?: string;
   subtitle?: string;
+  /**
+   * What the teacher asked the child to change, when this is a piece of work
+   * that was sent back (F38). Rendered under the title, with its own listen
+   * button — see TeacherNote for why that button is conditional.
+   */
+  teacherNote?: string;
   withCaption?: boolean;
   onClose?: () => void;
   onDone?: (pages: string[], quiz?: QuizPayload, objects?: CanvasObj[][]) => void;
@@ -2188,6 +2196,14 @@ export function DrawingCanvas({
             </span>
             {title && <p className="mt-1 text-sm font-bold text-foreground/80">{title}</p>}
             {subtitle && <p className="text-xs text-foreground/60">{subtitle}</p>}
+            {/* The teacher's note, on the work itself. `pointer-events-auto`
+                because the wrapper above is deliberately click-through and this
+                is the one thing in it a child presses. */}
+            {teacherNote && (
+              <div className="pointer-events-auto mx-auto mt-2 max-w-md text-left">
+                <TeacherNote note={teacherNote} mode="KS1" compact />
+              </div>
+            )}
           </div>
 
           <div className="absolute right-3 top-3 flex items-center gap-2">
@@ -2209,7 +2225,7 @@ export function DrawingCanvas({
                     : undefined
               }
               title="Done"
-              className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-2xl text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-600"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-2xl text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-600"
             >
               ✓
             </button>
@@ -2236,8 +2252,8 @@ export function DrawingCanvas({
             )}
             <button
               type="button"
-              onClick={() => { setFanOpen((v) => !v); setOpenKit(null); }}
-              className="flex h-14 w-14 items-center justify-center rounded-full bg-brand text-3xl font-light text-white shadow-lg transition-transform hover:scale-105"
+              onClick={() => { setFanOpen((v) => !v); setShapesOpen(false); }}
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-brand text-3xl font-light text-white shadow-lg transition-transform hover:scale-105"
               title={fanOpen ? "Close" : "Add"}
               aria-label={fanOpen ? "Close add menu" : "Add"}
             >
@@ -2304,15 +2320,23 @@ export function DrawingCanvas({
               aria-valuenow={Math.round(hueFrac * 360)}
               aria-valuetext={`Colour ${color}`}
               aria-orientation="vertical"
-              className="relative w-6 cursor-pointer rounded-full"
-              style={{
-                height: "min(52vh, 460px)",
-                background:
-                  "linear-gradient(to bottom, hsl(0 85% 52%), hsl(60 85% 52%), hsl(120 85% 52%), hsl(180 85% 52%), hsl(240 85% 52%), hsl(300 85% 52%), hsl(360 85% 52%))",
-              }}
+              // 24px of rainbow, 64px of target (F37). The bar a child SEES is
+              // the same width it always was; the thing their finger has to find
+              // is the full-width column around it, which is the one control
+              // here that was narrower than a fingertip.
+              className="relative flex w-16 cursor-pointer justify-center"
+              style={{ height: "min(52vh, 460px)" }}
             >
               <span
-                className="absolute left-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white shadow"
+                aria-hidden="true"
+                className="pointer-events-none block h-full w-6 rounded-full"
+                style={{
+                  background:
+                    "linear-gradient(to bottom, hsl(0 85% 52%), hsl(60 85% 52%), hsl(120 85% 52%), hsl(180 85% 52%), hsl(240 85% 52%), hsl(300 85% 52%), hsl(360 85% 52%))",
+                }}
+              />
+              <span
+                className="pointer-events-none absolute left-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white shadow"
                 style={{ top: `${hueFrac * 100}%`, backgroundColor: color }}
               />
             </div>
@@ -2323,16 +2347,23 @@ export function DrawingCanvas({
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => setSliderOpen((v) => !v)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] text-[#22304a] shadow"
-              style={{
-                borderColor: sliderOpen ? "#bd3f63" : "#fff",
-                backgroundColor: sliderOpen ? "rgba(189,63,99,0.12)" : "#fff",
-              }}
+              // The BUTTON is 64px (rule 18, F37); the visible dial inside it is
+              // the same 36px it always was, so the toolbar looks unchanged and
+              // a four-year-old can still land on it.
+              className="flex h-16 w-16 items-center justify-center rounded-full"
               title="Line thickness"
               aria-label="Line thickness"
               aria-expanded={sliderOpen}
             >
-              <Icon name="line" size={20} decorative />
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] text-[#22304a] shadow"
+                style={{
+                  borderColor: sliderOpen ? "#bd3f63" : "#fff",
+                  backgroundColor: sliderOpen ? "rgba(189,63,99,0.12)" : "#fff",
+                }}
+              >
+                <Icon name="line" size={20} decorative />
+              </span>
             </button>
           </div>
 
@@ -2383,7 +2414,10 @@ export function DrawingCanvas({
                   key={t.key}
                   type="button"
                   onClick={() => { finishEditing(); setTool(t.key); }}
-                  className="pointer-events-auto flex flex-col items-center transition-transform duration-150"
+                  // The pen a child sees is unchanged; the button around it is
+                  // 64px wide (rule 18, F37) — the tools were 58, which is a
+                  // miss for a four-year-old aiming with a whole finger.
+                  className="pointer-events-auto flex min-w-16 flex-col items-center transition-transform duration-150"
                   style={{ transform: `translateY(${selected ? 34 : 68}px)` }}
                   title={t.key === "cursor" ? "Move — drag & resize things" : t.label}
                   aria-label={t.label}
@@ -2396,7 +2430,7 @@ export function DrawingCanvas({
             <button
               type="button"
               onClick={() => setTool("text")}
-              className={`pointer-events-auto mb-3 ml-2 flex h-12 w-12 items-center justify-center rounded-2xl border-2 shadow ${
+              className={`pointer-events-auto mb-3 ml-2 flex h-16 w-16 items-center justify-center rounded-2xl border-2 shadow ${
                 tool === "text" ? "border-brand bg-brand/10 text-brand" : "border-border bg-white text-muted"
               }`}
               title="Text"
@@ -2434,7 +2468,9 @@ export function DrawingCanvas({
 
           {withCaption && (
             <div className="absolute bottom-3 left-3 w-64 max-w-[70vw]">
-              <input ref={captionRef} name="caption" className="input bg-white/90 shadow" placeholder="💬 Add a caption…" />
+              {/* min-h-16: a child taps into this to say what their picture is,
+                  so it carries the same 64px floor as everything else here. */}
+              <input ref={captionRef} name="caption" className="input min-h-16 bg-white/90 shadow" placeholder="💬 Add a caption…" />
             </div>
           )}
 
@@ -2444,7 +2480,7 @@ export function DrawingCanvas({
             <button
               type="button"
               onClick={() => setStripOpen((v) => !v)}
-              className="mb-1.5 rounded-full bg-white px-4 py-2 text-sm font-bold text-foreground shadow ring-1 ring-black/5"
+              className="mb-1.5 flex min-h-16 items-center rounded-full bg-white px-5 text-sm font-bold text-foreground shadow ring-1 ring-black/5"
             >
               {stripOpen ? "Pages ›" : "‹ Pages"}
             </button>
@@ -2453,7 +2489,10 @@ export function DrawingCanvas({
               // thumbnails keep a fixed size (shrink-0) so adding pages makes this
               // column SCROLL rather than squashing every preview smaller. Each is
               // numbered in the corner so its place in the order is obvious.
-              <div className="flex max-h-[42vh] w-24 flex-col gap-2 overflow-y-auto rounded-xl bg-slate-400/40 p-2 shadow-inner ring-1 ring-black/10">
+              // w-28, not w-24: at 96px the 10:7 page tiles came out 57px tall,
+              // under the child floor (F37). The extra 16px of column is what
+              // buys a tile a child can actually hit.
+              <div className="flex max-h-[42vh] w-28 flex-col gap-2 overflow-y-auto rounded-xl bg-slate-400/40 p-2 shadow-inner ring-1 ring-black/10">
                 {thumbs.map((src, i) => (
                   <div key={i} className="relative shrink-0">
                     <button
@@ -2486,7 +2525,7 @@ export function DrawingCanvas({
                 <button
                   type="button"
                   onClick={addPage}
-                  className="flex aspect-[10/7] w-full shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-slate-500/50 bg-white/40 text-lg text-slate-600"
+                  className="flex aspect-[10/7] min-h-16 w-full shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-slate-500/50 bg-white/40 text-lg text-slate-600"
                   title="Add page"
                 >
                   ＋
@@ -2639,7 +2678,12 @@ function RoundBtn({
       disabled={disabled}
       title={label}
       aria-label={label}
-      className="flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-lg text-foreground shadow transition-colors hover:bg-white disabled:opacity-40"
+      // 64px, not 44 (F37). SAFEGUARDING rule 18 asks for 64 on anything a child
+      // taps, and every tool on this canvas was under it — a screen a child is
+      // on for most of their time in Storyjar. The ICON is unchanged; the box
+      // around it grew, which is the cheapest way to owe a child a target they
+      // can hit without spending the drawing space on bigger glyphs.
+      className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 text-lg text-foreground shadow transition-colors hover:bg-white disabled:opacity-40"
     >
       {children}
     </button>
@@ -2943,7 +2987,7 @@ function ObjectToolbar({
 }) {
   const shape = o.type === "shape" ? (o as ShapeObj) : null;
   const btn =
-    "pointer-events-auto flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background hover:bg-surface";
+    "pointer-events-auto flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-background hover:bg-surface";
 
   // Keep the toolbar within the canvas horizontally. It's centred over the
   // object (`left-1/2` + a -50% translate); when that would push it past the
@@ -3100,7 +3144,7 @@ function ObjectToolbar({
       {showStyle && shape && (
         <>
           <span className="inline-flex items-center font-semibold text-muted"><Icon name="fill" size={28} decorative /></span>
-          <label className="relative block h-11 w-11 overflow-hidden rounded-full border-2 border-border">
+          <label className="relative block h-16 w-16 overflow-hidden rounded-full border-2 border-border">
             <input
               type="color"
               value={shape.fill === "none" ? "#93c5fd" : shape.fill}
@@ -3127,7 +3171,7 @@ function ObjectToolbar({
           </button>
 
           <span className="ml-1 inline-flex items-center font-semibold text-muted"><Icon name="line" size={28} decorative /></span>
-          <label className="relative block h-11 w-11 overflow-hidden rounded-full border-2 border-border">
+          <label className="relative block h-16 w-16 overflow-hidden rounded-full border-2 border-border">
             <input
               type="color"
               value={shape.stroke}
@@ -4024,6 +4068,20 @@ function QuizBoxView({
   // so a short-and-wide box doesn't overflow vertically.
   const k = Math.min(1, q.w / QUIZ_W, q.h / QUIZ_H);
   const px = (n: number) => Math.round(n * k * 10) / 10;
+  // A finger is a physical size, and `px()` is not: it scales model units by the
+  // canvas's display scale, so a "64px" answer button rendered at k≈0.9 reaches
+  // the child as 57 real pixels. F37 found exactly that on the quiz a
+  // four-year-old answers. `touch()` is px() with a floor at the real 64
+  // SAFEGUARDING rule 18 asks for — use it for anything a child has to hit.
+  //
+  // NOT in author mode, and the distinction is the whole point. On the teacher's
+  // worksheet a question box is a thing being DRAWN: shrink it and its contents
+  // scale down with it, which is what makes the box a usable design surface (and
+  // what `quiz.spec.ts` "shrinking a question box scales its contents" locks in).
+  // A floor there fights the teacher's own hand and spills the contents out of
+  // the box they just sized. The floor exists to protect a child's finger, so it
+  // applies where a child is actually tapping: answer mode.
+  const touch = (n: number) => (author ? px(n) : Math.max(px(n), 64));
   // The sync hint is an authoring affordance, not content: below about half
   // size it's unreadable anyway and the space is better spent on the question.
   const showSyncHint = editable && k > 0.55;
@@ -4171,7 +4229,7 @@ function QuizBoxView({
                     className={`flex min-w-0 items-center justify-center rounded-xl border-2 text-center ${
                       correct ? "border-emerald-500 bg-emerald-50" : "border-brand/25 bg-white"
                     }`}
-                    style={{ minHeight: px(64), padding: px(8), gap: px(8) }}
+                    style={{ minHeight: touch(64), padding: px(8), gap: px(8) }}
                   >
                     {o.imagePath && (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -4227,7 +4285,7 @@ function QuizBoxView({
                           ? "border-brand bg-brand/15"
                           : "border-border bg-white"
                     } ${author || locked ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
-                    style={{ minHeight: px(64), padding: px(8), gap: px(8) }}
+                    style={{ minHeight: touch(64), padding: px(8), gap: px(8) }}
                   >
                     {o.imagePath && (
                       // eslint-disable-next-line @next/next/no-img-element

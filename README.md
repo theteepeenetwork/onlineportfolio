@@ -133,6 +133,17 @@ Run the automated end-to-end tests (they drive a real browser through the app):
 npm test
 ```
 
+There is also a team of **user testers** — a platform operator, teachers, a
+school business manager, a parent, a child in each age group and a bot — who use
+the app the way real people do and write down anything confusing, awkward or
+broken:
+
+```bash
+npm run test:personas
+```
+
+What they found last time is in [USER_TESTING.md](USER_TESTING.md).
+
 See [TESTING.md](TESTING.md) for details and a manual smoke-test checklist.
 
 ---
