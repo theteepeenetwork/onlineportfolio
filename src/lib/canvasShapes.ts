@@ -19,11 +19,48 @@
 // flatten pass (new Path2D(d) on a 2D context). One source, so what a child
 // sees and what lands in their handed-in PNG cannot drift apart.
 
-export type ShapeKind = "rect" | "ellipse" | "triangle" | "star" | "speech";
+export type ShapeKind =
+  | "rect"
+  | "ellipse"
+  | "triangle"
+  | "star"
+  | "speech"
+  // Vector kinds. Drawn corner-to-corner across their box, so a thin box gives
+  // a horizontal or vertical rule and a square one gives a diagonal. See
+  // VECTOR_KINDS below for why they are special-cased on resize.
+  | "line"
+  | "arrow";
 
 // The validation gate. `normalizeObject` coerces anything not in this array to
 // "rect", so a kind is not real until it is listed here.
-export const SHAPE_KINDS: ShapeKind[] = ["rect", "ellipse", "triangle", "star", "speech"];
+export const SHAPE_KINDS: ShapeKind[] = [
+  "rect",
+  "ellipse",
+  "triangle",
+  "star",
+  "speech",
+  "line",
+  "arrow",
+];
+
+// Kinds drawn as a stroke from one corner of their box to the other, rather
+// than as an area filling it.
+//
+// They need two floors relaxed. A number line, an axis or a table rule is a box
+// a couple of units tall, and both the resize floor (24) and the stored minimum
+// width (8) would round that back into a square. Relaxing those for AREA shapes
+// would let a child lose a rectangle by squashing it to nothing, so the relaxed
+// floor is scoped to exactly these kinds.
+export const VECTOR_KINDS: ShapeKind[] = ["line", "arrow"];
+
+export function isVectorKind(shape: ShapeKind): boolean {
+  return VECTOR_KINDS.includes(shape);
+}
+
+// The smallest a shape may get on either axis, in model units.
+export function minShapeSize(shape: ShapeKind): number {
+  return isVectorKind(shape) ? 2 : 24;
+}
 
 // ---------------------------------------------------------------------------
 // The multi-part path contract
@@ -66,6 +103,11 @@ export type ShapeGeom = {
   shape: ShapeKind;
   w: number;
   h: number;
+  // Vector kinds: which diagonal of the box the stroke runs along. Absent /
+  // false runs top-left → bottom-right, true runs bottom-left → top-right.
+  // Together with a thin box that reaches all four quadrants without a rotation
+  // handle and without any negative geometry.
+  flip?: boolean;
 };
 
 function roundRectPath(w: number, h: number, r: number) {
@@ -109,12 +151,47 @@ function speechPath(w: number, h: number) {
   ].join(" ");
 }
 
+// The two ends of a vector kind's stroke, given its box and which diagonal it
+// runs along.
+function vectorEnds(w: number, h: number, flip?: boolean) {
+  return flip
+    ? { x1: 0, y1: h, x2: w, y2: 0 }
+    : { x1: 0, y1: 0, x2: w, y2: h };
+}
+
+// A straight rule. Just the stroke — never an area, so its preset carries
+// fill: "none" and the renderer is not asked to guess.
+function linePath(w: number, h: number, flip?: boolean) {
+  const { x1, y1, x2, y2 } = vectorEnds(w, h, flip);
+  return `M ${x1} ${y1} L ${x2} ${y2}`;
+}
+
+// A straight rule with a head on the far end. The head is drawn as two strokes
+// rather than a filled triangle so it inherits the line's colour and weight and
+// stays legible when a child recolours it.
+function arrowPath(w: number, h: number, flip?: boolean) {
+  const { x1, y1, x2, y2 } = vectorEnds(w, h, flip);
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  // The head scales with the shaft but is capped, so a very long number-line
+  // arrow does not end in an enormous chevron.
+  const head = Math.min(len * 0.28, 46);
+  const ang = Math.atan2(dy, dx);
+  const spread = 0.42; // radians off the shaft — a touch wider than a pen nib
+  const hx1 = x2 - head * Math.cos(ang - spread);
+  const hy1 = y2 - head * Math.sin(ang - spread);
+  const hx2 = x2 - head * Math.cos(ang + spread);
+  const hy2 = y2 - head * Math.sin(ang + spread);
+  return `M ${x1} ${y1} L ${x2} ${y2} M ${hx1} ${hy1} L ${x2} ${y2} L ${hx2} ${hy2}`;
+}
+
 // The parts a shape is drawn from, inside a w×h box at the origin.
 //
 // The switch is EXHAUSTIVE over ShapeKind with no `default`, on purpose: adding
 // a kind without drawing it should be a compile error, not a shape that renders
 // blank on a child's page. Keep it that way.
-export function shapeParts({ shape, w, h }: ShapeGeom): ShapePart[] {
+export function shapeParts({ shape, w, h, flip }: ShapeGeom): ShapePart[] {
   switch (shape) {
     case "rect":
       return [{ d: roundRectPath(w, h, Math.min(w, h) * 0.06), role: "outline" }];
@@ -131,6 +208,10 @@ export function shapeParts({ shape, w, h }: ShapeGeom): ShapePart[] {
       return [{ d: starPath(w, h), role: "outline" }];
     case "speech":
       return [{ d: speechPath(w, h), role: "outline" }];
+    case "line":
+      return [{ d: linePath(w, h, flip), role: "outline" }];
+    case "arrow":
+      return [{ d: arrowPath(w, h, flip), role: "outline" }];
   }
 }
 
@@ -145,6 +226,8 @@ export function shapeFillRule(shape: ShapeKind): "evenodd" | "nonzero" {
     case "triangle":
     case "star":
     case "speech":
+    case "line":
+    case "arrow":
       return "nonzero";
   }
 }
@@ -174,6 +257,12 @@ export function shapeInnerBox(kind: ShapeKind, w: number, h: number) {
       return { x: 0.31 * w, y: 0.36 * h, w: 0.38 * w, h: 0.34 * h };
     case "speech":
       return { x: 0.12 * w, y: 0.12 * h, w: 0.76 * w, h: 0.5 * h };
+    // A vector has no inside. A label on one sits in the middle of its box, so
+    // a number-line arrow can still be captioned without the text landing off
+    // the end of the stroke.
+    case "line":
+    case "arrow":
+      return { x: 0.15 * w, y: 0.15 * h, w: 0.7 * w, h: 0.7 * h };
   }
 }
 
@@ -200,6 +289,7 @@ export type ShapePreset = {
   stroke?: string;
   strokeWidth?: number;
   text?: string;
+  flip?: boolean;
   // This shape means something at a fixed proportion (a hundred flat is square
   // or it is not a hundred), so lock its aspect on resize.
   lockAspect?: boolean;
@@ -238,6 +328,11 @@ const SHAPES_KIT: Kit = {
         { id: "triangle", kind: "triangle", label: "Triangle" },
         { id: "star", kind: "star", label: "Star", h: 280 },
         { id: "speech", kind: "speech", label: "Speech bubble", h: 280 },
+        // Vector kinds arrive as a wide, shallow box, which reads as a
+        // horizontal rule — a number line or a table rule — rather than as a
+        // diagonal. Drag the corner up for a diagonal, or use Flip.
+        { id: "line", kind: "line", label: "Line", h: 4, fill: "none" },
+        { id: "arrow", kind: "arrow", label: "Arrow", h: 4, fill: "none" },
       ],
     },
   ],

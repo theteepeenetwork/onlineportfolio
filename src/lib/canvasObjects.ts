@@ -15,7 +15,7 @@
 // No `server-only` here: imported by both the client canvas and the server
 // actions. Keep it free of DB / Node-only imports (mirrors quiz.ts).
 
-import { SHAPE_KINDS, type ShapeKind } from "./canvasShapes";
+import { isVectorKind, SHAPE_KINDS, type ShapeKind } from "./canvasShapes";
 
 // Canvas model space (matches DrawingCanvas W×H). Object geometry is stored in
 // these units and scaled for display, so it is resolution-independent.
@@ -65,6 +65,17 @@ export type ShapeObj = ObjCommon & {
   strokeWidth: number;
   text?: string;
   textColor?: string;
+  // Vector kinds (line / arrow): which diagonal of the box the stroke runs
+  // along. Reaches all four quadrants without a rotation handle.
+  flip?: boolean;
+  // Rotation in degrees, 0–359. RESERVED: nothing in the UI produces a non-zero
+  // value yet, but both renderers honour it, so the data and the pixels agree
+  // from the day the field exists and adding a rotate handle later is pure UI.
+  //
+  // Known gap while that is true: selection outlines, the resize handle and hit
+  // testing are all axis-aligned and will NOT follow a rotated shape. Anyone
+  // adding a handle has to fix those first.
+  rot?: number;
 };
 
 export type TextObj = ObjCommon & {
@@ -90,6 +101,13 @@ export function isAllowedImageSrc(v: unknown): v is string {
 
 function num(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+// Degrees into the 0–359 half-open range, or 0 for anything that isn't a real
+// number. Returns a plain number so the caller can drop a falsy 0.
+function normaliseRotation(v: unknown): number {
+  if (typeof v !== "number" || !Number.isFinite(v)) return 0;
+  return (((Math.round(v) % 360) + 360) % 360);
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -122,9 +140,18 @@ function normalizeObject(raw: unknown): CanvasObj | null {
 
   if (o.type === "shape") {
     const shape = SHAPE_KINDS.includes(o.shape as ShapeKind) ? (o.shape as ShapeKind) : "rect";
-    const w = clamp(num(o.w, 100), 8, OBJ_W);
-    const h = clamp(num(o.h, 100), 8, OBJ_H);
+    // A number line or an axis is a box a couple of units tall, so the ordinary
+    // 8-unit floor would round it back into a square. Relaxed for vector kinds
+    // only — an area shape keeps the floor, so a rectangle can't be squashed to
+    // nothing and lost.
+    const minSide = isVectorKind(shape) ? 1 : 8;
+    const w = clamp(num(o.w, 100), minSide, OBJ_W);
+    const h = clamp(num(o.h, 100), minSide, OBJ_H);
     const text = typeof o.text === "string" ? str(o.text, MAX_LABEL_LEN) : undefined;
+    // Wrapped into 0–359 rather than clamped, so 360 and -90 mean 0 and 270
+    // rather than "as far round as we allow". Wrapped BEFORE the zero test, so
+    // a full turn is stored as no rotation at all rather than as `rot: 0`.
+    const rot = normaliseRotation(o.rot);
     const textColor = typeof o.textColor === "string" ? str(o.textColor, MAX_COLOR_LEN) : undefined;
     return {
       id,
@@ -139,6 +166,8 @@ function normalizeObject(raw: unknown): CanvasObj | null {
       strokeWidth: clamp(num(o.strokeWidth, 6), 0, 80),
       ...(text ? { text } : {}),
       ...(textColor ? { textColor } : {}),
+      ...(o.flip === true ? { flip: true } : {}),
+      ...(rot ? { rot } : {}),
       locked,
     };
   }

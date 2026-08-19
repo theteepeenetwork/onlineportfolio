@@ -21,10 +21,12 @@ import {
   type DraftSurface,
 } from "@/lib/draftStore";
 import { serverSaveDraft, serverLoadDraftBounded, serverDiscardDraft } from "@/lib/draftSync";
-import type { CanvasObj } from "@/lib/canvasObjects";
+import { MAX_OBJECTS_PER_PAGE, type CanvasObj } from "@/lib/canvasObjects";
 import {
   detailStrokeWidth,
   kitsToShow,
+  isVectorKind,
+  minShapeSize,
   shapeAspect,
   shapeFillRule,
   shapeInnerBox,
@@ -140,6 +142,13 @@ const QUIZ_H = 300;
 const QUIZ_MIN_W = 150;
 const QUIZ_MIN_H = 120;
 
+// Drag snap for placed shapes, in canvas model units (model space is 1000×700).
+const SNAP_UNITS = 10;
+
+// How far a duplicate lands from the thing it was copied from. Two snap steps,
+// so the clone sits on the grid rather than half a step off it.
+const DUPLICATE_OFFSET = SNAP_UNITS * 2;
+
 // Movable / resizable things placed on top of the drawing: imported pictures
 // (images / PDF pages) and shapes.
 // Placed-object lock state. `locked` is the teacher's decision (a child cannot
@@ -174,6 +183,12 @@ type ShapeObj = ObjLock & {
   // wraps and auto-sizes to fit the shape's current bounds.
   text?: string;
   textColor?: string;
+  // Which diagonal a vector kind (line / arrow) runs along.
+  flip?: boolean;
+  // Rotation in degrees. RESERVED — see src/lib/canvasObjects. Both renderers
+  // honour it; nothing in the UI sets it, and selection / hit testing stay
+  // axis-aligned until something does.
+  rot?: number;
 };
 
 // Wrap + auto-size text to fit centred inside a box. Used both to render a
@@ -637,6 +652,14 @@ export function DrawingCanvas({
       } else if (o.type === "shape") {
         ec.save();
         ec.translate(o.x, o.y);
+        // Rotation is reserved — nothing sets it yet — but it is honoured here
+        // and in the SVG so the data and the pixels never disagree. About the
+        // centre, matching the SVG transform-origin below.
+        if (o.rot) {
+          ec.translate(o.w / 2, o.h / 2);
+          ec.rotate((o.rot * Math.PI) / 180);
+          ec.translate(-o.w / 2, -o.h / 2);
+        }
         // Mirror of the on-screen SVG below: same parts, same roles, same fill
         // rule. If these two ever diverge, a child's handed-in PNG stops
         // matching what they drew.
@@ -658,17 +681,27 @@ export function DrawingCanvas({
         // The shape's label, wrapped + centred inside the shape's usable area.
         if (o.text && o.text.trim()) {
           const region = shapeInnerBox(o.shape, o.w, o.h);
+          // The label rides with the shape, so it is drawn inside the same
+          // rotated frame rather than being left behind axis-aligned.
+          ec.save();
+          ec.translate(o.x, o.y);
+          if (o.rot) {
+            ec.translate(o.w / 2, o.h / 2);
+            ec.rotate((o.rot * Math.PI) / 180);
+            ec.translate(-o.w / 2, -o.h / 2);
+          }
           const { fontPx, lines, lineHeight } = fitTextToBox(o.text, region.w, region.h);
           ec.fillStyle = o.textColor ?? "#1f2430";
           ec.font = `600 ${fontPx}px ${FONT_STACK}`;
           ec.textAlign = "center";
           ec.textBaseline = "middle";
-          const cx = o.x + region.x + region.w / 2;
-          const cy = o.y + region.y + region.h / 2;
+          const cx = region.x + region.w / 2;
+          const cy = region.y + region.h / 2;
           const startY = cy - ((lines.length - 1) * lineHeight) / 2;
           lines.forEach((line, i) => ec.fillText(line, cx, startY + i * lineHeight));
           ec.textAlign = "left";
           ec.textBaseline = "alphabetic";
+          ec.restore();
         }
       } else {
         // text
@@ -1524,6 +1557,34 @@ export function DrawingCanvas({
     refreshThumbs();
   }
 
+  // Clone the selected object and drop it slightly off the original, so it is
+  // visibly a second thing rather than looking like nothing happened. Selecting
+  // the clone means a child can drag it straight where they want it, and tap
+  // duplicate again to build a row.
+  function duplicateObject(id: string) {
+    const list = objectsRef.current[currentRef.current] ?? [];
+    const src = list.find((o) => o.id === id);
+    if (!src) return;
+    // Refuse at the cap rather than letting normalizeTemplateObjects drop it
+    // silently at save time — work that vanishes on hand-in is far worse than
+    // a button that says no.
+    if (list.length >= MAX_OBJECTS_PER_PAGE) return;
+    pushHistory();
+    const clone: Obj = {
+      ...src,
+      id: `o${objIdRef.current++}`,
+      x: Math.min(W - 24, src.x + DUPLICATE_OFFSET),
+      y: Math.min(H - 24, src.y + DUPLICATE_OFFSET),
+    };
+    const next = [...list, clone];
+    objectsRef.current[currentRef.current] = next;
+    setObjects(next);
+    anyDrawnRef.current = true;
+    setSelectedId(clone.id);
+    syncHidden();
+    refreshThumbs();
+  }
+
   function updateObject(id: string, patch: Partial<Obj>) {
     const list = (objectsRef.current[currentRef.current] ?? []).map((o) =>
       o.id === id ? ({ ...o, ...patch } as Obj) : o,
@@ -1862,6 +1923,8 @@ export function DrawingCanvas({
       onToggleLock={toggleLock}
       onBringToFront={(id) => reorderObject(id, "front")}
       onSendToBack={(id) => reorderObject(id, "back")}
+      onDuplicate={duplicateObject}
+      canDuplicate={(objects.length || 0) < MAX_OBJECTS_PER_PAGE}
       onEditText={editTextObject}
       onTextChange={updateText}
       onFinishEditing={finishEditing}
@@ -2581,6 +2644,8 @@ type ObjHandlers = {
   onToggleLock: (id: string) => void;
   onBringToFront: (id: string) => void;
   onSendToBack: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  canDuplicate: boolean;
   onEditText: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
   onFinishEditing: () => void;
@@ -2615,6 +2680,8 @@ function ObjectToolbar({
   onBringToFront,
   onSendToBack,
   onStyle,
+  onDuplicate,
+  canDuplicate,
 }: {
   o: Obj;
   showAuthor: boolean; // teacher: show order + padlock
@@ -2624,6 +2691,10 @@ function ObjectToolbar({
   onBringToFront: (id: string) => void;
   onSendToBack: (id: string) => void;
   onStyle: (patch: Partial<ShapeObj>) => void;
+  onDuplicate: (id: string) => void;
+  // False once the page is full. The button stays visible and explains itself
+  // rather than vanishing, so a child isn't left wondering where it went.
+  canDuplicate: boolean;
 }) {
   const shape = o.type === "shape" ? (o as ShapeObj) : null;
   const btn =
@@ -2689,7 +2760,36 @@ function ObjectToolbar({
         </>
       )}
 
-      {showAuthor && showStyle && <span className="mx-0.5 h-9 w-px bg-border" />}
+      {/* Duplicate. Showing 24 with base-10 apparatus is two rods and four
+          ones; showing 7 with counters is seven counters. Without this, each
+          one costs a trip back out to the ＋ fan and the palette. */}
+      <button
+        type="button"
+        onClick={() => onDuplicate(o.id)}
+        disabled={!canDuplicate}
+        className={`${btn} disabled:opacity-40`}
+        title={canDuplicate ? "Make another one" : "This page is full — no room for another"}
+        aria-label="Make another one"
+      >
+        <Icon name="duplicate" size={30} decorative />
+      </button>
+
+      {/* Which diagonal a line or an arrow runs along. Two taps reach all four
+          quadrants, which is what we have instead of a rotate handle. */}
+      {shape && isVectorKind(shape.shape) && (
+        <button
+          type="button"
+          onClick={() => onStyle({ flip: !shape.flip })}
+          className={btn}
+          aria-pressed={!!shape.flip}
+          title="Flip which way it points"
+          aria-label="Flip direction"
+        >
+          <Icon name="flip" size={30} decorative />
+        </button>
+      )}
+
+      {showStyle && <span className="mx-0.5 h-9 w-px bg-border" />}
 
       {showStyle && shape && (
         <>
@@ -2807,6 +2907,8 @@ function MediaObjectView({
   onToggleLock,
   onBringToFront,
   onSendToBack,
+  onDuplicate,
+  canDuplicate,
   onEditText,
   onTextChange,
   onFinishEditing,
@@ -2854,16 +2956,33 @@ function MediaObjectView({
     const d = drag.current;
     if (!d) return;
     if (d.mode === "move") {
-      onChange(o.id, { x: (e.clientX - d.ax) / scale, y: (e.clientY - d.ay) / scale });
+      const nx = (e.clientX - d.ax) / scale;
+      const ny = (e.clientY - d.ay) / scale;
+      // Light snap, shapes only. Two ten-rods dropped at y=200 and y=203 both
+      // land on 200, so a row of apparatus lines up without a child having to
+      // aim. 10 units is 1% of model space — about 4px on a classroom iPad,
+      // small enough never to feel like being pushed around.
+      //
+      // Pictures and text boxes are left alone: a photo nudged 4px for no
+      // visible reason just reads as a glitch.
+      const snap = o.type === "shape" ? SNAP_UNITS : 1;
+      onChange(o.id, {
+        x: Math.round(nx / snap) * snap,
+        y: Math.round(ny / snap) * snap,
+      });
     } else {
-      let w = Math.max(24, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
+      // Vector kinds (line / arrow) get a much smaller floor: a number line or
+      // a table rule IS a box a couple of units tall. Area shapes keep 24 so a
+      // rectangle can't be squashed to nothing and lost.
+      const min = o.type === "shape" ? minShapeSize(o.shape) : 24;
+      let w = Math.max(min, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
       // One lock rule for every object. A picture keeps the proportions it was
       // imported at; a shape keeps whatever proportion its geometry says it
       // means something at (a hundred flat squashed is not a hundred). Anything
       // that returns null resizes freely on both axes, which is every shape
       // today.
       const lock = o.type === "image" ? o.aspect : shapeAspect(o);
-      const h = lock ? w / lock : Math.max(24, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
+      const h = lock ? w / lock : Math.max(min, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
       if (lock) w = Math.min(w, W);
       onChange(o.id, { w, h });
     }
@@ -2905,11 +3024,18 @@ function MediaObjectView({
         />
       ) : (
         <svg
+          // Names the kind on the element that draws it, so the DOM says what
+          // it is rather than leaving it to be inferred from path data.
+          data-shape={o.shape}
           viewBox={`0 0 ${o.w} ${o.h}`}
           width="100%"
           height="100%"
           preserveAspectRatio="none"
           className="pointer-events-none block h-full w-full overflow-visible"
+          // Reserved rotation, mirrored by the export renderer. About the
+          // centre, so a shape spins in place rather than swinging off its
+          // own corner.
+          style={o.rot ? { transform: `rotate(${o.rot}deg)`, transformOrigin: "50% 50%" } : undefined}
         >
           {shapeParts(o).map((part, i) => (
             <path
@@ -2984,6 +3110,8 @@ function MediaObjectView({
           onToggleLock={onToggleLock}
           onBringToFront={onBringToFront}
           onSendToBack={onSendToBack}
+          onDuplicate={onDuplicate}
+          canDuplicate={canDuplicate}
           onStyle={(patch) => {
             onChange(o.id, patch);
             onEnd();
@@ -3044,6 +3172,8 @@ function TextObjectView({
   onToggleLock,
   onBringToFront,
   onSendToBack,
+  onDuplicate,
+  canDuplicate,
   onEditText,
   onTextChange,
   onFinishEditing,
@@ -3153,6 +3283,8 @@ function TextObjectView({
           onToggleLock={onToggleLock}
           onBringToFront={onBringToFront}
           onSendToBack={onSendToBack}
+          onDuplicate={onDuplicate}
+          canDuplicate={canDuplicate}
           onStyle={() => {}}
         />
       )}

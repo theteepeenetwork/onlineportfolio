@@ -56,7 +56,9 @@ export type IconName =
   | "lock-open"
   | "lock-closed"
   | "bring-to-front"
-  | "send-to-back";
+  | "send-to-back"
+  | "duplicate"
+  | "flip";
 
 type Glyph = { label: string; glyph: ReactNode };
 
@@ -194,6 +196,14 @@ const ICONS: Record<IconName, Glyph> = {
   ) },
   // Two overlapping cards: the accent one is the selected object. Bring-to-front
   // draws it on TOP; send-to-back draws it BEHIND the plain card.
+  // Two of the same thing, the front one offset — "make another one".
+  "duplicate": { label: "Make another one", glyph: (
+    <><rect x="4" y="4" width="12" height="12" rx="2.2" fill="#FFFDF7" /> <rect x="8" y="8" width="12" height="12" rx="2.2" fill="#8AB9D6" /></>
+  ) },
+  // A line with a head at each end: tap to send it the other way.
+  "flip": { label: "Flip direction", glyph: (
+    <><line x1="4.5" y1="12" x2="19.5" y2="12" /> <path d="M8 8.5 L4.5 12 L8 15.5" fill="none" /> <path d="M16 8.5 L19.5 12 L16 15.5" fill="none" /> <circle cx="12" cy="12" r="1.6" fill="#F0B441" stroke="none" /></>
+  ) },
   "bring-to-front": { label: "Bring to front", glyph: (
     <><rect x="4.5" y="4.5" width="11" height="11" rx="2" fill="#FFFDF7" /> <rect x="9" y="9" width="11" height="11" rx="2" fill="#4E9C94" /></>
   ) },
