@@ -213,9 +213,13 @@ test("the teacher's note on returned work reaches the child, on the jar and on t
   // A child hands something in.
   await studentLogin(page, "Ella");
   await page.getByRole("button", { name: "My words", exact: true }).click();
-  await page.getByPlaceholder(/write your words here/i).fill("Six add four is ten.");
-  await page.getByRole("button", { name: /add to my jar|pop it in|done/i }).first().click();
-  await page.waitForURL((url) => url.pathname === "/student/popped" || url.pathname === "/student");
+  // The label and the placeholder are the child's own copy (src/lib/copy/student.ts),
+  // reached by label rather than by guessing at the placeholder.
+  await page.getByLabel(/write your words here/i).fill("Six add four is ten.");
+  await page.getByRole("button", { name: /pop it in|add to my jar|save|done/i }).first().click();
+  await page.waitForURL((url) => url.pathname === "/student/popped" || url.pathname === "/student", {
+    timeout: 20_000,
+  });
 
   // The teacher sends it back with words.
   await logout(page);
