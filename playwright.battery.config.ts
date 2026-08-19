@@ -69,6 +69,31 @@ export default defineConfig({
       testDir: "./tests/battery/ux",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      // The user-tester team: personas who use the product for real and write
+      // down what confused, stalled or broke (tests/battery/personas/team.ts).
+      // Report-only in CI, like `ux` — a persona's opinion is evidence for a
+      // person to weigh, not a merge gate. The one thing that fails a persona
+      // test is a blocker (an unhandled error, a 5xx, or a job they could not
+      // finish), which is not a matter of taste.
+      //
+      // LAST in the list on purpose: personas write to the fixtures (they hand
+      // work in, invite staff, create classes), so anything that reads the seed
+      // in a known state runs before they touch it. Each viewport comes from the
+      // persona rather than from `devices`, because whose hands are on the
+      // device is the whole point.
+      name: "personas",
+      testDir: "./tests/battery/personas",
+      // Deliberately NO `devices[...]` preset: the persona fixture supplies the
+      // viewport, touch and mobile emulation, and a preset here would fight it.
+      //
+      // The timeouts are the point of this block. Playwright's default action
+      // timeout is 0 — wait forever — which is the opposite of a user test: a
+      // person who cannot find a control gives up and says so. With no timeout
+      // the first persona run hung for the full two minutes on a `fill` against
+      // a form that had already been replaced, and reported nothing.
+      use: { actionTimeout: 15_000, navigationTimeout: 30_000 },
+    },
   ],
   webServer: {
     command: `npm run dev -- --port ${PORT}`,

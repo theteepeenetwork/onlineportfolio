@@ -12,6 +12,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "billing:freeze": "node scripts/freeze-expired.mjs",
     "db:seed:test": "FORCE_SEED=1 tsx prisma/seed-test.ts",
+    "db:seed:personas": "tsx prisma/seed-personas.ts",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
@@ -23,11 +24,12 @@
     "test:security:findings": "playwright test -c playwright.battery.config.ts --project=security-findings",
     "test:a11y": "playwright test -c playwright.battery.config.ts --project=a11y",
     "test:ux": "playwright test -c playwright.battery.config.ts --project=ux",
+    "test:personas": "playwright test -c playwright.battery.config.ts --project=personas; node scripts/persona-report.mjs",
     "test:perf": "lhci autorun || true",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "audit:errors": "node scripts/error-string-audit.mjs",
     "test:gate": "npm run test:security && npm run test:a11y && npm run test:e2e",
-    "test:battery": "npm run test:gate && npm run test:ux"
+    "test:battery": "npm run test:gate && npm run test:ux && npm run test:personas"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
