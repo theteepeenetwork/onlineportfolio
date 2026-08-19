@@ -22,6 +22,19 @@ import {
 } from "@/lib/draftStore";
 import { serverSaveDraft, serverLoadDraftBounded, serverDiscardDraft } from "@/lib/draftSync";
 import type { CanvasObj } from "@/lib/canvasObjects";
+import {
+  detailStrokeWidth,
+  kitsToShow,
+  shapeAspect,
+  shapeFillRule,
+  shapeInnerBox,
+  shapeParts,
+  BASE_KITS,
+  SHAPE_DEFAULTS,
+  type KitId,
+  type ShapeKind,
+  type ShapePreset,
+} from "@/lib/canvasShapes";
 
 // Deep-clone the questions we get from props so our editing never mutates the
 // caller's object. Quiz questions live in their own layer (quizRef) and are
@@ -146,7 +159,6 @@ type ImageObj = ObjLock & {
   h: number;
   aspect: number;
 };
-type ShapeKind = "rect" | "ellipse" | "triangle" | "star" | "speech";
 type ShapeObj = ObjLock & {
   id: string;
   type: "shape";
@@ -163,23 +175,6 @@ type ShapeObj = ObjLock & {
   text?: string;
   textColor?: string;
 };
-
-// The usable area for a label inside each shape (so text stays within the
-// visible shape, not just its bounding box). Relative to the shape's origin.
-function shapeInnerBox(kind: ShapeKind, w: number, h: number) {
-  switch (kind) {
-    case "rect":
-      return { x: 0.07 * w, y: 0.08 * h, w: 0.86 * w, h: 0.84 * h };
-    case "ellipse":
-      return { x: 0.16 * w, y: 0.18 * h, w: 0.68 * w, h: 0.64 * h };
-    case "triangle":
-      return { x: 0.24 * w, y: 0.46 * h, w: 0.52 * w, h: 0.46 * h };
-    case "star":
-      return { x: 0.31 * w, y: 0.36 * h, w: 0.38 * w, h: 0.34 * h };
-    case "speech":
-      return { x: 0.12 * w, y: 0.12 * h, w: 0.76 * w, h: 0.5 * h };
-  }
-}
 
 // Wrap + auto-size text to fit centred inside a box. Used both to render a
 // shape's label and to draw it into the exported image, so they always match.
@@ -237,67 +232,6 @@ type TextObj = ObjLock & {
 type Obj = ImageObj | ShapeObj | TextObj;
 type HistoryEntry = { img: string; objects: Obj[] };
 
-const SHAPES: { kind: ShapeKind; label: string; icon: string }[] = [
-  { kind: "rect", label: "Rectangle", icon: "▭" },
-  { kind: "ellipse", label: "Circle", icon: "⬤" },
-  { kind: "triangle", label: "Triangle", icon: "▲" },
-  { kind: "star", label: "Star", icon: "★" },
-  { kind: "speech", label: "Speech bubble", icon: "💬" },
-];
-
-function roundRectPath(w: number, h: number, r: number) {
-  return `M ${r} 0 H ${w - r} Q ${w} 0 ${w} ${r} V ${h - r} Q ${w} ${h} ${w - r} ${h} H ${r} Q 0 ${h} 0 ${h - r} V ${r} Q 0 0 ${r} 0 Z`;
-}
-function starPath(w: number, h: number) {
-  const cx = w / 2;
-  const cy = h / 2;
-  const spikes = 5;
-  let d = "";
-  for (let i = 0; i < spikes * 2; i++) {
-    const ang = -Math.PI / 2 + (i * Math.PI) / spikes;
-    const rx = (i % 2 === 0 ? 1 : 0.44) * (w / 2);
-    const ry = (i % 2 === 0 ? 1 : 0.44) * (h / 2);
-    d += `${i === 0 ? "M" : "L"} ${cx + Math.cos(ang) * rx} ${cy + Math.sin(ang) * ry} `;
-  }
-  return d + "Z";
-}
-function speechPath(w: number, h: number) {
-  const bh = h * 0.78;
-  const r = Math.min(w, bh) * 0.16;
-  const rb = w * 0.4;
-  const lb = w * 0.22;
-  const tip = w * 0.14;
-  return [
-    `M ${r} 0`,
-    `H ${w - r}`,
-    `Q ${w} 0 ${w} ${r}`,
-    `V ${bh - r}`,
-    `Q ${w} ${bh} ${w - r} ${bh}`,
-    `H ${rb}`,
-    `L ${tip} ${h}`,
-    `L ${lb} ${bh}`,
-    `H ${r}`,
-    `Q 0 ${bh} 0 ${bh - r}`,
-    `V ${r}`,
-    `Q 0 0 ${r} 0`,
-    `Z`,
-  ].join(" ");
-}
-// The SVG/Canvas path for a shape drawn inside a w×h box at the origin.
-function shapePath(shape: ShapeKind, w: number, h: number) {
-  switch (shape) {
-    case "rect":
-      return roundRectPath(w, h, Math.min(w, h) * 0.06);
-    case "ellipse":
-      return `M 0 ${h / 2} A ${w / 2} ${h / 2} 0 1 0 ${w} ${h / 2} A ${w / 2} ${h / 2} 0 1 0 0 ${h / 2} Z`;
-    case "triangle":
-      return `M ${w / 2} 0 L ${w} ${h} L 0 ${h} Z`;
-    case "star":
-      return starPath(w, h);
-    case "speech":
-      return speechPath(w, h);
-  }
-}
 
 function hslToHex(h: number, s: number, l: number) {
   s /= 100;
@@ -353,6 +287,7 @@ export function DrawingCanvas({
   confirmSubmit = false,
   allowPageDelete = true,
   resumeMode,
+  kits = BASE_KITS,
 }: {
   name: string;
   background?: string[];
@@ -370,6 +305,17 @@ export function DrawingCanvas({
   // Whether the "Delete page" control is offered. Pupils answering an assigned
   // activity get `false` so they can't remove the teacher's template pages.
   allowPageDelete?: boolean;
+  // Which toolbox kits the ＋ fan offers. A LIST rather than a flag per kit, so
+  // a new kit needs no new prop and no call-site edit. Defaults to the smallest
+  // toolbox, so a call site that forgets it offers less rather than more
+  // (SAFEGUARDING rule 8, deny by default).
+  //
+  // This decides what a canvas OFFERS. It never decides what renders: a
+  // template built with apparatus from a kit this canvas doesn't offer still
+  // draws, still moves if unlocked, and still flattens into the hand-in. That
+  // is the ordinary case, not an edge case — the teacher builds the apparatus
+  // and the child works on it.
+  kits?: KitId[];
   // Reopening a handed-back activity: "continue" restores the child's saved work
   // straight away (fully editable — strokes rub out, objects move — from the
   // local copy, or a same-fidelity composite across devices); "fresh" wipes it
@@ -691,16 +637,22 @@ export function DrawingCanvas({
       } else if (o.type === "shape") {
         ec.save();
         ec.translate(o.x, o.y);
-        const p = new Path2D(shapePath(o.shape, o.w, o.h));
-        if (o.fill && o.fill !== "none") {
-          ec.fillStyle = o.fill;
-          ec.fill(p);
-        }
-        if (o.stroke && o.strokeWidth > 0) {
-          ec.strokeStyle = o.stroke;
-          ec.lineWidth = o.strokeWidth;
-          ec.lineJoin = "round";
-          ec.stroke(p);
+        // Mirror of the on-screen SVG below: same parts, same roles, same fill
+        // rule. If these two ever diverge, a child's handed-in PNG stops
+        // matching what they drew.
+        ec.lineJoin = "round";
+        for (const part of shapeParts(o)) {
+          const p = new Path2D(part.d);
+          if (part.role === "outline" && o.fill && o.fill !== "none") {
+            ec.fillStyle = o.fill;
+            ec.fill(p, shapeFillRule(o.shape));
+          }
+          if (o.stroke && o.strokeWidth > 0) {
+            ec.strokeStyle = o.stroke;
+            ec.lineWidth =
+              part.role === "detail" ? detailStrokeWidth(o.strokeWidth) : o.strokeWidth;
+            ec.stroke(p);
+          }
         }
         ec.restore();
         // The shape's label, wrapped + centred inside the shape's usable area.
@@ -1538,23 +1490,27 @@ export function DrawingCanvas({
     refreshThumbs();
   }
 
-  // Place a shape as a movable / resizable / recolourable object.
-  function addShape(shape: ShapeKind) {
+  // Place a shape as a movable / resizable / recolourable object. Everything
+  // that varies between palette buttons — size, colours, a preset label — comes
+  // off the preset, so a new button is a table entry rather than another branch
+  // in here.
+  function addShape(preset: ShapePreset) {
     pushHistory();
     const id = `o${objIdRef.current++}`;
-    const w = 320;
-    const h = shape === "ellipse" || shape === "star" || shape === "speech" ? 280 : 220;
+    const w = preset.w ?? SHAPE_DEFAULTS.w;
+    const h = preset.h ?? SHAPE_DEFAULTS.h;
     const obj: ShapeObj = {
       id,
       type: "shape",
-      shape,
+      shape: preset.kind,
       x: (W - w) / 2,
       y: (H - h) / 2,
       w,
       h,
-      fill: "#93c5fd",
-      stroke: "#1f2430",
-      strokeWidth: 6,
+      fill: preset.fill ?? SHAPE_DEFAULTS.fill,
+      stroke: preset.stroke ?? SHAPE_DEFAULTS.stroke,
+      strokeWidth: preset.strokeWidth ?? SHAPE_DEFAULTS.strokeWidth,
+      ...(preset.text ? { text: preset.text } : {}),
     };
     const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
     objectsRef.current[currentRef.current] = list;
@@ -1862,21 +1818,31 @@ export function DrawingCanvas({
   const objectsInteractive = tool === "cursor" || editingId !== null;
   const currentTemplate = templatesRef.current[current] ?? null;
 
-  // A palette of shapes to drop onto the canvas.
+  // A palette of shapes to drop onto the canvas, built from the kit registry so
+  // the buttons and the canvas cannot disagree about what a shape looks like:
+  // each button's art is drawn by the same shapeParts the canvas renders with.
   const shapesPalette = (
-    <div className="flex flex-wrap gap-1.5 rounded-xl border border-border bg-surface p-2 shadow-lg">
-      {SHAPES.map((s) => (
-        <button
-          key={s.kind}
-          type="button"
-          onClick={() => addShape(s.kind)}
-          title={s.label}
-          aria-label={s.label}
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-border text-xl hover:bg-background"
-        >
-          {s.icon}
-        </button>
-      ))}
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-2 shadow-lg">
+      {kitsToShow(kits).flatMap((kit) =>
+        kit.groups.map((group) => (
+          <div key={`${kit.id}-${group.id}`} role="group" aria-label={group.label}>
+            <div className="flex flex-wrap gap-1.5">
+              {group.presets.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => addShape(preset)}
+                  title={preset.label}
+                  aria-label={preset.label}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border hover:bg-background"
+                >
+                  <ShapeThumb preset={preset} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )),
+      )}
     </div>
   );
 
@@ -2467,6 +2433,43 @@ function RoundBtn({
   );
 }
 
+// A palette button's art. Drawn from the same shapeParts the canvas renders
+// with, at a fixed 24×24, so a button can never show something the canvas
+// doesn't draw — and so apparatus with no Unicode glyph (a base-10 rod) needs
+// no hand-drawn icon.
+function ShapeThumb({ preset }: { preset: ShapePreset }) {
+  const box = { shape: preset.kind, w: 24, h: 24 };
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" className="overflow-visible">
+      {shapeParts(box).map((part, i) => (
+        <path
+          key={i}
+          d={part.d}
+          fill={part.role === "detail" || preset.fill === "none" ? "none" : preset.fill ?? SHAPE_DEFAULTS.fill}
+          fillRule={shapeFillRule(preset.kind)}
+          stroke={preset.stroke ?? SHAPE_DEFAULTS.stroke}
+          strokeWidth={part.role === "detail" ? 0.6 : 1.5}
+          strokeLinejoin="round"
+        />
+      ))}
+      {preset.text && (
+        <text
+          x="12"
+          y="12"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize="10"
+          fontWeight="600"
+          fill="#1f2430"
+          stroke="none"
+        >
+          {preset.text}
+        </text>
+      )}
+    </svg>
+  );
+}
+
 function FanBtn({
   children,
   label,
@@ -2854,12 +2857,14 @@ function MediaObjectView({
       onChange(o.id, { x: (e.clientX - d.ax) / scale, y: (e.clientY - d.ay) / scale });
     } else {
       let w = Math.max(24, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
-      // Images keep their aspect ratio; shapes resize freely.
-      const h =
-        o.type === "image"
-          ? w / o.aspect
-          : Math.max(24, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
-      if (o.type === "image") w = Math.min(w, W);
+      // One lock rule for every object. A picture keeps the proportions it was
+      // imported at; a shape keeps whatever proportion its geometry says it
+      // means something at (a hundred flat squashed is not a hundred). Anything
+      // that returns null resizes freely on both axes, which is every shape
+      // today.
+      const lock = o.type === "image" ? o.aspect : shapeAspect(o);
+      const h = lock ? w / lock : Math.max(24, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
+      if (lock) w = Math.min(w, W);
       onChange(o.id, { w, h });
     }
   }
@@ -2906,13 +2911,22 @@ function MediaObjectView({
           preserveAspectRatio="none"
           className="pointer-events-none block h-full w-full overflow-visible"
         >
-          <path
-            d={shapePath(o.shape, o.w, o.h)}
-            fill={o.fill === "none" ? "none" : o.fill}
-            stroke={o.stroke}
-            strokeWidth={o.strokeWidth}
-            strokeLinejoin="round"
-          />
+          {shapeParts(o).map((part, i) => (
+            <path
+              key={i}
+              d={part.d}
+              // Only the outline carries the fill; detail parts are the internal
+              // division lines of apparatus like a base-10 flat, and filling
+              // them would black the shape in.
+              fill={part.role === "detail" || o.fill === "none" ? "none" : o.fill}
+              fillRule={shapeFillRule(o.shape)}
+              stroke={o.stroke}
+              strokeWidth={
+                part.role === "detail" ? detailStrokeWidth(o.strokeWidth) : o.strokeWidth
+              }
+              strokeLinejoin="round"
+            />
+          ))}
         </svg>
       )}
 

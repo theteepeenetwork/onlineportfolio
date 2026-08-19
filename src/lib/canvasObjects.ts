@@ -15,6 +15,8 @@
 // No `server-only` here: imported by both the client canvas and the server
 // actions. Keep it free of DB / Node-only imports (mirrors quiz.ts).
 
+import { SHAPE_KINDS, type ShapeKind } from "./canvasShapes";
+
 // Canvas model space (matches DrawingCanvas W×H). Object geometry is stored in
 // these units and scaled for display, so it is resolution-independent.
 export const OBJ_W = 1000;
@@ -26,8 +28,11 @@ export const MAX_OBJECT_PAGES = 60;
 export const MAX_LABEL_LEN = 500;
 export const MAX_COLOR_LEN = 32;
 
-export type ShapeKind = "rect" | "ellipse" | "triangle" | "star" | "speech";
-const SHAPE_KINDS: ShapeKind[] = ["rect", "ellipse", "triangle", "star", "speech"];
+// Shape geometry and the kind list live in canvasShapes.ts, which is the single
+// source of truth for both the validation gate below and the canvas palette.
+// Re-exported so existing importers of `ShapeKind` are unaffected.
+export type { ShapeKind };
+export { SHAPE_KINDS };
 
 // Fields shared by every placed object.
 type ObjCommon = {
