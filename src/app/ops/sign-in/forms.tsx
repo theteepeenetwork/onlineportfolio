@@ -85,7 +85,14 @@ export function PasswordForm() {
         />
       </div>
       <ErrorNote state={state} />
-      <button className="btn-brand w-full" type="submit" disabled={pending}>
+      {/* Busy, never disabled (ruling R16, which the rest of the operator area
+          already follows). A disabled control cannot be focused and announces
+          nothing, so somebody on a keyboard is left at a dead end with no
+          stated cause — and `.btn-brand` greys to half opacity while disabled,
+          which takes the label below AA contrast at the moment it is telling
+          the operator what is happening. `aria-busy` says the same thing to a
+          screen reader, and "Checking…" says it on screen. */}
+      <button className="btn-brand w-full" type="submit" aria-busy={pending || undefined}>
         {pending ? "Checking…" : "Continue"}
       </button>
     </form>
@@ -136,7 +143,7 @@ export function CodeForm({
         one works once.
       </p>
       <ErrorNote state={state} />
-      <button className="btn-brand w-full" type="submit" disabled={pending}>
+      <button className="btn-brand w-full" type="submit" aria-busy={pending || undefined}>
         {pending ? "Checking…" : "Sign in"}
       </button>
     </form>
@@ -209,7 +216,7 @@ export function EnrolmentForm({
           unchanged. Your recovery codes were printed when the account was created; keep them offline.
         </p>
         <ErrorNote state={state} />
-        <button className="btn-brand w-full" type="submit" disabled={pending}>
+        <button className="btn-brand w-full" type="submit" aria-busy={pending || undefined}>
           {pending ? "Checking…" : "Confirm"}
         </button>
       </form>
