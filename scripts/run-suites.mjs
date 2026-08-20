@@ -93,10 +93,18 @@ export async function runAll(suites) {
   // that is checked in. The lanes are a detail of how the tests ran, not a
   // change to the project, so the file goes back exactly as it was found.
   const tsconfig = readFileSync("tsconfig.json", "utf8");
+  const restore = () => {
+    if (readFileSync("tsconfig.json", "utf8") !== tsconfig) writeFileSync("tsconfig.json", tsconfig);
+  };
+  // Also on the way out under a Ctrl-C or a kill, because the window where the
+  // file is wrong is the window somebody is most likely to `git add -A` in.
+  process.once("SIGINT", restore);
+  process.once("SIGTERM", restore);
+  process.once("exit", restore);
   try {
     return await runJobs(suites);
   } finally {
-    if (readFileSync("tsconfig.json", "utf8") !== tsconfig) writeFileSync("tsconfig.json", tsconfig);
+    restore();
   }
 }
 

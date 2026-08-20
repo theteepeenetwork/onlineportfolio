@@ -1478,7 +1478,7 @@ once a child taps it**.
 | Resize handle | 20×20 | 64 |
 | Turn (rotate) handle | 20×20 | 64 |
 | Delete (✕) | 24×24 | 64 |
-| Add / edit label (✏) | 24×24 | 64 |
+| ~~Add / edit label (✏)~~ | ~~24×24~~ | **fixed 20 Aug 2026 — now 64px in the toolbar (F42)** |
 
 These are the controls a child uses to *arrange* their work rather than to draw
 it, and moving a counter into place is most of what an apparatus worksheet asks
@@ -1497,7 +1497,7 @@ selected state — place a shape, tap it, measure — so the answer stays true. 
 palette buttons a child taps to *place* a shape are already at 64px and already
 asserted, in the same spec.
 
-## F42 · A child can write, but cannot get back into what they wrote · Medium → Open
+## F42 · A child can write, but cannot get back into what they wrote · Medium → Fixed
 
 Found on 2026-08-19 while reading a red gate rather than a screen, which is the
 only reason it was found at all: `tests/e2e/text.spec.ts` fails on `main` at
@@ -1521,7 +1521,22 @@ delete now live "in the floating toolbar at 64px", but `ObjectToolbar` has no
 edit control: order, padlock, duplicate, style, and that is all. So the intended
 home for this affordance exists and is empty.
 
-**To close this.** Put edit in `ObjectToolbar` at 64px for both object types,
-delete the shape's 24px corner leftover, and let `text.spec.ts` find it by its
-accessible name — which closes a slice of F41 with the same change. Until then
-the e2e gate is red on this one test, and it is red for a true reason.
+**Fixed on 2026-08-20, the way it said to.** `ObjectToolbar` now carries an
+Edit control at 64px, shown for a shape's label and for a text box alike
+whenever the person looking at it may edit it, and the shape's 24×24 corner
+pencil is gone. Double-click still works — it is quicker once you know it — but
+it is no longer the only way in, and the button is focusable, so re-editing text
+is reachable from a keyboard for the first time (WCAG 2.2 **2.1.1**, Level A).
+`tests/e2e/text.spec.ts` finds it by its accessible name and was already in the
+blocking e2e suite, so the repro stays where it is.
+
+**One row of F41 goes with it**: "Add / edit label, 24×24" is now 64px and off
+the corner. The other three — resize, turn, delete — are untouched and still
+need F41's design answer.
+
+**Found while fixing this, and not fixed here:** a text box has **no delete at
+all**. `TextObjectView` renders only a resize handle, and its own comment says
+delete "moved to the floating toolbar" — but `ObjectToolbar` never had one, so a
+child who places a text box cannot remove it. A shape can, from its 24px corner
+✕. That is the same missing-toolbar-control shape as this finding and belongs
+with F41's decision about where those controls live, which is the owner's.

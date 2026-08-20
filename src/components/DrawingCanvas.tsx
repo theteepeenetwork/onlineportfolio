@@ -2978,6 +2978,7 @@ function ObjectToolbar({
   onStyle,
   onDuplicate,
   canDuplicate,
+  onEditText,
   unrotate,
 }: {
   o: Obj;
@@ -2992,6 +2993,9 @@ function ObjectToolbar({
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
   canDuplicate: boolean;
+  // Open the words on this object for editing. Undefined when this person
+  // cannot edit it, which is the only thing that hides the button.
+  onEditText?: (id: string) => void;
   // The counter-rotation for a rotated object, so the toolbar reads the right
   // way up over a shape that has been turned. Composed with the toolbar's own
   // centring transform, never substituted for it.
@@ -3117,6 +3121,24 @@ function ObjectToolbar({
             </button>
           )}
         </>
+      )}
+
+      {/* The way back into the words, for a shape's label and for a text box
+          alike (F42). Double-clicking the object still works and is quicker
+          once you know it — but it is invisible, it is unreliable for a
+          three-year-old on a tablet, and it cannot be reached from a keyboard
+          at all, so it cannot be the only way in. This button is 64px, is
+          focusable, and says what it does. */}
+      {onEditText && (
+        <button
+          type="button"
+          onClick={() => onEditText(o.id)}
+          className={btn}
+          title={"text" in o && o.text?.trim() ? "Change the words" : "Add words"}
+          aria-label="Edit text"
+        >
+          <Icon name="edit" size={30} decorative />
+        </button>
       )}
 
       {/* Duplicate. Showing 24 with base-10 apparatus is two rods and four
@@ -3661,6 +3683,7 @@ function MediaObjectView({
           onSendToBack={onSendToBack}
           onDuplicate={onDuplicate}
           canDuplicate={canDuplicate}
+          onEditText={o.type === "shape" && cap.editable ? onEditText : undefined}
           unrotate={unrotate || undefined}
           onStyle={(patch) => {
             onChange(o.id, patch);
@@ -3675,21 +3698,6 @@ function MediaObjectView({
               is turned back the other way. Without it they hang upside-down
               off a shape rotated 180°, and the "top-left" pencil ends up at
               the bottom right. */}
-          {o.type === "shape" && (
-            <button
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => onEditText(o.id)}
-              style={unrotate ? { transform: unrotate } : undefined}
-              className="pointer-events-auto absolute -left-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white shadow"
-              title={o.text ? "Edit label" : "Add label"}
-              aria-label="Edit text"
-            >
-              <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
-                <Icon name="edit" size={11} decorative />
-              </span>
-            </button>
-          )}
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
@@ -3868,6 +3876,7 @@ function TextObjectView({
           onSendToBack={onSendToBack}
           onDuplicate={onDuplicate}
           canDuplicate={canDuplicate}
+          onEditText={cap.editable ? onEditText : undefined}
           onStyle={() => {}}
         />
       )}
