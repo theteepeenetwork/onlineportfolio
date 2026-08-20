@@ -2968,7 +2968,20 @@ type ObjHandlers = {
 //    pieces — e.g. the numbers being sorted).
 //  - child, own object          → fully editable (their import), no padlock.
 function objCapabilities(o: Obj, author: boolean) {
-  if (author) return { movable: true, editable: true, showLock: true, fixed: false, source: false };
+  if (author) {
+    // A padlock you can drag straight through is not a padlock. Locking pins
+    // the object for the person who locked it too, until they unlock it —
+    // otherwise "locked" means two different things on the same screen, and a
+    // teacher who has just tapped it watches the thing they locked slide under
+    // their own finger.
+    //
+    // The padlock itself stays reachable (the object still selects, and its
+    // toolbar still carries the lock), so the way out is exactly the way in.
+    if (o.locked) {
+      return { movable: false, editable: false, showLock: true, fixed: true, source: false };
+    }
+    return { movable: true, editable: true, showLock: true, fixed: false, source: false };
+  }
   const fromTemplate = !!o.fromTemplate;
   // An endless source. A child may START a drag on it — that is how they get a
   // new one — but the source itself never moves, whatever the padlock says.
@@ -3019,6 +3032,9 @@ function ObjectToolbar({
   unrotate?: string;
 }) {
   const shape = o.type === "shape" ? (o as ShapeObj) : null;
+  // Locked, seen by the person who locked it. Everything except the padlock is
+  // a way of changing the object, so while it is pinned none of it is offered.
+  const pinned = showAuthor && !!o.locked;
   const btn =
     "pointer-events-auto flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-background hover:bg-surface";
 
@@ -3098,22 +3114,30 @@ function ObjectToolbar({
     >
       {showAuthor && (
         <>
+          {/* Locked pins the object for its author too, so while it is locked
+              the padlock is the only control offered: order, endless supply,
+              duplicate and the style pickers all change the thing that was
+              just declared unchangeable. Unlock and they are all back. */}
+          {!pinned && (
+            <>
           <button type="button" onClick={() => onSendToBack(o.id)} className={btn} title="Send behind other objects" aria-label="Send to back">
             <Icon name="send-to-back" size={30} decorative />
           </button>
           <button type="button" onClick={() => onBringToFront(o.id)} className={btn} title="Bring in front of other objects" aria-label="Bring to front">
             <Icon name="bring-to-front" size={30} decorative />
           </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => onToggleLock(o.id)}
             className={btn}
             aria-pressed={!!o.locked}
-            aria-label={o.locked ? "Locked for pupils" : "Unlocked for pupils"}
+            aria-label={o.locked ? "Locked in place" : "Unlocked"}
             title={
               o.locked
-                ? "Locked — pupils can't move this. Tap to unlock."
-                : "Unlocked — pupils can move this. Tap to lock."
+                ? "Locked in place — nobody can move this, including you. Tap to unlock."
+                : "Unlocked — you and your pupils can move this. Tap to lock it in place."
             }
           >
             <Icon name={o.locked ? "lock-closed" : "lock-open"} size={30} decorative />
@@ -3121,7 +3145,7 @@ function ObjectToolbar({
           {/* Make this a source. A child dragging it gets a new one and this
               stays put, so a worksheet hands out as many counters or ten-rods
               as they need and they never open a palette. */}
-          {shape && (
+          {!pinned && shape && (
             <button
               type="button"
               onClick={() => onStyle({ infinite: !shape.infinite })}
@@ -3143,6 +3167,7 @@ function ObjectToolbar({
       {/* Duplicate. Showing 24 with base-10 apparatus is two rods and four
           ones; showing 7 with counters is seven counters. Without this, each
           one costs a trip back out to the ＋ fan and the palette. */}
+      {!pinned && (
       <button
         type="button"
         onClick={() => onDuplicate(o.id)}
@@ -3153,6 +3178,7 @@ function ObjectToolbar({
       >
         <Icon name="duplicate" size={30} decorative />
       </button>
+      )}
 
       {/* The numbers behind a parameterised shape. This is what makes twelve
           fraction buttons unnecessary: halves, quarters and eighths are on the
@@ -3337,7 +3363,10 @@ function MediaObjectView({
   onFinishEditing,
 }: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean; editing: boolean }) {
   const cap = objCapabilities(o, author);
-  const canGrab = interactive && cap.movable;
+  // `cap.showLock` is the author. A locked object is not movable by anyone, but
+  // its author must still be able to TAP it — that is how they reach the
+  // padlock again. A pupil's locked object keeps `pointer-events: none`.
+  const canGrab = interactive && (cap.movable || cap.showLock);
   // `rot: 0` is never persisted, so absent means upright.
   const rot = o.type === "shape" ? o.rot ?? 0 : 0;
   // The toolbar and the corner controls are children of the rotating wrapper,
@@ -3387,7 +3416,13 @@ function MediaObjectView({
     }
   }
   function startMove(e: React.PointerEvent) {
-    if (!cap.movable) return;
+    if (!cap.movable) {
+      // Pinned: selecting is still allowed, because that is how the padlock is
+      // reached, but nothing moves. Silently — a locked object that shifts by a
+      // pixel is the confusion this exists to remove.
+      if (cap.showLock) onSelect(o.id);
+      return;
+    }
     e.stopPropagation();
     e.preventDefault();
     // Dragging a source pulls a NEW one off it. The pointer capture stays on
@@ -3831,7 +3866,10 @@ function TextObjectView({
   onFinishEditing,
 }: ObjHandlers & { o: TextObj; selected: boolean; editing: boolean }) {
   const cap = objCapabilities(o, author);
-  const canGrab = interactive && cap.movable;
+  // `cap.showLock` is the author. A locked object is not movable by anyone, but
+  // its author must still be able to TAP it — that is how they reach the
+  // padlock again. A pupil's locked object keeps `pointer-events: none`.
+  const canGrab = interactive && (cap.movable || cap.showLock);
   // A text box has no fill / line, so the toolbar (order + padlock) is teacher-only.
   // Edit and delete live here now (F41), so the toolbar has to show whenever
   // the child can do either — not only for a teacher.
@@ -3858,7 +3896,12 @@ function TextObjectView({
     }
   }
   function startMove(e: React.PointerEvent) {
-    if (editing || !cap.movable) return;
+    if (editing) return;
+    if (!cap.movable) {
+      // Pinned: select so the padlock is reachable, but do not drag.
+      if (cap.showLock) onSelect(o.id);
+      return;
+    }
     e.stopPropagation();
     e.preventDefault();
     onSelect(o.id);
