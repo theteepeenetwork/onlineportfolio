@@ -484,6 +484,17 @@ const BANNED_GROUP_KEYS = {
 // a denylist entry protecting nothing, and one rename should not be able to
 // quietly empty this list.
 const DENY_FIELDS = [
+  // Connector credentials (PR-connector). Each of these is, or unlocks, a live
+  // bearer token for one teacher's activity library. `keyHash` is the API token
+  // itself; `codeHash` and `refreshHash` are the two stages of the claude.ai
+  // OAuth grant; `redirectUrisJson` is where a connector may be sent back to,
+  // and an operator who could edit it could redirect a teacher's authorization
+  // code to themselves. None of them have an operational use, so all four are
+  // denied outright rather than argued about.
+  "keyHash",
+  "codeHash",
+  "refreshHash",
+  "redirectUrisJson",
   // Child work and per-child state
   "caption",
   "textContent",

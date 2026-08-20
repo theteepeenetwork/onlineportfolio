@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { execSync } from "node:child_process";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
@@ -33,6 +33,13 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const MEDIA_DIR = process.env.MEDIA_DIR || path.join(process.cwd(), ".media");
+
+// Connector API tokens, one per tenant. Mirrored in tests/battery/helpers.ts —
+// keep the two in step. Fictional, and only ever loaded into the throwaway
+// battery database; the column stores the SHA-256 of these, never the value.
+const API_TOKEN_A = "sj_live_fixtureSchoolAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const API_TOKEN_B = "sj_live_fixtureSchoolBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+const API_TOKEN_C = "sj_live_fixtureSchoolCfrozenCCCCCCCCCCCCCCCCCCC";
 
 const OAK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#fff"/><rect x="150" y="120" width="100" height="140" fill="#8b5a2b"/><circle cx="200" cy="110" r="80" fill="#2e7d32"/></svg>`;
 
@@ -481,6 +488,50 @@ async function main() {
   });
 
   // -------------------------------------------------------------------------
+  // Connector tokens (PR-connector).
+  //
+  // Three tokens, one per tenant, so cross-tenant isolation is testable on the
+  // API surface the same way it already is on the screens: School A's token
+  // must never reach School B's activities, and neither may write to School C,
+  // which is frozen.
+  //
+  // The raw values are here in the clear, and they are fixtures in the same
+  // sense as the operator password above: they exist only in prisma/seed-test.ts
+  // and tests/battery/helpers.ts, they are only ever loaded into a throwaway
+  // test database, and nothing in the application knows or cares that a token
+  // is a fixture. Only the SHA-256 goes in the column, exactly as it does in
+  // production — there is no fixture branch in resolveApiToken().
+  //
+  // Cleared first for the same reason the operator row is: the demo seed above
+  // wipes school data and would leave these behind, and a second run would then
+  // hit the unique constraint on the hash.
+  // -------------------------------------------------------------------------
+  await db.oAuthGrant.deleteMany();
+  await db.oAuthClient.deleteMany();
+  await db.apiToken.deleteMany();
+
+  // A folder for School B, so the cross-tenant folder test has one to try to
+  // borrow. Without it that test skips, and a skipped isolation test is a gap
+  // wearing a green tick.
+  await db.folder.create({ data: { name: "Oakfield — autumn", color: "#8AB9D6", teacherId: oakTeacher.id } });
+
+  // School A's teacher comes from the demo seed this script runs first, so it is
+  // looked up rather than created.
+  const bedesTeacher = await db.teacher.findUnique({ where: { email: "teacher@school.uk" }, select: { id: true } });
+  if (!bedesTeacher) throw new Error("[seed-test] expected teacher@school.uk from the demo seed");
+
+  const sha = (value: string) => createHash("sha256").update(value).digest("hex");
+  for (const [label, teacherId, token] of [
+    ["Fixture — School A", bedesTeacher.id, API_TOKEN_A],
+    ["Fixture — School B", oakTeacher.id, API_TOKEN_B],
+    ["Fixture — School C (frozen)", larchTeacher.id, API_TOKEN_C],
+  ] as const) {
+    await db.apiToken.create({
+      data: { teacherId, label, keyHash: sha(token), hint: token.slice(8, 12), kind: "PERSONAL" },
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // The platform operator fixture (PR1).
   //
   // This is how the blocking auth spec signs in WITHOUT a bypass: it knows the
@@ -600,6 +651,7 @@ async function main() {
   console.log("  School B voice: /uploads/seed-oak-voice.m4a (APPROVED)  /uploads/seed-oak-voice-pending.webm (PENDING)");
   console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class ARCH22 (Willow)  read-only");
   console.log("  StoryJar library: seed-autumn-walk (published, /uploads/shared/seed-shared-bg.svg)  seed-not-published-yet (unpublished)");
+  console.log("  Connector tokens: School A/B/C — see API_TOKEN_* in prisma/seed-test.ts and tests/battery/helpers.ts");
   console.log("  Platform operator: ops@storyjar.test / fixture-operator-pass-9271 + a real TOTP code (no bypass exists)");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).

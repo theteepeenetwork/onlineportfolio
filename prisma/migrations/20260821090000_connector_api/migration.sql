@@ -13,7 +13,7 @@
 CREATE TABLE "ApiToken" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "label" TEXT NOT NULL,
-    "tokenHash" TEXT NOT NULL,
+    "keyHash" TEXT NOT NULL,
     "hint" TEXT NOT NULL,
     "kind" TEXT NOT NULL DEFAULT 'PERSONAL',
     "teacherId" TEXT NOT NULL,
@@ -21,11 +21,10 @@ CREATE TABLE "ApiToken" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "expiresAt" DATETIME,
     "lastUsedAt" DATETIME,
-    "revokedAt" DATETIME,
     CONSTRAINT "ApiToken_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "Teacher" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "ApiToken_grantId_fkey" FOREIGN KEY ("grantId") REFERENCES "OAuthGrant" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
-CREATE UNIQUE INDEX "ApiToken_tokenHash_key" ON "ApiToken"("tokenHash");
+CREATE UNIQUE INDEX "ApiToken_keyHash_key" ON "ApiToken"("keyHash");
 CREATE INDEX "ApiToken_teacherId_idx" ON "ApiToken"("teacherId");
 CREATE INDEX "ApiToken_grantId_idx" ON "ApiToken"("grantId");
 
@@ -47,7 +46,6 @@ CREATE TABLE "OAuthGrant" (
     "codeUsedAt" DATETIME,
     "refreshHash" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "revokedAt" DATETIME,
     CONSTRAINT "OAuthGrant_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "OAuthClient" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "OAuthGrant_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "Teacher" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );

@@ -1,4 +1,4 @@
-import { type Cookie, type Page, expect } from "@playwright/test";
+import { type APIRequestContext, type Cookie, type Page, expect } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { codeForStep, totpStepAt } from "@/lib/ops/totp";
 
@@ -136,6 +136,63 @@ export async function studentIdFromLogin(page: Page, code: string, name: string)
 // `x-forwarded-for` before the app sees it (verified, see src/lib/rateLimit.ts).
 export function ownThrottleKey(label: string): Record<string, string> {
   return { "x-forwarded-for": `203.0.113.${label}-${Date.now()}` };
+}
+
+// ---------------------------------------------------------------------------
+// Connector API tokens (PR-connector). See prisma/seed-test.ts, which holds the
+// same three strings — keep them in step.
+//
+// One per tenant, so "School A's token cannot reach School B's activities" is a
+// thing a test can actually assert rather than a thing the code says about
+// itself. School C's account is frozen, so its token is how the read-only rule
+// is exercised on the API surface.
+// ---------------------------------------------------------------------------
+export const API_TOKEN = {
+  schoolA: "sj_live_fixtureSchoolAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  schoolB: "sj_live_fixtureSchoolBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+  schoolCFrozen: "sj_live_fixtureSchoolCfrozenCCCCCCCCCCCCCCCCCCC",
+} as const;
+
+// Call the MCP endpoint with a bearer token and no browser session, which is how
+// Claude reaches it. `request` is Playwright's APIRequestContext — deliberately
+// not `page`, so nothing rides on a cookie.
+export async function mcpCall(
+  request: APIRequestContext,
+  token: string,
+  method: string,
+  params?: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const res = await request.post("/api/mcp", {
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    data: { jsonrpc: "2.0", id: 1, method, ...(params ? { params } : {}) },
+    failOnStatusCode: false,
+  });
+  const text = await res.text();
+  let body: Record<string, unknown> = {};
+  try {
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    body = { raw: text };
+  }
+  return { status: res.status(), body };
+}
+
+// Call one MCP tool and hand back the tool result. `isError` is the connector's
+// own refusal channel, distinct from a transport error — see src/lib/api/mcp.ts.
+export async function mcpTool(
+  request: APIRequestContext,
+  token: string,
+  name: string,
+  args: Record<string, unknown> = {},
+): Promise<{ status: number; isError: boolean; text: string; data: Record<string, unknown> | null }> {
+  const { status, body } = await mcpCall(request, token, "tools/call", { name, arguments: args });
+  const result = (body as { result?: { content?: { text?: string }[]; isError?: boolean; structuredContent?: Record<string, unknown> } }).result;
+  return {
+    status,
+    isError: Boolean(result?.isError),
+    text: result?.content?.[0]?.text ?? JSON.stringify(body),
+    data: result?.structuredContent ?? null,
+  };
 }
 
 // ---------------------------------------------------------------------------

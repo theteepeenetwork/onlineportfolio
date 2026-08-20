@@ -7,6 +7,8 @@ import type { DisplayStyle } from "@/lib/teacherName";
 import { ProfileForm } from "./ProfileForm";
 import { SecurityForms } from "./SecurityForms";
 import { BillingPanel } from "./BillingPanel";
+import { ConnectClaude } from "./ConnectClaude";
+import { originUrl } from "@/lib/appOrigin";
 
 // Account settings — the teacher's own profile, sign-in details and plan/billing.
 // Teacher-only (no child-facing page). Profile & security edits stay available
@@ -22,13 +24,27 @@ export default async function AccountPage({
   const { checkout, frozen } = await searchParams;
 
   const teacher = { id: user.teacher.id, schoolId: user.teacher.schoolId };
-  const [profile, account, sub] = await Promise.all([
+  const [profile, account, sub, tokens, apps, origin] = await Promise.all([
     db.teacher.findUnique({
       where: { id: user.teacher.id },
       select: { name: true, title: true, displayStyle: true, email: true, schoolName: true, country: true, foundingMember: true },
     }),
     accountStateForTeacher(teacher),
     governingSubscription(teacher),
+    // The teacher's own connector tokens. `hint` and the timestamps only — the
+    // token itself was never stored, so there is nothing here to leak.
+    db.apiToken.findMany({
+      where: { teacherId: user.teacher.id, kind: "PERSONAL" },
+      select: { id: true, label: true, hint: true, createdAt: true, lastUsedAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    // Apps connected through claude.ai, so a teacher can see and undo them.
+    db.oAuthGrant.findMany({
+      where: { teacherId: user.teacher.id },
+      select: { id: true, createdAt: true, oauthClient: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    originUrl(),
   ]);
   if (!profile) return null;
 
@@ -51,6 +67,18 @@ export default async function AccountPage({
         />
 
         <SecurityForms email={profile.email} />
+
+        <ConnectClaude
+          mcpUrl={`${origin}/api/mcp`}
+          tokens={tokens.map((t) => ({
+            id: t.id,
+            label: t.label,
+            hint: t.hint,
+            createdAt: t.createdAt.toISOString(),
+            lastUsedAt: t.lastUsedAt ? t.lastUsedAt.toISOString() : null,
+          }))}
+          apps={apps.map((a) => ({ id: a.id, name: a.oauthClient.name, createdAt: a.createdAt.toISOString() }))}
+        />
 
         <BillingPanel
           status={account.status}

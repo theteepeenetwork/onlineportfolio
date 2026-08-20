@@ -99,6 +99,20 @@ const nextConfig: NextConfig = {
         source: "/.well-known/apple-developer-merchantid-domain-association",
         destination: "/api/apple-pay-domain-association",
       },
+      // OAuth discovery, at the fixed paths RFC 8414 and RFC 9728 define. A
+      // connector fetches these before it holds any credentials. Rewrites
+      // rather than route files because a directory whose name begins with a
+      // dot is not something to rely on the router noticing.
+      //
+      // Both the bare path and the path-suffixed form are mapped: a client that
+      // knows the resource is /api/mcp asks for
+      // /.well-known/oauth-protected-resource/api/mcp first and falls back to
+      // the bare path, and answering only one of them is the difference between
+      // a connector that adds itself and one that fails with nothing to act on.
+      { source: "/.well-known/oauth-authorization-server", destination: "/api/oauth/metadata" },
+      { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/oauth/metadata" },
+      { source: "/.well-known/oauth-protected-resource", destination: "/api/oauth/resource" },
+      { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/oauth/resource" },
     ];
   },
 };

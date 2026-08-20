@@ -711,13 +711,14 @@ model MailSuppression {
 // Claude made, and decides whether a class ever sees it.
 //
 // Retention: RETENTION.md, "Connector tokens". Purpose and residual risks:
-// docs/DPIA.md R16.
+// docs/DPIA.md R17.
 
 // One bearer token. Either minted by the teacher on their own account page
 // (kind = PERSONAL, for Claude Code / Claude Desktop) or issued by the OAuth
 // flow when they add StoryJar as a connector on claude.ai (kind = OAUTH).
 //
-// Only the SHA-256 of the token is stored, so a copy of the database file is
+// Only the SHA-256 of the token is stored (`keyHash`), so a copy of the database
+// file is
 // not a set of live tokens (this follows OperatorSession.tokenHash rather than
 // the older Session.token, which stores raw). `hint` is the first few
 // characters of the token — enough for a teacher to tell two rows apart on the
@@ -726,8 +727,22 @@ model ApiToken {
   id         String      @id @default(cuid())
   // The teacher's own words: "Claude on my laptop". Never shown to anyone else.
   label      String
-  tokenHash  String      @unique
+  // Named keyHash, not tokenHash: OperatorSession already owns `tokenHash`, and
+  // the ops blindness gate's denylist is keyed on the column NAME. Denylisting
+  // one name would either break the operator's own sign-in or leave this one
+  // unprotected, so the two credentials get two names and both are classified.
+  keyHash    String      @unique
+  // The four characters after the fixed `sj_live_` prefix — enough for a teacher
+  // to tell two rows apart on their account page, and not a credential: the
+  // prefix is constant and four characters of a 43-character secret identify
+  // nothing. Deliberately NOT on the ops denylist, and deliberately not longer.
   hint       String
+  // REVOKING IS DELETING, on both of these tables and on OAuthGrant. There is no
+  // `revokedAt` flag, deliberately: a row that is merely marked revoked still
+  // holds a hash somebody could match, and every read would then depend on
+  // remembering the filter. Deleting the row means the credential does not exist
+  // anywhere — a teacher revoking a token, a connector rotating its access
+  // token, and a replayed authorization code all end the same way.
   kind       String      @default("PERSONAL") // PERSONAL | OAUTH
   teacher    Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId  String
@@ -742,7 +757,6 @@ model ApiToken {
   // written at most once an hour (see touchApiToken) so it never becomes a log
   // of when a teacher works.
   lastUsedAt DateTime?
-  revokedAt  DateTime?
 
   @@index([teacherId])
   @@index([grantId])
@@ -779,7 +793,6 @@ model OAuthGrant {
   // working the moment the real client uses its own.
   refreshHash   String?     @unique
   createdAt     DateTime    @default(now())
-  revokedAt     DateTime?
   accessTokens  ApiToken[]
 
   @@index([teacherId])

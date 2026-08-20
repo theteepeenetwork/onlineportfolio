@@ -90,7 +90,15 @@ function Twinkle({
   );
 }
 
-export default function TeacherLoginPage() {
+export default async function TeacherLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  // Only ever set by the OAuth consent page (src/app/oauth/authorize), so a
+  // teacher who was sent here mid-connection lands back on it. teacherLogin
+  // validates the value before acting on it.
+  const { next } = await searchParams;
   return (
     <main className="relative flex flex-1 flex-col overflow-hidden p-6">
       {/* top-left brand, home link */}
@@ -172,7 +180,7 @@ export default function TeacherLoginPage() {
             <h1 className="text-[32px] font-semibold leading-tight">Hello again!</h1>
             <p className="mt-2 text-[15px] text-muted">Sign in to your class jars.</p>
             <div className="text-left">
-              <TeacherLoginForm />
+              <TeacherLoginForm next={next} />
             </div>
             <p className="mt-5 text-sm text-muted">
               New here?{" "}
