@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { teacherLogin, studentLogin, logout, drawOnCanvas, pageCount } from "./helpers";
+import { PrismaClient } from "@prisma/client";
+import { teacherLogin, studentLogin, logout, drawOnCanvas, openDrawing, pageCount } from "./helpers";
 
 // Use Finn, who has no seeded work, so the assertions are unambiguous.
 test("a student's drawing goes through approval into their journal", async ({ page }) => {
@@ -236,4 +237,207 @@ test("the teacher's note on returned work reaches the child, on the jar and on t
   await logout(page);
   await studentLogin(page, "Ella");
   await expect(page.getByText(note)).toBeVisible();
+});
+
+// Looking at the work before approving it.
+//
+// The queue IS the approval gate — nothing reaches a child's jar until a
+// teacher acts on an item here — and the only view of the thing being judged
+// was an 84×64 crop on the card. A teacher was being asked to approve work they
+// could not see. The thumbnail opens it now.
+test("a teacher can open a child's work from the queue", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/queue");
+
+  const open = page.getByRole("button", { name: /^Open .*'s work$/ }).first();
+  await expect(open, "the work on a queue card has to be openable").toBeVisible();
+  await open.click();
+
+  const viewer = page.getByRole("dialog");
+  await expect(viewer).toBeVisible();
+  // Shown whole, not cropped: a crop hides the corner a child drew something in,
+  // which is the one thing this view exists to prevent.
+  const fit = await viewer.locator("img").first().evaluate((el) =>
+    getComputedStyle(el).objectFit,
+  );
+  expect(fit).toBe("contain");
+
+  // Escape closes it, as Escape closes everything in this app.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // And so does clicking away from it.
+  await open.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.mouse.click(12, 12);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+// Multi-page work, all of it.
+//
+// `mediaPath` is only ever the COVER; `mediaPathsJson` holds the rest and
+// supersedes it. The queue read the cover alone, so a teacher deciding whether
+// to publish a four-page piece of work saw page one and had no idea the other
+// three existed.
+test("a teacher can page through multi-page work in the queue", async ({ page }) => {
+  const db = new PrismaClient();
+  let itemId: string | null = null;
+  try {
+    await studentLogin(page, "Dev");
+    await openDrawing(page);
+    await drawOnCanvas(page);
+    await page.locator('button[title="Add page"]').click();
+    await drawOnCanvas(page);
+    await page.locator('button[title="Done"]').click();
+    const confirm = page.getByRole("button", { name: /Yes|Hand in|Add to/ }).first();
+    if (await confirm.count()) await confirm.click();
+    await expect(page).toHaveURL(/\/student/, { timeout: 15_000 });
+
+    // Polled: the hand-in is a server action, and asserting against the row
+    // before it lands is a race that passes on a fast machine and fails on CI.
+    await expect
+      .poll(
+        async () =>
+          (
+            await db.journalItem.findFirst({
+              where: { status: "PENDING", student: { name: "Dev" } },
+              orderBy: { createdAt: "desc" },
+            })
+          )?.mediaPathsJson ?? null,
+        { timeout: 15_000, message: "the two-page hand-in should reach the queue" },
+      )
+      .not.toBeNull();
+    const item = await db.journalItem.findFirst({
+      where: { status: "PENDING", student: { name: "Dev" } },
+      orderBy: { createdAt: "desc" },
+    });
+    itemId = item?.id ?? null;
+    // Two pages really were stored — otherwise the rest of this proves nothing.
+    expect(JSON.parse(item?.mediaPathsJson ?? "[]")).toHaveLength(2);
+
+    await logout(page);
+    await teacherLogin(page);
+    await page.goto("/teacher/queue");
+    await page.getByRole("button", { name: "Open Dev's work" }).first().click();
+
+    const viewer = page.getByRole("dialog");
+    await expect(viewer).toBeVisible();
+    await expect(viewer, "the viewer should say which page of how many").toContainText(
+      "page 1 of 2",
+    );
+
+    const first = await viewer.locator("img").first().getAttribute("src");
+    await page.getByRole("button", { name: "Next page" }).click();
+    await expect(viewer).toContainText("page 2 of 2");
+    expect(
+      await viewer.locator("img").first().getAttribute("src"),
+      "page 2 has to be a different image from page 1",
+    ).not.toBe(first);
+
+    // The ends are guarded, and every page is reachable directly.
+    await expect(page.getByRole("button", { name: "Next page" })).toBeDisabled();
+    await page.getByRole("button", { name: "Page 1", exact: true }).click();
+    await expect(viewer).toContainText("page 1 of 2");
+    await expect(page.getByRole("button", { name: "Previous page" })).toBeDisabled();
+  } finally {
+    // This hands work in, and several specs are written around a child having
+    // exactly one waiting item. Clean up what it made.
+    if (itemId) await db.journalItem.delete({ where: { id: itemId } }).catch(() => {});
+    await db.$disconnect();
+  }
+});
+
+// The jar is a record of everything a child has made, at full width, with its
+// pages.
+//
+// It used to be a grid of 280px cards, each showing page one cropped to fill
+// its band. A four-page piece of work therefore appeared as a single cropped
+// square, with nothing anywhere to say the other three pages existed — on the
+// one screen in the product whose whole job is to show a child what they have
+// done.
+test("a child can turn the pages of their work in their own jar", async ({ page }) => {
+  const db = new PrismaClient();
+  let itemId: string | null = null;
+  try {
+    // Two pages, drawn differently, so "the page changed" is provable.
+    await studentLogin(page, "Dev");
+    await openDrawing(page);
+    await drawOnCanvas(page);
+    await page.locator('button[title="Add page"]').click();
+    await drawOnCanvas(page);
+    await page.locator('button[title="Done"]').click();
+    const confirm = page.getByRole("button", { name: /Yes|Hand in|Add to/ }).first();
+    if (await confirm.count()) await confirm.click();
+    await expect(page).toHaveURL(/\/student/, { timeout: 15_000 });
+
+    await expect
+      .poll(
+        async () =>
+          (
+            await db.journalItem.findFirst({
+              where: { status: "PENDING", student: { name: "Dev" } },
+              orderBy: { createdAt: "desc" },
+            })
+          )?.id ?? null,
+        { timeout: 15_000 },
+      )
+      .not.toBeNull();
+    const item = (await db.journalItem.findFirst({
+      where: { status: "PENDING", student: { name: "Dev" } },
+      orderBy: { createdAt: "desc" },
+    }))!;
+    itemId = item.id;
+    expect(JSON.parse(item.mediaPathsJson ?? "[]"), "a two-page hand-in").toHaveLength(2);
+
+    // Approve it into the jar.
+    await logout(page);
+    await teacherLogin(page);
+    await page.goto("/teacher/queue");
+    const row = page.locator('[data-child="Dev"]').first();
+    await row.getByRole("button", { name: /Add to jar/ }).click();
+    await expect
+      .poll(async () => (await db.journalItem.findUnique({ where: { id: itemId! } }))?.status, {
+        timeout: 15_000,
+      })
+      .toBe("APPROVED");
+
+    // --- The child's own jar ---
+    await logout(page);
+    await studentLogin(page, "Dev");
+    await page.goto("/student");
+
+    const record = page.getByRole("navigation", { name: /^Pages of / }).first();
+    await expect(record, "two-page work gets page controls in the jar").toBeVisible();
+
+    const shown = page.locator("article").filter({ has: record }).locator("img").first();
+    const first = await shown.getAttribute("src");
+    await record.getByRole("button", { name: "Page 2" }).click();
+    await expect
+      .poll(async () => shown.getAttribute("src"), { timeout: 10_000 })
+      .not.toBe(first);
+
+    // The ends are guarded, so a child cannot page off either end of their work.
+    await expect(record.getByRole("button", { name: /Next/ })).toBeDisabled();
+    await record.getByRole("button", { name: "Page 1" }).click();
+    await expect
+      .poll(async () => shown.getAttribute("src"), { timeout: 10_000 })
+      .toBe(first);
+    await expect(record.getByRole("button", { name: /Back/ })).toBeDisabled();
+
+    // Every one of those is a child's target: SAFEGUARDING rule 18's 64px floor
+    // (the a11y gate sweeps this page too, but a control this new deserves the
+    // assertion next to the behaviour it belongs to).
+    for (const name of [/Back/, /Next/, "Page 1", "Page 2"]) {
+      const b = record.getByRole("button", { name: name as string & RegExp });
+      const box = (await b.boundingBox())!;
+      expect(Math.min(box.width, box.height), `${name} is a child-sized target`).toBeGreaterThanOrEqual(64);
+    }
+
+    // The work is shown whole, never cropped — the corner a child drew in is
+    // the thing a crop throws away.
+    expect(await shown.evaluate((el) => getComputedStyle(el).objectFit)).toBe("contain");
+  } finally {
+    if (itemId) await db.journalItem.delete({ where: { id: itemId } }).catch(() => {});
+    await db.$disconnect();
+  }
 });

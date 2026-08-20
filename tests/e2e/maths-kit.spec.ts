@@ -236,4 +236,144 @@ test.describe("what the kit draws", () => {
     // The hours are not a setting: a clock with seven hours is not a clock.
     await expect(page.getByRole("button", { name: "Parts: more" })).toHaveCount(0);
   });
+  // --- The number line ------------------------------------------------------
+  //
+  // ONE button, three numbers. A palette row of 0–10, 0–20, "in 2s" and "in
+  // 10s" would only be a slower way to reach the same three steppers, so the
+  // line arrives 0–10 in ones and everything else is set on the placed shape.
+
+  test("a number line draws an axis with equally spaced ticks, numbered", async ({ page }) => {
+    await place(page, "Number lines", "Number line");
+    const svg = page.locator('svg[data-shape="numberline"]');
+    await expect(svg).toBeVisible();
+
+    // Axis plus one tick per boundary — eleven for ten segments.
+    const d = (await svg.locator("path").first().getAttribute("d"))!;
+    const runs = d.match(/M /g)!.length;
+    expect(runs).toBe(12); // the axis, then 11 ticks
+
+    // Equally spaced is the whole claim, so it is measured rather than assumed.
+    const xs = [...d.matchAll(/M ([\d.]+) [\d.]+ V/g)].map((m) => Number(m[1]));
+    expect(xs.length).toBe(11);
+    const gaps = xs.slice(1).map((x, i) => x - xs[i]);
+    for (const g of gaps) expect(Math.abs(g - gaps[0])).toBeLessThan(0.5);
+
+    await expect(svg.locator("text")).toHaveText(
+      ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+    );
+  });
+
+  test("the start and the interval are the teacher's to set", async ({ page }) => {
+    await place(page, "Number lines", "Number line");
+    const svg = page.locator('svg[data-shape="numberline"]');
+
+    // Count in fives...
+    for (let i = 0; i < 4; i++) {
+      await page.getByRole("button", { name: "Interval: more" }).click();
+    }
+    // ...starting at five. The start steps BY the interval, so one tap moves it
+    // to the next number the line can actually label rather than to 1.
+    await page.getByRole("button", { name: "Start: more" }).click();
+    await expect(svg.locator("text").first()).toHaveText("5");
+    await expect(svg.locator("text").nth(1)).toHaveText("10");
+    await expect(svg.locator("text").last()).toHaveText("55");
+
+    // Fewer segments means fewer ticks and fewer numbers, from the same line.
+    for (let i = 0; i < 5; i++) {
+      await page.getByRole("button", { name: "Segments: fewer" }).click();
+    }
+    await expect(svg.locator("text")).toHaveCount(6);
+  });
+
+  test("the numbers can be taken off, for a line a child labels", async ({ page }) => {
+    await place(page, "Number lines", "Number line");
+    const svg = page.locator('svg[data-shape="numberline"]');
+    await expect(svg.locator("text")).toHaveCount(11);
+
+    // The control says what it DOES, not what is already true, so its name
+    // changes with the state rather than staying "Number line numbers".
+    await page.getByRole("button", { name: "Numbers are shown" }).click();
+    await expect(svg.locator("text")).toHaveCount(0);
+    // The ticks stay — a blank number line is a line, not an empty box.
+    const d = (await svg.locator("path").first().getAttribute("d"))!;
+    expect(d.match(/M /g)!.length).toBe(12);
+    await expect(page.getByRole("button", { name: "Numbers are hidden" })).toBeVisible();
+  });
+
+  // --- The signs ------------------------------------------------------------
+
+  test("an operator is a shape, so its fill and line are the child's", async ({ page }) => {
+    await place(page, "Signs", "Add sign");
+    const path = page.locator('svg[data-shape="operator"] path').first();
+    await expect(path).toBeVisible();
+    // Filled and stroked like any other shape — that is the point of it being
+    // geometry rather than a character in a font nobody may have installed.
+    expect(await path.getAttribute("fill")).not.toBe("none");
+    await page.getByRole("button", { name: "Line width 12" }).click();
+    await expect(path).toHaveAttribute("stroke-width", "12");
+  });
+
+  test("one sign can be changed into another without starting again", async ({ page }) => {
+    await place(page, "Signs", "Add sign");
+    const path = page.locator('svg[data-shape="operator"] path').first();
+    const plus = (await path.getAttribute("d"))!;
+
+    await page.getByRole("button", { name: "Divide", exact: true }).click();
+    const divide = (await path.getAttribute("d"))!;
+    expect(divide).not.toBe(plus);
+    // A bar and two dots: three subpaths where the plus has one.
+    expect(divide.match(/M /g)!.length).toBe(3);
+    expect(plus.match(/M /g)!.length).toBe(1);
+  });
+
+  // --- Base 10 --------------------------------------------------------------
+
+  test("stepping a locked grid's divisions moves its box with them", async ({ page }) => {
+    await place(page, "Place value", "Base 10 hundred flat");
+    const wrapper = page.locator("div[data-object]").first();
+    const before = (await wrapper.boundingBox())!;
+    const cell = before.width / 10;
+
+    // A locked grid's proportion IS cols:rows, so changing the columns without
+    // moving the box left the two disagreeing — and nothing noticed until the
+    // next resize snapped the box to the new ratio under a finger that was only
+    // trying to make it bigger. The box moves now instead.
+    await page.getByRole("button", { name: "Columns: more" }).click();
+    const after = (await wrapper.boundingBox())!;
+
+    // One more column of the SAME squares, not eleven squeezed into the old
+    // width.
+    expect(Math.abs(after.width - (before.width + cell))).toBeLessThan(4);
+    expect(Math.abs(after.height - before.height)).toBeLessThan(4);
+    // And the box now agrees with the ratio, so a resize has nothing to catch
+    // up on.
+    expect(Math.abs(after.width / after.height - 11 / 10)).toBeLessThan(0.02);
+  });
+
+  test("the numbers shrink to stay apart as the line gets busier", async ({ page }) => {
+    await place(page, "Number lines", "Number line");
+    const svg = page.locator('svg[data-shape="numberline"]');
+
+    // Twenty segments counting in twenties: 0 to 400, three digits at the far
+    // end. Sized off the segment count alone this ran "90" into "100" and read
+    // as ninety thousand one hundred, so the size comes off the DIGIT count.
+    for (let i = 0; i < 10; i++) {
+      await page.getByRole("button", { name: "Segments: more" }).click();
+    }
+    for (let i = 0; i < 19; i++) {
+      await page.getByRole("button", { name: "Interval: more" }).click();
+    }
+    await expect(svg.locator("text")).toHaveCount(21);
+    await expect(svg.locator("text").last()).toHaveText("400");
+
+    const gaps = await page.evaluate(() => {
+      const boxes = [...document.querySelectorAll('svg[data-shape="numberline"] text')].map((e) =>
+        e.getBoundingClientRect(),
+      );
+      return boxes.slice(1).map((r, i) => r.left - boxes[i].right);
+    });
+    // Every number clear of the next. Not merely "not touching": a gap of a
+    // pixel is still one long run of digits to a child reading it.
+    for (const g of gaps) expect(g).toBeGreaterThan(4);
+  });
 });

@@ -23,6 +23,7 @@ import {
 } from "@/lib/draftStore";
 import { serverSaveDraft, serverLoadDraftBounded, serverDiscardDraft } from "@/lib/draftSync";
 import { MAX_OBJECTS_PER_PAGE, type CanvasObj } from "@/lib/canvasObjects";
+import { isStorableImageType } from "@/lib/imageTypes";
 import {
   detailStrokeWidth,
   kitsToShow,
@@ -36,6 +37,16 @@ import {
   MAX_PARTS,
   MIN_DIVISIONS,
   MIN_PARTS,
+  MIN_SIDES,
+  MAX_SIDES,
+  MIN_LINE_START,
+  MAX_LINE_START,
+  MIN_LINE_STEP,
+  MAX_LINE_STEP,
+  DEFAULT_LINE_STEP,
+  OPERATOR_KINDS,
+  OPERATOR_LABEL,
+  type OperatorKind,
   shapeAspect,
   shapeFillRule,
   shapeInnerBox,
@@ -168,6 +179,18 @@ const KIT_ICON: Record<KitId, IconName> = {
 // so the clone sits on the grid rather than half a step off it.
 const DUPLICATE_OFFSET = SNAP_UNITS * 2;
 
+// The longest side an imported picture is kept at. The canvas model is
+// 1000×700, so this is already twice the detail it can show — headroom for a
+// hand-in printed at a higher resolution, and nothing beyond that. A phone
+// photo arrives at 3840 wide; carried at full size, ONE of them is bigger than
+// the 16 MB a server action will accept.
+const MAX_IMPORT_PX = 2000;
+
+// The same, for a picture inside a quiz answer. Much smaller because that is
+// how it is shown — an answer's image renders at about thumbnail size, and
+// several of them ride in one form post.
+const MAX_OPTION_PX = 600;
+
 // Rotation snaps to this many degrees. 15° is 24 stops all the way round: fine
 // enough to point wherever a child means to, coarse enough that a right angle
 // really is a right angle rather than 89°.
@@ -182,8 +205,55 @@ const ROTATE_STEP = 15;
 // The child touch floor (SAFEGUARDING rule 18), as a number the offsets can be
 // derived from rather than a second place to keep in step.
 const HIT_PX = 64;
+// Above the floating toolbar's `z-30`. The two can only meet where there is room
+// for the toolbar neither above nor below the object — the case the placement
+// below deliberately accepts — and when they do, the object's own controls are
+// the ones that must stay pressable. A toolbar button a child cannot reach is
+// recoverable by moving the object first; a delete that eats the tap is not.
 const HANDLE_HIT =
-  "pointer-events-auto absolute flex h-16 w-16 items-center justify-center touch-none";
+  "pointer-events-auto absolute z-40 flex h-16 w-16 items-center justify-center touch-none";
+
+// Half the height of the box a turned object actually occupies on screen — which
+// is to say exactly where its topmost and bottommost corners land, because the
+// axis-aligned box of a rotated rectangle touches its extreme corners. The
+// floating toolbar is placed off THIS rather than off the object's own unturned
+// height, so that turning an object cannot swing a corner control into the
+// toolbar's band. Shared by the shape and the text box, which used to disagree:
+// the text box ignored rotation here altogether. Dimensions in SCREEN px.
+function rotatedHalfSpan(w: number, h: number, rot: number) {
+  if (!rot) return h / 2;
+  const rad = (rot * Math.PI) / 180;
+  return (Math.abs(w * Math.sin(rad)) + Math.abs(h * Math.cos(rad))) / 2;
+}
+
+// How far the four corner controls are pushed OUT from their corners, per axis.
+//
+// A line laid flat is a box a couple of pixels tall, so its top and bottom
+// corners are in nearly the same place — and two 64px presses in nearly the
+// same place means two of the four controls cannot be hit at all. Below one
+// press the controls are spread until exactly one press separates them, which
+// leaves a flat line with a control at each end of both its edges instead of a
+// pile at each end. At any ordinary size this is zero and each control sits
+// dead on its corner, as it must.
+function controlSpread(w: number, h: number) {
+  return { x: Math.max(0, HIT_PX - w) / 2, y: Math.max(0, HIT_PX - h) / 2 };
+}
+
+// How far from an object's centre the toolbar has to start. The rotated span
+// reaches the corner; each corner control is a HIT_PX press CENTRED on that
+// corner, so it reaches half a press further. Clearing both is what keeps the
+// toolbar off the controls — at every angle, including none at all, where the
+// toolbar used to sit over the top 20px of both top presses.
+//
+// The span is taken of a box no smaller than one press in either direction,
+// because that is where `controlSpread` has just put the controls of anything
+// flatter.
+function toolbarClearance(w: number, h: number, rot: number) {
+  return rotatedHalfSpan(Math.max(w, HIT_PX), Math.max(h, HIT_PX), rot) + HIT_PX / 2;
+}
+
+// The breathing space between the toolbar and the object it belongs to.
+const TOOLBAR_GAP = 12;
 
 // Movable / resizable things placed on top of the drawing: imported pictures
 // (images / PDF pages) and shapes.
@@ -227,7 +297,17 @@ type ShapeObj = ObjLock & {
   // ring: the band as a percentage of the radius. clock: whether the numerals
   // 1–12 are drawn.
   thickness?: number;
+  // clock: whether the numerals 1–12 are drawn.
+  // numberline: whether the numbers are printed under the ticks.
   numerals?: boolean;
+  // numberline: the number under the first tick, and what one step is worth.
+  // `parts` carries how many segments, so the last number is start + parts*step.
+  start?: number;
+  step?: number;
+  // operator: which of the four signs it draws.
+  operator?: OperatorKind;
+  // polygon: how many sides.
+  sides?: number;
   // Teacher-set: a SOURCE a child drags copies out of. See canvasObjects.
   infinite?: boolean;
   // Locks the proportion on resize, for shapes that only mean what they mean at
@@ -299,36 +379,7 @@ type Obj = ImageObj | ShapeObj | TextObj;
 type HistoryEntry = { img: string; objects: Obj[] };
 
 
-function hslToHex(h: number, s: number, l: number) {
-  s /= 100;
-  l /= 100;
-  const k = (n: number) => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => {
-    const c = l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-    return Math.round(255 * c).toString(16).padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
 
-// Where a colour sits on the vertical hue bar (0..1), so the handle tracks the
-// current colour. Greys / black fall back to the top.
-function hexToHueFrac(hex: string): number {
-  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
-  if (!m) return 0;
-  const n = parseInt(m[1], 16);
-  const r = (n >> 16) / 255;
-  const g = ((n >> 8) & 255) / 255;
-  const b = (n & 255) / 255;
-  const max = Math.max(r, g, b);
-  const d = max - Math.min(r, g, b);
-  if (d === 0) return 0;
-  let h: number;
-  if (max === r) h = ((g - b) / d) % 6;
-  else if (max === g) h = (b - r) / d + 2;
-  else h = (r - g) / d + 4;
-  return ((h * 60 + 360) % 360) / 360;
-}
 
 export function DrawingCanvas({
   name,
@@ -344,6 +395,7 @@ export function DrawingCanvas({
   quizMode,
   initialQuiz,
   initialAnswers,
+  wrongIds,
   quizReview = false,
   objectMode,
   initialObjects,
@@ -353,6 +405,7 @@ export function DrawingCanvas({
   onRestoreFields,
   confirmSubmit = false,
   allowPageDelete = true,
+  allowPageStructure = false,
   resumeMode,
   kits = BASE_KITS,
 }: {
@@ -370,7 +423,14 @@ export function DrawingCanvas({
   teacherNote?: string;
   withCaption?: boolean;
   onClose?: () => void;
-  onDone?: (pages: string[], quiz?: QuizPayload, objects?: CanvasObj[][]) => void;
+  // `previews` are `pages` with the movable pieces drawn on: the picture to
+  // show a teacher, where `pages` is the background to hand back to the editor.
+  onDone?: (
+    pages: string[],
+    quiz?: QuizPayload,
+    objects?: CanvasObj[][],
+    previews?: string[],
+  ) => void;
   // When set (and this canvas submits a form rather than calling onDone), the ✓
   // opens a "ready to hand in?" confirmation first — so a child can't submit an
   // activity with a single tap before working through all the pages.
@@ -378,6 +438,12 @@ export function DrawingCanvas({
   // Whether the "Delete page" control is offered. Pupils answering an assigned
   // activity get `false` so they can't remove the teacher's template pages.
   allowPageDelete?: boolean;
+  // Whether the pages themselves can be RESTRUCTURED — copied and reordered.
+  // Separate from deleting one, and off unless asked for: a child's page count
+  // is the shape of what they hand in, and copying pages of somebody else's
+  // worksheet is not something they need. Only the template builder turns it
+  // on (rule 8, deny by default).
+  allowPageStructure?: boolean;
   // Which toolbox kits the ＋ fan offers. A LIST rather than a flag per kit, so
   // a new kit needs no new prop and no call-site edit. Defaults to the smallest
   // toolbox, so a call site that forgets it offers less rather than more
@@ -399,10 +465,18 @@ export function DrawingCanvas({
   // undefined = no quiz (existing callers unaffected).
   quizMode?: "author" | "answer";
   initialQuiz?: QuizPayload;
-  // Reopening a sent-back quiz to fix it: the child's previously-CORRECT answers
-  // to pre-fill and lock, plus a flag to show them green ("review"). Wrong /
-  // unanswered questions are simply absent here, so they open blank to retry.
+  // Reopening a sent-back quiz to fix it: EVERY previous answer, plus which of
+  // them were wrong, plus a flag to show the right ones green ("review").
+  //
+  // The wrong ones used to be left out, so a child reopening a nine out of ten
+  // met nine green questions and one that looked as though they had never done
+  // it. They come back as answered now, marked for another look.
+  //
+  // `wrongIds` says WHICH to look at again and nothing more. The correct option
+  // is never sent to the client for a question they got wrong, so changing an
+  // answer stays a decision rather than a copy.
   initialAnswers?: QuizAnswer[];
+  wrongIds?: string[];
   quizReview?: boolean;
   // The movable-objects layer (pictures / shapes / text with a `locked` flag).
   //  - "author" = teacher building the template: every object is fully editable
@@ -427,6 +501,8 @@ export function DrawingCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const hiddenRef = useRef<HTMLInputElement>(null);
+  // The picture of the work, posted beside it. See `flushPreviewField()`.
+  const previewFieldRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Layers, per page, bottom to top:
@@ -578,9 +654,19 @@ export function DrawingCanvas({
   const pendingOptionRef = useRef<{ qid: string; oid: string } | null>(null);
   const quizFileRef = useRef<HTMLInputElement>(null);
   const [answers, setAnswers] = useState<Record<string, string>>(Object.fromEntries(initialAnswerMap));
-  // In review mode, the pre-filled (correct) questions are locked and shown
-  // green; the child can't change them, only retry the ones they got wrong.
-  const lockedQuizRef = useRef<Set<string>>(quizReview ? new Set(initialAnswerMap.keys()) : new Set());
+  // In review mode the questions they got RIGHT are locked and shown green; the
+  // wrong ones stay tappable. `initialAnswerMap` now carries both, so the lock
+  // set is the answered ones minus the wrong ones — locking is still exactly
+  // "you got this one right".
+  const wrongSet = new Set<string>(quizReview ? wrongIds ?? [] : []);
+  const lockedQuizRef = useRef<Set<string>>(
+    new Set(quizReview ? [...initialAnswerMap.keys()].filter((id) => !wrongSet.has(id)) : []),
+  );
+  // The ones still to look at again. State rather than a ref, because it has to
+  // clear the moment a child picks something: the mark reports THIS attempt, not
+  // the last one, and a child who has just changed their answer should not still
+  // be told to.
+  const [retryIds, setRetryIds] = useState<Set<string>>(() => new Set(wrongSet));
 
   useEffect(() => {
     if (allowImport) import("pdfjs-dist").catch(() => {});
@@ -595,6 +681,38 @@ export function DrawingCanvas({
   }, []);
 
   const [fanOpen, setFanOpen] = useState(false);
+  // Whether the pen's colour / thickness bar is showing. Opened by picking a
+  // pen, closed by touching the page — never on by default, so it cannot be
+  // sitting over a question box when a child arrives.
+  const [toolBarOpen, setToolBarOpen] = useState(false);
+  // Said out loud when the ✓ is pressed too early. A disabled button that does
+  // not say why is a button a child taps again and again.
+  const [holdUp, setHoldUp] = useState<string | null>(null);
+  const holdUpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function sayHoldUp(msg: string) {
+    setHoldUp(msg);
+    if (holdUpTimer.current) clearTimeout(holdUpTimer.current);
+    holdUpTimer.current = setTimeout(() => setHoldUp(null), 3200);
+  }
+  // Objects picked out by a marquee drag, moved and deleted as one.
+  //
+  // Deliberately SEPARATE from `selectedId` rather than replacing it. The
+  // properties toolbar and the four corner controls belong to one object — a
+  // fill picker for eight shapes at once is a different feature and a different
+  // set of questions — so a group carries a ring and nothing else, and the
+  // single selection keeps working exactly as it did.
+  const [multiIds, setMultiIds] = useState<string[]>([]);
+  const multiRef = useRef<string[]>([]);
+  multiRef.current = multiIds;
+  // The rubber band, in model units, while it is being dragged out.
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
+    null,
+  );
+  const marqueeRef = useRef<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  // The right-click menu: where it is, and what it offers. One piece of state
+  // for all three kinds of menu (object, empty canvas, page) so two can never
+  // be open at once.
+  const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   // Which kit's palette is open, by id — null when none is. One at a time, so
   // two popovers can never overlap each other on the child canvas.
   const [openKit, setOpenKit] = useState<KitId | null>(null);
@@ -604,13 +722,15 @@ export function DrawingCanvas({
   const [stripOpen, setStripOpen] = useState(true);
   // The line-thickness slider (child canvas). Closed by default; the line button
   // toggles it and a tap anywhere else on the stage puts it away again.
-  const [sliderOpen, setSliderOpen] = useState(false);
   // The slider only makes sense while a drawing tool is in hand.
-  const drawingTool = SHELF.some((t) => t.key === tool);
-  const toolLabel = SHELF.find((t) => t.key === tool)?.label ?? "";
-  const nibPreviewPx = Math.max(4, Math.min(38, size * 1.3));
+  // A pen, a felt tip, a highlighter or the rubber — something that DRAWS.
+  //
+  // Not just "in the shelf": the shelf's first entry is the Move tool, and
+  // treating that as a drawing tool put the pen properties bar over the bottom
+  // of the canvas while a child was dragging a shape, where it swallowed the
+  // resize handle of anything near it.
+  const drawingTool = tool !== "cursor" && tool !== "text" && SHELF.some((t) => t.key === tool);
   // The hue-bar handle just tracks the current tool's colour.
-  const hueFrac = hexToHueFrac(color);
   const [box, setBox] = useState({ w: 700, h: 490 });
 
   // Which text object (if any) is currently open for typing.
@@ -689,7 +809,7 @@ export function DrawingCanvas({
   // Flatten the current page. `includeObjects` overrides the mode default: the
   // object-free composite feeds the saved pages (author), while the Pages-panel
   // thumbnails force objects on for a true-to-life preview.
-  function compositeCurrentPage(includeObjects?: boolean): string {
+  function compositeCurrentPage(includeObjects?: boolean, forPreview?: boolean): string {
     const canvas = canvasRef.current;
     if (!canvas) return "";
     const exp = document.createElement("canvas");
@@ -817,7 +937,96 @@ export function DrawingCanvas({
     }
     // Pen strokes go on top of everything.
     ec.drawImage(canvas, 0, 0, W, H);
+    // The quiz, and ONLY on a preview.
+    //
+    // Question boxes are never flattened into the page that is saved or handed
+    // in — they stay structured so they remain interactive for the child and
+    // reviewable for the teacher, and a child's drawing stays free of them.
+    // A preview is a different thing: it is a picture OF the page, for looking
+    // at, and a picture of a quiz worksheet with no questions on it is what made
+    // a library card look like it had not saved.
+    if (forPreview) drawQuizForPreview(ec);
     return exp.toDataURL("image/png");
+  }
+
+  // The question boxes, drawn.
+  //
+  // A second renderer for one thing, which is a drift risk — the same one the
+  // shapes met and answered with `shapeParts()`: one model, two renderers, and a
+  // test that they agree. This mirrors `QuizBoxView`, and reuses its scaling
+  // rule so a box shrunk on screen shrinks here by the same amount.
+  function drawQuizForPreview(ec: CanvasRenderingContext2D) {
+    const boxes = quizRef.current.filter((q) => q.pageIndex === currentRef.current);
+    for (const q of boxes) {
+      const k = Math.min(1, q.w / QUIZ_W, q.h / QUIZ_H);
+      const px = (n: number) => n * k;
+      const pad = px(16);
+      ec.save();
+      // The box.
+      ec.beginPath();
+      ec.roundRect(q.x, q.y, q.w, q.h, px(24));
+      ec.fillStyle = "#FFFDF7";
+      ec.fill();
+      ec.lineWidth = Math.max(1, px(3));
+      ec.strokeStyle = "#E9C0CE";
+      ec.stroke();
+
+      // The question, wrapped by the same helper the shape labels use.
+      const promptBox = { w: q.w - pad * 2, h: q.h * 0.3 };
+      const fitted = fitTextToBox(q.prompt || "", promptBox.w, promptBox.h);
+      ec.fillStyle = "#1f2430";
+      ec.textAlign = "center";
+      ec.textBaseline = "top";
+      ec.font = `700 ${fitted.fontPx}px ${FONT_STACK}`;
+      fitted.lines.forEach((line, i) =>
+        ec.fillText(line, q.x + q.w / 2, q.y + pad + i * fitted.lineHeight),
+      );
+
+      // The answers, in the same one- or two-column grid the box uses.
+      const twoCol = q.options.length > 2;
+      const top = q.y + pad + Math.max(fitted.lines.length, 1) * fitted.lineHeight + px(10);
+      const gap = px(8);
+      const cols = twoCol ? 2 : 1;
+      const rows = Math.ceil(q.options.length / cols);
+      const cw = (q.w - pad * 2 - gap * (cols - 1)) / cols;
+      const chB = Math.max(px(28), (q.y + q.h - pad - top - gap * (rows - 1)) / rows);
+      ec.font = `600 ${px(20)}px ${FONT_STACK}`;
+      ec.textBaseline = "middle";
+      q.options.forEach((o, i) => {
+        const cx = q.x + pad + (i % cols) * (cw + gap);
+        const cy = top + Math.floor(i / cols) * (chB + gap);
+        const picked = answersRef.current.get(q.id) === o.id;
+        ec.beginPath();
+        ec.roundRect(cx, cy, cw, chB, px(12));
+        ec.fillStyle = picked ? "#F7E6EC" : "#ffffff";
+        ec.fill();
+        ec.lineWidth = Math.max(1, px(2));
+        ec.strokeStyle = picked ? "#BD3F63" : "#E4DCC8";
+        ec.stroke();
+        if (o.text) {
+          ec.fillStyle = "#1f2430";
+          ec.fillText(o.text, cx + cw / 2, cy + chB / 2, cw - px(12));
+        }
+      });
+      ec.restore();
+    }
+  }
+
+  // The picture of the work, posted alongside the work itself.
+  //
+  // Only when there is a quiz. For a pupil the movable pieces are already
+  // flattened into the composite, so the preview and the work of record are the
+  // same image — posting a second copy of every page would double the storage a
+  // hand-in costs for no gain. Question boxes are the one thing that is never
+  // flattened (that invariant is what keeps a published drawing a drawing), and
+  // leaving them out is what showed a teacher a blank white rectangle where a
+  // child's quiz page should be.
+  function flushPreviewField() {
+    const field = previewFieldRef.current;
+    if (!field) return;
+    const carriesQuiz = quizRef.current.length > 0;
+    field.value =
+      carriesQuiz && anyDrawnRef.current ? JSON.stringify(previewRef.current) : "";
   }
 
   // Save the current page (drawing + composite) and update the hidden field.
@@ -826,13 +1035,15 @@ export function DrawingCanvas({
     if (canvas) {
       pagesRef.current[currentRef.current] = canvas.toDataURL("image/png");
       compositeRef.current[currentRef.current] = compositeCurrentPage();
-      previewRef.current[currentRef.current] = bakeObjectsRef.current
-        ? compositeRef.current[currentRef.current]
-        : compositeCurrentPage(true);
+      // ALWAYS object- AND quiz-inclusive, whatever the composite left
+      // out. The preview is the picture of the page; the composite is
+      // the data, and the two are allowed to differ.
+      previewRef.current[currentRef.current] = compositeCurrentPage(true, true);
     }
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
     }
+    flushPreviewField();
     // Autosave a local draft off the same choke point (debounced). Skipped while
     // seeding/hydrating so restore doesn't immediately re-save itself.
     if (draftingEnabled && !loadingRef.current) {
@@ -992,13 +1203,20 @@ export function DrawingCanvas({
         if (si) c.drawImage(si, 0, 0, W, H);
       }
       compositeRef.current[i] = compositeCurrentPage();
-      previewRef.current[i] = bakeObjectsRef.current
-        ? compositeRef.current[i]
-        : compositeCurrentPage(true);
+      // ALWAYS object- AND quiz-inclusive, whatever the composite left
+      // out. The preview is the picture of the page; the composite is
+      // the data, and the two are allowed to differ.
+      previewRef.current[i] = compositeCurrentPage(true, true);
     }
 
-    // Land on the saved page.
-    currentRef.current = Math.min(Math.max(0, canvas.current), pagesRef.current.length - 1);
+    // Land on the FIRST page, not the one they happened to close on.
+    //
+    // Coming back to work is starting again at the beginning of it: a child who
+    // left off on page 3 has no idea what is on pages 1 and 2 until they look,
+    // and a teacher who sent it back with something to fix wrote that note about
+    // the whole thing. Restoring page 3 also drops them past the Next flow that
+    // walks them through the rest.
+    currentRef.current = 0;
     if (c) {
       c.clearRect(0, 0, W, H);
       const si = strokeImgs[currentRef.current];
@@ -1014,6 +1232,7 @@ export function DrawingCanvas({
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
     }
+    flushPreviewField();
     loadingRef.current = false;
   }
 
@@ -1108,9 +1327,10 @@ export function DrawingCanvas({
       for (let i = 0; i < pagesRef.current.length; i++) {
         currentRef.current = i;
         compositeRef.current[i] = compositeCurrentPage();
-        previewRef.current[i] = bakeObjectsRef.current
-          ? compositeRef.current[i]
-          : compositeCurrentPage(true);
+        // ALWAYS object- AND quiz-inclusive, whatever the composite left
+        // out. The preview is the picture of the page; the composite is
+        // the data, and the two are allowed to differ.
+        previewRef.current[i] = compositeCurrentPage(true, true);
       }
       currentRef.current = 0;
 
@@ -1119,6 +1339,7 @@ export function DrawingCanvas({
       if (hiddenRef.current) {
         hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
       }
+      flushPreviewField();
       setThumbs([...previewRef.current]);
       setReady(true);
     })();
@@ -1141,6 +1362,14 @@ export function DrawingCanvas({
     };
     measure();
     window.addEventListener("resize", measure);
+    // The window is not the only thing that resizes this. A sidebar opening, a
+    // font landing, the browser's own chrome changing height — any of it moves
+    // the wrapper without touching the window, and the stage was left drawn at
+    // whatever size it happened to be measured at, a third too narrow with the
+    // page pushed off to one side. Watch the element itself.
+    const ro =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => measure());
+    if (wrapRef.current && ro) ro.observe(wrapRef.current);
 
     const form = canvas.closest("form");
     const onSubmit = () => {
@@ -1171,6 +1400,7 @@ export function DrawingCanvas({
     window.addEventListener("pagehide", onHide);
 
     return () => {
+      ro?.disconnect();
       window.removeEventListener("resize", measure);
       form?.removeEventListener("submit", onSubmit, true);
       document.removeEventListener("visibilitychange", onHide);
@@ -1546,6 +1776,122 @@ export function DrawingCanvas({
     refreshUndoRedo();
   }
 
+  // Copy a page, with everything on it, and put the copy straight after it.
+  //
+  // A teacher building ten questions on one layout was rebuilding that layout
+  // ten times. Everything the page carries comes with it — the drawing, the
+  // template underneath, the movable objects and the quiz questions — because a
+  // duplicate that dropped any one of them would be a page they had to finish
+  // by hand, which is the job this is here to remove.
+  //
+  // Copied objects and questions get NEW ids. Two objects sharing an id would
+  // be one object as far as selection, deletion and the answer map are
+  // concerned, so a child editing the copy would silently edit the original.
+  function duplicatePageAt(target: number) {
+    if (target < 0 || target >= pagesRef.current.length) return;
+    finishEditing();
+    // Bake the page on screen first, so duplicating a DIFFERENT page never
+    // drops the in-progress work on the one being viewed.
+    syncHidden();
+    const at = target + 1;
+    pagesRef.current.splice(at, 0, pagesRef.current[target]);
+    templatesRef.current.splice(at, 0, templatesRef.current[target]);
+    objectsRef.current.splice(
+      at,
+      0,
+      (objectsRef.current[target] ?? []).map((o) => ({ ...o, id: `o${objIdRef.current++}` })),
+    );
+    compositeRef.current.splice(at, 0, compositeRef.current[target]);
+    previewRef.current.splice(at, 0, previewRef.current[target]);
+
+    // A question knows which page it is on by index, so inserting a page moves
+    // every question after the insertion up one — and the copied page's own
+    // questions are copied with it.
+    const copies = quizRef.current
+      .filter((q) => q.pageIndex === target)
+      .map((q) => ({
+        ...q,
+        id: `q${quizSeqRef.current++}`,
+        pageIndex: at,
+        options: q.options.map((o) => ({ ...o })),
+      }));
+    quizRef.current = [
+      ...quizRef.current.map((q) => (q.pageIndex >= at ? { ...q, pageIndex: q.pageIndex + 1 } : q)),
+      ...copies,
+    ];
+    setQuizQuestions([...quizRef.current]);
+
+    // Page indices shift, so drop the (now-misaligned) history — the same rule
+    // deleting a page follows.
+    undoRef.current = {};
+    redoRef.current = {};
+    currentRef.current = at;
+    setPageCount(pagesRef.current.length);
+    setCurrent(at);
+    setSelectedId(null);
+    setObjects(objectsRef.current[at] ?? []);
+    loadPage(at);
+    anyDrawnRef.current = true;
+    syncHidden();
+    refreshThumbs();
+    refreshUndoRedo();
+  }
+
+  // Move a page one place up or down the strip.
+  //
+  // A page is not one thing. It is an entry in five parallel arrays plus a set
+  // of quiz questions that know which page they are on BY INDEX, and a reorder
+  // that moved four of the five would look right and hand in wrong. So this
+  // follows the same order duplicate and delete do, for the same reasons.
+  function movePageBy(index: number, delta: number) {
+    const target = index + delta;
+    if (index < 0 || index >= pagesRef.current.length) return;
+    if (target < 0 || target >= pagesRef.current.length) return;
+    finishEditing();
+    // Bake the page on screen first, so reordering from a DIFFERENT page never
+    // drops the in-progress work on the one being viewed.
+    syncHidden();
+
+    const swap = <T,>(arr: T[]) => {
+      const t = arr[index];
+      arr[index] = arr[target];
+      arr[target] = t;
+    };
+    swap(pagesRef.current);
+    swap(templatesRef.current);
+    swap(objectsRef.current);
+    swap(compositeRef.current);
+    swap(previewRef.current);
+
+    // The questions swap with their pages. This is the part a naive reorder
+    // silently breaks: the pictures move and the questions stay behind.
+    quizRef.current = quizRef.current.map((q) =>
+      q.pageIndex === index
+        ? { ...q, pageIndex: target }
+        : q.pageIndex === target
+          ? { ...q, pageIndex: index }
+          : q,
+    );
+    setQuizQuestions([...quizRef.current]);
+
+    // Page indices moved, so drop the (now-misaligned) history — the same rule
+    // duplicate and delete follow.
+    undoRef.current = {};
+    redoRef.current = {};
+    // Stay with the page that moved rather than with the position it left, so
+    // a teacher can press the same button again to keep going.
+    currentRef.current = target;
+    setPageCount(pagesRef.current.length);
+    setCurrent(target);
+    setSelectedId(null);
+    setMultiIds([]);
+    setObjects(objectsRef.current[target] ?? []);
+    loadPage(target);
+    syncHidden();
+    refreshThumbs();
+    refreshUndoRedo();
+  }
+
   // Delete a specific page (by index). Used by the per-thumbnail delete cross,
   // so it can remove any page — not only the one on screen.
   function deletePageAt(target: number) {
@@ -1627,6 +1973,121 @@ export function DrawingCanvas({
   }
 
   // Place a shape as a movable / resizable / recolourable object. Everything
+  // One menu at a time.
+  //
+  // The properties toolbar hovers over the object it belongs to; the add menu
+  // and its palette sit down the left. Open together they overlap, and a
+  // teacher is left with two sets of controls stacked on each other and no way
+  // to tell which one a tap will reach — it happens either way round: pick a
+  // shape while something is selected, or tap an object while the palette is
+  // open. Opening either now closes the other, which is what tapping a menu
+  // means anyway: I am doing this now, not that.
+  function selectObject(id: string | null) {
+    setSelectedId(id);
+    // A quiz question and a canvas object are both "the thing being edited",
+    // and two things claiming that at once means two sets of controls on screen
+    // with no way to tell which a tap will reach. Picking either drops the
+    // other.
+    if (id !== null) setSelectedQuestionId(null);
+    // Tapping a single object outside the marquee selection ends it. Tapping
+    // one INSIDE it keeps the group, so a child can pick the group up by any of
+    // its members without it dissolving under the finger.
+    if (id === null || !multiRef.current.includes(id)) setMultiIds([]);
+    if (id !== null) {
+      setFanOpen(false);
+      setOpenKit(null);
+    }
+  }
+
+  // The other half of the rule in `selectObject`: picking a question lets go of
+  // whatever object was selected, including a whole marquee group.
+  function selectQuestion(id: string | null) {
+    setSelectedQuestionId(id);
+    if (id !== null) {
+      setSelectedId(null);
+      setMultiIds([]);
+    }
+  }
+
+  // The rubber band. Dragging on empty canvas with the pointer tool draws a box
+  // and everything it touches is picked up together.
+  //
+  // Touching, not enclosing: a child drawing a box round six counters should
+  // not have to get every edge outside every counter. Locked and unmovable
+  // objects are left out, so a selection is always a selection that can move —
+  // a group that silently refuses to budge because one member is pinned is
+  // worse than not selecting it.
+  function marqueeStart(e: React.PointerEvent<HTMLDivElement>) {
+    selectObject(null);
+    setSelectedQuestionId(null);
+    const r = e.currentTarget.getBoundingClientRect();
+    const p = { x: (e.clientX - r.left) / scale, y: (e.clientY - r.top) / scale };
+    const box = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+    marqueeRef.current = box;
+    setMarquee(box);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function marqueeMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!marqueeRef.current) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const box = {
+      ...marqueeRef.current,
+      x1: (e.clientX - r.left) / scale,
+      y1: (e.clientY - r.top) / scale,
+    };
+    marqueeRef.current = box;
+    setMarquee(box);
+  }
+
+  function marqueeEnd() {
+    const box = marqueeRef.current;
+    marqueeRef.current = null;
+    setMarquee(null);
+    if (!box) return;
+    const x0 = Math.min(box.x0, box.x1);
+    const x1 = Math.max(box.x0, box.x1);
+    const y0 = Math.min(box.y0, box.y1);
+    const y1 = Math.max(box.y0, box.y1);
+    // A tap rather than a drag. Leave the selection cleared, which is what
+    // tapping the background has always meant.
+    if (x1 - x0 < 6 && y1 - y0 < 6) return;
+    const hits = (objectsRef.current[currentRef.current] ?? [])
+      .filter((o) => objCapabilities(o, isObjectAuthor).movable)
+      .filter((o) => {
+        const b = objScreenBox(o);
+        return b && b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0;
+      })
+      .map((o) => o.id);
+    setMultiIds(hits.length > 1 ? hits : []);
+    // One object caught is not a group; make it the ordinary single selection
+    // so its toolbar and corners appear as they would from a tap.
+    if (hits.length === 1) selectObject(hits[0]);
+  }
+
+  // An object's box in MODEL units, for hit-testing the marquee against. A text
+  // box stores no width or height — it is sized by its words — so it is
+  // measured off the layout, which is also what makes a turned object test
+  // against the box it actually occupies.
+  function objScreenBox(o: Obj) {
+    if (o.type !== "text") return { x: o.x, y: o.y, w: o.w, h: o.h };
+    const el = document.querySelector<HTMLElement>(`div[data-object][data-id="${o.id}"]`);
+    if (!el) return null;
+    return { x: o.x, y: o.y, w: el.offsetWidth / scale, h: el.offsetHeight / scale };
+  }
+
+
+  function openAddMenu(next: boolean) {
+    setFanOpen(next);
+    setOpenKit(null);
+    if (next) setSelectedId(null);
+  }
+
+  function toggleKit(id: KitId) {
+    setOpenKit((v) => (v === id ? null : id));
+    setSelectedId(null);
+  }
+
   // that varies between palette buttons — size, colours, a preset label — comes
   // off the preset, so a new button is a table entry rather than another branch
   // in here.
@@ -1652,6 +2113,14 @@ export function DrawingCanvas({
       ...(preset.parts !== undefined ? { parts: preset.parts } : {}),
       ...(preset.thickness !== undefined ? { thickness: preset.thickness } : {}),
       ...(preset.numerals ? { numerals: true } : {}),
+      ...(preset.start !== undefined ? { start: preset.start } : {}),
+      ...(preset.step !== undefined ? { step: preset.step } : {}),
+      ...(preset.operator !== undefined ? { operator: preset.operator } : {}),
+      ...(preset.sides !== undefined ? { sides: preset.sides } : {}),
+      // A number line arrives numbered unless its preset is the blank one, so
+      // "absent" has to mean ON here — the opposite of the clock, whose blank
+      // face is the default. Stored either way rather than left to be guessed.
+      ...(preset.kind === "numberline" ? { numerals: preset.numerals !== false } : {}),
       ...(preset.lockAspect ? { lockAspect: true } : {}),
     };
     const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
@@ -1666,6 +2135,187 @@ export function DrawingCanvas({
     refreshThumbs();
   }
 
+  // --- The clipboard -------------------------------------------------------
+  //
+  // In-app, not the system one. It carries whole objects — a number line with
+  // its start, segments and interval; a shape with its fill and its label —
+  // between the pages of this editor, which is what it is for. The system
+  // clipboard cannot hold a ShapeObj without inventing a serialisation for it,
+  // and reading it back asks the browser for permission the first time, which
+  // is a prompt in the middle of a lesson.
+  const clipboardRef = useRef<Obj[]>([]);
+
+  // What a cut, a copy or a delete acts on: the marquee group when there is
+  // one, otherwise whatever single object is selected. One function so the
+  // keyboard and the right-click menu can never disagree about it.
+  function selectionIds(): string[] {
+    if (multiRef.current.length) return multiRef.current;
+    return selectedId ? [selectedId] : [];
+  }
+
+  // The subset of the selection this person may actually change.
+  //
+  // `objCapabilities` is the one place that decides it, and the corner ✕ and
+  // the object toolbar have always asked it. The right-click menu and the
+  // keyboard shortcuts are new routes to the same actions, and they have to ask
+  // the same question — otherwise a child answering a worksheet can right-click
+  // the teacher's furniture and delete it, which is precisely what the corner
+  // controls refuse to offer them (rule 8, deny by default).
+  //
+  // A marquee can legitimately hold both: a child may be allowed to MOVE a
+  // template piece while not being allowed to remove it. So the group moves as
+  // one and only the child's own work is cut, copied or deleted.
+  function editableIds(): string[] {
+    const list = objectsRef.current[currentRef.current] ?? [];
+    const wanted = new Set(selectionIds());
+    return list
+      .filter((o) => wanted.has(o.id) && objCapabilities(o, isObjectAuthor).editable)
+      .map((o) => o.id);
+  }
+
+  function copySelection() {
+    const ids = new Set(editableIds());
+    if (!ids.size) return;
+    const list = objectsRef.current[currentRef.current] ?? [];
+    // Snapshot, not a reference: the objects on the page go on being edited
+    // after the copy, and a clipboard that changed with them would paste
+    // whatever they had become rather than what was copied.
+    clipboardRef.current = list.filter((o) => ids.has(o.id)).map((o) => ({ ...o }));
+  }
+
+  function cutSelection() {
+    const ids = editableIds();
+    if (!ids.length) return;
+    copySelection();
+    deleteObject(ids[0]); // deletes the whole group when the id is part of one
+  }
+
+  function pasteClipboard() {
+    const held = clipboardRef.current;
+    if (!held.length) return;
+    const list = objectsRef.current[currentRef.current] ?? [];
+    const room = MAX_OBJECTS_PER_PAGE - list.length;
+    if (room <= 0) return;
+    pushHistory();
+    // Offset by the same amount duplicate uses, so a paste lands visibly beside
+    // what it came from rather than exactly on top of it looking like nothing
+    // happened. The whole group shifts together, keeping its arrangement.
+    const copies = held.slice(0, room).map((o) => ({
+      ...o,
+      // Whatever it was copied from, what lands is the pupil's own object —
+      // not part of the template, not pinned, and not itself a dispenser. The
+      // same three markers `spawnFromSource` strips, for the same reason.
+      fromTemplate: undefined,
+      locked: undefined,
+      infinite: undefined,
+      id: `o${objIdRef.current++}`,
+      x: Math.min(W - 24, o.x + DUPLICATE_OFFSET),
+      y: Math.min(H - 24, o.y + DUPLICATE_OFFSET),
+    })) as Obj[];
+    const next = [...list, ...copies];
+    objectsRef.current[currentRef.current] = next;
+    setObjects(next);
+    anyDrawnRef.current = true;
+    // Select what was pasted, so it can be dragged straight where it is wanted.
+    if (copies.length > 1) {
+      setMultiIds(copies.map((o) => o.id));
+      setSelectedId(null);
+    } else {
+      setMultiIds([]);
+      setSelectedId(copies[0].id);
+    }
+    syncHidden();
+    refreshThumbs();
+  }
+
+  function deleteSelection() {
+    const ids = editableIds();
+    if (ids.length) deleteObject(ids[0]);
+  }
+
+  // --- The right-click menu ------------------------------------------------
+  //
+  // `contextmenu` covers everything asked for: a right click, a two-finger
+  // trackpad click and a long press on an iPad all raise it.
+  function openObjectMenu(e: React.MouseEvent, id: string) {
+    if (!objectsInteractive) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Right-clicking outside the marquee group selects what was clicked, so the
+    // menu always acts on the thing under the pointer. Inside it, the group
+    // stands — which is what makes "copy" copy all six.
+    if (!multiRef.current.includes(id)) selectObject(id);
+    const at = stagePointOf(e);
+    if (!at) return;
+    const many = multiRef.current.length > 1;
+    // Asked of the objects directly rather than through `selectionIds()`:
+    // `selectObject` above is a state update that has not landed yet, so the
+    // selection this menu is FOR is the one under the pointer.
+    const list = objectsRef.current[currentRef.current] ?? [];
+    const ids = multiRef.current.includes(id) ? multiRef.current : [id];
+    const canEdit = list.some(
+      (o) => ids.includes(o.id) && objCapabilities(o, isObjectAuthor).editable,
+    );
+    setMenu({
+      x: at.x,
+      y: at.y,
+      items: [
+        { label: many ? "Cut these" : "Cut", onSelect: cutSelection, disabled: !canEdit },
+        { label: many ? "Copy these" : "Copy", onSelect: copySelection, disabled: !canEdit },
+        { label: "Paste", onSelect: pasteClipboard, disabled: !clipboardRef.current.length },
+        {
+          label: "Duplicate",
+          onSelect: () => duplicateObject(id),
+          disabled: many || !canEdit,
+        },
+        { label: many ? "Delete these" : "Delete", onSelect: deleteSelection, disabled: !canEdit },
+      ],
+    });
+  }
+
+  function openCanvasMenu(e: React.MouseEvent) {
+    if (!objectsInteractive) return;
+    e.preventDefault();
+    const at = stagePointOf(e);
+    if (!at) return;
+    setMenu({
+      x: at.x,
+      y: at.y,
+      items: [
+        { label: "Paste", onSelect: pasteClipboard, disabled: !clipboardRef.current.length },
+      ],
+    });
+  }
+
+  function openPageMenu(e: React.MouseEvent, i: number) {
+    e.preventDefault();
+    const at = stagePointOf(e);
+    if (!at) return;
+    setMenu({
+      x: at.x,
+      y: at.y,
+      items: [
+        { label: "Duplicate page", onSelect: () => duplicatePageAt(i) },
+        { label: "Move up", onSelect: () => movePageBy(i, -1), disabled: i === 0 },
+        {
+          label: "Move down",
+          onSelect: () => movePageBy(i, 1),
+          disabled: i >= pagesRef.current.length - 1,
+        },
+      ],
+    });
+  }
+
+  // Where a pointer event happened, in the stage's own coordinates — the space
+  // the menu is positioned in. Returns null when the event did not happen over
+  // the stage at all, which is how a page thumbnail outside it is handled.
+  function stagePointOf(e: React.MouseEvent) {
+    const stage = (e.currentTarget as HTMLElement).closest(".overflow-hidden") as HTMLElement | null;
+    if (!stage) return null;
+    const r = stage.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
   // Clone the selected object and drop it slightly off the original, so it is
   // visibly a second thing rather than looking like nothing happened. Selecting
   // the clone means a child can drag it straight where they want it, and tap
@@ -1674,6 +2324,10 @@ export function DrawingCanvas({
     const list = objectsRef.current[currentRef.current] ?? [];
     const src = list.find((o) => o.id === id);
     if (!src) return;
+    // The teacher decides how many of their apparatus a child gets, and the way
+    // they say "as many as you like" is to mark it endless. Duplicate must not
+    // be a way round that answer.
+    if (!objCapabilities(src, isObjectAuthor).editable) return;
     // Refuse at the cap rather than letting normalizeTemplateObjects drop it
     // silently at save time — work that vanishes on hand-in is far worse than
     // a button that says no.
@@ -1722,19 +2376,65 @@ export function DrawingCanvas({
   }
 
   function updateObject(id: string, patch: Partial<Obj>) {
-    const list = (objectsRef.current[currentRef.current] ?? []).map((o) =>
-      o.id === id ? ({ ...o, ...patch } as Obj) : o,
-    );
+    const current = objectsRef.current[currentRef.current] ?? [];
+    const group = multiRef.current;
+    // A drag on any member of a marquee selection carries the whole selection.
+    // Caught here, at the one place every object change passes through, rather
+    // than in the two object views: they go on reporting where the object they
+    // are dragging has got to, and the group follows it by the same amount.
+    //
+    // Only a MOVE spreads. Resizing or turning one object of a group is that
+    // object's business — a group resize is a different gesture with different
+    // maths, and silently applying a width to eight shapes would be a surprise.
+    const isMove =
+      group.length > 1 &&
+      group.includes(id) &&
+      ("x" in patch || "y" in patch) &&
+      !("w" in patch) &&
+      !("h" in patch) &&
+      !("rot" in patch);
+    if (isMove) {
+      const src = current.find((o) => o.id === id);
+      if (src) {
+        const dx = (patch.x ?? src.x) - src.x;
+        const dy = (patch.y ?? src.y) - src.y;
+        const moved = current.map((o) => {
+          if (o.id === id) return { ...o, ...patch } as Obj;
+          if (!group.includes(o.id)) return o;
+          return { ...o, x: o.x + dx, y: o.y + dy } as Obj;
+        });
+        objectsRef.current[currentRef.current] = moved;
+        setObjects(moved);
+        return;
+      }
+    }
+    const list = current.map((o) => (o.id === id ? ({ ...o, ...patch } as Obj) : o));
     objectsRef.current[currentRef.current] = list;
     setObjects(list);
   }
 
   function deleteObject(id: string) {
     pushHistory();
-    const list = (objectsRef.current[currentRef.current] ?? []).filter((o) => o.id !== id);
+    // Delete the whole marquee selection when the object is part of one: they
+    // were picked out together and a child who drew a box round six things and
+    // pressed ✕ meant all six.
+    const group = multiRef.current;
+    const wanted = group.includes(id) ? new Set(group) : new Set([id]);
+    // Enforced here as well as at the callers: this is where every route to
+    // deleting something ends up, so it is the one place that cannot be
+    // forgotten when the next route is added.
+    const current = objectsRef.current[currentRef.current] ?? [];
+    const doomed = new Set(
+      current
+        .filter((o) => wanted.has(o.id) && objCapabilities(o, isObjectAuthor).editable)
+        .map((o) => o.id),
+    );
+    if (!doomed.size) return;
+    const list = current.filter((o) => !doomed.has(o.id));
     objectsRef.current[currentRef.current] = list;
     setObjects(list);
     setSelectedId(null);
+    setMultiIds([]);
     syncHidden();
     refreshThumbs();
   }
@@ -1791,6 +2491,50 @@ export function DrawingCanvas({
     editingRef.current = id;
   }
 
+  // Get an imported picture into a shape this app can actually carry.
+  //
+  // Two things can be wrong with it. It can be in a format the store does not
+  // keep (an AVIF from a phone), and it can simply be enormous — a modern
+  // camera hands over 3840×2560, which is four times more detail than a
+  // 1000×700 canvas can ever show.
+  //
+  // Both are fixed the same way: draw it, capped, and export something small.
+  // WebP rather than PNG, and this is the whole point — the first version of
+  // this re-encoded to PNG and turned a 0.9 MB photo into an 18.3 MB data URL,
+  // which on its own exceeded the 16 MB a server action will accept. The save
+  // then failed with a stack trace instead of a picture.
+  //
+  // An ordinary photo that is already storable and already a sensible size is
+  // passed through untouched, because re-encoding it would cost quality for
+  // nothing.
+  async function normaliseImport(
+    dataUrl: string,
+    type: string,
+    maxPx: number = MAX_IMPORT_PX,
+  ): Promise<string> {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const el = new Image();
+      el.onload = () => res(el);
+      el.onerror = () => rej(new Error("this device can't open that kind of picture"));
+      el.src = dataUrl;
+    });
+    const long = Math.max(img.naturalWidth, img.naturalHeight);
+    const oversized = long > maxPx;
+    if (!oversized && isStorableImageType(type)) return dataUrl;
+
+    const k = oversized ? maxPx / long : 1;
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * k));
+    c.height = Math.max(1, Math.round(img.naturalHeight * k));
+    const cx = c.getContext("2d");
+    if (!cx) throw new Error("this device can't open that kind of picture");
+    cx.drawImage(img, 0, 0, c.width, c.height);
+    const webp = c.toDataURL("image/webp", 0.9);
+    // Every browser this app supports can write WebP; the JPEG is there because
+    // silently shipping a PNG-sized payload is the failure this exists to stop.
+    return webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/jpeg", 0.9);
+  }
+
   async function onImportFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
@@ -1826,7 +2570,14 @@ export function DrawingCanvas({
             r.onload = () => res(String(r.result));
             r.readAsDataURL(file);
           });
-          await addObject(url, false);
+          // A format the store keeps goes in untouched — re-encoding a photo
+          // would cost quality and size for nothing. Anything else the BROWSER
+          // can decode (AVIF, BMP, a modern format that arrives next year) is
+          // redrawn as a PNG, the same way an imported PDF page already is.
+          //
+          // Without this the picker accepted an AVIF and the save rejected it
+          // several steps later, after the teacher had placed and arranged it.
+          await addObject(await normaliseImport(url, file.type), false);
         }
       }
     } catch (err) {
@@ -1840,9 +2591,60 @@ export function DrawingCanvas({
     }
   }
 
+  // Handing in is the end of the work, so it waits until the work is done.
+  //
+  // Two things can be unfinished, and both used to be possible to skip past with
+  // one tap of the ✓: pages a child has never looked at, and questions they have
+  // not answered. Neither is refused silently — the ✓ takes them TO the thing
+  // and says what it is, because a child who cannot hand in and is not told why
+  // has been stopped rather than helped.
+
+  // The first page carrying a question nobody has answered, or null.
+  function firstUnansweredPage(): number | null {
+    if (!isQuizAnswer) return null;
+    const missing = quizRef.current
+      .filter((q) => !answersRef.current.get(q.id))
+      .sort((a, b) => a.pageIndex - b.pageIndex)[0];
+    return missing ? missing.pageIndex : null;
+  }
+
+  // Whether the ✓ is a hand-in yet, or still a "there's more". Off the STATE,
+  // not the refs — this decides what the button says, so it has to change when
+  // React re-renders rather than whenever a ref happens to be read.
+  const nextPage = confirmSubmit && current < pageCount - 1;
+
+  function handIn() {
+    finishEditing();
+    // Pages they have not turned to yet.
+    if (currentRef.current < pagesRef.current.length - 1) {
+      goToPage(currentRef.current + 1);
+      return;
+    }
+    // Questions they have not answered, wherever they are.
+    const missing = firstUnansweredPage();
+    if (missing !== null) {
+      if (missing !== currentRef.current) goToPage(missing);
+      sayHoldUp("There's still a question to answer");
+      return;
+    }
+    setConfirmingSubmit(true);
+  }
+
   function currentPages(): string[] {
     finishEditing();
     return anyDrawnRef.current ? [...compositeRef.current] : [];
+  }
+
+  // The same pages WITH the movable pieces drawn on. `currentPages()` has to
+  // leave them out, because those pages go back into the editor as its
+  // background and a baked-in piece would appear twice — once flat, once still
+  // movable. But a teacher looking at the thumbnail wants to see what is on the
+  // page, and a template whose content is all movable pieces showed them a
+  // blank white rectangle. So the picture and the background are two different
+  // things now, which is what `previewRef` has always kept.
+  function currentPreviews(): string[] {
+    finishEditing();
+    return anyDrawnRef.current ? [...previewRef.current] : [];
   }
 
   // The movable-objects layer to hand back to the teacher's builder (per page).
@@ -1862,6 +2664,12 @@ export function DrawingCanvas({
   // deliberately kept out of syncHidden()/compositeCurrentPage()/pushHistory().
   function commitQuiz() {
     setQuizQuestions([...quizRef.current]);
+    // The preview draws the questions, so it goes stale the moment one is typed
+    // into. Everything that changes an OBJECT already refreshes the thumbnails
+    // for the same reason; a quiz is no different, and without this the picture
+    // of a quiz page showed empty boxes with no words in them.
+    syncHidden();
+    refreshThumbs();
   }
 
   // Every route to the quiz panel goes through here, so asking for it always
@@ -1964,8 +2772,25 @@ export function DrawingCanvas({
       r.onload = () => res(String(r.result));
       r.readAsDataURL(file);
     });
+    // The SAME normalising the canvas import does, for the same reason: the
+    // picker offers `image/*` and the store keeps only some of that, so an AVIF
+    // sailed through here and was refused several steps later with "That image
+    // couldn't be read" — after the teacher had already placed it in a question.
+    //
+    // Capped far tighter than a canvas picture. An answer's image is shown at
+    // roughly a thumbnail's size, so carrying a 4000px original costs a slow
+    // save and a big payload for detail nobody ever sees.
+    let ready: string;
+    try {
+      ready = await normaliseImport(url, file.type, MAX_OPTION_PX);
+    } catch (err) {
+      setImportError(
+        err instanceof Error ? `Couldn't add that picture: ${err.message}` : "Couldn't add that picture.",
+      );
+      return;
+    }
     // Transient data URL; createTemplate rewrites it to a private /uploads path.
-    setOptionField(target.qid, target.oid, { imagePath: url });
+    setOptionField(target.qid, target.oid, { imagePath: ready });
   }
 
   // ---- Answer mode ----------------------------------------------------------
@@ -1984,27 +2809,18 @@ export function DrawingCanvas({
     if (lockedQuizRef.current.has(qid)) return;
     answersRef.current.set(qid, oid);
     setAnswers(Object.fromEntries(answersRef.current));
+    // They have had another go at it, so stop telling them to.
+    setRetryIds((prev) => {
+      if (!prev.has(qid)) return prev;
+      const next = new Set(prev);
+      next.delete(qid);
+      return next;
+    });
     syncAnswers();
-  }
-
-  function pickHue(e: React.PointerEvent<HTMLDivElement>) {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const frac = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-    setColor(hslToHex(frac * 360, 85, 52));
-  }
-
-  // The hue bar is the only colour control on the child canvas, so it has to be
-  // reachable without a pointer: arrows step the hue, Home/End jump to the ends.
-  function nudgeHue(e: React.KeyboardEvent<HTMLDivElement>) {
-    const step = e.key === "PageUp" || e.key === "PageDown" ? 10 : 2;
-    let deg = hueFrac * 360;
-    if (e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "PageUp") deg -= step;
-    else if (e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "PageDown") deg += step;
-    else if (e.key === "Home") deg = 0;
-    else if (e.key === "End") deg = 360;
-    else return;
-    e.preventDefault();
-    setColor(hslToHex(Math.min(360, Math.max(0, deg)), 85, 52));
+    // The picture of the page draws the chosen answer, so it goes stale the
+    // moment one is tapped — the same reason typing a question refreshes it.
+    syncHidden();
+    refreshThumbs();
   }
 
   const scale = displayW / W;
@@ -2013,6 +2829,61 @@ export function DrawingCanvas({
   // box is being edited). Otherwise the stroke canvas sits on top so you can
   // draw over everything.
   const objectsInteractive = tool === "cursor" || editingId !== null;
+
+  // Cut / copy / paste / delete from the keyboard.
+  //
+  // Held in a ref and registered once, rather than re-registering the listener
+  // on every render — a drag re-renders this component many times a second.
+  //
+  // The guards are the whole job. This is the first keyboard shortcut in the
+  // app, and the canvas has three live text surfaces on it — the label editor,
+  // the quiz field and now the stepper's number box. An unguarded Backspace
+  // would delete a shape while a teacher was backspacing over a typo.
+  const keyHandlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyHandlerRef.current = (e: KeyboardEvent) => {
+    // A label or a quiz question is being typed into.
+    if (editingId !== null) return;
+    // Anything else that takes text, including the stepper's number field.
+    const el = document.activeElement as HTMLElement | null;
+    const tag = el?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+    // A modal is up. Asked of the DOM rather than of a list of state flags, so
+    // this cannot fall out of step with a modal added later.
+    if (document.querySelector('[aria-modal="true"]')) return;
+    // A drawing tool is in hand, so there is nothing selected to act on.
+    if (!objectsInteractive) return;
+
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === "c") {
+        copySelection();
+        e.preventDefault();
+        return;
+      }
+      if (k === "x") {
+        cutSelection();
+        e.preventDefault();
+        return;
+      }
+      if (k === "v") {
+        pasteClipboard();
+        e.preventDefault();
+        return;
+      }
+      return;
+    }
+    if (e.key === "Backspace" || e.key === "Delete") {
+      if (!selectionIds().length) return;
+      deleteSelection();
+      e.preventDefault();
+    }
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keyHandlerRef.current(e);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const currentTemplate = templatesRef.current[current] ?? null;
 
   // One palette per kit, built from the registry so the buttons and the canvas
@@ -2085,8 +2956,9 @@ export function DrawingCanvas({
       interactive={objectsInteractive}
       author={isObjectAuthor}
       selectedId={selectedId}
+      groupIds={multiIds}
       editingId={editingId}
-      onSelect={setSelectedId}
+      onSelect={selectObject}
       onStart={pushHistory}
       onChange={updateObject}
       onEnd={commitObjectChange}
@@ -2100,6 +2972,7 @@ export function DrawingCanvas({
       onEditText={editTextObject}
       onTextChange={updateText}
       onFinishEditing={finishEditing}
+      onContextMenu={openObjectMenu}
     />
   );
 
@@ -2116,7 +2989,8 @@ export function DrawingCanvas({
       answers={answers}
       review={quizReview}
       lockedIds={lockedQuizRef.current}
-      onSelect={setSelectedQuestionId}
+      retryIds={retryIds}
+      onSelect={selectQuestion}
       onMove={updateQuestion}
       onDelete={deleteQuestion}
       onAnswer={selectAnswer}
@@ -2137,6 +3011,7 @@ export function DrawingCanvas({
         className="hidden"
       />
       {isQuizAnswer && <input type="hidden" name="quizAnswers" ref={quizAnswersRef} />}
+      {!isObjectAuthor && <input type="hidden" name="drawingPreviews" ref={previewFieldRef} />}
       {/* Only mounted while the quiz panel is open (the only place option images
           are picked), so it never collides with the import file input above. */}
       {isQuizAuthor && quizPanelOpen && (
@@ -2157,9 +3032,13 @@ export function DrawingCanvas({
     <>
       <div
         className="absolute inset-0 bg-white"
-        onPointerDown={() => {
-          if (objectsInteractive) setSelectedId(null);
+        onPointerDown={(e) => {
+          if (objectsInteractive) marqueeStart(e);
         }}
+        onPointerMove={objectsInteractive ? marqueeMove : undefined}
+        onPointerUp={objectsInteractive ? marqueeEnd : undefined}
+        onPointerCancel={objectsInteractive ? marqueeEnd : undefined}
+        onContextMenu={openCanvasMenu}
       >
         {currentTemplate && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -2171,6 +3050,21 @@ export function DrawingCanvas({
         )}
       </div>
       {objectLayer}
+      {marquee && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute rounded-sm border-2 border-dashed border-brand bg-brand/10"
+          style={{
+            left: Math.min(marquee.x0, marquee.x1) * scale,
+            top: Math.min(marquee.y0, marquee.y1) * scale,
+            width: Math.abs(marquee.x1 - marquee.x0) * scale,
+            height: Math.abs(marquee.y1 - marquee.y0) * scale,
+          }}
+        />
+      )}
+      {menu && (
+        <CanvasMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />
+      )}
       <canvas
         ref={canvasRef}
         onPointerDown={start}
@@ -2200,12 +3094,15 @@ export function DrawingCanvas({
 
         <div
           ref={wrapRef}
-          className="relative flex-1 overflow-hidden"
-          onPointerDown={() => setSliderOpen(false)}
+          // `select-none` on the stage, not on each thing inside it: a drag that
+          // starts on a shape and ends over the page title would otherwise sweep a
+          // blue highlight across everything it crossed. A canvas is a surface, and
+          // nothing on it is text to be selected.
+          className="relative flex-1 select-none overflow-hidden [-webkit-touch-callout:none]"
         >
           <div className="absolute inset-0 flex items-center justify-center">
             <div
-              className="relative rounded-2xl shadow-lg ring-1 ring-black/5 overflow-hidden"
+              className="relative select-none rounded-2xl shadow-lg ring-1 ring-black/5 overflow-hidden"
               style={{ width: box.w, height: box.h }}
             >
               {stage}
@@ -2251,16 +3148,20 @@ export function DrawingCanvas({
                         pages,
                         isQuizAuthor ? { questions: quizRef.current } : undefined,
                         isObjectAuthor ? currentObjectsPayload() : undefined,
+                        currentPreviews(),
                       );
                     }
                   : confirmSubmit
-                    ? () => { finishEditing(); setConfirmingSubmit(true); }
+                    ? handIn
                     : undefined
               }
-              title="Done"
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-2xl text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-600"
+              title={nextPage ? "Next page" : "Done"}
+              aria-label={nextPage ? "Next page" : "Done"}
+              className={`flex h-16 items-center justify-center gap-1.5 rounded-full bg-emerald-500 text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-600 ${
+                nextPage ? "px-5 text-lg font-bold" : "w-16 text-2xl"
+              }`}
             >
-              ✓
+              {nextPage ? "Next ›" : "✓"}
             </button>
           </div>
 
@@ -2273,7 +3174,7 @@ export function DrawingCanvas({
                   <FanBtn
                     key={kit.id}
                     label={kit.label}
-                    onClick={() => setOpenKit((v) => (v === kit.id ? null : kit.id))}
+                    onClick={() => toggleKit(kit.id)}
                   >
                     <Icon name={KIT_ICON[kit.id]} size={26} decorative />
                   </FanBtn>
@@ -2285,7 +3186,7 @@ export function DrawingCanvas({
             )}
             <button
               type="button"
-              onClick={() => { setFanOpen((v) => !v); setOpenKit(null); }}
+              onClick={() => openAddMenu(!fanOpen)}
               className="flex h-16 w-16 items-center justify-center rounded-full bg-brand text-3xl font-light text-white shadow-lg transition-transform hover:scale-105"
               title={fanOpen ? "Close" : "Add"}
               aria-label={fanOpen ? "Close add menu" : "Add"}
@@ -2303,7 +3204,12 @@ export function DrawingCanvas({
             </div>
           )}
 
-          {isQuizAuthor && !quizPanelOpen && <QuizLauncher onOpen={openQuizPanel} />}
+          {/* Only once there is a quiz to go back to. The way IN is the ＋ menu;
+              this is the way back, and a shortcut to a panel that has nothing
+              in it is a button that has to be explained. */}
+          {isQuizAuthor && !quizPanelOpen && quizQuestions.length > 0 && (
+            <QuizLauncher onOpen={openQuizPanel} />
+          )}
 
           {isQuizAuthor && quizPanelOpen && (
             <QuizPanel
@@ -2340,103 +3246,20 @@ export function DrawingCanvas({
             />
           )}
 
-          <div className="absolute right-3 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-2">
-            <div
-              onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); pickHue(e); }}
-              onPointerMove={(e) => { if (e.buttons) pickHue(e); }}
-              onKeyDown={nudgeHue}
-              role="slider"
-              tabIndex={0}
-              aria-label="Colour"
-              aria-valuemin={0}
-              aria-valuemax={360}
-              aria-valuenow={Math.round(hueFrac * 360)}
-              aria-valuetext={`Colour ${color}`}
-              aria-orientation="vertical"
-              // 24px of rainbow, 64px of target (F37). The bar a child SEES is
-              // the same width it always was; the thing their finger has to find
-              // is the full-width column around it, which is the one control
-              // here that was narrower than a fingertip.
-              className="relative flex w-16 cursor-pointer justify-center"
-              style={{ height: "min(52vh, 460px)" }}
-            >
-              <span
-                aria-hidden="true"
-                className="pointer-events-none block h-full w-6 rounded-full"
-                style={{
-                  background:
-                    "linear-gradient(to bottom, hsl(0 85% 52%), hsl(60 85% 52%), hsl(120 85% 52%), hsl(180 85% 52%), hsl(240 85% 52%), hsl(300 85% 52%), hsl(360 85% 52%))",
-                }}
-              />
-              <span
-                className="pointer-events-none absolute left-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white shadow"
-                style={{ top: `${hueFrac * 100}%`, backgroundColor: color }}
-              />
-            </div>
-            {/* Line thickness. Sits where the colour dot used to: colour now
-                comes from the hue bar above, so this slot shows the one control
-                children could never find. */}
-            <button
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => setSliderOpen((v) => !v)}
-              // The BUTTON is 64px (rule 18, F37); the visible dial inside it is
-              // the same 36px it always was, so the toolbar looks unchanged and
-              // a four-year-old can still land on it.
-              className="flex h-16 w-16 items-center justify-center rounded-full"
-              title="Line thickness"
-              aria-label="Line thickness"
-              aria-expanded={sliderOpen}
-            >
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] text-[#22304a] shadow"
-                style={{
-                  borderColor: sliderOpen ? "#bd3f63" : "#fff",
-                  backgroundColor: sliderOpen ? "rgba(189,63,99,0.12)" : "#fff",
-                }}
-              >
-                <Icon name="line" size={20} decorative />
-              </span>
-            </button>
-          </div>
-
-          {drawingTool && sliderOpen && (
-            <div
-              onPointerDown={(e) => e.stopPropagation()}
-              className="absolute left-1/2 z-30 flex min-w-[300px] -translate-x-1/2 items-center gap-3.5 rounded-[20px] border-2 border-[#e4dcc8] bg-[#fffdf7] px-[18px] py-3 shadow-[0_8px_22px_rgba(34,48,74,0.18)]"
-              style={{ bottom: 116 }}
-            >
-              <div className="flex w-14 flex-none flex-col items-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f6f2e8]">
-                  <span
-                    className="block rounded-full transition-all duration-100"
-                    style={{
-                      width: nibPreviewPx,
-                      height: nibPreviewPx,
-                      background: tool === "eraser" ? "#cdd2dd" : color,
-                      opacity: tool === "highlighter" ? 0.5 : 1,
-                    }}
-                  />
-                </div>
-                <span className="mt-[3px] text-[11px] font-bold text-[#5b6379]">{toolLabel}</span>
-              </div>
-              <div className="flex flex-1 flex-col gap-[3px]">
-                <div className="flex justify-between text-[11px] font-bold text-[#9aa0ad]">
-                  <span aria-hidden>Thin</span>
-                  <span aria-hidden>Thick</span>
-                </div>
-                <input
-                  type="range"
-                  min={MIN_WIDTH}
-                  max={MAX_WIDTH}
-                  value={size}
-                  onChange={(e) => setSize(Number(e.target.value))}
-                  className="h-[26px] w-full cursor-pointer"
-                  style={{ accentColor: "#bd3f63" }}
-                  aria-label={`How thick your line is, ${toolLabel}`}
-                />
-              </div>
-            </div>
+          {/* What the pen in hand is set to. Sits above the tray the pens
+              stick up from, so the thing being changed and the thing doing the
+              changing are next to each other. */}
+          {drawingTool && toolBarOpen && (
+            <ToolProperties
+              color={color}
+              size={size}
+              isEraser={tool === "eraser"}
+              canMove={canMove}
+              onClose={() => setToolBarOpen(false)}
+              onColor={setColor}
+              onSize={setSize}
+              onMove={() => { finishEditing(); setTool("cursor"); }}
+            />
           )}
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-2">
@@ -2446,7 +3269,15 @@ export function DrawingCanvas({
                 <button
                   key={t.key}
                   type="button"
-                  onClick={() => { finishEditing(); setTool(t.key); }}
+                  // Picking a pen is what shows what that pen is set to. It
+                  // goes again on the next touch of the page, so it is never a
+                  // thing sitting over a child's work waiting to be tidied
+                  // away — which is what a permanent pill amounted to.
+                  onClick={() => {
+                    finishEditing();
+                    setTool(t.key);
+                    setToolBarOpen(t.key !== "cursor");
+                  }}
                   // The pen a child sees is unchanged; the button around it is
                   // 64px wide (rule 18, F37) — the tools were 58, which is a
                   // miss for a four-year-old aiming with a whole finger.
@@ -2460,17 +3291,40 @@ export function DrawingCanvas({
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() => setTool("text")}
-              className={`pointer-events-auto mb-3 ml-2 flex h-16 w-16 items-center justify-center rounded-2xl border-2 shadow ${
-                tool === "text" ? "border-brand bg-brand/10 text-brand" : "border-border bg-white text-muted"
-              }`}
-              title="Text"
-            >
-              <Icon name="text" size={22} decorative />
-            </button>
           </div>
+
+          {/* Told in the design system's own colours, not a stock utility.
+              `bg-amber-500` is used nowhere else in the app, so it was never
+              generated into the stylesheet — which left white text on a
+              transparent pill: a message a child could not read, on the one
+              screen where they are stuck and need telling why. Inline styles
+              off the tokens cannot fail that way, and honey-on-ink is the pair
+              the palette already reserves for "wait a moment". */}
+          {holdUp && (
+            <div
+              role="status"
+              className="pointer-events-none absolute left-1/2 top-24 z-30 -translate-x-1/2"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                background: "var(--honey)",
+                color: "var(--ink)",
+                border: "3px solid var(--ink)",
+                borderRadius: 999,
+                padding: "12px 22px",
+                font: "700 19px var(--font-atkinson)",
+                boxShadow: "0 6px 18px rgba(34,48,74,.28)",
+                maxWidth: "min(90%, 520px)",
+                textAlign: "center",
+              }}
+            >
+              <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>
+                ✋
+              </span>
+              {holdUp}
+            </div>
+          )}
 
           {(importing || importError) && (
             <div
@@ -2485,17 +3339,6 @@ export function DrawingCanvas({
           {selectedId && (
             <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-muted shadow">
               Drag to move · pull a corner to resize or turn it
-            </div>
-          )}
-
-          {drawingTool && !selectedId && (
-            <div
-              className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/90 px-3.5 py-[5px] text-xs font-bold text-[#5b6379] shadow-[0_2px_8px_rgba(34,48,74,0.12)]"
-              style={{ bottom: 92 }}
-            >
-              {sliderOpen
-                ? "Slide to change how thick your line is"
-                : "Tap the line button (right) to set your line width"}
             </div>
           )}
 
@@ -2527,7 +3370,11 @@ export function DrawingCanvas({
               // buys a tile a child can actually hit.
               <div className="flex max-h-[42vh] w-28 flex-col gap-2 overflow-y-auto rounded-xl bg-slate-400/40 p-2 shadow-inner ring-1 ring-black/10">
                 {thumbs.map((src, i) => (
-                  <div key={i} className="relative shrink-0">
+                  <div
+                    key={i}
+                    className="relative shrink-0"
+                    onContextMenu={allowPageStructure ? (e) => openPageMenu(e, i) : undefined}
+                  >
                     <button
                       type="button"
                       onClick={() => goToPage(i)}
@@ -2563,6 +3410,25 @@ export function DrawingCanvas({
                 >
                   ＋
                 </button>
+                {/* Copy the page on screen. A full-width control rather than a
+                    cross on the thumbnail, because a thumbnail is smaller than
+                    the 64px a child's finger is owed (rule 18) and nothing that
+                    has to be pressed is allowed to be smaller than that.
+                    Behind the same gate as delete, not the same one as ＋ Add:
+                    a pupil answering an assigned activity gets no way to make
+                    more copies of the teacher's template pages (rule 8, deny by
+                    default). */}
+                {allowPageStructure && (
+                  <button
+                    type="button"
+                    onClick={() => duplicatePageAt(currentRef.current)}
+                    className="flex h-16 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border-2 border-slate-500/50 bg-white/70 px-2 text-xs font-bold text-slate-700"
+                    title="Make a copy of this page"
+                    aria-label="Duplicate this page"
+                  >
+                    <Icon name="duplicate" size={18} decorative /> Copy
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -2604,7 +3470,7 @@ export function DrawingCanvas({
           <button
             key={kit.id}
             type="button"
-            onClick={() => setOpenKit((v) => (v === kit.id ? null : kit.id))}
+            onClick={() => toggleKit(kit.id)}
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold ${
               openKit === kit.id ? "border-brand bg-brand/10 text-brand" : "border-border bg-surface text-muted hover:bg-background"
             }`}
@@ -2670,7 +3536,7 @@ export function DrawingCanvas({
 
       <div
         ref={wrapRef}
-        className="relative mx-auto overflow-hidden rounded-xl border border-border"
+        className="relative mx-auto select-none overflow-hidden rounded-xl border border-border"
         style={{ maxHeight: "70vh", aspectRatio: "10 / 7", width: "100%" }}
       >
         {stage}
@@ -2684,6 +3550,16 @@ export function DrawingCanvas({
         <span className="text-sm font-semibold text-muted">Page {current + 1} of {pageCount}</span>
         <button type="button" onClick={() => goToPage(current + 1)} disabled={current === pageCount - 1} className="btn-ghost px-3 py-1.5 text-sm">Next ›</button>
         <button type="button" onClick={addPage} className="btn-ghost px-3 py-1.5 text-sm">＋ Add page</button>
+        {allowPageStructure && (
+          <button
+            type="button"
+            onClick={() => duplicatePageAt(currentRef.current)}
+            className="btn-ghost px-3 py-1.5 text-sm"
+            aria-label="Duplicate this page"
+          >
+            Copy page
+          </button>
+        )}
         <button type="button" onClick={() => fileRef.current?.click()} className="btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"><Icon name="add-file" size={16} decorative /> Add PDF / image</button>
         {allowPageDelete && pageCount > 1 && (
           <button type="button" onClick={deletePage} className="px-3 py-1.5 text-sm text-muted hover:text-rose-600">Delete page</button>
@@ -2746,6 +3622,17 @@ function ShapeThumb({ preset }: { preset: ShapePreset }) {
     cols: preset.cols,
     rows: preset.rows,
     parts: preset.parts,
+    operator: preset.operator,
+    sides: preset.sides,
+    // A 26px button cannot show a readable number, and unreadable ones read as
+    // dirt on the glyph. The ticks are what tell one line from another at this
+    // size anyway — and the clock's thumb has always shown a blank face for the
+    // same reason.
+    numerals: false,
+    // Ten ticks across 26px is a dotted line, not a number line. The button is
+    // saying "this is a ruled line", so it shows few enough ticks to read as
+    // one; the real count is a stepper away.
+    ...(preset.kind === "numberline" ? { parts: 4 } : {}),
   };
   return (
     <svg
@@ -2791,10 +3678,331 @@ function shapeHasParts(kind: ShapeKind): boolean {
   return kind === "grid" || kind === "pie" || kind === "ring";
 }
 
-// A minus / value / plus control for one of a shape's numbers. Deliberately a
-// stepper rather than a text field: it is reachable with one tap per step on a
-// tablet, it cannot be given a value the geometry can't draw, and it needs no
-// keyboard — which matters when a child is holding a stylus.
+// Stepping a locked grid's columns or rows has to move the BOX as well.
+//
+// A locked grid's proportion is not a stored number, it IS cols : rows — that
+// is how one kind gives the ten rod its 1:10 and the ten frame its 5:2 from a
+// single line. So changing the divisions on their own leaves the box and the
+// proportion disagreeing, and nothing notices until the next resize, which
+// snaps the box to the new ratio: apparatus that jumps and re-squares itself
+// under a finger that was only trying to make it bigger.
+//
+// Moving the box now keeps the two in step, and keeping the CELL is what makes
+// it read right: stepping a hundred flat from ten columns to eleven should add
+// a column of the same squares, not squeeze eleven into the old width. An
+// unlocked grid — an array, a fraction bar — is meant to subdivide a fixed box,
+// so it is left alone.
+function divisionPatch(
+  s: ShapeObj,
+  next: { cols?: number; rows?: number },
+): Partial<ShapeObj> {
+  if (!s.lockAspect) return next;
+  const cols = next.cols ?? s.cols ?? 1;
+  const rows = next.rows ?? s.rows ?? 1;
+  const cell = Math.max(1, (s.w / (s.cols ?? 1) + s.h / (s.rows ?? 1)) / 2);
+  let w = cell * cols;
+  let h = cell * rows;
+  // Never past the page. Both sides scale together so the cells stay square.
+  const over = Math.max(w / W, h / H, 1);
+  w /= over;
+  h /= over;
+  return { ...next, w, h };
+}
+
+// The hairline that fences one control off from the next. Named, because the
+// properties row is a run of near-identical −/+ buttons and without something
+// between them a teacher cannot see at a glance which pair belongs to which
+// number.
+function Rule() {
+  return <span aria-hidden="true" className="mx-0.5 h-9 w-px shrink-0 bg-border" />;
+}
+
+// What a pen is set to: its colour, and how thick it draws.
+//
+// This replaces a 460px vertical rainbow down the right-hand edge. That bar
+// could reach any hue, which sounds generous until you watch someone use it: it
+// could not reach black, white or grey at all — every colour on it was fully
+// saturated — and picking a particular one meant dragging a 24px-wide target
+// and watching the nib preview. A row of the colours a child actually reaches
+// for, plus a picker for anything else, says what the choice IS.
+//
+// The rubber gets a shorter version of the same bar: an eraser has no colour,
+// so offering it one would be offering a choice that does nothing.
+function ToolProperties({
+  color,
+  size,
+  isEraser,
+  canMove,
+  onClose,
+  onColor,
+  onSize,
+  onMove,
+}: {
+  color: string;
+  size: number;
+  isEraser: boolean;
+  canMove: boolean;
+  onClose: () => void;
+  onColor: (c: string) => void;
+  onSize: (n: number) => void;
+  onMove: () => void;
+}) {
+  // It shows because a pen was just picked, and goes when the canvas is touched
+  // — so it is never a thing sitting on the page waiting to be tidied away. The
+  // parent owns that, because picking the pen is what opens it.
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onDown(e: PointerEvent) {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    }
+    // Capture, because the bar stops propagation on its own pointers so a
+    // stroke does not start underneath it.
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [onClose]);
+
+  const heading = "whitespace-nowrap text-xs font-extrabold uppercase tracking-wide text-muted";
+
+  return (
+    <div
+      ref={ref}
+      onPointerDown={(e) => e.stopPropagation()}
+      className="pointer-events-auto absolute left-1/2 z-30 flex max-w-[92%] -translate-x-1/2 flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-2xl border-2 border-border bg-surface px-5 py-3 shadow-lg"
+      style={{ bottom: 116 }}
+    >
+      {!isEraser && (
+        <div className="flex items-center gap-3">
+          <span className={heading}>Pen colour</span>
+          <div className="flex items-center gap-1.5">
+            {SWATCHES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onColor(c)}
+                // 64px of press around a 44px dot: the dot is what a child
+                // sees, the press is what they can hit (rule 18).
+                className="flex h-16 w-16 items-center justify-center rounded-full"
+                aria-label={`Colour ${c}`}
+                aria-pressed={color.toLowerCase() === c.toLowerCase()}
+              >
+                <span
+                  // The ring is what makes white a colour rather than a gap in
+                  // the row: on a cream bar a white dot with a white border is
+                  // nothing at all.
+                  className="block h-11 w-11 rounded-full border-4 ring-1 ring-black/15"
+                  style={{
+                    backgroundColor: c,
+                    borderColor: color.toLowerCase() === c.toLowerCase() ? "#1f2430" : "#ffffff",
+                  }}
+                />
+              </button>
+            ))}
+            {/* Anything the row does not carry. The rainbow ring says "any
+                colour" without pretending to be a colour itself. */}
+            <label
+              className="relative flex h-16 w-16 cursor-pointer items-center justify-center rounded-full"
+              title="Pick any colour"
+            >
+              <span
+                aria-hidden="true"
+                className="flex h-11 w-11 items-center justify-center rounded-full border-4 border-white ring-1 ring-black/15"
+                style={{
+                  background: "conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red)",
+                }}
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm font-bold text-foreground">
+                  +
+                </span>
+              </span>
+              {/* The input fills the whole 64px press, not the 44px dot inside
+                  it. Left to itself a colour input takes its own intrinsic
+                  50×27, which is under the child touch floor however big the
+                  thing drawn behind it is. */}
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => onColor(e.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                aria-label="Pick any colour"
+              />
+            </label>
+          </div>
+        </div>
+      )}
+
+      {!isEraser && <Rule />}
+
+      <div className="flex items-center gap-3">
+        <span className={heading}>How thick</span>
+        <div className="flex items-center gap-1.5">
+          {SIZES.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onSize(n)}
+              className={`flex h-16 w-16 items-center justify-center rounded-2xl border-2 ${
+                size === n ? "border-foreground bg-background" : "border-transparent"
+              }`}
+              aria-label={`Thickness ${n}`}
+              aria-pressed={size === n}
+            >
+              <span
+                className="block rounded-full bg-foreground"
+                style={{ width: Math.max(8, n * 1.6), height: Math.max(8, n * 1.6) }}
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {canMove && <Rule />}
+      {canMove && (
+        <div className="flex items-center gap-3">
+          <span className={heading}>Move things</span>
+          <button
+            type="button"
+            onClick={onMove}
+            className="flex h-16 items-center gap-2 rounded-2xl border-2 border-border px-4 text-base font-bold text-foreground"
+            aria-label="Move — drag & resize things"
+          >
+            <Icon name="point" size={22} decorative /> Hand
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The right-click menu: cut, copy, paste and duplicate on an object; duplicate
+// and reorder on a page.
+//
+// Deliberately NOT a dialog. `src/app/ops/ConfirmAction.tsx` carries this
+// repo's argument against `aria-modal` and focus traps — "a dialog that fails
+// to restore focus strands a keyboard user" — and both modals on this canvas do
+// in fact fail to restore it. A menu is a light thing: it closes on Escape, on
+// a click outside, and on a choice, and it hands focus back where it found it.
+//
+// Rows are 64px because this canvas is a child's, and the touch-floor gate
+// collects `button` elements. Which is also why the items are buttons rather
+// than `div role="menuitem"` — a div would slip past the gate entirely, and a
+// control a child cannot hit is not made acceptable by being unmeasured.
+type MenuItem = { label: string; onSelect: () => void; disabled?: boolean };
+
+function CanvasMenu({
+  x,
+  y,
+  items,
+  onClose,
+}: {
+  // Where the pointer was, in canvas px.
+  x: number;
+  y: number;
+  items: MenuItem[];
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Nudged back inside the stage when it would hang off an edge. Measured, the
+  // way the object toolbar measures itself, because how big it is depends on
+  // how many items this menu happens to carry.
+  const [nudge, setNudge] = useState({ dx: 0, dy: 0 });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const stage = el?.closest(".overflow-hidden") as HTMLElement | null;
+    if (!el || !stage) return;
+    const r = el.getBoundingClientRect();
+    const s = stage.getBoundingClientRect();
+    const gap = 8;
+    let dx = 0;
+    let dy = 0;
+    if (r.right > s.right - gap) dx = s.right - gap - r.right;
+    if (r.left + dx < s.left + gap) dx = s.left + gap - r.left;
+    if (r.bottom > s.bottom - gap) dy = s.bottom - gap - r.bottom;
+    if (r.top + dy < s.top + gap) dy = s.top + gap - r.top;
+    setNudge((prev) =>
+      Math.abs(prev.dx - dx) < 0.5 && Math.abs(prev.dy - dy) < 0.5 ? prev : { dx, dy },
+    );
+  });
+
+  // Dismissal, following the one complete implementation in the app
+  // (teacher/activities/[id]/TemplateActions.tsx): outside pointer, Escape,
+  // both torn down on close.
+  useEffect(() => {
+    function onDown(e: MouseEvent | PointerEvent) {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    }
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [onClose]);
+
+  // Open with the first item focused, so the whole thing is usable from the
+  // keyboard the moment it appears.
+  useEffect(() => {
+    ref.current?.querySelector("button")?.focus();
+  }, []);
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    const btns = Array.from(ref.current?.querySelectorAll("button") ?? []);
+    if (!btns.length) return;
+    const at = btns.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      btns[(at + 1) % btns.length]?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      btns[(at - 1 + btns.length) % btns.length]?.focus();
+    }
+  }
+
+  return (
+    <div
+      ref={ref}
+      role="menu"
+      aria-label="Actions"
+      onKeyDown={onKeyDown}
+      onContextMenu={(e) => e.preventDefault()}
+      className="pointer-events-auto absolute z-[55] flex w-56 flex-col overflow-hidden rounded-2xl border border-border bg-surface py-1 shadow-xl"
+      style={{ left: x + nudge.dx, top: y + nudge.dy }}
+    >
+      {items.map((it) => (
+        <button
+          key={it.label}
+          type="button"
+          role="menuitem"
+          disabled={it.disabled}
+          onClick={() => {
+            it.onSelect();
+            onClose();
+          }}
+          className="flex h-16 w-full items-center px-4 text-left text-base font-semibold text-foreground hover:bg-background disabled:opacity-40"
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// A minus / value / plus control for one of a shape's numbers — and the value
+// can be typed straight in.
+//
+// It was buttons only, on the argument that one tap per step needs no keyboard,
+// which matters when a child is holding a stylus. That holds for the numbers it
+// was built for: nobody steps past twenty-four parts. It falls apart on a number
+// line, where counting in fifties is a perfectly ordinary Year 2 lesson and
+// fifty taps on `+` to get there is not a control, it is an obstacle. So the
+// buttons stay exactly as they were for the small numbers, and the value became
+// a field for the large ones.
 function Stepper({
   label,
   value,
@@ -2812,9 +4020,31 @@ function Stepper({
 }) {
   // 64px, matching the buttons either side of it in the same toolbar (F37). A
   // stepper a child has to tap ten times to reach ninths is the last place to
-  // put a small target.
+  // put a small target — and the field between them is measured by the same
+  // gate, an `input` being one of the elements it collects.
   const btn =
     "pointer-events-auto flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-background text-lg font-bold hover:bg-surface disabled:opacity-40";
+
+  // What is in the box while it is being typed into, which is not yet a number:
+  // "5" on the way to "50" would be clamped to the minimum and "-" on the way
+  // to "-20" is not a number at all. Committed on blur and on Enter; abandoned
+  // on Escape.
+  const [draft, setDraft] = useState<string | null>(null);
+  // Escape blurs the field, and blurring is what commits — so without this the
+  // abandoned value would be committed on the way out, which is the opposite of
+  // what Escape means.
+  const abandoned = useRef(false);
+
+  function commit(raw: string) {
+    setDraft(null);
+    const n = Number.parseInt(raw, 10);
+    // Anything unparseable leaves the value alone rather than resetting it to a
+    // bound: a teacher who selected the field and tabbed away meant nothing.
+    if (!Number.isFinite(n)) return;
+    const next = Math.min(max, Math.max(min, n));
+    if (next !== value) onChange(next);
+  }
+
   return (
     <span className="pointer-events-auto inline-flex items-center gap-1">
       <span className="text-sm font-semibold text-muted">{label}</span>
@@ -2827,9 +4057,42 @@ function Stepper({
       >
         −
       </button>
-      <output className="min-w-6 text-center text-base font-bold tabular-nums" aria-label={`${label}: ${value}`}>
-        {value}
-      </output>
+      <input
+        type="text"
+        // Not `type="number"`: its spinners are a fraction of the child touch
+        // floor, and the two buttons either side ARE the spinner. `numeric`
+        // still brings up a keypad rather than a full keyboard on a tablet.
+        inputMode="numeric"
+        value={draft ?? String(value)}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={(e) => {
+          if (abandoned.current) {
+            abandoned.current = false;
+            setDraft(null);
+            return;
+          }
+          commit(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit(e.currentTarget.value);
+            e.currentTarget.blur();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            abandoned.current = true;
+            setDraft(null);
+            e.currentTarget.blur();
+          }
+          // Everything else stays in the field. The canvas listens for Backspace
+          // and ⌘X/C/V on the window, and this is one of the places that must
+          // go on meaning what it means in a text field.
+          e.stopPropagation();
+        }}
+        aria-label={label}
+        className="pointer-events-auto h-16 w-20 rounded-xl border border-border bg-background text-center text-base font-bold tabular-nums"
+      />
       <button
         type="button"
         className={btn}
@@ -2962,6 +4225,8 @@ type ObjHandlers = {
   onEditText: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
   onFinishEditing: () => void;
+  // Right click / two-finger click / long press on an object.
+  onContextMenu: (e: React.MouseEvent, id: string) => void;
 };
 
 // Per-object interaction rules, derived from the mode + the object's lock state.
@@ -3004,23 +4269,48 @@ function objCapabilities(o: Obj, author: boolean) {
 // object. It carries the order controls + padlock (author only) and, for a
 // shape, the fill / line controls. Its icons are deliberately large and
 // touch-friendly (roughly double the old inline toolbar).
+//
+// It is a SIBLING of the object wrapper, not a child of it, and that is the
+// whole point. As a child it rode the wrapper's `rotate()`: the anchor stayed on
+// the unturned top edge while the corner controls were carried around an arc
+// that reached above it, so turning a shape parked the toolbar on its own delete
+// button — and at 180° the "above" toolbar landed visually below the shape, on
+// the turn and resize controls. A counter-rotation kept the glyphs upright but
+// never moved the toolbar. Out here there is nothing to counter-rotate, the
+// placement is plain screen arithmetic off the turned box (`clear`), and `z-30`
+// resolves against the whole object layer again instead of being trapped in the
+// stacking context that `rotate()` creates.
 function ObjectToolbar({
   o,
   showAuthor,
   showStyle,
   below,
+  centreX,
+  centreY,
+  clear,
+  wrapRef,
   onToggleLock,
   onBringToFront,
   onSendToBack,
   onStyle,
   onDuplicate,
   canDuplicate,
-  unrotate,
 }: {
   o: Obj;
   showAuthor: boolean; // teacher: show order + padlock
   showStyle: boolean; // shape: show fill / line
   below: boolean; // drop under the object (when there's no room above it)
+  // The object's centre in canvas px — the same space the object wrapper is
+  // positioned in, since the two are now siblings in the object layer.
+  centreX: number;
+  centreY: number;
+  // How far above/below that centre the toolbar must start to clear both the
+  // turned box and the corner presses hanging off it (`toolbarClearance`).
+  clear: number;
+  // The object's own wrapper, for measuring. Its `getBoundingClientRect()` on a
+  // turned element is already the turned box, so the room-above / room-below
+  // question needs no trigonometry of its own.
+  wrapRef: React.RefObject<HTMLDivElement | null>;
   onToggleLock: (id: string) => void;
   onBringToFront: (id: string) => void;
   onSendToBack: (id: string) => void;
@@ -3029,10 +4319,6 @@ function ObjectToolbar({
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
   canDuplicate: boolean;
-  // The counter-rotation for a rotated object, so the toolbar reads the right
-  // way up over a shape that has been turned. Composed with the toolbar's own
-  // centring transform, never substituted for it.
-  unrotate?: string;
 }) {
   const shape = o.type === "shape" ? (o as ShapeObj) : null;
   // Locked, seen by the person who locked it. Everything except the padlock is
@@ -3040,9 +4326,19 @@ function ObjectToolbar({
   const pinned = showAuthor && !!o.locked;
   const btn =
     "pointer-events-auto flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-background hover:bg-surface";
+  // Whether this shape has any numbers to show, and so whether the second row
+  // exists. A rectangle has none and gets one row, as it always did.
+  const hasNumbers =
+    showStyle &&
+    !!shape &&
+    (shapeHasParts(shape.shape) ||
+      shape.shape === "polygon" ||
+      shape.shape === "clock" ||
+      shape.shape === "numberline" ||
+      shape.shape === "operator");
 
   // Keep the toolbar within the canvas horizontally. It's centred over the
-  // object (`left-1/2` + a -50% translate); when that would push it past the
+  // object (`centreX` + a -50% translate); when that would push it past the
   // left/right edge of the canvas box, nudge it back in. Measured off the
   // object wrapper (its natural centre) and the clipping stage box, so it works
   // for any object width and re-clamps as the object is dragged.
@@ -3056,38 +4352,56 @@ function ObjectToolbar({
   const [flip, setFlip] = useState(below);
   // Vertical nudge that keeps the toolbar inside the canvas.
   const [lift, setLift] = useState(0);
+  // The widest the toolbar may be before it wraps onto another row. A number
+  // line carries three steppers and a toggle on top of the order controls and
+  // the style pickers, which is wider than the canvas — and a control that runs
+  // off both edges is a control nobody can reach. Measured rather than guessed,
+  // because it is the stage that decides.
+  const [maxW, setMaxW] = useState(0);
   useLayoutEffect(() => {
     const el = ref.current;
-    const wrap = el?.parentElement;
+    const wrap = wrapRef.current;
     const stage = el?.closest(".overflow-hidden") as HTMLElement | null;
     if (!el || !wrap || !stage) return;
+    // On a turned object this rect is already the turned box, so the room
+    // questions below need no trigonometry — the browser has done it.
     const w = wrap.getBoundingClientRect();
     const s = stage.getBoundingClientRect();
+    setMaxW((prev) => {
+      const next = Math.max(160, s.width - 16);
+      return Math.abs(prev - next) < 0.5 ? prev : next;
+    });
     const tw = el.offsetWidth;
     const th = el.offsetHeight;
-    const gap = 12;
-    // Above if it fits above, otherwise below if it fits below. If it fits in
-    // neither — a hundred flat is most of the canvas — go above anyway and let
-    // the clamp below pull it onto the stage, because the resize and turn
-    // handles live on the object's BOTTOM corners and a toolbar parked over
-    // them is a toolbar that has eaten two controls.
-    const roomAbove = w.top - s.top >= th + gap;
-    const roomBelow = s.bottom - w.bottom >= th + gap;
+    // What the toolbar needs beyond the object's own edge: half a corner press,
+    // then the gap, then itself.
+    const need = HIT_PX / 2 + TOOLBAR_GAP + th;
+    // Above if it fits above, otherwise below if it fits below.
+    const roomAbove = w.top - s.top >= need;
+    const roomBelow = s.bottom - w.bottom >= need;
     const nextFlip = !roomAbove && roomBelow;
     setFlip((prev) => (prev === nextFlip ? prev : nextFlip));
 
-    // A tall shape can leave room in NEITHER place — a hundred flat is most of
+    // Computed from where the toolbar WOULD sit untransformed, not from where
+    // it currently is, so this converges instead of chasing itself.
+    const intendedTop = nextFlip
+      ? w.bottom + HIT_PX / 2 + TOOLBAR_GAP
+      : w.top - HIT_PX / 2 - TOOLBAR_GAP - th;
+    // A tall object can leave room in NEITHER place — a hundred flat is most of
     // the canvas — and a toolbar half off the top edge is a toolbar a child
     // cannot use. So it is clamped into the stage vertically, exactly as it
     // already is horizontally: it may end up overlapping its own object, which
     // is a great deal better than being unreachable.
     //
-    // Computed from where the toolbar WOULD sit untransformed, not from where
-    // it currently is, so this converges instead of chasing itself.
-    const intendedTop = nextFlip ? w.bottom + gap : w.top - gap - th;
+    // It is clamped to the stage EDGE and never to the object's middle, tempting
+    // as that is: the corners are where the controls are, but the middle is
+    // where a child puts a finger to drag the thing.
     let dy = 0;
-    if (intendedTop < s.top + gap) dy = s.top + gap - intendedTop;
-    else if (intendedTop + th > s.bottom - gap) dy = s.bottom - gap - (intendedTop + th);
+    if (intendedTop < s.top + TOOLBAR_GAP) {
+      dy = s.top + TOOLBAR_GAP - intendedTop;
+    } else if (intendedTop + th > s.bottom - TOOLBAR_GAP) {
+      dy = s.bottom - TOOLBAR_GAP - (intendedTop + th);
+    }
     setLift((prev) => (Math.abs(prev - dy) < 0.5 ? prev : dy));
     const margin = 8;
     const naturalCentre = w.left + w.width / 2 - s.left; // canvas-space px
@@ -3104,17 +4418,32 @@ function ObjectToolbar({
       ref={ref}
       onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
-      // Order matters: centre it first, then spin it back upright about its own
-      // middle. Reversing these would swing the toolbar around the shape rather
-      // than turning it in place.
       style={{
-        transform: `translateX(calc(-50% + ${shift}px))${unrotate ? ` ${unrotate}` : ""}`,
-        ...(unrotate ? { transformOrigin: "50% 50%" } : {}),
+        left: centreX,
+        // `clear` already carries the turned span plus half a corner press, so
+        // this edge is past every control the object has.
+        top: flip ? centreY + clear + TOOLBAR_GAP : centreY - clear - TOOLBAR_GAP,
+        // `max-content` first, then the cap. An absolutely positioned box
+        // shrink-to-fits, and a shrink-to-fit box full of wrapping rows settles
+        // at whatever narrow width it can rather than at the width it has: the
+        // top row folded into three lines with 600px of empty stage either
+        // side. Asking for max-content lays the rows out at their natural width
+        // and lets `maxWidth` be the only thing that folds them.
+        ...(maxW ? { width: "max-content", maxWidth: maxW } : {}),
+        // Centre it on the object, then sit the near edge on that `top`: the
+        // bottom edge when hanging above, the top edge when hanging below.
+        transform: `translate(calc(-50% + ${shift}px), ${
+          flip ? `${lift}px` : `calc(-100% + ${lift}px)`
+        })`,
       }}
-      className={`pointer-events-auto absolute left-1/2 z-30 flex items-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg ${
-        below ? "top-full mt-3" : "bottom-full mb-3"
-      }`}
+      className="pointer-events-auto absolute z-30 flex flex-col items-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg"
     >
+      {/* The top row is what a teacher does TO the object: where it sits in the
+          stack, whether it is pinned, whether it is endless, whether there is
+          another one — and then how it is filled and lined. The same controls
+          in the same order whatever the object is, so the row a hand reaches
+          for does not move when the shape does. */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
       {showAuthor && (
         <>
           {/* Locked pins the object for its author too, so while it is locked
@@ -3194,57 +4523,6 @@ function ObjectToolbar({
       </button>
       )}
 
-      {/* The numbers behind a parameterised shape. This is what makes twelve
-          fraction buttons unnecessary: halves, quarters and eighths are on the
-          palette, and a teacher who wants ninths steps to nine here rather than
-          waiting on a release. */}
-      {showStyle && shape && shapeHasParts(shape.shape) && (
-        <Stepper
-          label={shape.shape === "grid" ? "Columns" : "Parts"}
-          value={shape.shape === "grid" ? shape.cols ?? 1 : shape.parts ?? 2}
-          min={shape.shape === "grid" ? MIN_DIVISIONS : shape.shape === "ring" ? 1 : MIN_PARTS}
-          max={shape.shape === "grid" ? MAX_DIVISIONS : MAX_PARTS}
-          onChange={(v) => onStyle(shape.shape === "grid" ? { cols: v } : { parts: v })}
-        />
-      )}
-      {showStyle && shape && shape.shape === "grid" && (
-        <Stepper
-          label="Rows"
-          value={shape.rows ?? 1}
-          min={MIN_DIVISIONS}
-          max={MAX_DIVISIONS}
-          onChange={(v) => onStyle({ rows: v })}
-        />
-      )}
-
-      {/* A sorting hoop wants a thin band and a fraction ring a fat one, so the
-          band is the ring's to set rather than a constant everyone lives with. */}
-      {showStyle && shape && shape.shape === "ring" && (
-        <Stepper
-          label="Thickness"
-          value={shape.thickness ?? DEFAULT_RING_THICKNESS}
-          min={MIN_RING_THICKNESS}
-          max={MAX_RING_THICKNESS}
-          step={5}
-          onChange={(v) => onStyle({ thickness: v })}
-        />
-      )}
-
-      {/* A clock's hours are fixed at twelve — the only thing worth changing is
-          whether the numbers are printed or the child writes them on. */}
-      {showStyle && shape && shape.shape === "clock" && (
-        <button
-          type="button"
-          onClick={() => onStyle({ numerals: !shape.numerals })}
-          className={btn}
-          aria-pressed={!!shape.numerals}
-          title={shape.numerals ? "Hide the numbers 1 to 12" : "Show the numbers 1 to 12"}
-          aria-label="Clock numbers"
-        >
-          <span className="text-sm font-bold">12</span>
-        </button>
-      )}
-
       {showStyle && <span className="mx-0.5 h-9 w-px bg-border" />}
 
       {showStyle && shape && (
@@ -3310,6 +4588,193 @@ function ObjectToolbar({
           </div>
         </>
       )}
+      </div>
+
+      {/* The second row is the NUMBERS behind a parameterised shape: a number
+          line's segments, start and interval; a grid's columns and rows; a
+          ring's band; which sign an operator draws. They say what the shape
+          MEANS rather than how it looks, they are the only controls whose set
+          changes from one shape to the next, and on a number line there are
+          enough of them to run off both edges of the canvas if they shared the
+          top row. So they get a row of their own, under a rule. */}
+      {hasNumbers && (
+        <div className="flex w-full flex-wrap items-center justify-center gap-2 border-t border-border pt-2">
+      {/* The numbers behind a parameterised shape. This is what makes twelve
+          fraction buttons unnecessary: halves, quarters and eighths are on the
+          palette, and a teacher who wants ninths steps to nine here rather than
+          waiting on a release. */}
+      {showStyle && shape && shapeHasParts(shape.shape) && (
+        <Stepper
+          label={shape.shape === "grid" ? "Columns" : "Parts"}
+          value={shape.shape === "grid" ? shape.cols ?? 1 : shape.parts ?? 2}
+          min={shape.shape === "grid" ? MIN_DIVISIONS : shape.shape === "ring" ? 1 : MIN_PARTS}
+          max={shape.shape === "grid" ? MAX_DIVISIONS : MAX_PARTS}
+          onChange={(v) => onStyle(shape.shape === "grid" ? divisionPatch(shape, { cols: v }) : { parts: v })}
+        />
+      )}
+      {showStyle && shape && shape.shape === "grid" && <Rule />}
+      {showStyle && shape && shape.shape === "grid" && (
+        <Stepper
+          label="Rows"
+          value={shape.rows ?? 1}
+          min={MIN_DIVISIONS}
+          max={MAX_DIVISIONS}
+          onChange={(v) => onStyle(divisionPatch(shape, { rows: v }))}
+        />
+      )}
+
+      {/* A sorting hoop wants a thin band and a fraction ring a fat one, so the
+          band is the ring's to set rather than a constant everyone lives with. */}
+      {showStyle && shape && shape.shape === "ring" && <Rule />}
+      {showStyle && shape && shape.shape === "ring" && (
+        <Stepper
+          label="Thickness"
+          value={shape.thickness ?? DEFAULT_RING_THICKNESS}
+          min={MIN_RING_THICKNESS}
+          max={MAX_RING_THICKNESS}
+          step={5}
+          onChange={(v) => onStyle({ thickness: v })}
+        />
+      )}
+
+      {/* A clock's hours are fixed at twelve — the only thing worth changing is
+          whether the numbers are printed or the child writes them on. */}
+      {showStyle && shape && shape.shape === "clock" && (
+        <button
+          type="button"
+          onClick={() => onStyle({ numerals: !shape.numerals })}
+          className={btn}
+          aria-pressed={!!shape.numerals}
+          title={shape.numerals ? "Hide the numbers 1 to 12" : "Show the numbers 1 to 12"}
+          aria-label="Clock numbers"
+        >
+          <span className="text-sm font-bold">12</span>
+        </button>
+      )}
+
+      {/* A pentagon, a hexagon and an octagon are one shape and one number, so
+          the number is a control rather than three more buttons — and a
+          heptagon, which no palette would ever carry, is two taps away. */}
+      {showStyle && shape && shape.shape === "polygon" && (
+        <Stepper
+          label="Sides"
+          value={shape.sides ?? 5}
+          min={MIN_SIDES}
+          max={MAX_SIDES}
+          onChange={(v) => onStyle({ sides: v })}
+        />
+      )}
+
+      {/* A number line is three numbers: how many segments, where it starts and
+          what each step is worth. Those three make 0–10 in ones, 0–100 in tens
+          and −5 to 5 the same drawing, so no preset has to exist for them. */}
+      {showStyle && shape && shape.shape === "numberline" && (
+        <>
+          {/* In the order the line is read: where it STARTS, how many segments
+              it is cut into, then what one step is worth. Each fenced off from
+              the next, because three steppers in a row are six identical −/+
+              buttons and nothing says which pair belongs to which number. */}
+          <Stepper
+            label="Start"
+            value={shape.start ?? 0}
+            min={MIN_LINE_START}
+            max={MAX_LINE_START}
+            // Stepped BY the interval, so a line counting in tens moves 0, 10,
+            // 20 rather than asking for ten taps to reach the next number it
+            // can actually label.
+            step={shape.step ?? DEFAULT_LINE_STEP}
+            onChange={(v) => onStyle({ start: v })}
+          />
+          <Rule />
+          <Stepper
+            label="Segments"
+            value={shape.parts ?? 10}
+            min={MIN_PARTS}
+            max={MAX_PARTS}
+            onChange={(v) => onStyle({ parts: v })}
+          />
+          <Rule />
+          <Stepper
+            label="Interval"
+            value={shape.step ?? DEFAULT_LINE_STEP}
+            min={MIN_LINE_STEP}
+            max={MAX_LINE_STEP}
+            onChange={(v) => onStyle({ step: v })}
+          />
+          <Rule />
+          {/* The glyph shows what tapping DOES, not what is already true: "123"
+              struck through while the numbers are on means "hide these", and
+              plain "123" while they are off means "put them back". A bare "123"
+              said neither, so a teacher had to tap it and watch. The state
+              itself is still carried by `aria-pressed` and the label, so this
+              is never colour or an icon alone (rule 18). */}
+          <button
+            type="button"
+            onClick={() => onStyle({ numerals: shape.numerals === false })}
+            className={btn}
+            aria-pressed={shape.numerals !== false}
+            title={
+              shape.numerals === false
+                ? "Print the numbers under the line"
+                : "Leave the line blank for pupils to number"
+            }
+            aria-label={
+              shape.numerals === false ? "Numbers are hidden" : "Numbers are shown"
+            }
+          >
+            <span className="relative inline-flex h-8 w-10 items-center justify-center">
+              <span className="text-sm font-bold">123</span>
+              {shape.numerals !== false && (
+                <svg
+                  viewBox="0 0 40 32"
+                  aria-hidden="true"
+                  className="absolute inset-0 h-full w-full"
+                >
+                  <line
+                    x1="4"
+                    y1="28"
+                    x2="36"
+                    y2="4"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+            </span>
+          </button>
+        </>
+      )}
+
+      {/* The four signs are one shape with a switch, so an addition worksheet
+          becomes a subtraction one without deleting anything and starting
+          again. */}
+      {showStyle && shape && shape.shape === "operator" && (
+        <span className="pointer-events-auto inline-flex items-center gap-1">
+          {OPERATOR_KINDS.map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onStyle({ operator: k })}
+              className={btn}
+              aria-pressed={(shape.operator ?? "add") === k}
+              style={
+                (shape.operator ?? "add") === k
+                  ? { background: "var(--honey-tint, #FBEED3)", borderColor: "var(--honey, #F0B441)", color: "var(--honey-ink, #8A5F1E)" }
+                  : undefined
+              }
+              title={OPERATOR_LABEL[k]}
+              aria-label={OPERATOR_LABEL[k]}
+            >
+              <span aria-hidden="true" className="text-2xl font-bold">
+                {k === "add" ? "+" : k === "subtract" ? "−" : k === "multiply" ? "×" : "÷"}
+              </span>
+            </button>
+          ))}
+        </span>
+      )}
+        </div>
+      )}
     </div>
   );
 }
@@ -3318,11 +4783,13 @@ function ObjectToolbar({
 function ObjectLayer({
   objects,
   selectedId,
+  groupIds,
   editingId,
   ...handlers
 }: ObjHandlers & {
   objects: Obj[];
   selectedId: string | null;
+  groupIds: string[];
   editingId: string | null;
 }) {
   return (
@@ -3332,6 +4799,7 @@ function ObjectLayer({
           key={o.id}
           o={o}
           selected={o.id === selectedId}
+          grouped={groupIds.includes(o.id)}
           editing={o.id === editingId}
           {...handlers}
         />
@@ -3343,13 +4811,14 @@ function ObjectLayer({
 function ObjectView({
   o,
   selected,
+  grouped,
   editing,
   ...h
-}: ObjHandlers & { o: Obj; selected: boolean; editing: boolean }) {
+}: ObjHandlers & { o: Obj; selected: boolean; grouped: boolean; editing: boolean }) {
   if (o.type === "text") {
-    return <TextObjectView o={o} selected={selected} editing={editing} {...h} />;
+    return <TextObjectView o={o} selected={selected} grouped={grouped} editing={editing} {...h} />;
   }
-  return <MediaObjectView o={o} selected={selected} editing={editing} {...h} />;
+  return <MediaObjectView o={o} selected={selected} grouped={grouped} editing={editing} {...h} />;
 }
 
 // Pictures and shapes: move + (aspect-locked / free) resize + delete. Shapes can
@@ -3360,6 +4829,7 @@ function MediaObjectView({
   interactive,
   author,
   selected,
+  grouped,
   editing,
   onSelect,
   onStart,
@@ -3375,7 +4845,8 @@ function MediaObjectView({
   onEditText,
   onTextChange,
   onFinishEditing,
-}: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean; editing: boolean }) {
+  onContextMenu,
+}: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean; grouped: boolean; editing: boolean }) {
   const cap = objCapabilities(o, author);
   // `cap.showLock` is the author. A locked object is not movable by anyone, but
   // its author must still be able to TAP it — that is how they reach the
@@ -3396,18 +4867,18 @@ function MediaObjectView({
   // for a child's own imported picture, which has no style controls at all and
   // used to show no toolbar.
   const showToolbar = selected && !editing && (author || showStyle || cap.editable);
-  // Drop the toolbar under the object when it would clip off the top edge.
-  // Measured against the top of the ROTATED box, not the unrotated one: a tall
-  // shape turned on its side reaches far above its own `y`, and the toolbar
-  // would be placed off the top of the canvas.
-  const halfSpan =
-    rot === 0
-      ? (o.h * scale) / 2
-      : ((Math.abs(o.w * Math.sin((rot * Math.PI) / 180)) +
-          Math.abs(o.h * Math.cos((rot * Math.PI) / 180))) *
-          scale) /
-        2;
-  const toolbarBelow = o.y * scale + (o.h * scale) / 2 - halfSpan < 92;
+  // Where the toolbar hangs. `clear` is measured off the ROTATED box, not the
+  // unturned one: a tall shape turned on its side reaches far above its own
+  // `y`, and it carries a corner control up there with it.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const centreX = (o.x + o.w / 2) * scale;
+  const centreY = (o.y + o.h / 2) * scale;
+  const boxW = o.w * scale;
+  const boxH = o.h * scale;
+  const clear = toolbarClearance(boxW, boxH, rot);
+  // A first guess only, so the toolbar doesn't flash on the wrong side before
+  // `ObjectToolbar` measures itself; 80 is a plausible toolbar height.
+  const toolbarBelow = centreY - clear - TOOLBAR_GAP - 80 < 0;
   const drag = useRef<
     // `spawnId` is set when the drag started on an endless source: the source
     // stays where it is and the copy is what actually moves.
@@ -3422,9 +4893,23 @@ function MediaObjectView({
     | null
   >(null);
 
+  // Capture on the WRAPPER, not on `e.target`.
+  //
+  // `e.target` is whatever was physically under the finger — an <svg>, one of
+  // its <path>s, sometimes a <span>. Capturing one of those while the WRAPPER
+  // handles the drag lets the two come apart: if the capture does not hold (and
+  // it is taken inside a try/catch, so failing is silent) every later event
+  // goes to whatever is under the pointer instead. On an endless source that is
+  // the copy the child has just pulled out, which sits under their finger from
+  // the first millimetre of the drag — so the source never sees `pointerup` and
+  // its `drag` ref is left set for good.
+  //
+  // What that looked like: hover back over the source at any point afterwards
+  // and the copy leapt onto it, because the stale anchor had been measured
+  // against the source and the pointer was over the source again.
   function capture(e: React.PointerEvent) {
     try {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {
       /* ignore — not all pointers can be captured */
     }
@@ -3493,6 +4978,15 @@ function MediaObjectView({
   function onPointerMove(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
+    // Nothing is held down, so whatever this is, it is not a drag. Belt and
+    // braces behind the capture above: a drag that somehow outlives its
+    // `pointerup` ends here, on the first hover, rather than following the
+    // pointer around for the rest of the session.
+    if (e.buttons === 0) {
+      drag.current = null;
+      onEnd();
+      return;
+    }
     if (d.mode === "move") {
       const nx = (e.clientX - d.ax) / scale;
       const ny = (e.clientY - d.ay) / scale;
@@ -3534,23 +5028,65 @@ function MediaObjectView({
       const dLocalX = dxScreen * cos + dyScreen * sin;
       const dLocalY = -dxScreen * sin + dyScreen * cos;
 
-      let w = Math.max(min, Math.min(W, d.sw + dLocalX));
+      const rawW = Math.min(W, d.sw + dLocalX);
       // One lock rule for every object. A picture keeps the proportions it was
       // imported at; a shape keeps whatever proportion its geometry says it
       // means something at (a hundred flat squashed is not a hundred). Anything
       // that returns null resizes freely on both axes.
-      const lock = o.type === "image" ? o.aspect : shapeAspect(o);
-      const h = lock ? w / lock : Math.max(min, Math.min(H, d.sh + dLocalY));
-      if (lock) w = Math.min(w, W);
+      //
+      // A line or an arrow locks to the proportion it HAS, captured when the
+      // drag began. Its box is not a frame around the shape, it IS the shape —
+      // the stroke runs corner to corner — so a free resize re-aims the line,
+      // and a child who reached for the corner to make it longer got a
+      // different angle instead. Turning is the turn handle's job; this one
+      // only makes it bigger.
+      const lock =
+        o.type === "image"
+          ? o.aspect
+          : o.type === "shape" && isVectorKind(o.shape)
+            ? d.sh > 0
+              ? d.sw / d.sh
+              : null
+            : shapeAspect(o);
+      let w: number;
+      let h: number;
+      if (lock) {
+        // With the proportion held there is only one number to clamp — the
+        // width — so every limit is expressed as a limit on that.
+        //
+        // The FLOOR goes on whichever side is the longer one, because that is
+        // the side that means "how big is this". Put it on the short side and a
+        // steep ratio multiplies it straight back into the long one: a flat
+        // rule is a hundred times wider than it is tall, so a floor of two on
+        // its height demands a width of two hundred — and a child could make
+        // the line longer but never, ever shorter.
+        //
+        // The CEILING is whichever side reaches the edge of the page first.
+        const loW = lock >= 1 ? min : min * lock;
+        const hiW = Math.max(loW, Math.min(W, H * lock));
+        w = Math.min(Math.max(rawW, loW), hiW);
+        h = w / lock;
+      } else {
+        w = Math.max(min, Math.min(W, rawW));
+        h = Math.max(min, Math.min(H, d.sh + dLocalY));
+      }
 
       // x/y pin the top-left but the rotation turns about the CENTRE, so
-      // growing w/h swings the whole box. Without this correction the shape
-      // slides out from under the finger as it is resized. Move the top-left by
-      // the amount the centre would otherwise have shifted.
+      // growing w/h swings the whole box: the corner a child is NOT holding
+      // walks across the page. The one they are not holding is the one that
+      // should stay still, so x/y are moved to hold it there.
+      //
+      // The anchor is the corner opposite the handle — local (0,0). Rotated
+      // about the centre it sits at
+      //   Sx = x + w/2 - (w/2)cos + (h/2)sin
+      //   Sy = y + h/2 - (w/2)sin - (h/2)cos
+      // and holding S still through a change of (dw, dh) gives the two shifts
+      // below. Both vanish at rot 0, which is why an upright shape resized
+      // correctly all along and a turned one slid.
       const dw = w - d.sw;
       const dh = h - d.sh;
-      const cxShift = (dw / 2) * (1 - cos) + (dh / 2) * sin;
-      const cyShift = (dh / 2) * (1 - cos) - (dw / 2) * sin;
+      const cxShift = -(dw / 2) * (1 - cos) - (dh / 2) * sin;
+      const cyShift = -(dh / 2) * (1 - cos) + (dw / 2) * sin;
       onChange(o.id, { w, h, x: d.sx + cxShift, y: d.sy + cyShift });
     }
   }
@@ -3568,8 +5104,12 @@ function MediaObjectView({
       : null;
 
   return (
+    <>
     <div
       data-object
+      data-id={o.id}
+      ref={wrapRef}
+      onContextMenu={(e) => onContextMenu(e, o.id)}
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -3577,7 +5117,11 @@ function MediaObjectView({
       className={`absolute touch-none ${
         canGrab ? "pointer-events-auto cursor-move" : "pointer-events-none"
       } ${
-        selected ? "ring-2 ring-brand" : author && o.locked ? "ring-2 ring-amber-400" : ""
+        selected || grouped
+          ? "ring-2 ring-brand"
+          : author && o.locked
+            ? "ring-2 ring-amber-400"
+            : ""
       }`}
       style={{
         left: o.x * scale,
@@ -3718,30 +5262,11 @@ function MediaObjectView({
         />
       )}
 
-      {/* The floating toolbar: order + padlock (teacher) and fill / line (shape),
-          hovering just above and centred over the object. */}
-      {showToolbar && (
-        <ObjectToolbar
-          o={o}
-          showAuthor={author}
-          showStyle={showStyle}
-          below={toolbarBelow}
-          onToggleLock={onToggleLock}
-          onBringToFront={onBringToFront}
-          onSendToBack={onSendToBack}
-          onDuplicate={onDuplicate}
-          canDuplicate={canDuplicate}
-          unrotate={unrotate || undefined}
-          onStyle={(patch) => {
-            onChange(o.id, patch);
-            onEnd();
-          }}
-        />
-      )}
-
       {selected && !editing && cap.editable && (
         <ObjectCorners
           unrotate={unrotate}
+          boxW={boxW}
+          boxH={boxH}
           // A picture has no words to change, so it has no pencil.
           onEdit={o.type === "shape" ? () => onEditText(o.id) : undefined}
           onDelete={() => onDelete(o.id)}
@@ -3754,6 +5279,33 @@ function MediaObjectView({
         />
       )}
     </div>
+
+    {/* The floating toolbar: order + padlock (teacher) and fill / line (shape),
+        centred over the object and clear of its turned box. A SIBLING of the
+        wrapper, not a child — inside it, the wrapper's rotation carried the
+        toolbar onto the object's own corner controls. */}
+    {showToolbar && (
+      <ObjectToolbar
+        o={o}
+        showAuthor={author}
+        showStyle={showStyle}
+        below={toolbarBelow}
+        centreX={centreX}
+        centreY={centreY}
+        clear={clear}
+        wrapRef={wrapRef}
+        onToggleLock={onToggleLock}
+        onBringToFront={onBringToFront}
+        onSendToBack={onSendToBack}
+        onDuplicate={onDuplicate}
+        canDuplicate={canDuplicate}
+        onStyle={(patch) => {
+          onChange(o.id, patch);
+          onEnd();
+        }}
+      />
+    )}
+    </>
   );
 }
 
@@ -3766,6 +5318,8 @@ function MediaObjectView({
 // the press is what a five-year-old can actually hit.
 function ObjectCorners({
   unrotate,
+  boxW,
+  boxH,
   onEdit,
   onDelete,
   startRotate,
@@ -3776,6 +5330,10 @@ function ObjectCorners({
   deleteLabel,
 }: {
   unrotate: string;
+  // The object's box in screen px, so controls on a shape too flat to hold four
+  // of them can be spread apart rather than piled up.
+  boxW: number;
+  boxH: number;
   // Undefined where the object has no words to edit — a picture.
   onEdit?: () => void;
   onDelete: () => void;
@@ -3800,8 +5358,15 @@ function ObjectCorners({
   // below the object, horizontally right and vertically wrong. Half of HIT_PX,
   // so each 64px press is centred on its corner.
   const off = -HIT_PX / 2;
-  const at = (corner: { top?: number; bottom?: number; left?: number; right?: number }) => ({
-    ...corner,
+  // Pushed further out on whichever axis is too short to hold two presses. The
+  // offsets stay in the object's OWN frame, so a flat line spread apart while
+  // upright stays spread apart once it is turned.
+  const spread = controlSpread(boxW, boxH);
+  const at = (corner: { top?: boolean; bottom?: boolean; left?: boolean; right?: boolean }) => ({
+    ...(corner.top ? { top: off - spread.y } : {}),
+    ...(corner.bottom ? { bottom: off - spread.y } : {}),
+    ...(corner.left ? { left: off - spread.x } : {}),
+    ...(corner.right ? { right: off - spread.x } : {}),
     ...(unrotate ? { transform: unrotate } : {}),
   });
   const dot = "block h-5 w-5 rounded-full border-2 border-white shadow";
@@ -3812,7 +5377,7 @@ function ObjectCorners({
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={onEdit}
-          style={at({ top: off, left: off })}
+          style={at({ top: true, left: true })}
           className={HANDLE_HIT}
           title="Change the words"
           aria-label="Edit text"
@@ -3826,7 +5391,7 @@ function ObjectCorners({
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={onDelete}
-        style={at({ top: off, right: off })}
+        style={at({ top: true, right: true })}
         className={HANDLE_HIT}
         title="Remove"
         aria-label={deleteLabel}
@@ -3840,7 +5405,7 @@ function ObjectCorners({
           onPointerDown={startRotate}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          style={at({ bottom: off, left: off })}
+          style={at({ bottom: true, left: true })}
           className={`${HANDLE_HIT} cursor-grab`}
           title="Turn"
           role="button"
@@ -3855,7 +5420,7 @@ function ObjectCorners({
         onPointerDown={startResize}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        style={at({ bottom: off, right: off })}
+        style={at({ bottom: true, right: true })}
         className={`${HANDLE_HIT} cursor-nwse-resize`}
         title="Resize"
         role="button"
@@ -3874,6 +5439,7 @@ function TextObjectView({
   interactive,
   author,
   selected,
+  grouped,
   editing,
   onSelect,
   onStart,
@@ -3889,7 +5455,8 @@ function TextObjectView({
   onEditText,
   onTextChange,
   onFinishEditing,
-}: ObjHandlers & { o: TextObj; selected: boolean; editing: boolean }) {
+  onContextMenu,
+}: ObjHandlers & { o: TextObj; selected: boolean; grouped: boolean; editing: boolean }) {
   const cap = objCapabilities(o, author);
   // `cap.showLock` is the author. A locked object is not movable by anyone, but
   // its author must still be able to TAP it — that is how they reach the
@@ -3904,8 +5471,31 @@ function TextObjectView({
   // back the other way — otherwise the "top-left" pencil ends up bottom-right
   // on a box turned 180°.
   const unrotate = rot ? `rotate(${-rot}deg)` : "";
-  // Drop the toolbar under the box when it would clip off the top edge.
-  const toolbarBelow = o.y * scale < 92;
+  // Where the toolbar hangs. This used to ignore rotation altogether — a turned
+  // text box reaches above its own `y` exactly as a turned shape does, and
+  // carries a corner control up there with it.
+  //
+  // A shape can be measured from its stored `w`/`h`; a text box has neither,
+  // because it is sized by the words in it. So the box is read off the layout
+  // instead. `offsetWidth`/`offsetHeight` are the untransformed box, which is
+  // what `toolbarClearance` wants — the rotation is its own argument. Both are
+  // already in screen px (the font size carries `scale`), hence a scale of 1.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    setBox((prev) =>
+      Math.abs(prev.w - w) < 0.5 && Math.abs(prev.h - h) < 0.5 ? prev : { w, h },
+    );
+  });
+  const centreX = o.x * scale + box.w / 2;
+  const centreY = o.y * scale + box.h / 2;
+  const clear = toolbarClearance(box.w, box.h, rot);
+  // A first guess only; `ObjectToolbar` refines it by measuring.
+  const toolbarBelow = centreY - clear - TOOLBAR_GAP - 80 < 0;
   const drag = useRef<
     | { mode: "move"; ax: number; ay: number }
     | { mode: "rotate"; cx: number; cy: number; base: number; startRot: number }
@@ -3915,7 +5505,7 @@ function TextObjectView({
 
   function capture(e: React.PointerEvent) {
     try {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {
       /* ignore */
     }
@@ -3966,6 +5556,15 @@ function TextObjectView({
   function onPointerMove(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
+    // Nothing is held down, so whatever this is, it is not a drag. Belt and
+    // braces behind the capture above: a drag that somehow outlives its
+    // `pointerup` ends here, on the first hover, rather than following the
+    // pointer around for the rest of the session.
+    if (e.buttons === 0) {
+      drag.current = null;
+      onEnd();
+      return;
+    }
     if (d.mode === "move") {
       onChange(o.id, { x: (e.clientX - d.ax) / scale, y: (e.clientY - d.ay) / scale });
     } else if (d.mode === "rotate") {
@@ -4006,16 +5605,24 @@ function TextObjectView({
   };
 
   return (
+    <>
     <div
+      ref={wrapRef}
+      onContextMenu={(e) => onContextMenu(e, o.id)}
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onDoubleClick={cap.editable ? () => onEditText(o.id) : undefined}
       data-object
+      data-id={o.id}
       className={`absolute touch-none ${
         canGrab ? "pointer-events-auto" : "pointer-events-none"
       } ${editing || !canGrab ? "" : "cursor-move"} ${
-        selected ? "ring-2 ring-brand" : author && o.locked ? "ring-2 ring-amber-400" : ""
+        selected || grouped
+          ? "ring-2 ring-brand"
+          : author && o.locked
+            ? "ring-2 ring-amber-400"
+            : ""
       }`}
       style={{
         left: o.x * scale,
@@ -4043,22 +5650,6 @@ function TextObjectView({
         </div>
       )}
 
-      {/* The floating toolbar (order + padlock), above and centred over the box. */}
-      {showToolbar && (
-        <ObjectToolbar
-          o={o}
-          showAuthor={author}
-          showStyle={false}
-          below={toolbarBelow}
-          onToggleLock={onToggleLock}
-          onBringToFront={onBringToFront}
-          onSendToBack={onSendToBack}
-          onDuplicate={onDuplicate}
-          canDuplicate={canDuplicate}
-          onStyle={() => {}}
-        />
-      )}
-
       {selected && !editing && cap.editable && (
         // The same four corners a shape has, in the same places: edit top-left,
         // delete top-right, turn bottom-left, resize bottom-right. A text box
@@ -4067,6 +5658,8 @@ function TextObjectView({
         // floor); each is turned back upright by `unrotate`.
         <ObjectCorners
           unrotate={unrotate}
+          boxW={box.w}
+          boxH={box.h}
           onEdit={() => onEditText(o.id)}
           onDelete={() => onDelete(o.id)}
           startRotate={startRotate}
@@ -4078,6 +5671,30 @@ function TextObjectView({
         />
       )}
     </div>
+
+    {/* The floating toolbar (order + padlock), centred over the box and clear of
+        its turned one. A sibling, for the same reason a shape's is — and this
+        one was never given the counter-rotation a shape's had, so a turned text
+        box wore its toolbar upside down. Out here there is nothing to correct. */}
+    {showToolbar && (
+      <ObjectToolbar
+        o={o}
+        showAuthor={author}
+        showStyle={false}
+        below={toolbarBelow}
+        centreX={centreX}
+        centreY={centreY}
+        clear={clear}
+        wrapRef={wrapRef}
+        onToggleLock={onToggleLock}
+        onBringToFront={onBringToFront}
+        onSendToBack={onSendToBack}
+        onDuplicate={onDuplicate}
+        canDuplicate={canDuplicate}
+        onStyle={() => {}}
+      />
+    )}
+    </>
   );
 }
 
@@ -4095,6 +5712,7 @@ function QuizLayer({
   answers,
   review,
   lockedIds,
+  retryIds,
   onSelect,
   onMove,
   onDelete,
@@ -4110,6 +5728,8 @@ function QuizLayer({
   answers: Record<string, string>;
   review: boolean;
   lockedIds: Set<string>;
+  // Questions they got wrong last time and have not yet changed.
+  retryIds: Set<string>;
   onSelect: (id: string) => void;
   onMove: (id: string, patch: Partial<QuizQuestion>) => void;
   onDelete: (id: string) => void;
@@ -4130,6 +5750,7 @@ function QuizLayer({
           selectedOption={answers[q.id] ?? null}
           review={review}
           locked={lockedIds.has(q.id)}
+          retry={retryIds.has(q.id)}
           onSelect={onSelect}
           onMove={onMove}
           onDelete={onDelete}
@@ -4223,6 +5844,7 @@ function QuizBoxView({
   selectedOption,
   review,
   locked,
+  retry,
   onSelect,
   onMove,
   onDelete,
@@ -4238,6 +5860,8 @@ function QuizBoxView({
   selectedOption: string | null;
   review: boolean;
   locked: boolean;
+  // Got this one wrong last time and hasn't picked again yet.
+  retry: boolean;
   onSelect: (id: string) => void;
   onMove: (id: string, patch: Partial<QuizQuestion>) => void;
   onDelete: (id: string) => void;
@@ -4250,7 +5874,7 @@ function QuizBoxView({
 
   function capture(e: React.PointerEvent) {
     try {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     } catch {
       /* ignore */
     }
@@ -4273,6 +5897,14 @@ function QuizBoxView({
   function onPointerMove(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
+    // Nothing is held down, so whatever this is, it is not a drag. Belt and
+    // braces behind the capture above: a drag that somehow outlives its
+    // `pointerup` ends here, on the first hover, rather than following the
+    // pointer around for the rest of the session.
+    if (e.buttons === 0) {
+      drag.current = null;
+      return;
+    }
     if (d.mode === "move") {
       onMove(q.id, {
         x: Math.max(0, Math.min(W - q.w, (e.clientX - d.ax) / scale)),
@@ -4448,6 +6080,19 @@ function QuizBoxView({
             {q.prompt || (author ? "Type your question here" : "")}
           </p>
         )}
+        {/* Which questions to look at again, in WORDS.
+            The amber ring on their old answer is not allowed to carry this on
+            its own (rule 18) — and "have another go" is the whole reason work
+            comes back rather than starting over. It says nothing about which
+            answer is right. */}
+        {retry && (
+          <p
+            className="text-center font-bold text-amber-700"
+            style={{ fontSize: px(15) }}
+          >
+            Have another go at this one
+          </p>
+        )}
         <div
           className="grid min-h-0 flex-1"
           style={{ gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr", gap: px(8) }}
@@ -4503,10 +6148,18 @@ function QuizBoxView({
                 const chosen = !author && selectedOption === o.id;
                 // Show the tick on the correct answer in author mode always, and in a
                 // review reopen on the locked (already-correct) question the child got right.
+                //
+                // `locked` is load-bearing: a question they got WRONG is in review
+                // mode too, and must never show which one was right. Reading the
+                // answer off the screen would make changing it a copy rather than a
+                // decision.
                 const showCorrect = (author || (review && locked)) && q.correctOptionId === o.id;
                 // A locked-correct question reads as a fixed green result; anything
                 // else the child can still tap.
                 const disabled = author || locked;
+                // What they picked last time, on a question they are being asked to
+                // look at again. Marked, not scolded — and still tappable.
+                const wasWrong = retry && chosen;
                 return (
                   <button
                     key={o.id}
@@ -4518,9 +6171,11 @@ function QuizBoxView({
                     className={`flex min-w-0 items-center justify-center rounded-xl border-2 text-center transition-colors ${
                       showCorrect
                         ? "border-emerald-500 bg-emerald-50"
-                        : chosen
-                          ? "border-brand bg-brand/15"
-                          : "border-border bg-white"
+                        : wasWrong
+                          ? "border-amber-500 bg-amber-50"
+                          : chosen
+                            ? "border-brand bg-brand/15"
+                            : "border-border bg-white"
                     } ${author || locked ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
                     style={{ minHeight: touch(64), padding: px(8), gap: px(8) }}
                   >

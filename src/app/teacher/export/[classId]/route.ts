@@ -55,6 +55,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cla
         skills: j.skills.map((sk) => sk.name),
         media: j.mediaPath,
         mediaPages: j.mediaPathsJson ? safeParse(j.mediaPathsJson) : undefined,
+        // The picture of a quiz page, when one was stored. Listed because this
+        // is the record of everything the school holds about this child: a
+        // media file the export does not name is a file nobody asking for
+        // their data would know to ask for.
+        mediaPictures: j.previewPathsJson ? safeParse(j.previewPathsJson) : undefined,
         createdAt: j.createdAt,
         approvedAt: j.approvedAt,
       })),

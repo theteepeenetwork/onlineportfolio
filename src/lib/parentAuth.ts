@@ -1,4 +1,6 @@
 import "server-only";
+import { workCover } from "@/lib/journalMedia";
+import { momentTitle } from "@/lib/momentTitle";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { COOKIE_NAME } from "@/lib/auth";
@@ -79,9 +81,9 @@ export async function getCurrentParent(): Promise<ParentSession | null> {
       moments: c.journalItems.map((j) => ({
         id: j.id,
         type: j.type,
-        title: j.assignment?.title ?? j.caption ?? "A moment",
+        title: momentTitle(j, "A moment"),
         caption: j.caption,
-        mediaPath: j.mediaPath,
+        mediaPath: workCover(j),
         approvedAt: (j.approvedAt ?? j.createdAt).toISOString(),
       })),
     })),

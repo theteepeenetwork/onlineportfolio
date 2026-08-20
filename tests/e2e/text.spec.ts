@@ -12,7 +12,8 @@ test("text can be placed, re-selected, moved and re-edited", async ({ page }) =>
   const cbox = (await canvas.boundingBox())!;
 
   // Pick the Text tool and tap the canvas to place a text box, then type.
-  await page.locator('button[title="Text"]').click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Text", exact: true }).click();
   await page.mouse.click(cbox.x + cbox.width * 0.4, cbox.y + cbox.height * 0.4);
   await page.locator('textarea[placeholder="Type…"]').waitFor();
   await page.keyboard.type("Hello");

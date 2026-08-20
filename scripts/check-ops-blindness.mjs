@@ -318,7 +318,26 @@ const PLATFORM_CONTENT = ["SharedActivity"];
 // text written by teacher-facing actions and routinely contains a child's first
 // name ("Approved Amara's moment"), so reading it is a child-data read wearing
 // an operations hat (ruling R4).
-const CREDENTIAL_NEVER = ["Session", "MagicToken", "AuditLog"];
+const CREDENTIAL_NEVER = [
+  "Session",
+  "MagicToken",
+  "AuditLog",
+  // The connector tables (PR-connector). A teacher's API token, and the OAuth
+  // client and grant behind a claude.ai connector, are live credentials for a
+  // teacher's account: anyone holding one can read and rewrite that teacher's
+  // activity library. They are classified exactly like Session and MagicToken,
+  // which is the strictest class in this gate — an ops file may not read them,
+  // may not count them, and may not confirm that a particular row exists.
+  //
+  // This is a TIGHTENING, not a widening (ruling R2): the drift check refused
+  // all three as OPS-MODEL-UNKNOWN until they were classified, and the class
+  // they landed in permits nothing. Support never needs one of these rows:
+  // a teacher revokes and re-mints a token on their own account page, and the
+  // operator is told a token was revoked by the teacher telling them.
+  "ApiToken",
+  "OAuthClient",
+  "OAuthGrant",
+];
 
 // The operator's own records.
 //
@@ -486,10 +505,17 @@ const DENY_FIELDS = [
   "contextKey",
   // Teacher-authored activity content, which reaches children and can quote them
   "templatePathsJson",
+  // The rendered picture of that same content — the worksheet, its movable
+  // pieces and its questions, drawn into one image. Strictly more revealing than
+  // the background it is made from, so it is classified with it.
+  "previewPathsJson",
   "quizJson",
   "objectsJson",
   "tagsJson",
   "templateSnapshotJson",
+  // The same picture, frozen onto the run a child was set. Classified with the
+  // snapshot it mirrors.
+  "previewSnapshotJson",
   "quizSnapshotJson",
   "objectsSnapshotJson",
   // Credential VALUES (amendment C1). An operator who reads one of these can

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { workCover } from "@/lib/journalMedia";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -47,7 +48,7 @@ export default async function StickerSheetPage({
             id: item.id,
             child: item.student.name,
             type: item.type,
-            mediaPath: item.mediaPath,
+            mediaPath: item.type === "AUDIO" ? item.mediaPath : workCover(item),
             text: item.textContent,
             caption: item.caption,
             activity: item.assignment?.title ?? "Free choice",

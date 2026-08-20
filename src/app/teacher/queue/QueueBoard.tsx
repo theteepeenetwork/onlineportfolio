@@ -7,6 +7,8 @@ import { JarLogo } from "@/components/storyjar/JarLogo";
 import { Icon } from "@/components/icons/Icon";
 import { momentKind } from "@/lib/momentKind";
 import { useTeacherShell } from "@/components/teacher/TeacherShell";
+import { WorkViewer } from "./WorkViewer";
+import { workPages } from "@/lib/journalMedia";
 
 type Skill = { id: string; name: string };
 type QuizLine = {
@@ -26,6 +28,8 @@ type Item = {
   className: string;
   type: string;
   mediaPath: string | null;
+  mediaPathsJson: string | null;
+  previewPathsJson: string | null;
   text: string | null;
   isActivity: boolean;
   activity: string;
@@ -46,6 +50,10 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
   // let them start again from a blank template (false). Defaults to keeping it.
   const [keepWork, setKeepWork] = useState(true);
   const [skillSel, setSkillSel] = useState<Record<string, Set<string>>>({});
+  // Which piece of work is open at full size. The queue is the approval gate,
+  // and until this existed the only view of the thing being approved was an
+  // 84×64 crop on the card.
+  const [viewing, setViewing] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -176,10 +184,20 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
             <div key={it.id} data-child={it.child} style={{ background: "var(--cream)", border: `2px solid ${sel ? "var(--glass)" : "var(--calm-border)"}`, borderRadius: 14, padding: "16px 20px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                 <input type="checkbox" checked={sel} onChange={() => toggleSel(it.id)} aria-label={`Select ${it.child}`} style={{ width: 22, height: 22, accentColor: "var(--glass)", cursor: "pointer", flexShrink: 0 }} />
-                <div style={{ width: 84, height: 64, borderRadius: 10, background: k.bg, border: "2px solid var(--calm-border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0, overflow: "hidden" }}>
-                  {it.type !== "AUDIO" && it.mediaPath ? (
+                {/* The work itself opens from here. It reads as a thumbnail
+                    and behaves as a button, because "let me look at it properly
+                    before I approve it" is the first thing a teacher wants from
+                    this row and there was no way to do it. */}
+                <button
+                  type="button"
+                  onClick={() => setViewing(it.id)}
+                  title={`Open ${it.child}'s work`}
+                  aria-label={`Open ${it.child}'s work`}
+                  style={{ width: 84, height: 64, borderRadius: 10, background: k.bg, border: "2px solid var(--calm-border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0, overflow: "hidden", padding: 0, cursor: "pointer" }}
+                >
+                  {it.type !== "AUDIO" && workPages(it)[0] ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={it.mediaPath} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <img src={workPages(it)[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : it.type === "AUDIO" ? (
                     <Icon name="voice" size={30} decorative />
                   ) : it.text ? (
@@ -187,7 +205,7 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
                   ) : (
                     <Icon name={k.icon} size={30} decorative />
                   )}
-                </div>
+                </button>
                 <div style={{ flex: 1, minWidth: 160 }}>
                   <p style={{ margin: 0, font: "700 17px var(--font-atkinson)" }}>{it.child} <span style={{ fontWeight: 400, color: "var(--sj-muted)" }}>· {k.label}</span></p>
                   <p style={{ margin: "3px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{it.activity} · {it.when} · {it.className}</p>
@@ -288,6 +306,27 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
           );
         })}
       </div>
+
+      {viewing && (() => {
+        const it = live.find((x) => x.id === viewing);
+        if (!it) return null;
+        return (
+          <WorkViewer
+            child={it.child}
+            activity={it.activity}
+            when={`${it.when} · ${it.className}`}
+            type={it.type}
+            mediaPath={it.mediaPath}
+            mediaPathsJson={it.mediaPathsJson}
+            previewPathsJson={it.previewPathsJson}
+            quizReview={it.quizReview}
+            quizScore={it.quizScore}
+            quizTotal={it.quizTotal}
+            text={it.text}
+            onClose={() => setViewing(null)}
+          />
+        );
+      })()}
 
       {toast && (
         <div role="status" style={{ position: "sticky", bottom: 24, display: "flex", justifyContent: "center", pointerEvents: "none", marginTop: 24 }}>

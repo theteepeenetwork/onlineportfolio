@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/icons/Icon";
-import { jsonArray, type RunSummary } from "@/lib/activities";
+import { jsonArray, templateThumb, type RunSummary } from "@/lib/activities";
 import { ClearMarkedDraft } from "@/components/ClearMarkedDraft";
 import { TemplateActions } from "./TemplateActions";
 
@@ -54,6 +54,9 @@ export default async function TemplateDetail({
   });
 
   const pages = jsonArray(template.templatePathsJson);
+  // The picture of each page. `pages` is the background the editor is handed
+  // back, so it carries neither the movable pieces nor the questions.
+  const previews = jsonArray(template.previewPathsJson);
   const tags = jsonArray(template.tagsJson);
 
   const pastRuns: RunSummary[] = runs.map((a) => ({
@@ -93,7 +96,7 @@ export default async function TemplateDetail({
         <div className="mt-3 flex flex-wrap items-start gap-4">
           {pages.length > 0 ? (
             <div className="flex gap-1.5">
-              {pages.slice(0, 3).map((src) => (
+              {(previews.length ? previews : pages).slice(0, 3).map((src) => (
                 <Image key={src} src={src} alt="" width={120} height={84} unoptimized className="h-20 w-auto rounded-lg border border-border" />
               ))}
             </div>
@@ -112,7 +115,7 @@ export default async function TemplateDetail({
             </div>
           </div>
           <TemplateActions
-            template={{ id: template.id, title: template.title, thumb: pages[0] ?? null }}
+            template={{ id: template.id, title: template.title, thumb: templateThumb(template) }}
             classes={classes}
             pastRuns={pastRuns}
           />

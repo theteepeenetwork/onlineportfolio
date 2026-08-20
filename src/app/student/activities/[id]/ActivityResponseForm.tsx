@@ -20,6 +20,7 @@ export function ActivityResponseForm({
   resumeMode,
   teacherNote,
   initialAnswers,
+  wrongIds,
   quizReview,
 }: {
   assignmentId: string;
@@ -37,6 +38,9 @@ export function ActivityResponseForm({
   // On a "carry on" quiz reopen: the answers they got right (pre-filled + locked
   // green), with the review flag; wrong ones are omitted so they retry them.
   initialAnswers?: QuizAnswer[];
+  // Which of those they got wrong, so the canvas can say which to look at
+  // again. Never which option is right.
+  wrongIds?: string[];
   quizReview?: boolean;
 }) {
   const [state, action] = useActionState(createJournalItem, {});
@@ -58,6 +62,7 @@ export function ActivityResponseForm({
         quizMode={quiz && quiz.questions.length ? "answer" : undefined}
         initialQuiz={quiz}
         initialAnswers={initialAnswers}
+        wrongIds={wrongIds}
         quizReview={quizReview}
         objectMode={objects && objects.length ? "answer" : undefined}
         initialObjects={objects}

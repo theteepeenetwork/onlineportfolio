@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { teacherLogin, studentLogin, logout } from "./helpers";
 
 // The full quiz flow: a teacher builds a multiple-choice quiz that spans two
@@ -90,9 +91,95 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   await expect(page.getByText(/How many legs has a spider\?/)).toBeVisible();
   await expect(page.getByText(/Correct:\s*Eight/)).toBeVisible();
 
+  // The THUMBNAIL shows the quiz too.
+  //
+  // This is the first thing a teacher sees, and it was a blank white rectangle:
+  // question boxes are never flattened into the page PNG (that invariant is
+  // what keeps a published drawing a drawing), so the work of record for a quiz
+  // page is genuinely an empty sheet. A hand-in therefore stores a PICTURE of
+  // itself alongside the work, and the looking-surfaces use it.
+  const thumb = page.getByRole("button", { name: "Open Amara's work" }).first().locator("img");
+  const thumbSrc = (await thumb.getAttribute("src"))!;
+  // It renders. `/uploads` authorises by column, so a path the route does not
+  // recognise is served to nobody — which is how a stored picture can still
+  // arrive as a broken image.
+  await expect
+    .poll(async () => thumb.evaluate((i: HTMLImageElement) => i.naturalWidth))
+    .toBeGreaterThan(0);
+
+  // The picture and the work of record are two different files, and the work of
+  // record is the one that stays free of question boxes.
+  const db = new PrismaClient();
+  let shownFirst = "";
+  try {
+    const item = await db.journalItem.findFirst({
+      where: { student: { name: "Amara" }, assignment: { title: "Animal quiz" } },
+      select: { mediaPath: true, mediaPathsJson: true, previewPathsJson: true },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(item, "the hand-in was saved").not.toBeNull();
+    const work = JSON.parse(item!.mediaPathsJson!) as string[];
+    const shown = JSON.parse(item!.previewPathsJson!) as string[];
+    expect(shown, "a picture of every page, not just the cover").toHaveLength(work.length);
+    expect(shown[0], "the picture is its own file").not.toBe(work[0]);
+    expect(thumbSrc, "the queue shows the picture, not the blank page").toBe(shown[0]);
+    shownFirst = shown[0];
+
+    // Page 1 carries a question box and nothing else, so its work of record is
+    // a blank sheet while its picture is not. Bytes are a coarse measure and a
+    // deliberately generous one: a blank PNG compresses to almost nothing.
+    const { statSync } = await import("node:fs");
+    // Media lives outside public/ — it is served only through the authorising
+    // /uploads route, never statically (SAFEGUARDING rule 7).
+    const mediaDir = process.env.MEDIA_DIR || `${process.cwd()}/.media`;
+    const onDisk = (p: string) => statSync(`${mediaDir}/${p.replace("/uploads/", "")}`).size;
+    expect(
+      onDisk(shown[0]),
+      "the picture carries the question the blank page does not",
+    ).toBeGreaterThan(onDisk(work[0]) * 2);
+  } finally {
+    await db.$disconnect();
+  }
+
+  // And the same when OPENING the work, which is where a teacher actually
+  // looks at it. Question boxes are deliberately never flattened into the page
+  // PNG — that is what keeps a child's drawing free of them — so without this
+  // the viewer showed the drawing and no sign anything had been answered.
+  await page.getByRole("button", { name: "Open Amara's work" }).first().click();
+  const viewer = page.getByRole("dialog");
+  await expect(viewer).toBeVisible();
+  await expect(viewer).toContainText("Quiz · 1 of 2");
+  await expect(viewer).toContainText(/How many legs has a spider\?/);
+  await expect(viewer).toContainText(/Correct:\s*Eight/);
+  // Never the tick alone — the words say it too (rule 18).
+  await expect(viewer).toContainText("not right");
+  await page.keyboard.press("Escape");
+
   // The response is still awaiting approval on the run.
   await page.goto(templatePath);
   await expect(page.getByText(/1 waiting/).first()).toBeVisible();
+
+  // --- And once it is in her jar, SHE can see it too ---
+  //
+  // The jar read `mediaPath` straight off the row — the cover of the work of
+  // record, which for a quiz page is the blank sheet. A child who answered
+  // every question opened her jar and found a white rectangle with her
+  // teacher's stickers stuck to nothing on it.
+  await page.goto("/teacher/queue");
+  const row = page.locator('[data-child="Amara"]').filter({ hasText: "Animal quiz" });
+  await row.getByRole("button", { name: /Add to jar/ }).click();
+  await expect(row).toHaveCount(0, { timeout: 15_000 });
+
+  await logout(page);
+  await studentLogin(page, "Amara");
+  await page.goto("/student");
+  const card = page.locator(`img[src="${shownFirst}"]`).first();
+  await expect(card, "her jar shows the picture, not the blank page").toBeVisible();
+  // And it loads: /uploads authorises by column, and a child reaching her own
+  // picture is a different query from a teacher reaching it.
+  await expect
+    .poll(async () => card.evaluate((i: HTMLImageElement) => i.naturalWidth))
+    .toBeGreaterThan(0);
 });
 
 // The quiz box on the worksheet and the panel's accordion are two editing
@@ -297,4 +384,193 @@ test("answer text grows to fill its row, at one size for every answer", async ({
   }));
   expect(new Set(after.sizes).size).toBe(1);
   expect(after.clipped).toBe(false);
+});
+
+// Another go at the ones they got wrong.
+//
+// Sending a nine-out-of-ten back as "start again" is demoralising, so a
+// "carry on" return keeps what they got right and reopens what they didn't.
+// None of this path had a test — not returnMode, not CONTINUE, not a sent-back
+// quiz — which is how a returned quiz came to blank the wrong answers entirely,
+// leaving a child looking at questions that seemed never to have been done.
+test("a sent-back quiz says which ones to look at again, without giving the answer", async ({
+  page,
+}) => {
+  const db = new PrismaClient();
+  try {
+    await teacherLogin(page);
+    await page.goto("/teacher/activities/new");
+    await page.fill("#title", "Second go");
+    await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+    await page.locator('button[title="Add"]').click();
+    await page.getByRole("button", { name: "Quiz", exact: true }).click();
+
+    const panel = page.getByRole("region", { name: "Quiz builder" });
+    await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+    await panel.getByPlaceholder("What do you want to ask?").fill("What does a cow say?");
+    await panel.getByPlaceholder("Type an answer").nth(0).fill("Moo");
+    await panel.getByPlaceholder("Type an answer").nth(1).fill("Woof");
+
+    // Page 2, not page 1: two boxes on one page overlap and swallow each
+    // other's taps.
+    await page.locator('button[title="Add page"]').click();
+    await panel.getByRole("button", { name: /Add question to page 2/ }).click();
+    await panel.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
+    await panel.getByPlaceholder("Type an answer").nth(0).fill("Four");
+    await panel.getByPlaceholder("Type an answer").nth(1).fill("Eight");
+    await panel.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
+
+    await page.locator('button[title="Done"]').click();
+    await page.getByRole("button", { name: /Save to library/ }).click();
+    await expect(page.getByRole("heading", { name: "Second go" })).toBeVisible();
+    await page.getByRole("button", { name: /Assign/ }).first().click();
+    await page.getByRole("button", { name: /Assign to whole class/ }).click();
+    await page.waitForURL((url) => url.searchParams.has("run"));
+    // Every DB check below is scoped to THIS run: the spec above also leaves
+    // Amara an item, and "her only quiz" would then count two.
+    const runId = new URL(page.url()).searchParams.get("run")!;
+
+    // --- The child gets one right and one wrong ---
+    await logout(page);
+    await studentLogin(page, "Amara");
+    await page.goto("/student/activities");
+    await page.getByRole("link", { name: /Second go/ }).click();
+    await expect(page.locator("canvas")).toBeVisible();
+    await page.getByRole("button", { name: "Moo" }).click();
+    await page.locator('img[alt="Page 2"]').click();
+    await page.getByRole("button", { name: "Four" }).click();
+    await page.locator('button[title="Done"]').click();
+    await page.getByRole("button", { name: /hand it in/i }).click();
+    await page.waitForURL((url) => url.pathname === "/student/popped");
+
+    // --- The teacher sends it back, keeping their work ---
+    await logout(page);
+    await teacherLogin(page);
+    await page.goto("/teacher/queue");
+    // By activity as well as child: the spec above leaves Amara a second card.
+    const card = page.locator('[data-child="Amara"]').filter({ hasText: "Second go" });
+    await card.getByRole("button", { name: /Send back/ }).click();
+    // "Keep their work" is the default, which is what makes this a second go
+    // rather than a fresh start.
+    await card.getByRole("button", { name: "Send back", exact: true }).click();
+    await expect
+      .poll(async () => (await db.journalItem.findFirst({
+        where: { status: "RETURNED", assignmentId: runId },
+      }))?.returnMode ?? null, { timeout: 15_000 })
+      .toBe("CONTINUE");
+
+    // --- The child reopens it ---
+    await logout(page);
+    await studentLogin(page, "Amara");
+    await page.goto("/student/activities");
+    await page.getByRole("link", { name: /Second go/ }).click();
+    await expect(page.locator("canvas")).toBeVisible();
+
+    // The one they got right is settled: still chosen, and no longer tappable,
+    // so a stray tap cannot undo it.
+    const moo = page.getByRole("button", { name: "Moo" });
+    await expect(moo).toHaveAttribute("aria-pressed", "true");
+    await expect(moo).toBeDisabled();
+
+    // The one they got wrong comes back AS THEY ANSWERED IT, said in words and
+    // still tappable — not blanked, which read as "you never did this".
+    await page.locator('img[alt="Page 2"]').click();
+    await expect(page.getByText("Have another go at this one")).toBeVisible();
+    const four = page.getByRole("button", { name: "Four" });
+    await expect(four).toHaveAttribute("aria-pressed", "true");
+    await expect(four).toBeEnabled();
+
+    // And the answer is NOT given away. This is what keeps a second go a
+    // decision rather than a copy: "Eight" is on screen as an option, but
+    // nothing marks it as the right one.
+    const eight = page.getByRole("button", { name: "Eight" });
+    await expect(eight).toBeEnabled();
+    await expect(eight).toHaveAttribute("aria-pressed", "false");
+    expect(
+      await eight.evaluate((el) => el.className),
+      "the correct answer must not be marked on a question they got wrong",
+    ).not.toMatch(/emerald/);
+
+    // --- They fix it and hand in again ---
+    await eight.click();
+    // Having had another go, they are no longer told to.
+    await expect(page.getByText("Have another go at this one")).toHaveCount(0);
+    await page.locator('button[title="Done"]').click();
+    await page.getByRole("button", { name: /hand it in/i }).click();
+    await page.waitForURL((url) => url.pathname === "/student/popped");
+
+    // Full marks, on ONE item — a re-do updates the returned row rather than
+    // making the run show as both sent back and waiting.
+    await expect
+      .poll(async () => {
+        const rows = await db.journalItem.findMany({ where: { assignmentId: runId } });
+        return rows.length === 1 ? `${rows[0].quizScore}/${rows[0].quizTotal}` : `rows:${rows.length}`;
+      }, { timeout: 15_000 })
+      .toBe("2/2");
+  } finally {
+    // This spec hands work in twice; several others are written around a child
+    // having exactly one waiting item, so it clears up after itself.
+    await db.journalItem.deleteMany({ where: { assignment: { title: "Second go" } } });
+    await db.$disconnect();
+  }
+});
+
+// A picture inside an answer goes through the same door as a picture on the
+// canvas.
+//
+// It did not, and that was the whole bug: the picker offers `image/*`, the
+// store keeps only some of that, and the canvas import had learned to re-encode
+// the rest while this second entry point had not. So an AVIF sailed in, showed
+// up in the question, and was refused several steps later with "That image
+// couldn't be read" — after the teacher had placed it.
+test("a picture in an answer is re-encoded and kept small", async ({ page }) => {
+  const db = new PrismaClient();
+  try {
+    await teacherLogin(page);
+    await page.goto("/teacher/activities/new");
+    await page.fill("#title", "Picture answers");
+    await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+    await page.locator('button[title="Add"]').click();
+    await page.getByRole("button", { name: "Quiz", exact: true }).click();
+
+    const panel = page.getByRole("region", { name: "Quiz builder" });
+    await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+    await panel.getByPlaceholder("What do you want to ask?").fill("Which city?");
+    await panel.getByPlaceholder("Type an answer").nth(0).fill("London");
+    await panel.getByPlaceholder("Type an answer").nth(1).fill("Paris");
+
+    await panel.getByRole("button", { name: /picture/i }).first().click();
+    await page.locator('input[type="file"]').last().setInputFiles("tests/fixtures/sample.avif");
+
+    // Scoped to the question box: the Pages strip is full of PNG thumbnails, so
+    // the first data: image on the page is one of those, not the answer's.
+    const optionImg = page.getByRole("group", { name: "Question box" }).locator("img").first();
+    await expect(optionImg).toBeVisible({ timeout: 15_000 });
+    const shape = await optionImg.evaluate((el) => {
+      const i = el as HTMLImageElement;
+      return { fmt: i.src.slice(0, 20), bytes: i.src.length };
+    });
+
+    expect(shape.fmt, "re-encoded into something the store keeps").toMatch(
+      /^data:image\/(webp|jpeg);/,
+    );
+    // An answer's picture is shown at about thumbnail size, so carrying the
+    // 3840px original would be a slow save for detail nobody sees — and several
+    // of them ride in one form post.
+    expect(
+      shape.bytes,
+      `an answer's picture should stay small (was ${Math.round(shape.bytes / 1024)}KB)`,
+    ).toBeLessThan(400 * 1024);
+
+    // And the save it used to die on now goes through.
+    await page.locator('button[title="Done"]').click();
+    await page.getByRole("button", { name: /Save to library/ }).click();
+    await page.waitForURL((u) => /^\/teacher\/activities\/[a-z0-9]{20,}$/.test(u.pathname), {
+      timeout: 30_000,
+    });
+    await expect(page.getByText(/couldn't be read/i)).toHaveCount(0);
+  } finally {
+    await db.activityTemplate.deleteMany({ where: { title: "Picture answers" } });
+    await db.$disconnect();
+  }
 });

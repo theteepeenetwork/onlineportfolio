@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { studentLogin, openDrawing } from "./helpers";
+import { studentLogin, openDrawing, turnObject as turn } from "./helpers";
 
 // The small canvas primitives everything else is built on: a straight line, an
 // arrow, free rotation, duplicating a placed object, and snap-to-grid while
@@ -14,25 +14,6 @@ async function addShape(page: import("@playwright/test").Page, name: string) {
   await page.locator('button[title="Add"]').click();
   await page.getByRole("button", { name: "Shapes" }).click();
   await page.getByRole("button", { name, exact: true }).click();
-}
-
-// Drag the rotate handle a given number of degrees around the shape's centre.
-async function turn(page: import("@playwright/test").Page, degrees: number) {
-  const wrapper = page.locator("div[data-object]").first();
-  const box = (await wrapper.boundingBox())!;
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  const handle = page.locator('div[title="Turn"]');
-  const hb = (await handle.boundingBox())!;
-  const hx = hb.x + hb.width / 2;
-  const hy = hb.y + hb.height / 2;
-  const radius = Math.hypot(hx - cx, hy - cy);
-  const start = Math.atan2(hy - cy, hx - cx);
-  const end = start + (degrees * Math.PI) / 180;
-  await page.mouse.move(hx, hy);
-  await page.mouse.down();
-  await page.mouse.move(cx + Math.cos(end) * radius, cy + Math.sin(end) * radius, { steps: 10 });
-  await page.mouse.up();
 }
 
 test("a child can draw a straight line, in one palette, at any age", async ({ page }) => {
@@ -159,4 +140,98 @@ test("dragging a shape snaps it onto the grid, so a row reads as a row", async (
   const after = (await wrapper.boundingBox())!;
   const offGrid = Math.abs(((after.x - stageBox.x) / step) % 1);
   expect(Math.min(offGrid, 1 - offGrid)).toBeLessThan(0.12);
+});
+
+// A line's box is not a frame around the line, it IS the line: the stroke runs
+// corner to corner. So a free resize does not make it longer, it re-aims it —
+// a child reaching for the corner to stretch a number line got a diagonal
+// instead. Resize now holds the proportion it started the drag with; turning is
+// the turn handle's job, and only the turn handle's.
+test("resizing a line makes it longer without re-aiming it", async ({ page }) => {
+  await studentLogin(page, "Ella");
+  await openDrawing(page);
+
+  await addShape(page, "Line");
+  const path = page.locator('svg[data-shape="line"] path').first();
+  const ends = async () => {
+    const d = (await path.getAttribute("d"))!;
+    const m = d.match(/^M 0 0 L ([-\d.]+) ([-\d.]+)/)!;
+    return { w: parseFloat(m[1]), h: parseFloat(m[2]) };
+  };
+  const before = await ends();
+
+  // Drag the resize corner well down as well as out — the direction that used
+  // to tip a flat rule into a diagonal.
+  const handle = page.locator('div[title="Resize"]');
+  const hb = (await handle.boundingBox())!;
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + hb.width / 2 + 150, hb.y + hb.height / 2 + 120, { steps: 8 });
+  await page.mouse.up();
+
+  const after = await ends();
+  expect(after.w).toBeGreaterThan(before.w + 40);
+  expect(after.h / after.w).toBeCloseTo(before.h / before.w, 3);
+});
+
+// ...and shorter. A locked proportion means one number to clamp, and the floor
+// has to go on the side that is the shape's size. On the short side instead, a
+// 105:1 rule turned a height floor of 2 into a width floor of 210 — the line
+// snapped back to full length the moment it was dragged in, so it could be
+// grown but never shrunk.
+test("a line can be made shorter again", async ({ page }) => {
+  await studentLogin(page, "Ella");
+  await openDrawing(page);
+
+  await addShape(page, "Line");
+  const path = page.locator('svg[data-shape="line"] path').first();
+  const ends = async () => {
+    const d = (await path.getAttribute("d"))!;
+    const m = d.match(/^M 0 0 L ([-\d.]+) ([-\d.]+)/)!;
+    return { w: parseFloat(m[1]), h: parseFloat(m[2]) };
+  };
+  const before = await ends();
+
+  // Pull the resize corner back towards the middle of the line.
+  const handle = page.locator('div[title="Resize"]');
+  const hb = (await handle.boundingBox())!;
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + hb.width / 2 - 120, hb.y + hb.height / 2, { steps: 8 });
+  await page.mouse.up();
+
+  const after = await ends();
+  expect(after.w, `wanted shorter than ${before.w}, got ${after.w}`).toBeLessThan(before.w - 60);
+  // Still the same line, just less of it.
+  expect(after.h / after.w).toBeCloseTo(before.h / before.w, 3);
+});
+
+// Resize holds the corner a child is NOT dragging. x/y pin the top-left but the
+// rotation turns about the centre, so growing the box swings it — and the
+// correction for that was applied with the wrong sign on both axes. It cancels
+// to nothing at 0°, so an upright shape resized correctly and every existing
+// test passed; a turned one walked across the page as it grew.
+test("resizing a turned shape holds the corner it is not being dragged by", async ({ page }) => {
+  await studentLogin(page, "Ella");
+  await openDrawing(page);
+
+  await addShape(page, "Rectangle");
+  await turn(page, 45);
+
+  // The pencil sits on the corner opposite the resize handle — the anchor.
+  const anchor = async () => {
+    const b = (await page.locator('[aria-label="Edit text"]').boundingBox())!;
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  };
+  const before = await anchor();
+
+  const hb = (await page.locator('div[title="Resize"]').boundingBox())!;
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + hb.width / 2 + 120, hb.y + hb.height / 2 + 90, { steps: 8 });
+  await page.mouse.up();
+
+  const after = await anchor();
+  const moved = Math.hypot(after.x - before.x, after.y - before.y);
+  expect(moved, `the anchor corner drifted ${Math.round(moved)}px`).toBeLessThan(4);
 });

@@ -122,7 +122,8 @@ test("the controls that only appear once a child taps something meet the floor t
   );
 
   // A text box, placed then tapped. Same four corners, same floor.
-  await page.locator('button[title="Text"]').click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Text", exact: true }).click();
   await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.7);
   await page.locator('textarea[placeholder="Type…"]').waitFor();
   await page.keyboard.type("Hi");

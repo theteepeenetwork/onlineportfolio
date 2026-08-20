@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { workCover } from "@/lib/journalMedia";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Avatar } from "@/components/Avatar";
@@ -87,6 +88,8 @@ export default async function TeacherDashboard({
         id: true,
         type: true,
         mediaPath: true,
+        mediaPathsJson: true,
+        previewPathsJson: true,
         studentId: true,
         student: { select: { name: true } },
         assignment: { select: { title: true } },
@@ -193,9 +196,9 @@ export default async function TeacherDashboard({
                       overflow: "hidden",
                     }}
                   >
-                    {r.type !== "AUDIO" && r.mediaPath ? (
+                    {r.type !== "AUDIO" && workCover(r) ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.mediaPath} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img src={workCover(r)!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : (
                       <Icon name={k.icon} size={30} decorative />
                     )}

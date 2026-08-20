@@ -95,3 +95,24 @@ export async function clickHydrated(page: Page, name: RegExp) {
   );
   await button.click();
 }
+
+// Drag an object's rotate handle a given number of degrees around its centre.
+// Relative, not absolute — the handle is wherever the last turn left it, which
+// is exactly how a child reaches for it.
+export async function turnObject(page: Page, degrees: number) {
+  const wrapper = page.locator("div[data-object]").first();
+  const box = (await wrapper.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const handle = page.locator('div[title="Turn"]');
+  const hb = (await handle.boundingBox())!;
+  const hx = hb.x + hb.width / 2;
+  const hy = hb.y + hb.height / 2;
+  const radius = Math.hypot(hx - cx, hy - cy);
+  const start = Math.atan2(hy - cy, hx - cx);
+  const end = start + (degrees * Math.PI) / 180;
+  await page.mouse.move(hx, hy);
+  await page.mouse.down();
+  await page.mouse.move(cx + Math.cos(end) * radius, cy + Math.sin(end) * radius, { steps: 10 });
+  await page.mouse.up();
+}

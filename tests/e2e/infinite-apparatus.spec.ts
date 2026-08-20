@@ -194,3 +194,56 @@ test("the source is part of the worksheet, so it lands in the hand-in", async ({
   await page.getByRole("button", { name: /hand it in/i }).click();
   await page.waitForURL((url) => url.pathname === "/student/popped");
 });
+
+// A hover is not a drag.
+//
+// Pointer capture was taken on `e.target` — the <path> under the finger — while
+// the WRAPPER handled the drag. When that capture did not hold, every later
+// event went to whatever was under the pointer instead, which on a source is
+// the copy the child has just pulled out of it. So the source never saw
+// `pointerup` and its drag ref stayed set: hover back over the source at any
+// point afterwards and the copy leapt onto it, because the stale anchor had
+// been measured against the source and the pointer was over the source again.
+test("hovering the source does not drag a copy back onto it", async ({ page }) => {
+  await buildTemplateWithSource(page, "Hover holds still");
+  await openAsChild(page, "Hover holds still");
+
+  const objects = page.locator("div[data-object]");
+  const src = (await objects.first().boundingBox())!;
+  const sx = src.x + src.width / 2;
+  const sy = src.y + src.height / 2;
+
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  await page.mouse.move(sx + 280, sy + 200, { steps: 10 });
+  await page.mouse.up();
+  await expect(objects).toHaveCount(2);
+  const dropped = (await objects.last().boundingBox())!;
+
+  // The drag is over. Whatever state anything is in, moving the mouse with
+  // nothing held down must not move a thing — including straight back over the
+  // source, which is where it used to jump to.
+  await page.mouse.move(sx - 60, sy - 60);
+  await page.mouse.move(sx, sy, { steps: 8 });
+  await page.mouse.move(sx + 4, sy + 4, { steps: 4 });
+
+  const after = (await objects.last().boundingBox())!;
+  expect(Math.round(after.x), "a hover must not move the copy").toBe(Math.round(dropped.x));
+  expect(Math.round(after.y), "a hover must not move the copy").toBe(Math.round(dropped.y));
+
+  // And the same with a drag deliberately left dangling: the source is told to
+  // start one and never told it ended, which is the state the lost capture used
+  // to leave behind.
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  await page.mouse.move(sx + 30, sy + 30, { steps: 3 });
+  await objects.first().dispatchEvent("pointerup", { bubbles: false, buttons: 0 });
+  await page.mouse.up();
+  const parked = (await objects.last().boundingBox())!;
+  await page.mouse.move(sx - 80, sy - 80);
+  await page.mouse.move(sx, sy, { steps: 8 });
+  const stillParked = (await objects.last().boundingBox())!;
+  expect(Math.round(stillParked.x), "a dangling drag must not revive on hover").toBe(
+    Math.round(parked.x),
+  );
+});

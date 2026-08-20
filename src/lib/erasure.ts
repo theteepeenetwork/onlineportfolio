@@ -32,11 +32,13 @@ import { deleteMediaFiles } from "@/lib/media";
 // its own paths is a caller that can forget one, and that is exactly how this
 // logic drifted into four near-copies before this module existed.
 //
-// Media paths live in THREE shapes, and a path that handles only the first
+// Media paths live in FOUR shapes, and a path that handles only the first
 // loses files silently:
 //   1. `JournalItem.mediaPath`      one path, or null
 //   2. `JournalItem.mediaPathsJson` a JSON array of paths (multi-page drawings)
-//   3. `Draft.pagesJson`            a JSON array of paths (autosaved pages)
+//   3. `JournalItem.previewPathsJson` a JSON array of paths (the picture of a
+//      quiz page: the same pages with the question boxes drawn on)
+//   4. `Draft.pagesJson`            a JSON array of paths (autosaved pages)
 //
 // AUTHORISATION IS THE CALLER'S JOB. These functions take an id and erase it.
 // They deliberately do no ownership or tenancy check, because they are used
@@ -61,12 +63,24 @@ export function mediaPathsFromJson(json: string | null | undefined): string[] {
   }
 }
 
-type ItemMedia = { mediaPath: string | null; mediaPathsJson: string | null };
+type ItemMedia = {
+  mediaPath: string | null;
+  mediaPathsJson: string | null;
+  // Required, not optional, and deliberately so: a fourth shape of media path
+  // is a fourth way to strand a child's file on the volume for ever. Making it
+  // required means the compiler names every gather site that has not been told
+  // about it, which is cheaper than finding out from a school.
+  previewPathsJson: string | null;
+};
 
-// Every media file one journal item owns: the cover/voice-note path plus every
-// page of a multi-page drawing.
+// Every media file one journal item owns: the cover/voice-note path, every page
+// of a multi-page drawing, and every page of the picture of it.
 export function journalItemMediaPaths(item: ItemMedia): Array<string | null> {
-  return [item.mediaPath, ...mediaPathsFromJson(item.mediaPathsJson)];
+  return [
+    item.mediaPath,
+    ...mediaPathsFromJson(item.mediaPathsJson),
+    ...mediaPathsFromJson(item.previewPathsJson),
+  ];
 }
 
 function journalItemsMediaPaths(items: ItemMedia[]): Array<string | null> {
@@ -117,7 +131,7 @@ export async function deleteOrphanedParents(parentIds: string[]): Promise<number
 export async function eraseJournalItem(itemId: string): Promise<void> {
   const item = await db.journalItem.findUnique({
     where: { id: itemId },
-    select: { mediaPath: true, mediaPathsJson: true },
+    select: { mediaPath: true, mediaPathsJson: true, previewPathsJson: true },
   });
   if (!item) return;
 
@@ -141,7 +155,7 @@ export async function eraseStudent(studentId: string): Promise<void> {
   const student = await db.student.findUnique({
     where: { id: studentId },
     select: {
-      journalItems: { select: { mediaPath: true, mediaPathsJson: true } },
+      journalItems: { select: { mediaPath: true, mediaPathsJson: true, previewPathsJson: true } },
       drafts: { select: { pagesJson: true } },
       // Gathered BEFORE the delete: once the pupil goes, so do the link rows
       // that would tell us which families were reading this child.
@@ -168,7 +182,7 @@ export async function eraseClass(classId: string): Promise<void> {
   const klass = await db.class.findUnique({
     where: { id: classId },
     select: {
-      journalItems: { select: { mediaPath: true, mediaPathsJson: true } },
+      journalItems: { select: { mediaPath: true, mediaPathsJson: true, previewPathsJson: true } },
       drafts: { select: { pagesJson: true } }, // in-progress response drafts
       // Gathered BEFORE the delete: the parent-child links vanish with the
       // pupils, and an unlinked family row is a working code owned by nobody.

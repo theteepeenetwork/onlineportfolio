@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { jsonArray } from "@/lib/activities";
+import { jsonArray, templateThumb } from "@/lib/activities";
 import { ActivityLibrary, type TemplateSummary, type FolderInfo } from "./ActivityLibrary";
 
 export default async function ActivityLibraryPage() {
@@ -57,7 +57,7 @@ export default async function ActivityLibraryPage() {
       title: t.title,
       instructions: t.instructions ?? "",
       tags: jsonArray(t.tagsJson),
-      thumb: jsonArray(t.templatePathsJson)[0] ?? null,
+      thumb: templateThumb(t),
       archived: t.archived,
       folderId: t.folderId,
       liveClassNames,

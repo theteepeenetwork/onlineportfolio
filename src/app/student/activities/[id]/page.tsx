@@ -44,17 +44,31 @@ export default async function RespondToActivity({
   const resumeMode =
     mine?.status === "RETURNED" ? (mine.returnMode === "CONTINUE" ? "continue" : "fresh") : undefined;
 
-  // On a "carry on" reopen of a quiz, keep the answers they got right (locked +
-  // shown green) and clear the ones they got wrong so they can try those again.
-  // Correctness is resolved here against the frozen snapshot; only the correct
-  // picks are passed on (wrong / unanswered are simply omitted).
+  // On a "carry on" reopen of a quiz, every previous answer comes back: the ones
+  // they got right are locked and ticked, and the ones they got wrong are
+  // returned AS THEY ANSWERED THEM and marked for another look.
+  //
+  // The wrong ones used to be dropped, which meant a child reopening a nine out
+  // of ten saw nine green questions and one that looked as though they had never
+  // done it. "Have another go at this one" is a different thing to say than
+  // nothing at all, and it is the whole reason sending work back is kinder than
+  // making them start again.
+  //
+  // Correctness is resolved HERE, against the frozen snapshot. `wrongIds` says
+  // which questions to look at again and nothing more — the client is never told
+  // which option is the right one, so changing an answer stays a decision rather
+  // than a copy.
   const quiz = readQuiz(assignment.quizSnapshotJson);
   let initialAnswers: QuizAnswer[] | undefined;
+  let wrongIds: string[] | undefined;
   if (resumeMode === "continue" && quiz.questions.length) {
     const prev = new Map(readAnswers(mine?.quizAnswersJson).map((a) => [a.questionId, a.selectedOptionId]));
-    initialAnswers = quiz.questions
-      .filter((q) => prev.get(q.id) === q.correctOptionId)
-      .map((q) => ({ questionId: q.id, selectedOptionId: q.correctOptionId }));
+    const answered = quiz.questions.filter((q) => prev.get(q.id) != null);
+    initialAnswers = answered.map((q) => ({
+      questionId: q.id,
+      selectedOptionId: prev.get(q.id)!,
+    }));
+    wrongIds = answered.filter((q) => prev.get(q.id) !== q.correctOptionId).map((q) => q.id);
   }
 
   return (
@@ -72,6 +86,7 @@ export default async function RespondToActivity({
       // else's words and never on a first attempt.
       teacherNote={mine?.status === "RETURNED" ? mine.teacherNote ?? undefined : undefined}
       initialAnswers={initialAnswers}
+      wrongIds={wrongIds}
       quizReview={resumeMode === "continue" && quiz.questions.length > 0}
     />
   );

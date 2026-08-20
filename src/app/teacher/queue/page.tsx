@@ -60,6 +60,10 @@ export default async function ApprovalQueue() {
     className: it.class.name,
     type: it.type,
     mediaPath: it.mediaPath,
+    // The whole thing, not just its cover: a drawing can run to several pages,
+    // and the queue is where a teacher decides whether to publish it.
+    mediaPathsJson: it.mediaPathsJson,
+    previewPathsJson: it.previewPathsJson,
     text: it.textContent,
     // Only assigned drawings have a saved activity a child can reopen, so only
     // those offer the "carry on / start again" choice when sent back.
