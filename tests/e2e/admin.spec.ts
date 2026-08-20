@@ -138,6 +138,42 @@ test.describe("Admin billing", () => {
     await expect(page.getByRole("heading", { name: "Billing contact" })).toBeVisible();
   });
 
+  test("an imported class shows as a count in the console, never as children's names", async ({ page }) => {
+    // Rule 5: an admin may set a class up for a colleague and still may not see
+    // inside it. The confirmation reports counts, the class code goes only to
+    // the teacher who will use it, and the console lists the class as a number.
+    await teacherLogin(page);
+    await page.goto("/admin");
+    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    await page.getByRole("button", { name: /Paste a class list/ }).click();
+    await page.fill("#import-name", "Willow Import Class");
+    await page.fill("#import-names", "Rowan Ashworth\nMabel Ashworth\nTeddy Vance");
+
+    // Set it up for a COLLEAGUE, not for the admin themselves.
+    const options = page.locator("#import-owner option");
+    for (let i = 0; i < (await options.count()); i++) {
+      const label = (await options.nth(i).textContent()) ?? "";
+      if (!label.includes("(you)")) {
+        await page.locator("#import-owner").selectOption((await options.nth(i).getAttribute("value")) ?? "");
+        break;
+      }
+    }
+    await page.getByRole("button", { name: /Create the class/ }).click();
+
+    const done = page.locator('[role="status"]');
+    await expect(done).toContainText(/3 pupils added/);
+    // The class code is the children's way in — it belongs to their teacher.
+    await expect(done).not.toContainText(/class code is/i);
+
+    await page.reload();
+    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    const body = page.locator("body");
+    await expect(body).toContainText("Willow Import Class");
+    await expect(body).not.toContainText("Rowan");
+    await expect(body).not.toContainText("Mabel");
+    await expect(body).not.toContainText("Teddy");
+  });
+
   test("an admin can hand a class to a different teacher from the Classes tab", async ({ page }) => {
     await teacherLogin(page);
     await page.goto("/admin");
