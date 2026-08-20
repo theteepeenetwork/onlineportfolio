@@ -288,6 +288,9 @@ type TextObj = ObjLock & {
   y: number;
   fontPx: number;
   color: string;
+  // Degrees, 0–359, absent when upright. The same field a shape carries, so the
+  // turn handle means one thing on this canvas rather than two.
+  rot?: number;
 };
 type Obj = ImageObj | ShapeObj | TextObj;
 type HistoryEntry = { img: string; objects: Obj[] };
@@ -784,11 +787,29 @@ export function DrawingCanvas({
         }
       } else {
         // text
+        ec.save();
         ec.fillStyle = o.color;
         ec.textBaseline = "top";
         ec.font = `600 ${o.fontPx}px ${FONT_STACK}`;
         const lineHeight = o.fontPx * 1.2;
-        o.text.split("\n").forEach((line, i) => ec.fillText(line, o.x, o.y + i * lineHeight));
+        const lines = o.text.split("\n");
+        ec.translate(o.x, o.y);
+        // A turned text box, turned the same way here as on screen. The centre
+        // is measured rather than stored, because a text box has no w/h — its
+        // size IS its words at its font size — and it is measured with the same
+        // font at the same size the screen renders, which is the only way the
+        // two agree. The on-screen box carries 2px of padding that this does
+        // not, so the centres differ by a pixel; at any angle that is a pixel,
+        // and it is the same pixel the unturned draw has always had.
+        if (o.rot) {
+          const w = Math.max(...lines.map((line) => ec.measureText(line).width));
+          const h = lines.length * lineHeight;
+          ec.translate(w / 2, h / 2);
+          ec.rotate((o.rot * Math.PI) / 180);
+          ec.translate(-w / 2, -h / 2);
+        }
+        lines.forEach((line, i) => ec.fillText(line, 0, i * lineHeight));
+        ec.restore();
       }
     }
     // Pen strokes go on top of everything.
@@ -2978,7 +2999,6 @@ function ObjectToolbar({
   onStyle,
   onDuplicate,
   canDuplicate,
-  onEditText,
   unrotate,
 }: {
   o: Obj;
@@ -2993,9 +3013,6 @@ function ObjectToolbar({
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
   canDuplicate: boolean;
-  // Open the words on this object for editing. Undefined when this person
-  // cannot edit it, which is the only thing that hides the button.
-  onEditText?: (id: string) => void;
   // The counter-rotation for a rotated object, so the toolbar reads the right
   // way up over a shape that has been turned. Composed with the toolbar's own
   // centring transform, never substituted for it.
@@ -3121,24 +3138,6 @@ function ObjectToolbar({
             </button>
           )}
         </>
-      )}
-
-      {/* The way back into the words, for a shape's label and for a text box
-          alike (F42). Double-clicking the object still works and is quicker
-          once you know it — but it is invisible, it is unreliable for a
-          three-year-old on a tablet, and it cannot be reached from a keyboard
-          at all, so it cannot be the only way in. This button is 64px, is
-          focusable, and says what it does. */}
-      {onEditText && (
-        <button
-          type="button"
-          onClick={() => onEditText(o.id)}
-          className={btn}
-          title={"text" in o && o.text?.trim() ? "Change the words" : "Add words"}
-          aria-label="Edit text"
-        >
-          <Icon name="edit" size={30} decorative />
-        </button>
       )}
 
       {/* Duplicate. Showing 24 with base-10 apparatus is two rods and four
@@ -3683,7 +3682,6 @@ function MediaObjectView({
           onSendToBack={onSendToBack}
           onDuplicate={onDuplicate}
           canDuplicate={canDuplicate}
-          onEditText={o.type === "shape" && cap.editable ? onEditText : undefined}
           unrotate={unrotate || undefined}
           onStyle={(patch) => {
             onChange(o.id, patch);
@@ -3693,54 +3691,119 @@ function MediaObjectView({
       )}
 
       {selected && !editing && cap.editable && (
-        <>
-          {/* Every control here is a child of the rotating wrapper, so each one
-              is turned back the other way. Without it they hang upside-down
-              off a shape rotated 180°, and the "top-left" pencil ends up at
-              the bottom right. */}
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onDelete(o.id)}
-            style={unrotate ? { transform: unrotate } : undefined}
-            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white shadow"
-            title="Remove"
-            aria-label="Remove object"
-          >
-            <Icon name="close" size={13} decorative />
-          </button>
-          {/* Rotate. Shapes only: an image has no `rot` and the export renderer
-              draws pictures flat, so offering it there would spin on screen and
-              land straight in the hand-in. */}
-          {o.type === "shape" && (
-            <div
-              onPointerDown={startRotate}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              style={unrotate ? { transform: unrotate } : undefined}
-              className="pointer-events-auto absolute -bottom-2.5 -left-2.5 flex h-5 w-5 cursor-grab touch-none items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow"
-              title="Turn"
-              role="button"
-              aria-label="Turn shape"
-            >
-              <Icon name="rotate" size={11} decorative />
-            </div>
-          )}
-          <div
-            onPointerDown={startResize}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            style={unrotate ? { transform: unrotate } : undefined}
-            className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
-            title="Resize"
-            role="button"
-            aria-label="Resize shape"
-          >
-            <span className="block h-5 w-5 rounded-full border-2 border-white bg-brand shadow" />
-          </div>
-        </>
+        <ObjectCorners
+          unrotate={unrotate}
+          // A picture has no words to change, so it has no pencil.
+          onEdit={o.type === "shape" ? () => onEditText(o.id) : undefined}
+          onDelete={() => onDelete(o.id)}
+          startRotate={o.type === "shape" ? startRotate : undefined}
+          startResize={startResize}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          noun="shape"
+          deleteLabel="Remove object"
+        />
       )}
     </div>
+  );
+}
+
+// The four corner controls an object carries once it is selected: edit
+// top-left, delete top-right, turn bottom-left, resize bottom-right. One
+// component so a shape and a text box cannot drift apart on where a child's
+// finger goes — and so the child touch floor is met in one place rather than
+// four. Each control is a small visible dot inside a 64px press (rule 18,
+// finding F41): the dot is what a 90px counter can carry without being buried,
+// the press is what a five-year-old can actually hit.
+function ObjectCorners({
+  unrotate,
+  onEdit,
+  onDelete,
+  startRotate,
+  startResize,
+  onPointerMove,
+  onPointerUp,
+  noun,
+  deleteLabel,
+}: {
+  unrotate: string;
+  // Undefined where the object has no words to edit — a picture.
+  onEdit?: () => void;
+  onDelete: () => void;
+  // Undefined where turning is not offered: a picture has no `rot` and the
+  // export renderer draws it flat, so a handle there would spin on screen and
+  // land straight in the hand-in.
+  startRotate?: (e: React.PointerEvent) => void;
+  startResize: (e: React.PointerEvent) => void;
+  onPointerMove: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  // What this object is called in the turn / resize labels a screen reader
+  // reads out. Delete keeps its own, because "Remove object" is what the
+  // canvas has always announced and what the specs listen for.
+  noun: string;
+  deleteLabel: string;
+}) {
+  const turned = unrotate ? { transform: unrotate } : undefined;
+  const dot = "block h-5 w-5 rounded-full border-2 border-white shadow";
+  return (
+    <>
+      {onEdit && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onEdit}
+          style={turned}
+          className={`${HANDLE_HIT} -left-8 -top-8`}
+          title="Change the words"
+          aria-label="Edit text"
+        >
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
+            <Icon name="edit" size={14} decorative />
+          </span>
+        </button>
+      )}
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onDelete}
+        style={turned}
+        className={`${HANDLE_HIT} -right-8 -top-8`}
+        title="Remove"
+        aria-label={deleteLabel}
+      >
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500 text-white shadow">
+          <Icon name="close" size={14} decorative />
+        </span>
+      </button>
+      {startRotate && (
+        <div
+          onPointerDown={startRotate}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          style={turned}
+          className={`${HANDLE_HIT} -bottom-8 -left-8 cursor-grab`}
+          title="Turn"
+          role="button"
+          aria-label={`Turn ${noun}`}
+        >
+          <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
+            <Icon name="rotate" size={11} decorative />
+          </span>
+        </div>
+      )}
+      <div
+        onPointerDown={startResize}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        style={turned}
+        className={`${HANDLE_HIT} -bottom-8 -right-8 cursor-nwse-resize`}
+        title="Resize"
+        role="button"
+        aria-label={`Resize ${noun}`}
+      >
+        <span className={`${dot} bg-brand`} />
+      </div>
+    </>
   );
 }
 
@@ -3773,10 +3836,16 @@ function TextObjectView({
   // Edit and delete live here now (F41), so the toolbar has to show whenever
   // the child can do either — not only for a teacher.
   const showToolbar = selected && !editing && (author || cap.editable);
+  const rot = o.rot ?? 0;
+  // Each corner control is a child of the turning wrapper, so each is turned
+  // back the other way — otherwise the "top-left" pencil ends up bottom-right
+  // on a box turned 180°.
+  const unrotate = rot ? `rotate(${-rot}deg)` : "";
   // Drop the toolbar under the box when it would clip off the top edge.
   const toolbarBelow = o.y * scale < 92;
   const drag = useRef<
     | { mode: "move"; ax: number; ay: number }
+    | { mode: "rotate"; cx: number; cy: number; base: number; startRot: number }
     | { mode: "resize"; ax: number; ay: number; sf: number }
     | null
   >(null);
@@ -3806,13 +3875,49 @@ function TextObjectView({
     drag.current = { mode: "resize", ax: e.clientX, ay: e.clientY, sf: o.fontPx };
     capture(e);
   }
+  function startRotate(e: React.PointerEvent) {
+    if (!cap.editable) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect(o.id);
+    onStart();
+    // Measured once, exactly as a shape's is: the handle turns with the box, so
+    // a centre re-read on every move would have the handle chasing the pointer.
+    const box = (e.currentTarget as HTMLElement).closest("[data-object]")?.getBoundingClientRect();
+    const cx = box ? box.left + box.width / 2 : e.clientX;
+    const cy = box ? box.top + box.height / 2 : e.clientY;
+    drag.current = {
+      mode: "rotate",
+      cx,
+      cy,
+      base: Math.atan2(e.clientY - cy, e.clientX - cx),
+      startRot: rot,
+    };
+    capture(e);
+  }
   function onPointerMove(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
     if (d.mode === "move") {
       onChange(o.id, { x: (e.clientX - d.ax) / scale, y: (e.clientY - d.ay) / scale });
+    } else if (d.mode === "rotate") {
+      const angle = Math.atan2(e.clientY - d.cy, e.clientX - d.cx);
+      const deg = d.startRot + ((angle - d.base) * 180) / Math.PI;
+      // 15° stops, the same 24 of them a shape gets.
+      const snapped = Math.round(deg / ROTATE_STEP) * ROTATE_STEP;
+      onChange(o.id, { rot: ((snapped % 360) + 360) % 360 });
     } else {
-      const delta = (e.clientX - d.ax + (e.clientY - d.ay)) / 2 / scale;
+      // Project the drag onto the box's OWN axes before reading it as "bigger"
+      // or "smaller", so pulling away from a turned box grows it however it is
+      // lying. A shape does the same thing with w and h; a text box has neither
+      // — its size is its words at their font size — so the two local
+      // components are averaged back into one number.
+      const th = (rot * Math.PI) / 180;
+      const cos = Math.cos(th);
+      const sin = Math.sin(th);
+      const dx = (e.clientX - d.ax) / scale;
+      const dy = (e.clientY - d.ay) / scale;
+      const delta = (dx * cos + dy * sin + (-dx * sin + dy * cos)) / 2;
       onChange(o.id, { fontPx: Math.max(12, Math.min(240, d.sf + delta)) });
     }
   }
@@ -3838,12 +3943,18 @@ function TextObjectView({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onDoubleClick={cap.editable ? () => onEditText(o.id) : undefined}
+      data-object
       className={`absolute touch-none ${
         canGrab ? "pointer-events-auto" : "pointer-events-none"
       } ${editing || !canGrab ? "" : "cursor-move"} ${
         selected ? "ring-2 ring-brand" : author && o.locked ? "ring-2 ring-amber-400" : ""
       }`}
-      style={{ left: o.x * scale, top: o.y * scale }}
+      style={{
+        left: o.x * scale,
+        top: o.y * scale,
+        // About the centre, which is what the export renderer turns about too.
+        ...(rot ? { transform: `rotate(${rot}deg)`, transformOrigin: "50% 50%" } : {}),
+      }}
     >
       {editing ? (
         <textarea
@@ -3876,26 +3987,27 @@ function TextObjectView({
           onSendToBack={onSendToBack}
           onDuplicate={onDuplicate}
           canDuplicate={canDuplicate}
-          onEditText={cap.editable ? onEditText : undefined}
           onStyle={() => {}}
         />
       )}
 
       {selected && !editing && cap.editable && (
-        // Same as a shape (F41): edit and delete are in the floating toolbar at
-        // 64px, and only the drag handle stays on the corner — as a small dot
-        // inside a 64px press.
-        <div
-          onPointerDown={startResize}
+        // The same four corners a shape has, in the same places: edit top-left,
+        // delete top-right, turn bottom-left, resize bottom-right. A text box
+        // and a shape are both just objects to a child, so they answer to the
+        // same hands. Each is a small dot inside a 64px press (rule 18's child
+        // floor); each is turned back upright by `unrotate`.
+        <ObjectCorners
+          unrotate={unrotate}
+          onEdit={() => onEditText(o.id)}
+          onDelete={() => onDelete(o.id)}
+          startRotate={startRotate}
+          startResize={startResize}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          className={`${HANDLE_HIT} -bottom-8 -right-8 cursor-nwse-resize`}
-          title="Resize"
-          role="button"
-          aria-label="Resize text"
-        >
-          <span className="block h-5 w-5 rounded-full border-2 border-white bg-brand shadow" />
-        </div>
+          noun="text"
+          deleteLabel="Remove text"
+        />
       )}
     </div>
   );

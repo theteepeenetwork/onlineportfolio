@@ -50,6 +50,28 @@ test("text can be placed, re-selected, moved and re-edited", async ({ page }) =>
   await page.locator('button[title="Pen"]').click();
   await expect(page.getByText("Hello world", { exact: true })).toBeVisible();
 
+  // Turn it. A text box carries the same four corners a shape does, so it
+  // answers to the same hands (F42) — and the turn is stored, not just drawn,
+  // which is what lets the export renderer put it in the hand-in the same way
+  // up as the child left it.
+  const turned = page.getByText("Hello world", { exact: true });
+  const tbox = (await turned.boundingBox())!;
+  const wrapper = turned.locator("..");
+  // Committing with the pen dropped the selection, so pick the box up again.
+  await page.locator('button[aria-label="Move"]').click();
+  await page.mouse.click(tbox.x + tbox.width / 2, tbox.y + tbox.height / 2);
+  await expect(page.getByRole("button", { name: "Turn text" })).toBeVisible();
+  expect(await wrapper.evaluate((el) => getComputedStyle(el).transform)).toBe("none");
+  const handle = page.getByRole("button", { name: "Turn text" });
+  const hbox = (await handle.boundingBox())!;
+  await page.mouse.move(hbox.x + hbox.width / 2, hbox.y + hbox.height / 2);
+  await page.mouse.down();
+  // Swing round to the far side of the box's centre, which is a half turn.
+  await page.mouse.move(tbox.x + tbox.width * 1.5, tbox.y - tbox.height, { steps: 8 });
+  await page.mouse.up();
+  const matrix = await wrapper.evaluate((el) => getComputedStyle(el).transform);
+  expect(matrix, "the text box should have turned").not.toBe("none");
+
   // Hand it in — the text is flattened into the saved image.
   await page.locator('button[title="Done"]').click();
   await page.waitForURL((url) => url.pathname === "/student/popped");

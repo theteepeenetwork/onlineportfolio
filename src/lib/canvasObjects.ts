@@ -108,6 +108,12 @@ export type TextObj = ObjCommon & {
   text: string;
   fontPx: number;
   color: string;
+  // Rotation in degrees, 0–359, from the canvas's turn handle — the same field,
+  // the same range and the same "absent means upright" rule as a shape's, so a
+  // text box and a shape behave identically under the same four corner
+  // controls. Mirrored by the export renderer about the same centre the screen
+  // turns about, so a turned label lands in the child's hand-in as they left it.
+  rot?: number;
 };
 
 export type CanvasObj = ImageObj | ShapeObj | TextObj;
@@ -238,6 +244,9 @@ function normalizeObject(raw: unknown): CanvasObj | null {
   }
 
   if (o.type === "text") {
+    // Same wrap-then-drop-zero rule as a shape's, from the same helper, so the
+    // two object types cannot drift apart on what a turn means.
+    const rot = normaliseRotation(o.rot);
     return {
       id,
       type: "text",
@@ -246,6 +255,7 @@ function normalizeObject(raw: unknown): CanvasObj | null {
       y,
       fontPx: clamp(num(o.fontPx, 32), 8, 400),
       color: str(o.color, MAX_COLOR_LEN) || "#1f2430",
+      ...(rot ? { rot } : {}),
       locked,
     };
   }

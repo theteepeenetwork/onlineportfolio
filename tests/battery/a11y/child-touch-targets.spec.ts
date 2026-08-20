@@ -94,6 +94,51 @@ test("every tool on a child's drawing canvas meets the child touch floor", async
   expect(small, `controls below ${FLOOR}px on the drawing canvas: ${JSON.stringify(small)}`).toEqual([]);
 });
 
+test("the controls that only appear once a child taps something meet the floor too", async ({
+  page,
+}) => {
+  // F41: the sweep above loads the page with NOTHING selected, so it never saw
+  // the controls that appear AROUND an object once a child taps it — four of
+  // them, at 20 and 24px against a floor of 64. F37's lesson was that a page
+  // list is exactly as good as the pages on it; this is its sibling, that a
+  // page sweep is exactly as good as the states it visits.
+  //
+  // Both object types are visited, because they used to disagree: a shape had a
+  // pencil and a text box had nothing at all (F42).
+  await loginStudent(page, SCHOOL_A.classCode, "Chloe");
+  await page.goto("/student/new/drawing");
+  await expect(page.locator("canvas")).toBeVisible();
+  const box = (await page.locator("canvas").boundingBox())!;
+
+  // A shape, placed then tapped.
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Shapes" }).click();
+  await page.locator('[role="group"] button').first().click();
+  await page.locator('button[aria-label="Move"]').click();
+  await expect(page.getByRole("button", { name: "Remove object" })).toBeVisible();
+  let small = await undersizedControls(page);
+  expect(small, `controls below ${FLOOR}px around a selected shape: ${JSON.stringify(small)}`).toEqual(
+    [],
+  );
+
+  // A text box, placed then tapped. Same four corners, same floor.
+  await page.locator('button[title="Text"]').click();
+  await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.7);
+  await page.locator('textarea[placeholder="Type…"]').waitFor();
+  await page.keyboard.type("Hi");
+  await page.locator('button[title="Pen"]').click();
+  await page.locator('button[aria-label="Move"]').click();
+  const label = page.getByText("Hi", { exact: true });
+  const lbox = (await label.boundingBox())!;
+  await page.mouse.click(lbox.x + lbox.width / 2, lbox.y + lbox.height / 2);
+  await expect(page.getByRole("button", { name: "Remove text" })).toBeVisible();
+  small = await undersizedControls(page);
+  expect(
+    small,
+    `controls below ${FLOOR}px around a selected text box: ${JSON.stringify(small)}`,
+  ).toEqual([]);
+});
+
 test("every tool on an activity response meets the child touch floor", async ({ page }) => {
   await loginStudent(page, SCHOOL_A.classCode, "Dev");
   await page.goto("/student/activities");

@@ -1463,7 +1463,7 @@ spec. Worth checking at the same time whether the restore modal should be
 dismissible by pressing Escape, since a modal that can only be answered is also
 a modal that can only block.
 
-## F41 · The gate cannot see the controls that only appear once you tap something · Medium → Open
+## F41 · The gate cannot see the controls that only appear once you tap something · Medium → Fixed
 
 Found on 2026-08-19, immediately after F37 was fixed. F37 grew every control on
 the drawing canvas to the 64px child floor and — the part that matters — added
@@ -1473,12 +1473,12 @@ The sweep loads that page and measures what is on it. Nothing is selected, so a
 whole class of controls is not on it: the chrome that appears **around an object
 once a child taps it**.
 
-| Control | Size | Floor |
+| Control | Size when found | Now |
 | --- | --- | --- |
-| Resize handle | 20×20 | 64 |
-| Turn (rotate) handle | 20×20 | 64 |
-| Delete (✕) | 24×24 | 64 |
-| ~~Add / edit label (✏)~~ | ~~24×24~~ | **fixed 20 Aug 2026 — now 64px in the toolbar (F42)** |
+| Resize handle | 20×20 | **64×64 press, 20px dot** |
+| Turn handle | 20×20 | **64×64 press, 20px dot** |
+| Delete (✕) | 24×24 | **64×64 press, 28px dot** |
+| Add / edit label (✏) | 24×24 | **64×64 press, 28px dot** |
 
 These are the controls a child uses to *arrange* their work rather than to draw
 it, and moving a counter into place is most of what an apparatus worksheet asks
@@ -1492,10 +1492,21 @@ number: handles outside the shape's bounds, or a long-press menu, or handles
 that scale with the object down to a floor. That is a real decision and it is
 the owner's, which is why this is logged rather than guessed at.
 
-**To close this.** Decide the affordance, then extend the sweep to visit the
-selected state — place a shape, tap it, measure — so the answer stays true. The
-palette buttons a child taps to *place* a shape are already at 64px and already
-asserted, in the same spec.
+**Fixed on 2026-08-20, by the owner's decision.** The affordance is a **small
+visible dot inside a 64px press** — the pattern the text box's resize handle
+already used — at all four corners: edit top-left, delete top-right, turn
+bottom-left, resize bottom-right, the same on a shape and on a text box. That is
+what answers the objection above: the dot is what a 90px counter can carry
+without being buried, and the press is what a five-year-old can actually hit, so
+nothing had to be grown into something that covers its own shape. All four now
+live in one component (`ObjectCorners`), so the two object types cannot drift
+apart again.
+
+**And the sweep now visits the selected state**, which is the half of this
+finding that keeps it fixed: `child-touch-targets.spec.ts` places a shape, taps
+it, measures; then places a text box, taps it, and measures again. Watched fail
+before watched pass — with the press shrunk back to 24px it names all four
+controls on both object types.
 
 ## F42 · A child can write, but cannot get back into what they wrote · Medium → Fixed
 
@@ -1521,22 +1532,26 @@ delete now live "in the floating toolbar at 64px", but `ObjectToolbar` has no
 edit control: order, padlock, duplicate, style, and that is all. So the intended
 home for this affordance exists and is empty.
 
-**Fixed on 2026-08-20, the way it said to.** `ObjectToolbar` now carries an
-Edit control at 64px, shown for a shape's label and for a text box alike
-whenever the person looking at it may edit it, and the shape's 24×24 corner
-pencil is gone. Double-click still works — it is quicker once you know it — but
-it is no longer the only way in, and the button is focusable, so re-editing text
-is reachable from a keyboard for the first time (WCAG 2.2 **2.1.1**, Level A).
-`tests/e2e/text.spec.ts` finds it by its accessible name and was already in the
-blocking e2e suite, so the repro stays where it is.
+**Fixed on 2026-08-20, by the owner's decision: a text box gets the same four
+controls a shape has, in the same places** — edit top-left, delete top-right,
+turn bottom-left, resize bottom-right, each a 64px press (see F41, fixed by the
+same change). Double-click still opens the words, because it is quicker once you
+know it; it is simply no longer the only way, and the pencil is a real `button`,
+so re-editing text is reachable from a keyboard for the first time (WCAG 2.2
+**2.1.1**, Level A). `tests/e2e/text.spec.ts` finds it by its accessible name and
+was already in the blocking e2e suite, so the repro stays where it is.
 
-**One row of F41 goes with it**: "Add / edit label, 24×24" is now 64px and off
-the corner. The other three — resize, turn, delete — are untouched and still
-need F41's design answer.
+**Two more holes closed by the same decision, both found while fixing this:**
 
-**Found while fixing this, and not fixed here:** a text box has **no delete at
-all**. `TextObjectView` renders only a resize handle, and its own comment says
-delete "moved to the floating toolbar" — but `ObjectToolbar` never had one, so a
-child who places a text box cannot remove it. A shape can, from its 24px corner
-✕. That is the same missing-toolbar-control shape as this finding and belongs
-with F41's decision about where those controls live, which is the owner's.
+*A text box could not be deleted at all.* `TextObjectView` rendered a resize
+handle and nothing else, and its own comment claimed delete had "moved to the
+floating toolbar" — a toolbar that never had one. A child who placed a text box
+could not remove it. It now has the same ✕ a shape has.
+
+*A text box could not be turned.* That one needed more than a button: `TextObj`
+had no `rot` at all. It now carries the same field, wrapped by the same
+`normaliseRotation` a shape's goes through, and the **export renderer turns the
+text the same way the screen does** — about a centre measured from the same font
+at the same size, because a text box has no stored width or height; its size is
+its words. Without that mirror a child would turn their label on screen and find
+it straight in their hand-in.

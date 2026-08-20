@@ -94,6 +94,13 @@ three lanes at once, which is the isolation CI gets from three runners, on one
 machine. `PW_SHARDS=1` turns it off; `PW_SHARDS=4` on a bigger machine turns it
 up. Nothing is skipped: `--shard` splits by file.
 
+The cost of three lanes on a four-core machine is that a single test can lose a
+race it would never lose alone: three dev servers compiling at once have twice
+pushed a `waitForURL` past its budget — once on the operator door's keyboard
+walk, once on a child handing in words. Both passed alone in a second or two. So
+**a lone timeout in a lane run is a re-run before it is a bug**: run that spec
+by itself, and believe the second answer. Anything that fails both ways is real.
+
 The lanes run `next dev`, not a shared `next build`, and that is deliberate
 however tempting the 30-second build looks. A production build is a different
 application — `signInLinkMayBeShown()` withholds a parent's magic-link URL when
