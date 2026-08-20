@@ -179,6 +179,9 @@ const ROTATE_STEP = 15;
 // child sees inside it stays small enough not to hide the work underneath.
 // Positioned by the caller with a matching -8 (32px) inset on the two sides it
 // hangs off.
+// The child touch floor (SAFEGUARDING rule 18), as a number the offsets can be
+// derived from rather than a second place to keep in step.
+const HIT_PX = 64;
 const HANDLE_HIT =
   "pointer-events-auto absolute flex h-16 w-16 items-center justify-center touch-none";
 
@@ -3150,6 +3153,17 @@ function ObjectToolbar({
               type="button"
               onClick={() => onStyle({ infinite: !shape.infinite })}
               className={btn}
+              // On is honey, off is the toolbar's own background. `aria-pressed`
+              // said which it was and nothing on screen did, so a teacher had
+              // to tap it and watch what happened to find out. The tint carries
+              // the honey ink with it so the glyph stays legible on it, and the
+              // state is not colour alone — the label under the pointer and the
+              // accessible name both still say "on" or "off" (rule 18).
+              style={
+                shape.infinite
+                  ? { background: "var(--honey-tint, #FBEED3)", borderColor: "var(--honey, #F0B441)", color: "var(--honey-ink, #8A5F1E)" }
+                  : undefined
+              }
               aria-pressed={!!shape.infinite}
               aria-label={shape.infinite ? "Endless supply on" : "Endless supply off"}
               title={
@@ -3778,7 +3792,18 @@ function ObjectCorners({
   noun: string;
   deleteLabel: string;
 }) {
-  const turned = unrotate ? { transform: unrotate } : undefined;
+  // The offsets are inline rather than Tailwind's `-top-8` / `-left-8`, because
+  // a utility class only exists if the CSS build has seen it: `-bottom-8` was
+  // already in the app from the text box's old resize handle, `-top-8` was new
+  // with these corners, and a stale chunk therefore left the two TOP controls
+  // with `top: auto` — dropping them out of the corner and into normal flow
+  // below the object, horizontally right and vertically wrong. Half of HIT_PX,
+  // so each 64px press is centred on its corner.
+  const off = -HIT_PX / 2;
+  const at = (corner: { top?: number; bottom?: number; left?: number; right?: number }) => ({
+    ...corner,
+    ...(unrotate ? { transform: unrotate } : {}),
+  });
   const dot = "block h-5 w-5 rounded-full border-2 border-white shadow";
   return (
     <>
@@ -3787,8 +3812,8 @@ function ObjectCorners({
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={onEdit}
-          style={turned}
-          className={`${HANDLE_HIT} -left-8 -top-8`}
+          style={at({ top: off, left: off })}
+          className={HANDLE_HIT}
           title="Change the words"
           aria-label="Edit text"
         >
@@ -3801,8 +3826,8 @@ function ObjectCorners({
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={onDelete}
-        style={turned}
-        className={`${HANDLE_HIT} -right-8 -top-8`}
+        style={at({ top: off, right: off })}
+        className={HANDLE_HIT}
         title="Remove"
         aria-label={deleteLabel}
       >
@@ -3815,8 +3840,8 @@ function ObjectCorners({
           onPointerDown={startRotate}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          style={turned}
-          className={`${HANDLE_HIT} -bottom-8 -left-8 cursor-grab`}
+          style={at({ bottom: off, left: off })}
+          className={`${HANDLE_HIT} cursor-grab`}
           title="Turn"
           role="button"
           aria-label={`Turn ${noun}`}
@@ -3830,8 +3855,8 @@ function ObjectCorners({
         onPointerDown={startResize}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        style={turned}
-        className={`${HANDLE_HIT} -bottom-8 -right-8 cursor-nwse-resize`}
+        style={at({ bottom: off, right: off })}
+        className={`${HANDLE_HIT} cursor-nwse-resize`}
         title="Resize"
         role="button"
         aria-label={`Resize ${noun}`}

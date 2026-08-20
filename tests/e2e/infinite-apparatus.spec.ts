@@ -70,8 +70,17 @@ async function buildTemplateWithSource(page: import("@playwright/test").Page, ti
   await page.getByRole("button", { name: "Counter 10", exact: true }).click();
 
   // Make it endless. Teacher-only, and it sits beside the padlock.
-  await page.getByRole("button", { name: "Endless supply off" }).click();
-  await expect(page.getByRole("button", { name: "Endless supply on" })).toBeVisible();
+  const endless = page.getByRole("button", { name: "Endless supply off" });
+  const offBackground = await endless.evaluate((el) => getComputedStyle(el).backgroundColor);
+  await endless.click();
+  const on = page.getByRole("button", { name: "Endless supply on" });
+  await expect(on).toBeVisible();
+  // On has to LOOK on. `aria-pressed` alone meant the only way to find out
+  // whether this was set was to tap it and watch what happened.
+  expect(
+    await on.evaluate((el) => getComputedStyle(el).backgroundColor),
+    "the endless toggle should show that it is on",
+  ).not.toBe(offBackground);
 
   await page.locator('button[title="Done"]').click();
   await page.getByRole("button", { name: /Save to library/ }).click();

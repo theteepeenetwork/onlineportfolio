@@ -95,3 +95,42 @@ test("the object toolbar stays within the canvas at the side edges", async ({ pa
   await dragCentreTo(box.left + 4);
   expect(await within()).toBe(true);
 });
+
+// Each corner control on its OWN corner, asserted by measurement.
+//
+// They shipped once with the two top controls hanging below the object: their
+// offsets came from Tailwind's `-top-8`, a utility class that only exists if
+// the CSS build has seen it, and `-bottom-8` was already in the app while
+// `-top-8` was new — so a stale chunk left `top: auto` and dropped them into
+// normal flow. Horizontally right, vertically wrong, and nothing failed. The
+// offsets are inline now, and this measures where they actually land.
+test("each corner control sits on its own corner", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.locator("#title").fill("Corners");
+  await page.getByRole("button", { name: /Build a template/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Shapes" }).click();
+  await page.getByRole("button", { name: "Circle" }).click();
+
+  const wrap = page.locator("div[data-object]").first();
+  const box = (await wrap.boundingBox())!;
+  const centre = async (name: string) => {
+    const b = (await page.locator(`[aria-label="${name}"]`).first().boundingBox())!;
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  };
+  const near = (a: number, b: number) => Math.abs(a - b) <= 2;
+
+  for (const [name, corner] of [
+    ["Edit text", { x: box.x, y: box.y }],
+    ["Remove object", { x: box.x + box.width, y: box.y }],
+    ["Turn shape", { x: box.x, y: box.y + box.height }],
+    ["Resize shape", { x: box.x + box.width, y: box.y + box.height }],
+  ] as const) {
+    const c = await centre(name);
+    expect(
+      near(c.x, corner.x) && near(c.y, corner.y),
+      `${name} should be centred on its corner — wanted ${JSON.stringify(corner)}, got ${JSON.stringify(c)}`,
+    ).toBe(true);
+  }
+});
