@@ -15,13 +15,13 @@ test("a teacher sets up a whole class from a pasted register", async ({ page }) 
   await page.getByRole("radio", { name: /Older children/ }).check();
   await page.fill("#import-names", "Olivia Smith\nOlivia Small\nJack Brown\nAmara");
 
-  // The button counts what will be created before it is clicked.
-  const submit = page.getByRole("button", { name: /Create the class with 4 pupils/ });
+  // The button counts the names pasted before it is clicked.
+  const submit = page.getByRole("button", { name: /Create the class from 4 names/ });
   await expect(submit).toBeVisible();
   await submit.click();
 
   // The confirmation reports the class, the count and the code to print.
-  const done = page.getByRole("status");
+  const done = page.locator('[role="status"]');
   await expect(done).toContainText("4 pupils added");
   await expect(done).toContainText(/class code is/i);
 
@@ -45,12 +45,12 @@ test("a second class cannot reuse a name the teacher already has", async ({ page
   await page.fill("#import-name", "Twice Class");
   await page.fill("#import-names", "Ada");
   await page.getByRole("button", { name: /Create the class/ }).click();
-  await expect(page.getByRole("status")).toContainText("1 pupil added");
+  await expect(page.locator('[role="status"]')).toContainText("1 pupil added");
 
   await page.goto("/teacher/class");
   await page.getByRole("button", { name: /Paste a class list/ }).click();
   await page.fill("#import-name", "Twice Class");
   await page.fill("#import-names", "Grace");
   await page.getByRole("button", { name: /Create the class/ }).click();
-  await expect(page.getByRole("alert")).toContainText(/already have a class called/i);
+  await expect(page.locator('p[role="alert"]')).toContainText(/already have a class called/i);
 });
