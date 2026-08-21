@@ -37,7 +37,15 @@ export const OBJ_H = 700;
 // Guardrails (hand-rolled validation — there is no zod in this repo).
 export const MAX_OBJECTS_PER_PAGE = 120;
 export const MAX_OBJECT_PAGES = 60;
+// A label lives INSIDE a shape — a number on a counter, a word on a card — and
+// stays short.
 export const MAX_LABEL_LEN = 500;
+// A standalone text box is a different thing: it is where a passage goes when a
+// worksheet says "read this, then answer". Question prompts are deliberately
+// capped at 300 characters (MAX_PROMPT_LEN in quiz.ts) and are not the place for
+// a body of text; this is. The canvas wraps and auto-fits text to its box, so a
+// paragraph renders as a paragraph.
+export const MAX_TEXT_LEN = 2000;
 export const MAX_COLOR_LEN = 32;
 
 // Shape geometry and the kind list live in canvasShapes.ts, which is the single
@@ -65,6 +73,12 @@ export type ImageObj = ObjCommon & {
   w: number;
   h: number;
   aspect: number;
+  // What the picture SHOWS, for a child using a screen reader. Optional because
+  // every image placed before this existed has none, and because a teacher
+  // dragging a photo onto the canvas is not going to be stopped and asked for
+  // one. Set by the API, which can require it of a caller that is writing the
+  // words anyway (SAFEGUARDING rule 18).
+  alt?: string;
 };
 
 export type ShapeObj = ObjCommon & {
@@ -237,7 +251,8 @@ function normalizeObject(raw: unknown): CanvasObj | null {
     const aspect = num(o.aspect, 1) || 1;
     const w = clamp(num(o.w, 100), 8, OBJ_W);
     const h = clamp(num(o.h, 100), 8, OBJ_H * 2);
-    return { id, type: "image", src: o.src, x, y, w, h, aspect, locked };
+    const alt = typeof o.alt === "string" ? str(o.alt, MAX_LABEL_LEN) : undefined;
+    return { id, type: "image", src: o.src, x, y, w, h, aspect, locked, ...(alt ? { alt } : {}) };
   }
 
   if (o.type === "shape") {
@@ -285,7 +300,7 @@ function normalizeObject(raw: unknown): CanvasObj | null {
     return {
       id,
       type: "text",
-      text: str(o.text, MAX_LABEL_LEN),
+      text: str(o.text, MAX_TEXT_LEN),
       x,
       y,
       fontPx: clamp(num(o.fontPx, 32), 8, 400),

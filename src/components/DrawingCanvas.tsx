@@ -273,6 +273,10 @@ type ImageObj = ObjLock & {
   w: number;
   h: number;
   aspect: number;
+  // Mirrors ImageObj in src/lib/canvasObjects.ts — what the picture shows, for a
+  // child using a screen reader. Carried through hydration so an image placed by
+  // the API keeps its words.
+  alt?: string;
 };
 type ShapeObj = ObjLock & {
   id: string;
@@ -5168,7 +5172,10 @@ function MediaObjectView({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={o.src}
-          alt="Added picture"
+          // The words the teacher (or the connector, on their behalf) gave for
+          // what this shows. "Added picture" tells a child using a screen reader
+          // nothing, and is the fallback only where nobody supplied better.
+          alt={o.alt || "Added picture"}
           draggable={false}
           className="pointer-events-none h-full w-full select-none"
           style={{ objectFit: "fill" }}
@@ -6117,7 +6124,7 @@ function QuizBoxView({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={o.imagePath}
-                        alt=""
+                        alt={o.imageAlt ?? ""}
                         className="w-auto shrink-0 object-contain"
                         style={{ maxHeight: px(64) }}
                       />
@@ -6183,7 +6190,7 @@ function QuizBoxView({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={o.imagePath}
-                        alt=""
+                        alt={o.imageAlt ?? ""}
                         className="w-auto shrink-0 object-contain"
                         style={{ maxHeight: px(64) }}
                       />
