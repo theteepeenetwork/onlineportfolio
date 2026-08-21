@@ -118,35 +118,10 @@ test.describe("A8 · Importing is a mutation, so a frozen account cannot do it",
   });
 });
 
-test.describe("A1 · Setting a class up does not make an admin all-seeing", () => {
-  test("an imported class shows as a count in the console, never as children's names", async ({ page }) => {
-    await loginTeacher(page, SCHOOL_A.admin);
-    await openImport(page, "Willow Import Class", "Rowan Ashworth\nMabel Ashworth\nTeddy Vance");
-
-    // Set it up for a COLLEAGUE, not for the admin themselves.
-    const options = page.locator("#import-owner option");
-    const count = await options.count();
-    for (let i = 0; i < count; i++) {
-      const label = (await options.nth(i).textContent()) ?? "";
-      if (!label.includes("(you)")) {
-        await page.locator("#import-owner").selectOption(await options.nth(i).getAttribute("value") ?? "");
-        break;
-      }
-    }
-    await page.getByRole("button", { name: /Create the class/ }).click();
-
-    await expect(page.getByRole("status")).toContainText(/3 pupils added/);
-    // The class code is the children's way in — it belongs to their teacher.
-    await expect(page.getByRole("status")).not.toContainText(/class code is/i);
-
-    // Back on the console: the class is a row with a number, and no child's name
-    // appears anywhere on the page.
-    await page.reload();
-    await page.getByRole("button", { name: "Classes", exact: true }).click();
-    const body = page.locator("body");
-    await expect(body).toContainText("Willow Import Class");
-    await expect(body).not.toContainText("Rowan");
-    await expect(body).not.toContainText("Mabel");
-    await expect(body).not.toContainText("Teddy");
-  });
-});
+// NOTE: the "an admin sees a count, not a child's name" property is proved in
+// tests/e2e/admin.spec.ts rather than here. Every test in this file is a REFUSAL
+// and creates nothing; proving the successful path needs a real import, and the
+// gates in this project read the two-school fixtures in a known state (the ops
+// billing screen asserts St Bede's exact roll). A security spec that grows the
+// roll by three breaks an unrelated gate, which is how a suite starts getting
+// weakened to make it pass.
