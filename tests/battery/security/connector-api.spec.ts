@@ -50,7 +50,14 @@ test.describe("connector — the door", () => {
     // The tool surface is the permission model. A tool that reaches a class, a
     // pupil or the queue would have to appear here first, so this list failing
     // is the alarm.
-    expect(names.sort()).toEqual(["create_activity", "get_activity", "list_activities", "list_folders", "update_activity"]);
+    expect(names.sort()).toEqual([
+      "create_activity",
+      "get_activity",
+      "list_activities",
+      "list_folders",
+      "update_activity",
+      "upload_asset",
+    ]);
   });
 
   test("A4 one teacher's bad token does not lock out the school behind the same address", async ({ request }) => {
@@ -317,11 +324,12 @@ test.describe("connector — writing", () => {
     expect(after.text).not.toContain("Should not be possible");
   });
 
-  test("D4b a picture-answer quiz is not quietly turned into a text one", async ({ request }) => {
-    // School B's fixture quiz uses a picture for at least one answer. The
-    // connector has no way to say "this picture", so a rewrite would replace it
-    // with the words used to stand in for it and the teacher would lose the
-    // pictures without being told.
+  test("D4b editing a picture-answer quiz keeps the pictures", async ({ request }) => {
+    // This used to assert a REFUSAL: the API could see that a quiz used answer
+    // pictures and would not touch it, because rewriting the questions would
+    // have replaced each picture with the words that stood in for it. Pictures
+    // are writable now, so the refusal is gone — but the property it protected
+    // is the same one, and it is what this asserts instead.
     const list = await mcpTool(request, API_TOKEN.schoolB, "list_activities", { limit: 100 });
     const ids = (list.data as { activities: { id: string }[] }).activities.map((a) => a.id);
 
@@ -335,19 +343,16 @@ test.describe("connector — writing", () => {
     }
     expect(pictureQuiz, "expected School B's fixture quiz to use an answer picture").toBeTruthy();
 
-    const rewrite = await mcpTool(request, API_TOKEN.schoolB, "update_activity", {
+    // Read it, send it straight back, and the pictures are still pictures.
+    const before = await mcpTool(request, API_TOKEN.schoolB, "get_activity", { activity_id: pictureQuiz! });
+    const roundTripped = await mcpTool(request, API_TOKEN.schoolB, "update_activity", {
       activity_id: pictureQuiz!,
-      questions: [{ prompt: "Rewritten", options: ["yes", "no"], correct: 0 }],
+      questions: (before.data as { questions: unknown[] }).questions,
     });
-    expect(rewrite.isError).toBe(true);
-    expect(rewrite.text).toContain("pictures");
+    expect(roundTripped.isError, roundTripped.text).toBe(false);
 
-    // Renaming it is still allowed — only the answers are protected.
-    const renamed = await mcpTool(request, API_TOKEN.schoolB, "update_activity", {
-      activity_id: pictureQuiz!,
-      title: "Renamed by the connector",
-    });
-    expect(renamed.isError).toBe(false);
+    const after = await mcpTool(request, API_TOKEN.schoolB, "get_activity", { activity_id: pictureQuiz! });
+    expect((after.data as { usesAnswerPictures: boolean }).usesAnswerPictures).toBe(true);
   });
 
   test("D5 an edit does not reach a class already working on it", async ({ request, page }) => {
@@ -381,6 +386,155 @@ test.describe("connector — writing", () => {
     expect(await page.locator("body").innerText()).not.toContain(marker);
   });
 
+});
+
+test.describe("connector — pictures and page content", () => {
+  // A tiny real PNG, built here rather than fixtured, so a test that says "2 MB"
+  // can make something 2 MB without a 2 MB file in the repository.
+  const png = (bytes: number): string => {
+    // A data URL whose base64 payload decodes to roughly `bytes`. The header is
+    // a valid PNG signature + IHDR so the type check passes; the size is what is
+    // under test, and saveImageDataUrl checks the prefix, not the pixels.
+    const payload = Buffer.alloc(Math.max(1, Math.floor(bytes)), 0x41).toString("base64");
+    return `data:image/png;base64,${payload}`;
+  };
+  const smallPng =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+  test("F1 a passage page and a picture question build the shape a worksheet needs", async ({ request }) => {
+    const made = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — comprehension",
+      page_content: [{ heading: "A story", passage: "Harry grows carrots. ".repeat(20) }],
+      questions: [
+        {
+          prompt: "What does Harry grow?",
+          options: ["Carrots", "Apples"],
+          correct: 0,
+          image: { source: smallPng, alt: "Extract: Harry grows carrots." },
+        },
+      ],
+    });
+    expect(made.isError, made.text).toBe(false);
+    // Page 1 is the reading page; the question goes on page 2, because a page
+    // carrying a passage does not also carry the questions about it.
+    expect((made.data as { pages: number }).pages).toBe(2);
+
+    const read = await mcpTool(request, API_TOKEN.schoolA, "get_activity", { activity_id: (made.data as { id: string }).id });
+    expect((read.data as { questions: { page: number }[] }).questions[0].page).toBe(2);
+  });
+
+  test("F2 a picture without alt is refused", async ({ request }) => {
+    const bad = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — no alt",
+      questions: [{ prompt: "Which one?", options: ["A", "B"], correct: 0, image: { source: smallPng } }],
+    });
+    expect(bad.isError).toBe(true);
+    // Rule 18: the caller writing the question is the only one in a position to
+    // say what the picture shows.
+    expect(bad.text).toContain("alt");
+  });
+
+  test("F3 StoryJar does not fetch pictures from the web", async ({ request }) => {
+    // Not a missing feature — fetching a caller-supplied URL from inside
+    // StoryJar is server-side request forgery, and the refusal says so.
+    const bad = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — remote picture",
+      questions: [
+        { prompt: "Which one?", options: ["A", "B"], correct: 0, image: { source: "https://example.test/x.png", alt: "x" } },
+      ],
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain("does not fetch pictures from the web");
+  });
+
+  test("F4 one oversized picture is refused, and so is a flood of reasonable ones", async ({ request }) => {
+    const tooBig = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — one huge picture",
+      questions: [{ prompt: "Which?", options: ["A", "B"], correct: 0, image: { source: png(3 * 1024 * 1024), alt: "big" } }],
+    });
+    expect(tooBig.isError).toBe(true);
+    expect(tooBig.text).toContain("biggest a single picture");
+
+    // The volume is 5 GB, holds every child's photograph and keeps six days of
+    // backups. The thing to bound is the loop, not just the one big file.
+    const flood = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — many pictures",
+      questions: Array.from({ length: 8 }, (_, i) => ({
+        prompt: `Question ${i + 1}`,
+        options: ["A", "B"],
+        correct: 0,
+        image: { source: png(1.6 * 1024 * 1024), alt: `picture ${i + 1}` },
+      })),
+    });
+    expect(flood.isError).toBe(true);
+    expect(flood.text).toContain("past");
+  });
+
+  test("F5 a picture answer can be written, and survives being read back", async ({ request }) => {
+    // usesAnswerPictures used to be a read-only dead end: the API could see that
+    // a quiz used answer pictures and refused to touch it.
+    const made = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — picture answers",
+      questions: [
+        {
+          prompt: "Which is the leaf?",
+          options: [{ text: "Not this" }, { image: { source: smallPng, alt: "An oak leaf" } }],
+          correct: 1,
+        },
+      ],
+    });
+    expect(made.isError, made.text).toBe(false);
+
+    const read = await mcpTool(request, API_TOKEN.schoolA, "get_activity", { activity_id: (made.data as { id: string }).id });
+    expect((read.data as { usesAnswerPictures: boolean }).usesAnswerPictures).toBe(true);
+
+    // And it can now be edited rather than refused.
+    const edited = await mcpTool(request, API_TOKEN.schoolA, "update_activity", {
+      activity_id: (made.data as { id: string }).id,
+      title: "Connector spec — picture answers, renamed",
+    });
+    expect(edited.isError, edited.text).toBe(false);
+  });
+
+  test("F6 instructions are held to what they claim to be", async ({ request }) => {
+    // A whole comprehension story once ended up here, rendered as the subtitle on
+    // a child's activity screen, because it was the only long-text field.
+    const bad = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — a story in the instructions",
+      instructions: "Harry grows carrots and rhubarb. ".repeat(60),
+      questions: [{ prompt: "Which?", options: ["A", "B"], correct: 0 }],
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain("page_content");
+  });
+
+  test("F7 upload_asset stores once and costs nothing to reuse", async ({ request }) => {
+    const asset = await mcpTool(request, API_TOKEN.schoolA, "upload_asset", { source: smallPng, alt: "A shared picture" });
+    expect(asset.isError, asset.text).toBe(false);
+    const id = (asset.data as { asset_id: string }).asset_id;
+    expect(id).toMatch(/^\/uploads\//);
+
+    const made = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — reused picture",
+      questions: Array.from({ length: 2 }, (_, i) => ({
+        prompt: `Question ${i + 1}`,
+        options: ["A", "B"],
+        correct: 0,
+        image: { asset_id: id, alt: "A shared picture" },
+      })),
+    });
+    expect(made.isError, made.text).toBe(false);
+  });
+
+  test("F8 an asset id belonging to nobody is refused", async ({ request }) => {
+    const bad = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — forged asset id",
+      questions: [
+        { prompt: "Which?", options: ["A", "B"], correct: 0, image: { asset_id: "/etc/passwd", alt: "x" } },
+      ],
+    });
+    expect(bad.isError).toBe(true);
+  });
 });
 
 test.describe("connector — OAuth", () => {

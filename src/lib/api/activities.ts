@@ -3,7 +3,16 @@ import { db } from "@/lib/db";
 import { parseQuizPayload, quizImagePaths, readQuiz, type QuizPayload } from "@/lib/quiz";
 import { jsonArray } from "@/lib/activities";
 import { buildPagePaths } from "./blankPage";
-import { layoutQuiz, type ApiQuestion } from "./quizLayout";
+import {
+  API_OBJ_PREFIX,
+  checkPassage,
+  layoutQuiz,
+  type ApiPageContent,
+  type ApiQuestion,
+  type ReportedOption,
+} from "./quizLayout";
+import { ImageBudget, persistImage } from "./media";
+import { normalizeTemplateObjects, type CanvasObj } from "@/lib/canvasObjects";
 import { ActivityInputError } from "./errors";
 import type { ApiTeacher } from "./tokens";
 
@@ -44,8 +53,15 @@ export type ActivitySummary = {
   path: string;
 };
 
+// A question as reported back, which differs from one being written only in how
+// a picture is named: `asset_id` out, `source` or `asset_id` in.
+export type ReportedQuestion = Omit<ApiQuestion, "options" | "image"> & {
+  options: ReportedOption[];
+  image?: { asset_id: string; alt: string };
+};
+
 export type ActivityDetail = ActivitySummary & {
-  questions: ApiQuestion[];
+  questions: ReportedQuestion[];
   // True when at least one answer is a picture rather than words. The connector
   // cannot express a picture, so it refuses to rewrite a quiz that uses them.
   usesAnswerPictures: boolean;
@@ -59,6 +75,7 @@ export type ActivityInput = {
   questions?: unknown;
   pages?: unknown;
   archived?: unknown;
+  pageContent?: unknown;
 };
 
 
@@ -71,6 +88,7 @@ function summaryOf(row: {
   folder: { name: string } | null;
   templatePathsJson: string | null;
   quizJson: string | null;
+  objectsJson: string | null;
   createdAt: Date;
   _count: { assignments: number };
 }): ActivitySummary {
@@ -98,6 +116,7 @@ const SUMMARY_SELECT = {
   folder: { select: { name: true } },
   templatePathsJson: true,
   quizJson: true,
+  objectsJson: true,
   createdAt: true,
   // How many classes are working on this activity right now. Read so the
   // connector can SAY so — see updateActivity, which deliberately leaves those
@@ -135,13 +154,16 @@ export async function getActivity(teacher: ApiTeacher, id: unknown): Promise<Act
   // Back out to the shape the API speaks: option ids and box geometry are this
   // module's business, not the caller's, so they are not sent.
   const quiz = readQuiz(row.quizJson);
-  const questions: ApiQuestion[] = quiz.questions.map((q) => ({
+  const questions: ReportedQuestion[] = quiz.questions.map((q) => ({
     prompt: q.prompt,
-    // An answer can be a PICTURE the teacher chose, which has no text to send.
-    // It is labelled rather than flattened to its words, so a caller cannot mistake
-    // a placeholder for the answer and write it back as one — see usesAnswerPictures
-    // below, which refuses that rewrite outright.
-    options: q.options.map((o) => o.text ?? "(a picture)"),
+    // An answer can be a picture. It is reported AS a picture, carrying the id
+    // that can be sent straight back — so reading an activity and writing it
+    // again keeps the pictures instead of flattening them to the words that
+    // stood in for them.
+    options: q.options.map((o) => ({
+      ...(o.text ? { text: o.text } : {}),
+      ...(o.imagePath ? { image: { asset_id: o.imagePath, alt: o.imageAlt ?? "" } } : {}),
+    })),
     correct: Math.max(0, q.options.findIndex((o) => o.id === q.correctOptionId)),
     page: q.pageIndex + 1,
   }));
@@ -164,6 +186,24 @@ function readTitle(value: unknown): string {
   return title;
 }
 
+// What to do, in a sentence or two. It is read aloud to younger children and it
+// renders as the SUBTITLE on a child's activity screen, so it is not a place for
+// a passage — a whole comprehension story once ended up here, as a subtitle,
+// because it was the only long-text field the API had. Now that a page can carry
+// a passage of its own, this is held to what it has always claimed to be.
+export const MAX_INSTRUCTIONS_LEN = 500;
+
+function readInstructions(value: unknown): string | null {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  if (text.length > MAX_INSTRUCTIONS_LEN) {
+    throw new ActivityInputError(
+      `The instructions are too long (at most ${MAX_INSTRUCTIONS_LEN} characters). They are read aloud to a child and shown under the title — if you meant to include a passage for them to read, put it in page_content instead.`,
+    );
+  }
+  return text;
+}
+
 function readTags(value: unknown): string[] {
   const list = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
   return list.map((t) => String(t ?? "").trim()).filter(Boolean).slice(0, 12);
@@ -175,6 +215,100 @@ async function readFolderId(teacher: ApiTeacher, value: unknown): Promise<string
   const folder = await db.folder.findFirst({ where: { id, teacherId: teacher.id }, select: { id: true } });
   if (!folder) throw new ActivityInputError("That folder isn't one of yours. Use list_folders to see the folders you have.");
   return folder.id;
+}
+
+// What each page carries besides its questions. Indexed from 0, so entry 0 is
+// page 1. Pictures are stored as they are read, against the call's budget.
+async function readPageContent(value: unknown, budget: ImageBudget): Promise<ApiPageContent[]> {
+  if (value == null) return [];
+  if (!Array.isArray(value)) throw new ActivityInputError("`page_content` has to be a list, one entry per page.");
+  if (value.length > MAX_PAGES) throw new ActivityInputError(`An activity can have at most ${MAX_PAGES} pages.`);
+
+  const out: ApiPageContent[] = [];
+  for (const [i, raw] of value.entries()) {
+    const entry = (raw ?? {}) as Record<string, unknown>;
+    const where = `Page ${i + 1}`;
+    const heading = String(entry.heading ?? "").trim();
+    const passage = checkPassage(entry.passage, `${where}'s passage`);
+    const background = entry.image ? await persistImage(entry.image, `${where}'s picture`, budget) : undefined;
+    out.push({
+      ...(heading ? { heading } : {}),
+      ...(passage ? { passage } : {}),
+      ...(background ? { background } : {}),
+    });
+  }
+  return out;
+}
+
+// Store every picture a question carries — its own, and any on its answers —
+// before the layout runs, so the layout only ever deals with paths.
+async function readQuestions(value: unknown, budget: ImageBudget): Promise<unknown[]> {
+  if (value == null) return [];
+  if (!Array.isArray(value)) throw new ActivityInputError("`questions` has to be a list.");
+  const out: unknown[] = [];
+  for (const [i, raw] of value.entries()) {
+    const q = (raw ?? {}) as Record<string, unknown>;
+    const where = `Question ${i + 1}`;
+    const image = q.image ? await persistImage(q.image, `${where}'s picture`, budget) : undefined;
+    const rawOptions = Array.isArray(q.options) ? q.options : [];
+    const options: unknown[] = [];
+    for (const [oi, o] of rawOptions.entries()) {
+      if (o && typeof o === "object" && (o as Record<string, unknown>).image) {
+        const opt = o as Record<string, unknown>;
+        options.push({
+          ...(opt.text ? { text: opt.text } : {}),
+          image: await persistImage(opt.image, `Answer ${oi + 1} of ${where.toLowerCase()}`, budget),
+        });
+      } else {
+        options.push(o);
+      }
+    }
+    out.push({ ...q, options, ...(image ? { image } : {}) });
+  }
+  return out;
+}
+
+// Merge what the layout placed with whatever the teacher placed themselves.
+// Only objects this API created are replaced (see API_OBJ_PREFIX) — a teacher's
+// own apparatus on the same page survives untouched.
+function mergeObjects(existingJson: string | null, placed: CanvasObj[][], pageCount: number): string | null {
+  const existing = normalizeTemplateObjects(existingJson ? JSON.parse(existingJson) : null).pages;
+  const pages: CanvasObj[][] = [];
+  for (let i = 0; i < pageCount; i++) {
+    const theirs = (existing[i] ?? []).filter((o) => !o.id.startsWith(API_OBJ_PREFIX));
+    pages.push([...theirs, ...(placed[i] ?? [])]);
+  }
+  return pages.some((p) => p.length) ? JSON.stringify(pages) : null;
+}
+
+// The background for each page: the caller's picture where they gave one, the
+// page already there where they did not. buildPagePaths fills any remainder with
+// blanks, so a page always has a background and a question is never stranded on
+// a page that does not exist.
+function backgroundsOf(pageContent: ApiPageContent[], pageCount: number, current: string[] = []): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < pageCount; i++) {
+    const supplied = pageContent[i]?.background?.src;
+    const existing = current[i];
+    if (supplied) out.push(supplied);
+    else if (existing) out.push(existing);
+    else break; // buildPagePaths blanks the rest; it cannot leave a hole mid-list
+  }
+  return out;
+}
+
+// The questions already on an activity, in the API's own shape, so a caller can
+// change a page's passage without having to resend every question to keep them.
+function questionsOf(quizJson: string | null): unknown[] {
+  return readQuiz(quizJson).questions.map((q) => ({
+    prompt: q.prompt,
+    options: q.options.map((o) => ({
+      ...(o.text ? { text: o.text } : {}),
+      ...(o.imagePath ? { image: { asset_id: o.imagePath, alt: o.imageAlt ?? "" } } : {}),
+    })),
+    correct: Math.max(0, q.options.findIndex((o) => o.id === q.correctOptionId)),
+    page: q.pageIndex + 1,
+  }));
 }
 
 function readPages(value: unknown): number | null {
@@ -202,12 +336,18 @@ function serialiseQuiz(quiz: QuizPayload): string | null {
 
 export async function createActivity(teacher: ApiTeacher, input: ActivityInput): Promise<ActivitySummary> {
   const title = readTitle(input.title);
-  const instructions = String(input.instructions ?? "").trim() || null;
+  const instructions = readInstructions(input.instructions);
   const tags = readTags(input.tags);
   const folderId = await readFolderId(teacher, input.folderId);
   const asked = readPages(input.pages);
 
-  const { quiz, pageCount } = layoutQuiz(input.questions ?? [], asked ?? 1);
+  // One budget for the whole call: the cap is on the activity, not on each
+  // picture in isolation.
+  const budget = new ImageBudget();
+  const pageContent = await readPageContent(input.pageContent, budget);
+  const questions = await readQuestions(input.questions, budget);
+
+  const { quiz, pageCount, objects } = layoutQuiz(questions, Math.max(asked ?? 1, pageContent.length), pageContent);
   if (pageCount > MAX_PAGES) throw new ActivityInputError(`An activity can have at most ${MAX_PAGES} pages.`);
   const quizJson = serialiseQuiz(quiz);
 
@@ -218,8 +358,9 @@ export async function createActivity(teacher: ApiTeacher, input: ActivityInput):
       tagsJson: tags.length ? JSON.stringify(tags) : null,
       folderId,
       teacherId: teacher.id,
-      templatePathsJson: JSON.stringify(await buildPagePaths(pageCount)),
+      templatePathsJson: JSON.stringify(await buildPagePaths(pageCount, backgroundsOf(pageContent, pageCount))),
       quizJson,
+      objectsJson: mergeObjects(null, objects, pageCount),
       // No picture. The card's picture is drawn BY the canvas, with the question
       // boxes on it, and nothing on the server can draw one. templateThumb()
       // already returns null for a template that carries questions and no
@@ -239,28 +380,14 @@ export async function updateActivity(teacher: ApiTeacher, id: unknown, input: Ac
   // back. listActivities still hides them; this is the one door in.
   const existing = await db.activityTemplate.findFirst({
     where: { id, teacherId: teacher.id },
-    select: { id: true, templatePathsJson: true, quizJson: true },
+    select: { id: true, templatePathsJson: true, quizJson: true, objectsJson: true },
   });
   if (!existing) return null;
 
-  // A teacher can make an answer a PICTURE — a photograph of a leaf, one of four
-  // shapes — and the connector has no way to say "this picture". Sending
-  // `questions` replaces every question, so a round trip through here would
-  // quietly turn those pictures into the words used to stand in for them, and
-  // the teacher would find a picture quiz that had become a text one.
-  //
-  // So it is refused, in a sentence that says where to do it instead. Everything
-  // else about such an activity — its title, instructions, tags, folder — is
-  // still editable, because none of that touches the answers.
-  if (input.questions !== undefined && quizImagePaths(readQuiz(existing.quizJson)).length > 0) {
-    throw new ActivityInputError(
-      "Some answers in this activity are pictures, and rewriting the questions here would replace them with words. Change the title, instructions or tags if you like, and edit the questions in StoryJar.",
-    );
-  }
 
   const data: Record<string, unknown> = {};
   if (input.title !== undefined) data.title = readTitle(input.title);
-  if (input.instructions !== undefined) data.instructions = String(input.instructions ?? "").trim() || null;
+  if (input.instructions !== undefined) data.instructions = readInstructions(input.instructions);
   if (input.tags !== undefined) {
     const tags = readTags(input.tags);
     data.tagsJson = tags.length ? JSON.stringify(tags) : null;
@@ -276,11 +403,25 @@ export async function updateActivity(teacher: ApiTeacher, id: unknown, input: Ac
   const asked = readPages(input.pages);
   const currentPages = jsonArray(existing.templatePathsJson);
 
-  if (input.questions !== undefined) {
-    const { quiz, pageCount } = layoutQuiz(input.questions, asked ?? currentPages.length);
+  if (input.questions !== undefined || input.pageContent !== undefined) {
+    const budget = new ImageBudget();
+    const pageContent = await readPageContent(input.pageContent, budget);
+    // `questions` omitted on a page-content-only edit means "keep the ones that
+    // are there", so they are read back out of the stored quiz.
+    const questions =
+      input.questions !== undefined ? await readQuestions(input.questions, budget) : questionsOf(existing.quizJson);
+
+    const { quiz, pageCount, objects } = layoutQuiz(
+      questions,
+      Math.max(asked ?? currentPages.length, pageContent.length),
+      pageContent,
+    );
     if (pageCount > MAX_PAGES) throw new ActivityInputError(`An activity can have at most ${MAX_PAGES} pages.`);
     data.quizJson = serialiseQuiz(quiz);
-    data.templatePathsJson = JSON.stringify(await buildPagePaths(pageCount, currentPages));
+    data.templatePathsJson = JSON.stringify(
+      await buildPagePaths(pageCount, backgroundsOf(pageContent, pageCount, currentPages)),
+    );
+    data.objectsJson = mergeObjects(existing.objectsJson, objects, pageCount);
     // The stored picture was drawn from the questions that were there a moment
     // ago. Keeping it would show a teacher the old quiz on the library card.
     data.previewPathsJson = null;
