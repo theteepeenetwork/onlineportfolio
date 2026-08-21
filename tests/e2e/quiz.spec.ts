@@ -98,7 +98,14 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   // what keeps a published drawing a drawing), so the work of record for a quiz
   // page is genuinely an empty sheet. A hand-in therefore stores a PICTURE of
   // itself alongside the work, and the looking-surfaces use it.
-  const thumb = page.getByRole("button", { name: "Open Amara's work" }).first().locator("img");
+  //
+  // Scoped to the card carrying the quiz badge, not `.first()`. Amara hands work
+  // in during activities.spec.ts too, and this suite runs serially against one
+  // database — so "the first Amara card in the queue" is whichever spec ran
+  // most recently, and the assertion below silently compared a drawing's
+  // thumbnail against a quiz's preview.
+  const quizCard = page.locator("div[data-child]").filter({ has: page.getByRole("button", { name: /Quiz 1\/2/ }) });
+  const thumb = quizCard.getByRole("button", { name: "Open Amara's work" }).locator("img");
   const thumbSrc = (await thumb.getAttribute("src"))!;
   // It renders. `/uploads` authorises by column, so a path the route does not
   // recognise is served to nobody — which is how a stored picture can still
@@ -145,7 +152,8 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   // looks at it. Question boxes are deliberately never flattened into the page
   // PNG — that is what keeps a child's drawing free of them — so without this
   // the viewer showed the drawing and no sign anything had been answered.
-  await page.getByRole("button", { name: "Open Amara's work" }).first().click();
+  // The same card as the thumbnail above, for the same reason.
+  await quizCard.getByRole("button", { name: "Open Amara's work" }).click();
   const viewer = page.getByRole("dialog");
   await expect(viewer).toBeVisible();
   await expect(viewer).toContainText("Quiz · 1 of 2");
