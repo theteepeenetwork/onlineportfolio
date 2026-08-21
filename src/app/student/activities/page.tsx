@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { jsonArray } from "@/lib/activities";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Avatar } from "@/components/Avatar";
@@ -21,7 +22,7 @@ export default async function StudentActivities() {
       ],
     },
     orderBy: { createdAt: "desc" },
-    select: { id: true, title: true, instructions: true },
+    select: { id: true, title: true, instructions: true, previewSnapshotJson: true },
   });
 
   // Which runs has this child already handed in? A RETURNED item doesn't count
@@ -80,7 +81,19 @@ export default async function StudentActivities() {
                   href={`/student/activities/${a.id}`}
                   className="card flex items-center gap-3 p-4 transition-transform hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <Icon name="add-file" size={26} decorative />
+                  {/* The picture of the activity, the same one the teacher's
+                      library card shows. Falls back to the icon for runs set
+                      before pictures existed. */}
+                  {jsonArray(a.previewSnapshotJson)[0] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={jsonArray(a.previewSnapshotJson)[0]}
+                      alt=""
+                      className="h-14 w-14 shrink-0 rounded-lg border border-border bg-white object-contain"
+                    />
+                  ) : (
+                    <Icon name="add-file" size={26} decorative />
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-bold">{a.title}</p>
                     {returnedSet.has(a.id) ? (

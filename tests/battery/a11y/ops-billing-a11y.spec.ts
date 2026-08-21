@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { SCHOOL_A, SCHOOL_C, signInOperator } from "../helpers";
+import { SCHOOL_A, SCHOOL_C, asOperator } from "../helpers";
 
 // ===========================================================================
 // A26 - Accessibility of the operator billing screen (PR3, ruling R15)
@@ -43,7 +43,7 @@ async function assertStrictNoViolations(page: Page, where: string) {
 }
 
 test("a11y (AA, empty baseline): the billing screen", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   // An axe scan of a page that did not render is a clean scan, and Next's own
   // 404 is perfectly accessible, so every test here is anchored first.
@@ -53,7 +53,7 @@ test("a11y (AA, empty baseline): the billing screen", async ({ page }) => {
 });
 
 test(`no horizontal overflow on ${ROUTE} at 390px`, async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(ROUTE);
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
@@ -67,7 +67,7 @@ test(`no horizontal overflow on ${ROUTE} at 390px`, async ({ page }) => {
 });
 
 test("a payment state is words, never colour alone", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   // Larchwood is FROZEN in the fixtures, and St Bede's is not. Both states are
   // legible as text.
@@ -80,7 +80,7 @@ test("a payment state is words, never colour alone", async ({ page }) => {
 test("the link out to Stripe names its destination and is reachable by keyboard", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   const link = page.locator("main a[href]").first();
@@ -111,7 +111,7 @@ test("the link out to Stripe names its destination and is reachable by keyboard"
 test("nothing on the billing screen is a disabled control, because there are no controls", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   // Positive control: the screen rendered.
   await expect(page.locator("main")).toContainText(SCHOOL_A.name);

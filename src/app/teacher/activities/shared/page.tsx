@@ -1,7 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TopBar } from "@/components/TopBar";
-import { teacherNav } from "@/lib/teacherNav";
 import { jsonArray } from "@/lib/activities";
 import { SharedLibrary, type SharedSummary } from "./SharedLibrary";
 
@@ -17,7 +15,7 @@ export default async function SharedLibraryPage() {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") return null;
 
-  const [shared, mine, pendingCount] = await Promise.all([
+  const [shared, mine] = await Promise.all([
     // published: true is in the WHERE. An unpublished activity is not hidden by
     // the rendering, it is never fetched.
     db.sharedActivity.findMany({
@@ -33,7 +31,6 @@ export default async function SharedLibraryPage() {
       where: { teacherId: user.teacher.id, sourceSharedActivityId: { not: null }, archived: false },
       select: { id: true, sourceSharedActivityId: true },
     }),
-    db.journalItem.count({ where: { status: "PENDING", class: { teacherId: user.teacher.id } } }),
   ]);
 
   const addedByShared = new Map(mine.map((t) => [t.sourceSharedActivityId!, t.id]));
@@ -48,12 +45,5 @@ export default async function SharedLibraryPage() {
     addedTemplateId: addedByShared.get(a.id) ?? null,
   }));
 
-  return (
-    <>
-      <TopBar links={teacherNav(pendingCount)} />
-      <main className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)" }}>
-        <SharedLibrary activities={activities} />
-      </main>
-    </>
-  );
+  return <SharedLibrary activities={activities} />;
 }

@@ -79,6 +79,13 @@ test("a11y (AA, empty baseline): operator sign-in, code stage, including the err
   // that fails contrast is a message the person who most needs it cannot read.
   await page.fill("#code", "000000");
   await page.getByRole("button", { name: /^sign in$/i }).click();
+  // R16 applies in flight too: the button that is saying something is happening
+  // has to stay focusable and legible while it says it. It used to be disabled
+  // while pending, and `.btn-brand` greys to half opacity when disabled, which
+  // is what axe caught here — a serious contrast failure on the one control the
+  // operator is looking at. Sampled right after the click, so it reads the
+  // in-flight state whenever the round trip is slower than this line.
+  await expect(page.getByRole("button", { name: /checking|^sign in$/i })).not.toBeDisabled();
   await expect(page.locator("#ops-error")).not.toBeEmpty();
   await assertStrictNoViolations(page, "operator sign-in (code, error shown)");
 

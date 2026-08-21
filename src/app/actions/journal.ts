@@ -67,6 +67,9 @@ export async function createJournalItem(
   let textContent: string | null = null;
   let mediaPath: string | null = null;
   let mediaPathsJson: string | null = null;
+  // The picture of the work, when it differs from the work itself. See the
+  // DRAWING branch below and `JournalItem.previewPathsJson`.
+  let previewPathsJson: string | null = null;
 
   try {
     if (type === "TEXT") {
@@ -108,6 +111,31 @@ export async function createJournalItem(
       const paths = await saveImagePages(pages);
       mediaPath = paths[0];
       mediaPathsJson = paths.length > 1 ? JSON.stringify(paths) : null;
+
+      // The same pages as they LOOKED, question boxes and all. Sent only when
+      // the work carries a quiz, because that is the only thing the flattened
+      // pages leave out for a pupil — and leaving it out is what showed a
+      // teacher a blank white rectangle in the queue.
+      //
+      // Never a substitute for the work of record: `mediaPathsJson` above stays
+      // exactly what the child drew, so an approved drawing is published
+      // without question boxes baked into it. Malformed or short input is
+      // dropped rather than trusted — a picture is a convenience, and no
+      // picture is better than a wrong one.
+      const rawPreview = String(formData.get("drawingPreviews") ?? "");
+      if (rawPreview) {
+        let shots: string[] = [];
+        try {
+          const parsed = JSON.parse(rawPreview) as string[];
+          if (Array.isArray(parsed)) shots = parsed;
+        } catch {
+          shots = [];
+        }
+        shots = shots.filter((p) => typeof p === "string" && p.startsWith("data:image"));
+        if (shots.length === pages.length) {
+          previewPathsJson = JSON.stringify(await saveImagePages(shots));
+        }
+      }
     } else {
       return { error: "Please choose how you'd like to add your work." };
     }
@@ -160,7 +188,7 @@ export async function createJournalItem(
   const returned = assignmentId
     ? await db.journalItem.findFirst({
         where: { assignmentId, studentId, status: "RETURNED" },
-        select: { id: true, mediaPath: true, mediaPathsJson: true },
+        select: { id: true, mediaPath: true, mediaPathsJson: true, previewPathsJson: true },
       })
     : null;
 
@@ -173,6 +201,7 @@ export async function createJournalItem(
         textContent,
         mediaPath,
         mediaPathsJson,
+        previewPathsJson,
         quizAnswersJson,
         quizScore,
         quizTotal,
@@ -199,6 +228,7 @@ export async function createJournalItem(
         textContent,
         mediaPath,
         mediaPathsJson,
+        previewPathsJson,
         quizAnswersJson,
         quizScore,
         quizTotal,

@@ -3,11 +3,9 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TopBar } from "@/components/TopBar";
 import { Avatar } from "@/components/Avatar";
-import { teacherNav } from "@/lib/teacherNav";
 import { Icon } from "@/components/icons/Icon";
-import { jsonArray, type RunSummary } from "@/lib/activities";
+import { jsonArray, templateThumb, type RunSummary } from "@/lib/activities";
 import { ClearMarkedDraft } from "@/components/ClearMarkedDraft";
 import { TemplateActions } from "./TemplateActions";
 
@@ -43,14 +41,11 @@ export default async function TemplateDetail({
   });
   if (!template) notFound();
 
-  const [classes, pendingCount] = await Promise.all([
-    db.class.findMany({
-      where: { teacherId: user.teacher.id },
-      orderBy: { createdAt: "asc" },
-      include: { students: { orderBy: { name: "asc" }, select: { id: true, name: true, avatarColor: true } } },
-    }),
-    db.journalItem.count({ where: { status: "PENDING", class: { teacherId: user.teacher.id } } }),
-  ]);
+  const classes = await db.class.findMany({
+    where: { teacherId: user.teacher.id },
+    orderBy: { createdAt: "asc" },
+    include: { students: { orderBy: { name: "asc" }, select: { id: true, name: true, avatarColor: true } } },
+  });
 
   // LIVE runs first, then by newest.
   const runs = [...template.assignments].sort((a, b) => {
@@ -59,6 +54,9 @@ export default async function TemplateDetail({
   });
 
   const pages = jsonArray(template.templatePathsJson);
+  // The picture of each page. `pages` is the background the editor is handed
+  // back, so it carries neither the movable pieces nor the questions.
+  const previews = jsonArray(template.previewPathsJson);
   const tags = jsonArray(template.tagsJson);
 
   const pastRuns: RunSummary[] = runs.map((a) => ({
@@ -86,8 +84,7 @@ export default async function TemplateDetail({
   return (
     <>
       <ClearMarkedDraft />
-      <TopBar title="" links={teacherNav(pendingCount)} />
-      <main className="mx-auto w-full max-w-4xl flex-1 p-4">
+      <div className="w-full max-w-4xl">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">
           <Link href="/teacher/activities" className="hover:text-foreground">
             Library
@@ -99,7 +96,7 @@ export default async function TemplateDetail({
         <div className="mt-3 flex flex-wrap items-start gap-4">
           {pages.length > 0 ? (
             <div className="flex gap-1.5">
-              {pages.slice(0, 3).map((src) => (
+              {(previews.length ? previews : pages).slice(0, 3).map((src) => (
                 <Image key={src} src={src} alt="" width={120} height={84} unoptimized className="h-20 w-auto rounded-lg border border-border" />
               ))}
             </div>
@@ -118,7 +115,7 @@ export default async function TemplateDetail({
             </div>
           </div>
           <TemplateActions
-            template={{ id: template.id, title: template.title, thumb: pages[0] ?? null }}
+            template={{ id: template.id, title: template.title, thumb: templateThumb(template) }}
             classes={classes}
             pastRuns={pastRuns}
           />
@@ -208,7 +205,7 @@ export default async function TemplateDetail({
             </div>
           </>
         )}
-      </main>
+      </div>
     </>
   );
 }

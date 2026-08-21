@@ -645,6 +645,9 @@ h4 {
   /* The family letter, on the same one-A4 rules as the classroom hand-out. It
      goes home in a book bag, so nothing may spill onto a second sheet that
      could be left behind: the code and the how-to must travel together. */
+  /* The teacher shell is screen chrome (it carries .no-print), so the content
+     column it wraps has to give its on-screen gutters back to the page. */
+  .teacher-main { padding: 0 !important; }
   .letter-main { display: block !important; padding: 0 !important; }
   .letter-sheet { max-width: 100% !important; }
   .letter-sheet > * { break-inside: avoid; }

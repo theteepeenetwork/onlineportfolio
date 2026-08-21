@@ -1,9 +1,8 @@
 import Link from "next/link";
+import { workCover } from "@/lib/journalMedia";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TopBar } from "@/components/TopBar";
-import { teacherNav } from "@/lib/teacherNav";
 import { StickerSheet } from "./StickerSheet";
 
 // The sticker sheet (design 1b): open one waiting moment full-size, peel up to
@@ -35,14 +34,8 @@ export default async function StickerSheetPage({
   });
   if (!item) notFound();
 
-  const pendingCount = await db.journalItem.count({
-    where: { status: "PENDING", class: { teacherId: user.teacher.id } },
-  });
-
   return (
-    <div className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}>
-      <TopBar links={teacherNav(pendingCount)} />
-      <main style={{ maxWidth: 760, margin: "0 auto", width: "100%", boxSizing: "border-box", padding: "28px 32px 60px", flex: 1 }}>
+    <div style={{ maxWidth: 760 }}>
         <Link href="/teacher/queue" style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink-soft)", textDecoration: "none" }}>
           ← Back to the queue
         </Link>
@@ -55,14 +48,13 @@ export default async function StickerSheetPage({
             id: item.id,
             child: item.student.name,
             type: item.type,
-            mediaPath: item.mediaPath,
+            mediaPath: item.type === "AUDIO" ? item.mediaPath : workCover(item),
             text: item.textContent,
             caption: item.caption,
             activity: item.assignment?.title ?? "Free choice",
             when: formatWhen(item.createdAt),
           }}
         />
-      </main>
     </div>
   );
 }

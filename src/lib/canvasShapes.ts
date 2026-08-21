@@ -44,7 +44,20 @@ export type ShapeKind =
   | "pie"
   | "ring"
   | "cube"
-  | "clock";
+  | "clock"
+  // A ruled number line: an axis, equally spaced ticks, and the numbers under
+  // them. Its start and its interval are settings, so 0–10 in ones and 0–100 in
+  // tens are the same drawing with different numbers.
+  // A regular polygon. One drawing for a pentagon, a hexagon and an octagon,
+  // because they differ by a single number — and that number is a setting, so a
+  // nonagon needs no new button and no release.
+  | "polygon"
+  | "numberline"
+  // The four operators, as one drawing with a switch. They are a family a
+  // teacher moves between — an addition worksheet becomes a subtraction one —
+  // so the symbol is a setting on the placed shape rather than four kinds that
+  // cannot be changed into one another.
+  | "operator";
 
 // The validation gate. `normalizeObject` coerces anything not in this array to
 // "rect", so a kind is not real until it is listed here.
@@ -64,6 +77,9 @@ export const SHAPE_KINDS: ShapeKind[] = [
   "ring",
   "cube",
   "clock",
+  "polygon",
+  "numberline",
+  "operator",
 ];
 
 // Kinds drawn as a stroke from one corner of their box to the other, rather
@@ -134,11 +150,41 @@ export type ShapeGeom = {
   // ring: the band, as a percentage of the radius.
   thickness?: number;
   // clock: whether the numerals 1–12 are drawn.
+  // numberline: whether the numbers are printed under the ticks. Off is a blank
+  // line for a child to label, which is a worksheet in its own right.
   numerals?: boolean;
+  // numberline: the number under the first tick, and the interval between one
+  // tick and the next. `parts` carries how many segments it is cut into, so the
+  // last number is start + parts * step.
+  start?: number;
+  step?: number;
+  // operator: which of the four it draws.
+  operator?: OperatorKind;
+  // polygon: how many sides. A triangle and a square already have their own
+  // buttons, so this starts where the named ones stop being obvious.
+  sides?: number;
   // Set by the palette preset when the shape only means what it means at a
   // fixed proportion. See shapeAspect.
   lockAspect?: boolean;
 };
+
+// The four operators a primary maths worksheet is built from.
+export type OperatorKind = "add" | "subtract" | "multiply" | "divide";
+
+export const OPERATOR_KINDS: OperatorKind[] = ["add", "subtract", "multiply", "divide"];
+
+// What each one is called where a child or a screen reader meets it. Words, not
+// glyphs: "×" read aloud is not reliably "times".
+export const OPERATOR_LABEL: Record<OperatorKind, string> = {
+  add: "Add",
+  subtract: "Subtract",
+  multiply: "Multiply",
+  divide: "Divide",
+};
+
+export function clampOperator(v: unknown): OperatorKind {
+  return OPERATOR_KINDS.includes(v as OperatorKind) ? (v as OperatorKind) : "add";
+}
 
 // Parameter bounds. Shared with normalizeObject so the validator and the
 // geometry agree on what is drawable — a grid of 0 columns is a divide-by-zero
@@ -158,6 +204,37 @@ export function clampDivisions(v: unknown): number {
   return Math.min(MAX_DIVISIONS, Math.max(MIN_DIVISIONS, n));
 }
 
+// A number line's first number and its interval. Whole numbers only: a line
+// labelled in halves is a line in ones with a different interval, and decimals
+// on a stepper are a lot of taps for a number nobody asked for. The start may
+// be negative — a line either side of zero is the point of one.
+export const MIN_LINE_START = -1000;
+export const MAX_LINE_START = 1000;
+export const MIN_LINE_STEP = 1;
+export const MAX_LINE_STEP = 100;
+export const DEFAULT_LINE_STEP = 1;
+
+// A polygon's sides. Three is the floor because two is not a shape; twelve is
+// the ceiling because past it a regular polygon is a circle a child has been
+// made to count.
+export const MIN_SIDES = 3;
+export const MAX_SIDES = 12;
+
+export function clampSides(v: unknown): number {
+  const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 5;
+  return Math.min(MAX_SIDES, Math.max(MIN_SIDES, n));
+}
+
+export function clampLineStart(v: unknown): number {
+  const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 0;
+  return Math.min(MAX_LINE_START, Math.max(MIN_LINE_START, n));
+}
+
+export function clampLineStep(v: unknown): number {
+  const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : DEFAULT_LINE_STEP;
+  return Math.min(MAX_LINE_STEP, Math.max(MIN_LINE_STEP, n));
+}
+
 // Path strings are stored in the DOM and re-serialised on every render, so keep
 // the numbers short. Two decimal places is finer than a pixel at any size the
 // canvas is ever drawn at.
@@ -167,6 +244,24 @@ function n(v: number): string {
 
 function roundRectPath(w: number, h: number, r: number) {
   return `M ${r} 0 H ${w - r} Q ${w} 0 ${w} ${r} V ${h - r} Q ${w} ${h} ${w - r} ${h} H ${r} Q 0 ${h} 0 ${h - r} V ${r} Q 0 0 ${r} 0 Z`;
+}
+
+// A regular polygon inscribed in the box, point UP.
+//
+// Point up rather than flat-bottomed because that is how a pentagon and a
+// hexagon are drawn in every primary book — and it means a shape stretched into
+// a wide box still reads as itself, since every vertex scales with the box
+// rather than only the ones on one edge.
+function polygonPath(w: number, h: number, sides: number) {
+  const count = clampSides(sides);
+  const cx = w / 2;
+  const cy = h / 2;
+  let d = "";
+  for (let i = 0; i < count; i++) {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / count;
+    d += `${i === 0 ? "M" : "L"} ${n(cx + Math.cos(a) * (w / 2))} ${n(cy + Math.sin(a) * (h / 2))} `;
+  }
+  return `${d}Z`;
 }
 
 function starPath(w: number, h: number) {
@@ -386,6 +481,22 @@ export const CLOCK_HOURS = 12;
 export type ShapeTextMark = { x: number; y: number; text: string; size: number };
 
 export function shapeTextMarks(o: ShapeGeom): ShapeTextMark[] {
+  if (o.shape === "numberline") {
+    const { segs, size, x0, span, axisY, tick, showNumbers } = numberLineLayout(o);
+    if (!showNumbers) return [];
+    const start = clampLineStart(o.start);
+    const step = clampLineStep(o.step);
+    const marks: ShapeTextMark[] = [];
+    for (let i = 0; i <= segs; i++) {
+      marks.push({
+        x: x0 + (i * span) / segs,
+        y: axisY + tick + size * 0.62,
+        text: String(start + i * step),
+        size,
+      });
+    }
+    return marks;
+  }
   if (o.shape !== "clock" || !o.numerals) return [];
   const { w, h } = o;
   const cx = w / 2;
@@ -405,6 +516,194 @@ export function shapeTextMarks(o: ShapeGeom): ShapeTextMark[] {
     });
   }
   return marks;
+}
+
+// --- The number line -------------------------------------------------------
+//
+// One layout function, used by BOTH the ticks and the numbers under them,
+// because a tick and its label that disagree about where the tick is are worse
+// than either being slightly off. Everything is derived from the box, so a
+// stretched line stays a number line rather than becoming a ruler with the
+// numbers left behind.
+// Roughly how wide one digit is, as a fraction of the font size, in the face
+// this canvas draws with. Used to size the numbers so they cannot collide.
+const DIGIT_RATIO = 0.62;
+// The clear space wanted between one number and the next, as a fraction of the
+// number's own width.
+//
+// 0.2 was enough to stop "90" and "100" touching, which is not the same as
+// their reading as two numbers: at twenty segments the line still came out as
+// one long run of digits. The numbers are smaller at 0.4 — that is the trade,
+// and it is the right way round, because a number a child cannot separate from
+// its neighbour is no more use for being large.
+const LABEL_GAP = 0.4;
+
+export function numberLineLayout(o: ShapeGeom) {
+  const { w, h } = o;
+  const segs = clampParts(o.parts);
+  const showNumbers = o.numerals !== false;
+  // The numbers have to fit BETWEEN two ticks, and how much room one needs
+  // depends on how many DIGITS it has, not just on how many there are. Sized
+  // off the segment count alone, a line counting to a hundred ran "90" into
+  // "100" and read as ninety thousand one hundred.
+  //
+  // The widest label is at one end or the other, because the values run
+  // monotonically and a longer string means a bigger magnitude. So: with a
+  // label of `chars` digits at font size S, one is S·DIGIT_RATIO·chars wide,
+  // the axis is inset by half a label at each end, and every label plus its gap
+  // has to fit one segment:
+  //
+  //   L·(1 + LABEL_GAP)·segs ≤ w − L   ⇒   L ≤ w / ((1 + LABEL_GAP)·segs + 1)
+  //
+  // which is the S below. Capped by the box height as well, so a short wide
+  // line does not grow numbers taller than itself.
+  const start = clampLineStart(o.start);
+  const step = clampLineStep(o.step);
+  const chars = Math.max(
+    String(start).length,
+    String(start + segs * step).length,
+  );
+  const widthCap = w / (((1 + LABEL_GAP) * segs + 1) * DIGIT_RATIO * chars);
+  const size = showNumbers ? Math.max(1, Math.min(h * 0.3, widthCap)) : 0;
+  // The first and last labels are centred on the end ticks, so half of each
+  // would hang outside the box. Inset the axis by that half instead: the shape
+  // then draws entirely inside the box its corner controls are on.
+  const pad = showNumbers ? Math.min(w * 0.2, (size * DIGIT_RATIO * chars) / 2) : 0;
+  const x0 = pad;
+  const span = Math.max(1, w - pad * 2);
+  // Sits high when there are numbers under it, centred when there are not.
+  const axisY = showNumbers ? h * 0.42 : h * 0.5;
+  const tick = Math.min(h * 0.18, (span / segs) * 0.5);
+  return { segs, size, x0, span, axisY, tick, showNumbers };
+}
+
+// The axis and its ticks, as ONE outline part. A number line's ticks are as
+// much the apparatus as the rule they stand on — thinning them to "detail"
+// weight the way a grid thins its division lines would leave the marks a child
+// is counting fainter than the line they sit on.
+function numberLineParts(o: ShapeGeom): ShapePart[] {
+  const { segs, x0, span, axisY, tick } = numberLineLayout(o);
+  const d = [`M ${n(x0)} ${n(axisY)} H ${n(x0 + span)}`];
+  for (let i = 0; i <= segs; i++) {
+    const x = x0 + (i * span) / segs;
+    d.push(`M ${n(x)} ${n(axisY - tick)} V ${n(axisY + tick)}`);
+  }
+  return [{ d: d.join(" "), role: "outline" }];
+}
+
+// --- The operators ---------------------------------------------------------
+//
+// Drawn as filled outlines rather than as text, so they take the same fill and
+// line a child sets on any other shape — which is the whole point of them being
+// shapes and not a font, and is also what keeps them in the hand-in on a device
+// with no such font installed. Every bar is sized from the SHORTER side of the
+// box, so a symbol in a box that is not square stays a symbol instead of
+// smearing.
+
+// A polygon with its corners rounded off. Every operator except the divide's
+// dots is a polygon — a cross, a turned cross, a bar — so one helper softens
+// all of them rather than three hand-written paths with the arcs baked in, and
+// the house radius stays one number instead of thirty coordinates.
+function roundedPolygon(pts: [number, number][], r: number): string {
+  const len = pts.length;
+  let d = "";
+  for (let i = 0; i < len; i++) {
+    const prev = pts[(i - 1 + len) % len];
+    const cur = pts[i];
+    const next = pts[(i + 1) % len];
+    const ax = cur[0] - prev[0];
+    const ay = cur[1] - prev[1];
+    const bx = next[0] - cur[0];
+    const by = next[1] - cur[1];
+    const la = Math.hypot(ax, ay) || 1;
+    const lb = Math.hypot(bx, by) || 1;
+    // Never past the midpoint of either edge, or a short edge's two corners
+    // would round through each other and turn the arm into a pinch.
+    const rr = Math.min(r, la / 2, lb / 2);
+    const sx = cur[0] - (ax / la) * rr;
+    const sy = cur[1] - (ay / la) * rr;
+    const ex = cur[0] + (bx / lb) * rr;
+    const ey = cur[1] + (by / lb) * rr;
+    d += `${i === 0 ? "M" : "L"} ${n(sx)} ${n(sy)} Q ${n(cur[0])} ${n(cur[1])} ${n(ex)} ${n(ey)} `;
+  }
+  return `${d}Z`;
+}
+
+// The twelve corners of a cross, centred on the origin. A plus is this; a times
+// is this turned an eighth of a turn, which is why both come from one list.
+function crossPoints(arm: number, half: number): [number, number][] {
+  return [
+    [-half, -arm], [half, -arm], [half, -half], [arm, -half],
+    [arm, half], [half, half], [half, arm], [-half, arm],
+    [-half, half], [-arm, half], [-arm, -half], [-half, -half],
+  ];
+}
+
+function operatorParts(o: ShapeGeom): ShapePart[] {
+  const { w, h } = o;
+  const cx = w / 2;
+  const cy = h / 2;
+  const kind = clampOperator(o.operator);
+  const short = Math.min(w, h);
+  // Half the thickness of a stroke of the symbol, and how far an arm reaches.
+  const half = short * 0.12;
+  const radius = short * 0.05;
+
+  const bar = (halfW: number, halfH: number) =>
+    roundedPolygon(
+      [
+        [cx - halfW, cy - halfH],
+        [cx + halfW, cy - halfH],
+        [cx + halfW, cy + halfH],
+        [cx - halfW, cy + halfH],
+      ],
+      Math.min(radius, halfH * 0.8),
+    );
+
+  switch (kind) {
+    case "subtract":
+      // One bar, free to stretch: a long dash is a legitimate minus, so this is
+      // the one operator that uses the box's own width rather than its short
+      // side.
+      return [{ d: bar(w * 0.42, Math.min(half, h * 0.42)), role: "outline" }];
+    case "add": {
+      // One path, not two overlapping bars: two bars would show a seam where
+      // they cross, and fill each other's outline.
+      const pts = crossPoints(short * 0.42, half).map(
+        ([px, py]) => [cx + px, cy + py] as [number, number],
+      );
+      return [{ d: roundedPolygon(pts, radius), role: "outline" }];
+    }
+    case "multiply": {
+      // The same cross at 45°, computed rather than transformed so it is one
+      // path like the others and needs no transform in either renderer — the
+      // export canvas and the SVG then draw identical geometry.
+      const a = Math.PI / 4;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const pts = crossPoints(short * 0.42, half).map(
+        ([px, py]) => [cx + px * ca - py * sa, cy + px * sa + py * ca] as [number, number],
+      );
+      return [{ d: roundedPolygon(pts, radius), role: "outline" }];
+    }
+    case "divide": {
+      // A bar between two dots. Three subpaths in ONE outline part, so they
+      // fill and stroke together — the dots are the symbol, not decoration on
+      // it.
+      const dot = short * 0.1;
+      const gap = short * 0.26;
+      return [
+        {
+          d: [
+            bar(short * 0.42, Math.min(half, h * 0.3)),
+            ellipsePath(cx, cy - gap, dot, dot),
+            ellipsePath(cx, cy + gap, dot, dot),
+          ].join(" "),
+          role: "outline",
+        },
+      ];
+    }
+  }
 }
 
 function clockParts(w: number, h: number, parts: number): ShapePart[] {
@@ -487,7 +786,8 @@ function arrowPathReversed(w: number, h: number) {
 // The switch is EXHAUSTIVE over ShapeKind with no `default`, on purpose: adding
 // a kind without drawing it should be a compile error, not a shape that renders
 // blank on a child's page. Keep it that way.
-export function shapeParts({ shape, w, h, cols, rows, parts, thickness }: ShapeGeom): ShapePart[] {
+export function shapeParts(o: ShapeGeom): ShapePart[] {
+  const { shape, w, h, cols, rows, parts, thickness } = o;
   switch (shape) {
     case "rect":
       return [{ d: roundRectPath(w, h, Math.min(w, h) * 0.06), role: "outline" }];
@@ -532,6 +832,12 @@ export function shapeParts({ shape, w, h, cols, rows, parts, thickness }: ShapeG
       // Always twelve. A clock with seven hours is not a clock, so this is the
       // one circle whose divisions are not a setting.
       return clockParts(w, h, CLOCK_HOURS);
+    case "polygon":
+      return [{ d: polygonPath(w, h, o.sides ?? 5), role: "outline" }];
+    case "numberline":
+      return numberLineParts(o);
+    case "operator":
+      return operatorParts(o);
   }
 }
 
@@ -555,6 +861,13 @@ export function shapeFillRule(shape: ShapeKind): "evenodd" | "nonzero" {
     case "pie":
     case "cube":
     case "clock":
+    case "polygon":
+    case "numberline":
+      return "nonzero";
+    // A divide sign is a bar and two dots — three subpaths that must each read
+    // as solid, which is what non-zero gives. Listed on its own so the next
+    // operator added has to answer the question rather than inherit an answer.
+    case "operator":
       return "nonzero";
     // The one shape built from concentric subpaths. Even-odd is what keeps the
     // middle transparent instead of painted.
@@ -630,6 +943,19 @@ export function shapeInnerBox(kind: ShapeKind, w: number, h: number, thickness?:
     // The front face only, so a label doesn't run up over the receding top.
     case "cube":
       return { x: 0.08 * w, y: 0.34 * h, w: 0.56 * w, h: 0.56 * h };
+    // A regular polygon's usable middle grows with its side count — a triangle
+    // has far less room inside it than an octagon, which is nearly its own box.
+    case "polygon":
+      return { x: 0.26 * w, y: 0.3 * h, w: 0.48 * w, h: 0.44 * h };
+    // Above the axis. The band under it belongs to the numbers, and a caption
+    // written across them would be unreadable on top of the very thing it is
+    // captioning.
+    case "numberline":
+      return { x: 0.06 * w, y: 0.01 * h, w: 0.88 * w, h: 0.26 * h };
+    // An operator is a solid glyph with no inside worth writing in, so a label
+    // on one sits across the whole box the way a vector's does.
+    case "operator":
+      return { x: 0.15 * w, y: 0.15 * h, w: 0.7 * w, h: 0.7 * h };
   }
 }
 
@@ -661,6 +987,10 @@ export type ShapePreset = {
   parts?: number;
   thickness?: number;
   numerals?: boolean;
+  start?: number;
+  step?: number;
+  operator?: OperatorKind;
+  sides?: number;
   // This shape means something at a fixed proportion (a hundred flat is square
   // or it is not a hundred), so lock its aspect on resize.
   lockAspect?: boolean;
@@ -709,6 +1039,11 @@ const SHAPES_KIT: Kit = {
         // horizontal rule rather than a diagonal. Rotate for any other angle.
         { id: "line", kind: "line", label: "Line", w: 420, h: 4, fill: "none" },
         { id: "arrow", kind: "arrow", label: "Arrow", w: 360, h: 4, fill: "none" },
+        // Three named polygons, and a Sides stepper on the placed shape for the
+        // rest: a heptagon needs no fourth button.
+        { id: "pentagon", kind: "polygon", label: "Pentagon", sides: 5, w: 280, h: 280 },
+        { id: "hexagon", kind: "polygon", label: "Hexagon", sides: 6, w: 280, h: 280 },
+        { id: "octagon", kind: "polygon", label: "Octagon", sides: 8, w: 280, h: 280 },
         { id: "ring", kind: "ring", label: "Ring", parts: 1, w: 280, h: 280, lockAspect: true },
       ],
     },
@@ -759,6 +1094,15 @@ const MATHS_KIT: Kit = {
         { id: "m-arrow-double", kind: "arrow-double", label: "Double-headed arrow", w: 400, h: 4, fill: "none" },
         { id: "m-jump", kind: "arrow-jump", label: "Jump arrow", w: 300, h: 150, fill: "none" },
         { id: "m-brace", kind: "brace", label: "Brace", w: 400, h: 90, fill: "none" },
+        // The ruled line the jumps and braces are drawn ONTO. ONE button, not a
+        // row of them: its start, its segments and its interval are all set on
+        // the placed shape, so 0–20, counting in tens and a blank line for a
+        // child to label are the same button — a palette full of presets would
+        // only be a slower way to reach the same three numbers. It arrives 0–10
+        // in ones because that is the line a primary classroom draws most.
+        // `fill: none` because an axis is a stroke; a filled number line means
+        // nothing.
+        { id: "m-line", kind: "numberline", label: "Number line", parts: 10, start: 0, step: 1, numerals: true, w: 700, h: 130, fill: "none" },
       ],
     },
     {
@@ -812,6 +1156,20 @@ const MATHS_KIT: Kit = {
       label: "Shape & measure",
       presets: [
         { id: "m-clock", kind: "clock", label: "Clock face", numerals: true, w: 320, h: 320, fill: "#FFFDF7", lockAspect: true },
+      ],
+    },
+    {
+      id: "operators",
+      label: "Signs",
+      // Shapes, not letters, so a child sets their fill and line exactly as
+      // they would on a circle — and so they land in the hand-in as geometry
+      // rather than as a font that may not be installed. Square boxes: these
+      // are glyphs, and a stretched one stops reading as its sign.
+      presets: [
+        { id: "m-op-add", kind: "operator", operator: "add", label: "Add sign", w: 180, h: 180, fill: "#FBEED3" },
+        { id: "m-op-subtract", kind: "operator", operator: "subtract", label: "Subtract sign", w: 180, h: 180, fill: "#E2725B" },
+        { id: "m-op-multiply", kind: "operator", operator: "multiply", label: "Multiply sign", w: 180, h: 180, fill: "#8FBDB2" },
+        { id: "m-op-divide", kind: "operator", operator: "divide", label: "Divide sign", w: 180, h: 180, fill: "#F0B441" },
       ],
     },
   ],

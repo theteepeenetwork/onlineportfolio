@@ -21,7 +21,7 @@ export default async function TeacherAddForStudent({
   const skills = await db.skill.findMany({ orderBy: { name: "asc" } });
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 p-4">
+    <div className="w-full max-w-5xl">
       <Link
         href={`/teacher/students/${student.id}`}
         className="text-sm text-muted hover:text-foreground"
@@ -33,6 +33,6 @@ export default async function TeacherAddForStudent({
         This publishes straight away — no approval needed.
       </p>
       <CreateForm studentId={student.id} skills={skills} />
-    </main>
+    </div>
   );
 }

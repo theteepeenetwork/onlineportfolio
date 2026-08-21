@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StoryJar Activity House Style</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#faf6ee; --cream:#fffdf7; --ink:#22304a; --ink-soft:#43506b; --muted:#5b6379;
+  --glass:#37796f; --glass-ink:#2e6b64; --glass-light:#d8ece8; --glass-jar:#eaf4f1;
+  --jam:#bd3f63; --jam-dark:#a93a5c; --jam-deep:#93304f;
+  --honey:#f0b441; --honey-tint:#fbeed3; --honey-ink:#8a5f1e;
+  --kraft:#c9a87c; --kraft-tag:#f3e3c3; --kraft-twine:#a8854f; --kraft-rim:#b8945f;
+  --blue:#8ab9d6; --green:#a6c979; --pink:#e08a9b; --border:#e4dcc8;
+  --display:"Fredoka",ui-rounded,system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.6}
+.wrap{max-width:1180px;margin:0 auto;padding:48px 24px 96px}
+h1{font-family:var(--display);font-weight:600;font-size:44px;line-height:1.15;margin:0 0 10px}
+h2{font-family:var(--display);font-weight:600;font-size:30px;margin:64px 0 6px;padding-top:28px;border-top:3px solid var(--border)}
+h3{font-family:var(--display);font-weight:600;font-size:21px;margin:34px 0 8px}
+p{margin:0 0 14px;max-width:74ch}
+.lede{font-size:19px;color:var(--ink-soft);max-width:70ch}
+.sub{color:var(--muted);font-size:15px;margin:0 0 26px}
+.tag{display:inline-block;font-family:var(--display);font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;background:var(--glass-light);color:var(--glass-ink);padding:5px 12px;border-radius:999px;margin-bottom:14px}
+
+/* palette */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:16px;margin:22px 0 8px}
+.sw{background:var(--cream);border:3px solid var(--ink);border-radius:18px;overflow:hidden}
+.sw .chip{height:76px;display:flex;align-items:flex-end;justify-content:flex-end;padding:8px 10px;font-family:var(--display);font-size:12px;font-weight:600}
+.sw .meta{padding:12px 14px 14px}
+.sw .name{font-family:var(--display);font-weight:600;font-size:16px}
+.sw .role{font-size:13.5px;color:var(--ink-soft);margin-top:2px}
+.pass{display:inline-block;font-size:12px;font-weight:700;font-family:var(--display);background:var(--glass-light);color:var(--glass-ink);border-radius:999px;padding:3px 9px;margin-top:8px}
+.warn{background:var(--honey-tint);color:var(--honey-ink)}
+
+/* meaning table */
+table{border-collapse:collapse;width:100%;margin:18px 0;background:var(--cream);border:3px solid var(--ink);border-radius:18px;overflow:hidden}
+th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--border);font-size:15px;vertical-align:top}
+th{font-family:var(--display);font-weight:600;background:var(--glass-jar);font-size:14px;letter-spacing:.02em}
+tr:last-child td{border-bottom:none}
+.dot{display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid var(--ink);vertical-align:-3px;margin-right:8px}
+
+/* canvas frames */
+.frame{background:var(--cream);border:3px solid var(--ink);border-radius:22px;padding:14px;margin:20px 0 8px;box-shadow:0 6px 0 rgba(34,48,74,.10)}
+.frame svg{display:block;width:100%;height:auto;border-radius:12px}
+.cap{font-size:14.5px;color:var(--ink-soft);margin:0 0 30px;max-width:74ch}
+.cap b{font-family:var(--display);color:var(--ink)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px}
+.note{background:var(--glass-light);border-left:6px solid var(--glass);border-radius:0 14px 14px 0;padding:14px 18px;margin:18px 0;font-size:15px}
+.note b{font-family:var(--display)}
+.donot{background:var(--honey-tint);border-left-color:var(--honey);}
+.donot b{color:var(--honey-ink)}
+ul{max-width:74ch;padding-left:22px}
+li{margin-bottom:7px}
+.voice{display:grid;grid-template-columns:1fr 1fr;gap:0;border:3px solid var(--ink);border-radius:18px;overflow:hidden;margin:18px 0}
+.voice>div{padding:16px 18px}
+.voice .before{background:var(--cream);border-right:3px solid var(--ink)}
+.voice .after{background:var(--glass-jar)}
+.voice h4{margin:0 0 10px;font-family:var(--display);font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.voice p{font-size:16px;margin:0 0 10px}
+.voice .after p{font-weight:700}
+footer{margin-top:70px;padding-top:22px;border-top:3px solid var(--border);color:var(--muted);font-size:14px}
+@media (max-width:640px){.voice{grid-template-columns:1fr}.voice .before{border-right:none;border-bottom:3px solid var(--ink)}h1{font-size:34px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<span class="tag">Draft for review · 19 August 2026</span>
+<h1>A house style for the activities we publish</h1>
+<p class="lede">Every template StoryJar puts in the shared library is built from the same small kit of
+parts, in the same colours, so the library reads as one considered thing rather than fifteen
+worksheets by fifteen hands. This is our internal standard for our own content. It is not a scheme
+for schools, and nothing here is ever recommended, enforced or suggested to a teacher.</p>
+<p class="sub">Colours are the live tokens from <code>src/app/globals.css</code>. Every text pairing below has been
+checked against WCAG 2.2 AA. Pages are drawn at the canvas model space of 1000 by 700, so the
+mockups double as the geometry for the objects payload.</p>
+
+<h2>1. Our house palette</h2>
+<p>StoryJar already has a warm, hand-inked palette. Inside our own library we use it consistently rather
+than decoratively: one colour, one job, across every activity we author. That consistency is worth
+having because a teacher browsing forty StoryJar activities should feel one hand behind them.</p>
+
+<div class="note"><b>Scope: this is ours, and it stays ours.</b> Schools have their own established systems for
+scaffolding, challenge levels, working walls and success criteria, built over years and shared with
+parents. Ours is a house style for the content we publish, in the same way a publisher's books look
+like each other. A teacher building their own template picks whatever colours their school already
+uses, and StoryJar stays quiet about it. Section 7 sets out exactly where that line sits.</div>
+
+<div class="swatches">
+  <div class="sw"><div class="chip" style="background:#faf6ee;color:#5b6379">#faf6ee</div>
+    <div class="meta"><div class="name">Paper</div><div class="role">The page itself. Never used for a box, so a box always reads as a box.</div></div></div>
+  <div class="sw"><div class="chip" style="background:#fffdf7;color:#5b6379">#fffdf7</div>
+    <div class="meta"><div class="name">Cream</div><div class="role">The work zone. The brightest thing on the page is the space the child fills.</div>
+    <span class="pass">ink on cream 12.99</span></div></div>
+  <div class="sw"><div class="chip" style="background:#fbeed3;color:#8a5f1e">#fbeed3 · #8a5f1e</div>
+    <div class="meta"><div class="name">Honey tint</div><div class="role">A hint. Optional help a child may take or leave.</div>
+    <span class="pass">honey ink 4.89</span></div></div>
+  <div class="sw"><div class="chip" style="background:#d8ece8;color:#2e6b64">#d8ece8 · #2e6b64</div>
+    <div class="meta"><div class="name">Glass light</div><div class="role">A reminder. The rule or fact we already learned.</div>
+    <span class="pass">glass ink 5.02</span></div></div>
+  <div class="sw"><div class="chip" style="background:#f3e3c3;color:#22304a">#f3e3c3</div>
+    <div class="meta"><div class="name">Kraft tag</div><div class="role">Words you may use. The word bank and vocabulary chips.</div>
+    <span class="pass">ink 10.43</span></div></div>
+  <div class="sw"><div class="chip" style="background:#bd3f63;color:#fff">#bd3f63</div>
+    <div class="meta"><div class="name">Jam</div><div class="role">Do this. Step numbers, the work-zone edge, the child's turn.</div>
+    <span class="pass">white 5.18</span></div></div>
+  <div class="sw"><div class="chip" style="background:#37796f;color:#fff">#37796f</div>
+    <div class="meta"><div class="name">Glass</div><div class="role">Structure that supports thinking: reminder borders, success ticks.</div>
+    <span class="pass">white 5.09</span></div></div>
+  <div class="sw"><div class="chip" style="background:#22304a;color:#fff">#22304a</div>
+    <div class="meta"><div class="name">Ink</div><div class="role">Every outline, every label. The 3px line that makes it feel drawn.</div></div></div>
+  <div class="sw"><div class="chip" style="background:#a8854f;color:#fff">#a8854f</div>
+    <div class="meta"><div class="name">Kraft twine</div><div class="role">Borders and large labels only.</div>
+    <span class="pass warn">white 3.42, large text only</span></div></div>
+  <div class="sw"><div class="chip" style="background:#8ab9d6;color:#22304a">#8ab9d6</div>
+    <div class="meta"><div class="name">Counter blue</div><div class="role">Reserved: place value ones. Furniture never borrows it.</div>
+    <span class="pass">ink 6.29</span></div></div>
+  <div class="sw"><div class="chip" style="background:#f0b441;color:#22304a">#f0b441</div>
+    <div class="meta"><div class="name">Honey</div><div class="role">Reserved: hundreds counters, and the hint icon. Nothing else.</div>
+    <span class="pass">ink 7.11</span></div></div>
+  <div class="sw"><div class="chip" style="background:#a6c979;color:#22304a">#a6c979</div>
+    <div class="meta"><div class="name">Green</div><div class="role">Held back deliberately. Kept for a future correctness signal.</div>
+    <span class="pass">ink 7.08</span></div></div>
+</div>
+
+<table>
+  <tr><th style="width:190px">Colour</th><th style="width:230px">What it means to a child</th><th>Where it appears</th></tr>
+  <tr><td><span class="dot" style="background:#fbeed3"></span>Honey tint</td><td>"Help is here if I want it."</td><td>Hint boxes, worked examples, the first step already done</td></tr>
+  <tr><td><span class="dot" style="background:#d8ece8"></span>Glass light</td><td>"Something I already know."</td><td>Learning reminders, the rule, a vocabulary definition</td></tr>
+  <tr><td><span class="dot" style="background:#f3e3c3"></span>Kraft tag</td><td>"Words I can borrow."</td><td>Word banks, sentence starters, labels to drag</td></tr>
+  <tr><td><span class="dot" style="background:#bd3f63"></span>Jam</td><td>"This is my turn."</td><td>Step numbers, the dashed work zone, the hand-in prompt</td></tr>
+  <tr><td><span class="dot" style="background:#fffdf7"></span>Cream</td><td>"Empty. Mine to fill."</td><td>Every writing and drawing space</td></tr>
+  <tr><td><span class="dot" style="background:#22304a"></span>Ink</td><td>"The teacher put this here."</td><td>All outlines, all fixed apparatus, all headings</td></tr>
+</table>
+
+<div class="note"><b>The one rule that carries all of this.</b> Apparatus colours are spoken for by the maths kit:
+blue ones, teal tens, honey hundreds, jam thousands, red and yellow two-colour counters. Template
+furniture uses the tints, never the solids, so a hint box can never be mistaken for a counter and a
+counter never reads as a hint.</div>
+
+<h2>2. The furniture kit</h2>
+<p>Eight parts, built from shapes and text objects the canvas already has. Nothing here needs new code:
+every one is a rounded rectangle, a line and a label, locked so a child cannot nudge it out of place.</p>
+
+<div class="frame">
+<svg viewBox="0 0 1000 616" role="img" aria-label="The eight furniture components drawn at canvas model scale">
+  <rect width="1000" height="616" fill="#faf6ee"/>
+
+  <!-- hint box -->
+  <g>
+    <rect x="30" y="26" width="300" height="128" rx="18" fill="#fbeed3" stroke="#a8854f" stroke-width="4"/>
+    <circle cx="70" cy="66" r="19" fill="#f0b441" stroke="#22304a" stroke-width="3"/>
+    <path d="M64 70a8 8 0 1 1 12 0c-1.5 2-2 3-2 5h-8c0-2-.5-3-2-5z" fill="#fffdf7" stroke="#22304a" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M66 78h8" stroke="#22304a" stroke-width="2.4" stroke-linecap="round"/>
+    <text x="100" y="74" font-family="Fredoka" font-size="26" font-weight="600" fill="#8a5f1e">Stuck? Try this</text>
+    <text x="52" y="112" font-family="Atkinson Hyperlegible" font-size="21" fill="#8a5f1e">Count the full row first.</text>
+    <text x="52" y="140" font-family="Atkinson Hyperlegible" font-size="21" fill="#8a5f1e">Then count what is left.</text>
+  </g>
+
+  <!-- remember box -->
+  <g>
+    <rect x="352" y="26" width="300" height="128" rx="18" fill="#d8ece8" stroke="#37796f" stroke-width="4"/>
+    <circle cx="392" cy="66" r="19" fill="#37796f" stroke="#22304a" stroke-width="3"/>
+    <path d="M392 56l3.6 7.6 8.4 1.1-6.1 5.8 1.5 8.2-7.4-4-7.4 4 1.5-8.2-6.1-5.8 8.4-1.1z" fill="#fffdf7"/>
+    <text x="422" y="74" font-family="Fredoka" font-size="26" font-weight="600" fill="#2e6b64">Remember</text>
+    <text x="374" y="112" font-family="Atkinson Hyperlegible" font-size="21" fill="#2e6b64">Ten ones make one ten.</text>
+    <text x="374" y="140" font-family="Atkinson Hyperlegible" font-size="21" fill="#2e6b64">We swap when we get to ten.</text>
+  </g>
+
+  <!-- word bank -->
+  <g>
+    <rect x="674" y="26" width="296" height="128" rx="18" fill="#f3e3c3" stroke="#a8854f" stroke-width="4" stroke-dasharray="12 8"/>
+    <text x="696" y="60" font-family="Fredoka" font-size="24" font-weight="600" fill="#22304a">Words to use</text>
+    <g font-family="Atkinson Hyperlegible" font-size="19" fill="#22304a">
+      <rect x="696" y="76" width="92" height="34" rx="17" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="742" y="99" text-anchor="middle">first</text>
+      <rect x="798" y="76" width="106" height="34" rx="17" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="851" y="99" text-anchor="middle">next</text>
+      <rect x="696" y="118" width="120" height="34" rx="17" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="756" y="141" text-anchor="middle">after that</text>
+      <rect x="826" y="118" width="118" height="34" rx="17" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="885" y="141" text-anchor="middle">finally</text>
+    </g>
+  </g>
+
+  <!-- step markers -->
+  <g>
+    <circle cx="70" cy="222" r="30" fill="#bd3f63" stroke="#22304a" stroke-width="4"/>
+    <text x="70" y="234" text-anchor="middle" font-family="Fredoka" font-size="32" font-weight="600" fill="#fffdf7">1</text>
+    <circle cx="146" cy="222" r="30" fill="#bd3f63" stroke="#22304a" stroke-width="4"/>
+    <text x="146" y="234" text-anchor="middle" font-family="Fredoka" font-size="32" font-weight="600" fill="#fffdf7">2</text>
+    <circle cx="222" cy="222" r="30" fill="#bd3f63" stroke="#22304a" stroke-width="4"/>
+    <text x="222" y="234" text-anchor="middle" font-family="Fredoka" font-size="32" font-weight="600" fill="#fffdf7">3</text>
+    <text x="272" y="232" font-family="Atkinson Hyperlegible" font-size="20" fill="#5b6379">Step markers sequence a busy page</text>
+  </g>
+
+  <!-- apparatus tray -->
+  <g>
+    <rect x="30" y="278" width="440" height="152" rx="18" fill="#eaf4f1" stroke="#37796f" stroke-width="4"/>
+    <text x="52" y="312" font-family="Fredoka" font-size="23" font-weight="600" fill="#2e6b64">Take as many as you need</text>
+    <circle cx="86" cy="374" r="30" fill="#8ab9d6" stroke="#22304a" stroke-width="4"/><text x="86" y="384" text-anchor="middle" font-family="Fredoka" font-size="22" font-weight="600" fill="#22304a">1</text>
+    <circle cx="160" cy="374" r="30" fill="#4e9c94" stroke="#22304a" stroke-width="4"/><text x="160" y="384" text-anchor="middle" font-family="Fredoka" font-size="20" font-weight="600" fill="#fffdf7">10</text>
+    <circle cx="234" cy="374" r="30" fill="#f0b441" stroke="#22304a" stroke-width="4"/><text x="234" y="384" text-anchor="middle" font-family="Fredoka" font-size="17" font-weight="600" fill="#22304a">100</text>
+    <g stroke="#22304a" stroke-width="3" fill="#fffdf7">
+      <rect x="292" y="344" width="30" height="60"/><rect x="292" y="344" width="30" height="30"/>
+      <rect x="336" y="336" width="30" height="76"/>
+      <path d="M336 355h30M336 374h30M336 393h30"/>
+    </g>
+    <text x="392" y="380" font-family="Atkinson Hyperlegible" font-size="18" fill="#2e6b64">endless</text>
+    <text x="392" y="400" font-family="Atkinson Hyperlegible" font-size="18" fill="#2e6b64">sources</text>
+  </g>
+
+  <!-- work zone -->
+  <g>
+    <rect x="492" y="278" width="478" height="152" rx="20" fill="#fffdf7" stroke="#bd3f63" stroke-width="5" stroke-dasharray="16 12"/>
+    <text x="731" y="352" text-anchor="middle" font-family="Fredoka" font-size="27" font-weight="500" fill="#bd3f63" opacity="0.55">Your turn</text>
+    <text x="731" y="386" text-anchor="middle" font-family="Atkinson Hyperlegible" font-size="19" fill="#5b6379" opacity="0.7">the brightest, emptiest thing on the page</text>
+  </g>
+
+  <!-- speech prompt -->
+  <g>
+    <path d="M30 466h372a16 16 0 0 1 16 16v92a16 16 0 0 1-16 16H132l-34 34v-34H30a16 16 0 0 1-16-16v-92a16 16 0 0 1 16-16z" transform="translate(16,0)" fill="#fffdf7" stroke="#22304a" stroke-width="4"/>
+    <text x="72" y="516" font-family="Fredoka" font-size="27" font-weight="600" fill="#22304a">Show me 8 add 5.</text>
+    <text x="72" y="552" font-family="Atkinson Hyperlegible" font-size="21" fill="#43506b">Use the hops.</text>
+  </g>
+
+  <!-- success strip -->
+  <g>
+    <rect x="492" y="466" width="478" height="128" rx="18" fill="#fffdf7" stroke="#22304a" stroke-width="4"/>
+    <text x="514" y="500" font-family="Fredoka" font-size="23" font-weight="600" fill="#22304a">I can...</text>
+    <g stroke="#37796f" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="516" y="514" width="26" height="26" rx="7" stroke="#22304a" stroke-width="3"/>
+      <rect x="516" y="552" width="26" height="26" rx="7" stroke="#22304a" stroke-width="3"/>
+    </g>
+    <text x="558" y="535" font-family="Atkinson Hyperlegible" font-size="20" fill="#22304a">show my jumps on the line</text>
+    <text x="558" y="573" font-family="Atkinson Hyperlegible" font-size="20" fill="#22304a">say my answer out loud</text>
+  </g>
+
+</svg>
+</div>
+<p class="cap"><b>All eight, at real scale.</b> Each is a locked shape plus locked text in the objects payload. The
+outline is always ink at 4 units, the corner radius is always generous, and nothing sits closer than
+20 units to the page edge so a thumb resting on the tablet never covers a hint.</p>
+
+<h2>3. Three templates, fully dressed</h2>
+
+<h3>Feed the teddy · EYFS · ten frame</h3>
+<div class="frame">
+<svg viewBox="0 0 1000 700" role="img" aria-label="EYFS ten frame template mockup">
+  <rect width="1000" height="700" fill="#faf6ee"/>
+  <!-- reminder -->
+  <rect x="30" y="26" width="352" height="96" rx="18" fill="#d8ece8" stroke="#37796f" stroke-width="4"/>
+  <circle cx="70" cy="74" r="19" fill="#37796f" stroke="#22304a" stroke-width="3"/>
+  <path d="M70 64l3.6 7.6 8.4 1.1-6.1 5.8 1.5 8.2-7.4-4-7.4 4 1.5-8.2-6.1-5.8 8.4-1.1z" fill="#fffdf7"/>
+  <text x="100" y="66" font-family="Fredoka" font-size="24" font-weight="600" fill="#2e6b64">Remember</text>
+  <text x="100" y="98" font-family="Atkinson Hyperlegible" font-size="21" fill="#2e6b64">Fill the top row first.</text>
+  <!-- step 1 -->
+  <circle cx="440" cy="74" r="30" fill="#bd3f63" stroke="#22304a" stroke-width="4"/>
+  <text x="440" y="86" text-anchor="middle" font-family="Fredoka" font-size="32" font-weight="600" fill="#fffdf7">1</text>
+  <text x="486" y="66" font-family="Fredoka" font-size="27" font-weight="600" fill="#22304a">Count the berries.</text>
+  <text x="486" y="100" font-family="Fredoka" font-size="27" font-weight="600" fill="#22304a">Put that many in the frame.</text>
+  <!-- berries -->
+  <g stroke="#22304a" stroke-width="3.5">
+    <circle cx="80" cy="212" r="24" fill="#bd3f63"/><circle cx="140" cy="196" r="24" fill="#bd3f63"/>
+    <circle cx="200" cy="220" r="24" fill="#bd3f63"/><circle cx="106" cy="272" r="24" fill="#bd3f63"/>
+    <circle cx="172" cy="278" r="24" fill="#bd3f63"/><circle cx="236" cy="266" r="24" fill="#bd3f63"/>
+    <circle cx="62" cy="330" r="24" fill="#bd3f63"/>
+  </g>
+  <rect x="30" y="164" width="252" height="204" rx="18" fill="none" stroke="#a8854f" stroke-width="4" stroke-dasharray="12 8"/>
+  <!-- ten frame -->
+  <g stroke="#22304a" stroke-width="5" fill="#fffdf7">
+    <rect x="330" y="176" width="500" height="200"/>
+    <path d="M430 176v200M530 176v200M630 176v200M730 176v200M330 276h500"/>
+  </g>
+  <!-- work zone label -->
+  <text x="580" y="410" text-anchor="middle" font-family="Atkinson Hyperlegible" font-size="19" fill="#5b6379" opacity=".75">drag counters into the frame</text>
+  <!-- apparatus tray -->
+  <rect x="30" y="424" width="300" height="164" rx="18" fill="#eaf4f1" stroke="#37796f" stroke-width="4"/>
+  <text x="52" y="458" font-family="Fredoka" font-size="22" font-weight="600" fill="#2e6b64">Take as many as you need</text>
+  <circle cx="110" cy="524" r="38" fill="#8ab9d6" stroke="#22304a" stroke-width="4"/>
+  <g stroke="#2e6b64" stroke-width="3.5" fill="none" stroke-linecap="round">
+    <path d="M188 524h56M228 508l18 16-18 16"/>
+  </g>
+  <circle cx="290" cy="524" r="24" fill="#8ab9d6" stroke="#22304a" stroke-width="4" opacity=".5"/>
+  <!-- hint -->
+  <rect x="360" y="424" width="330" height="164" rx="18" fill="#fbeed3" stroke="#a8854f" stroke-width="4"/>
+  <circle cx="400" cy="464" r="19" fill="#f0b441" stroke="#22304a" stroke-width="3"/>
+  <path d="M394 468a8 8 0 1 1 12 0c-1.5 2-2 3-2 5h-8c0-2-.5-3-2-5z" fill="#fffdf7" stroke="#22304a" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M396 476h8" stroke="#22304a" stroke-width="2.4" stroke-linecap="round"/>
+  <text x="430" y="472" font-family="Fredoka" font-size="24" font-weight="600" fill="#8a5f1e">Stuck?</text>
+  <text x="382" y="512" font-family="Atkinson Hyperlegible" font-size="21" fill="#8a5f1e">Touch each berry as you</text>
+  <text x="382" y="540" font-family="Atkinson Hyperlegible" font-size="21" fill="#8a5f1e">count it out loud.</text>
+  <text x="382" y="572" font-family="Atkinson Hyperlegible" font-size="21" fill="#8a5f1e">One berry, one counter.</text>
+  <!-- success -->
+  <rect x="720" y="424" width="250" height="164" rx="18" fill="#fffdf7" stroke="#22304a" stroke-width="4"/>
+  <text x="742" y="458" font-family="Fredoka" font-size="22" font-weight="600" fill="#22304a">I can...</text>
+  <rect x="744" y="472" width="24" height="24" rx="7" fill="none" stroke="#22304a" stroke-width="3"/>
+  <text x="782" y="491" font-family="Atkinson Hyperlegible" font-size="18" fill="#22304a">count to ten</text>
+  <rect x="744" y="508" width="24" height="24" rx="7" fill="none" stroke="#22304a" stroke-width="3"/>
+  <text x="782" y="527" font-family="Atkinson Hyperlegible" font-size="18" fill="#22304a">fill the frame</text>
+  <rect x="744" y="544" width="24" height="24" rx="7" fill="none" stroke="#22304a" stroke-width="3"/>
+  <text x="782" y="563" font-family="Atkinson Hyperlegible" font-size="18" fill="#22304a">tell my grown up</text>
+  <!-- microphone prompt -->
+  <g transform="translate(866,624)">
+    <circle cx="0" cy="0" r="30" fill="#bd3f63" stroke="#22304a" stroke-width="4"/>
+    <rect x="-8" y="-16" width="16" height="22" rx="8" fill="#fffdf7"/>
+    <path d="M-13 2a13 13 0 0 0 26 0M0 15v7" stroke="#fffdf7" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+  </g>
+  <text x="820" y="632" text-anchor="end" font-family="Fredoka" font-size="23" font-weight="600" fill="#22304a">Now tell me how many.</text>
+</svg>
+</div>
+<p class="cap"><b>Reading order without reading.</b> The reminder sits top left where a left-to-right eye starts, the
+numbered step is the only jam thing at the top so it wins attention, the apparatus tray and the hint
+sit low where a thumb rests, and the ten frame is the emptiest, brightest object on the page. A child
+who cannot read a word still knows where to look and what to touch.</p>
+
+<h3>Number line hops · KS1 · addition</h3>
+<div class="frame">
+<svg viewBox="0 0 1000 700" role="img" aria-label="KS1 number line template mockup">
+  <rect width="1000" height="700" fill="#faf6ee"/>
+  <!-- prompt -->
+  <path d="M46 26h500a16 16 0 0 1 16 16v76a16 16 0 0 1-16 16H160l-30 30v-30H46a16 16 0 0 1-16-16V42a16 16 0 0 1 16-16z" fill="#fffdf7" stroke="#22304a" stroke-width="4"/>
+  <text x="70" y="76" font-family="Fredoka" font-size="30" font-weight="600" fill="#22304a">Show me 8 add 5.</text>
+  <text x="70" y="110" font-family="Atkinson Hyperlegible" font-size="21" fill="#43506b">Use the hops. Land on your answer.</text>
+  <!-- remember -->
+  <rect x="600" y="26" width="370" height="110" rx="18" fill="#d8ece8" stroke="#37796f" stroke-width="4"/>
+  <circle cx="640" cy="66" r="19" fill="#37796f" stroke="#22304a" stroke-width="3"/>
+  <path d="M640 56l3.6 7.6 8.4 1.1-6.1 5.8 1.5 8.2-7.4-4-7.4 4 1.5-8.2-6.1-5.8 8.4-1.1z" fill="#fffdf7"/>
+  <text x="670" y="74" font-family="Fredoka" font-size="24" font-weight="600" fill="#2e6b64">Remember</text>
+  <text x="622" y="110" font-family="Atkinson Hyperlegible" font-size="20" fill="#2e6b64">Start on the bigger number. Hop forwards.</text>
+  <!-- worked example, honey -->
+  <rect x="30" y="176" width="440" height="126" rx="18" fill="#fbeed3" stroke="#a8854f" stroke-width="4"/>
+  <text x="52" y="210" font-family="Fredoka" font-size="22" font-weight="600" fill="#8a5f1e">Here is one already done: 6 add 3</text>
+  <g stroke="#8a5f1e" stroke-width="4" fill="none" stroke-linecap="round">
+    <path d="M60 276h380"/>
+    <path d="M100 276v-10M160 276v-10M220 276v-10M280 276v-10M340 276v-10M400 276v-10"/>
+    <path d="M160 272q30-32 60 0" stroke-dasharray="0"/>
+    <path d="M220 272q30-32 60 0"/>
+    <path d="M280 272q30-32 60 0"/>
+    <path d="M334 246l6 6-6 6"/>
+  </g>
+  <g font-family="Atkinson Hyperlegible" font-size="17" fill="#8a5f1e">
+    <text x="160" y="296" text-anchor="middle">6</text><text x="340" y="296" text-anchor="middle">9</text>
+  </g>
+  <!-- number line -->
+  <g stroke="#22304a" stroke-width="5" fill="none" stroke-linecap="round">
+    <path d="M60 470h880"/>
+    <path d="M60 470v-16M104 470v-16M148 470v-16M192 470v-16M236 470v-16M280 470v-16M324 470v-16M368 470v-16M412 470v-16M456 470v-16M500 470v-16M544 470v-16M588 470v-16M632 470v-16M676 470v-16M720 470v-16M764 470v-16M808 470v-16M852 470v-16M896 470v-16M940 470v-16"/>
+  </g>
+  <g font-family="Atkinson Hyperlegible" font-size="20" fill="#22304a" text-anchor="middle">
+    <text x="60" y="504">0</text><text x="148" y="504">2</text><text x="236" y="504">4</text><text x="324" y="504">6</text>
+    <text x="412" y="504">8</text><text x="500" y="504">10</text><text x="588" y="504">12</text><text x="676" y="504">14</text>
+    <text x="764" y="504">16</text><text x="852" y="504">18</text><text x="940" y="504">20</text>
+  </g>
+  <text x="500" y="418" text-anchor="middle" font-family="Atkinson Hyperlegible" font-size="19" fill="#5b6379" opacity=".75">drag your hops onto the line</text>
+  <!-- apparatus tray with jump arrow -->
+  <rect x="30" y="546" width="330" height="130" rx="18" fill="#eaf4f1" stroke="#37796f" stroke-width="4"/>
+  <text x="52" y="580" font-family="Fredoka" font-size="21" font-weight="600" fill="#2e6b64">Take as many hops as you need</text>
+  <g stroke="#22304a" stroke-width="5" fill="none" stroke-linecap="round">
+    <path d="M76 646q52-58 104 0"/><path d="M172 630l8 16-16 4"/>
+  </g>
+  <g stroke="#2e6b64" stroke-width="3.5" fill="none" stroke-linecap="round"><path d="M212 640h44M242 626l16 14-16 14"/></g>
+  <g stroke="#22304a" stroke-width="4" fill="none" stroke-linecap="round" opacity=".5">
+    <path d="M282 646q34-38 68 0"/><path d="M344 634l6 12-12 3"/>
+  </g>
+  <!-- word bank -->
+  <rect x="386" y="546" width="304" height="130" rx="18" fill="#f3e3c3" stroke="#a8854f" stroke-width="4" stroke-dasharray="12 8"/>
+  <text x="408" y="580" font-family="Fredoka" font-size="21" font-weight="600" fill="#22304a">Words to use</text>
+  <g font-family="Atkinson Hyperlegible" font-size="18" fill="#22304a">
+    <rect x="408" y="596" width="84" height="32" rx="16" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="450" y="618" text-anchor="middle">add</text>
+    <rect x="502" y="596" width="80" height="32" rx="16" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="542" y="618" text-anchor="middle">more</text>
+    <rect x="592" y="596" width="84" height="32" rx="16" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="634" y="618" text-anchor="middle">total</text>
+    <rect x="408" y="636" width="112" height="32" rx="16" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="464" y="658" text-anchor="middle">altogether</text>
+    <rect x="530" y="636" width="146" height="32" rx="16" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="603" y="658" text-anchor="middle">I landed on...</text>
+  </g>
+  <!-- success -->
+  <rect x="716" y="546" width="254" height="130" rx="18" fill="#fffdf7" stroke="#22304a" stroke-width="4"/>
+  <text x="738" y="580" font-family="Fredoka" font-size="21" font-weight="600" fill="#22304a">I can...</text>
+  <rect x="740" y="598" width="24" height="24" rx="7" fill="none" stroke="#22304a" stroke-width="3"/>
+  <text x="778" y="617" font-family="Atkinson Hyperlegible" font-size="18" fill="#22304a">start on 8</text>
+  <rect x="740" y="636" width="24" height="24" rx="7" fill="none" stroke="#22304a" stroke-width="3"/>
+  <text x="778" y="655" font-family="Atkinson Hyperlegible" font-size="18" fill="#22304a">make 5 equal hops</text>
+</svg>
+</div>
+<p class="cap"><b>The worked example is the scaffold.</b> One question already answered, in honey, so a child sees the
+method rather than being told it. The word bank is the bit teachers will notice: it turns "explain
+your answer" from an impossible ask into a fill-in for a child with limited English or limited
+confidence.</p>
+
+<h3>The fraction wall detective · KS2 · equivalence</h3>
+<div class="frame">
+<svg viewBox="0 0 1000 700" role="img" aria-label="KS2 fraction wall template mockup">
+  <rect width="1000" height="700" fill="#faf6ee"/>
+  <!-- steps -->
+  <circle cx="56" cy="52" r="26" fill="#bd3f63" stroke="#22304a" stroke-width="4"/>
+  <text x="56" y="63" text-anchor="middle" font-family="Fredoka" font-size="28" font-weight="600" fill="#fffdf7">1</text>
+  <text x="96" y="46" font-family="Fredoka" font-size="25" font-weight="600" fill="#22304a">Shade the wall to prove it.</text>
+  <text x="96" y="76" font-family="Atkinson Hyperlegible" font-size="19" fill="#43506b">Use the highlighter. One colour per fraction.</text>
+  <circle cx="536" cy="52" r="26" fill="#bd3f63" stroke="#22304a" stroke-width="4"/>
+  <text x="536" y="63" text-anchor="middle" font-family="Fredoka" font-size="28" font-weight="600" fill="#fffdf7">2</text>
+  <text x="576" y="46" font-family="Fredoka" font-size="25" font-weight="600" fill="#22304a">Then answer the questions.</text>
+  <text x="576" y="76" font-family="Atkinson Hyperlegible" font-size="19" fill="#43506b">Tap your answer. It marks itself.</text>
+  <!-- fraction wall -->
+  <g stroke="#22304a" stroke-width="4" fill="#fffdf7">
+    <rect x="40" y="112" width="520" height="56"/>
+    <rect x="40" y="176" width="520" height="56"/><path d="M300 176v56"/>
+    <rect x="40" y="240" width="520" height="56"/><path d="M170 240v56M300 240v56M430 240v56"/>
+    <rect x="40" y="304" width="520" height="56"/><path d="M105 304v56M170 304v56M235 304v56M300 304v56M365 304v56M430 304v56M495 304v56"/>
+  </g>
+  <g font-family="Atkinson Hyperlegible" font-size="20" fill="#22304a" text-anchor="middle">
+    <text x="300" y="147">1</text>
+    <text x="170" y="211">1/2</text><text x="430" y="211">1/2</text>
+    <text x="105" y="275">1/4</text><text x="235" y="275">1/4</text><text x="365" y="275">1/4</text><text x="495" y="275">1/4</text>
+    <text x="72" y="339">⅛</text><text x="137" y="339">⅛</text><text x="202" y="339">⅛</text><text x="267" y="339">⅛</text>
+    <text x="332" y="339">⅛</text><text x="397" y="339">⅛</text><text x="462" y="339">⅛</text><text x="527" y="339">⅛</text>
+  </g>
+  <!-- quiz box 1 -->
+  <rect x="596" y="112" width="374" height="122" rx="16" fill="#fffdf7" stroke="#37796f" stroke-width="4"/>
+  <text x="616" y="146" font-family="Fredoka" font-size="21" font-weight="600" fill="#22304a">How many eighths make one half?</text>
+  <g font-family="Atkinson Hyperlegible" font-size="19" fill="#22304a">
+    <rect x="616" y="162" width="76" height="42" rx="12" fill="#faf6ee" stroke="#22304a" stroke-width="3"/><text x="654" y="189" text-anchor="middle">2</text>
+    <rect x="702" y="162" width="76" height="42" rx="12" fill="#faf6ee" stroke="#22304a" stroke-width="3"/><text x="740" y="189" text-anchor="middle">3</text>
+    <rect x="788" y="162" width="76" height="42" rx="12" fill="#faf6ee" stroke="#22304a" stroke-width="3"/><text x="826" y="189" text-anchor="middle">4</text>
+    <rect x="874" y="162" width="76" height="42" rx="12" fill="#faf6ee" stroke="#22304a" stroke-width="3"/><text x="912" y="189" text-anchor="middle">6</text>
+  </g>
+  <!-- quiz box 2 -->
+  <rect x="596" y="250" width="374" height="122" rx="16" fill="#fffdf7" stroke="#37796f" stroke-width="4"/>
+  <text x="616" y="284" font-family="Fredoka" font-size="21" font-weight="600" fill="#22304a">Which is the same as two quarters?</text>
+  <g font-family="Atkinson Hyperlegible" font-size="19" fill="#22304a">
+    <rect x="616" y="300" width="104" height="42" rx="12" fill="#faf6ee" stroke="#22304a" stroke-width="3"/><text x="668" y="327" text-anchor="middle">one half</text>
+    <rect x="730" y="300" width="112" height="42" rx="12" fill="#faf6ee" stroke="#22304a" stroke-width="3"/><text x="786" y="327" text-anchor="middle">one third</text>
+    <rect x="852" y="300" width="98" height="42" rx="12" fill="#faf6ee" stroke="#22304a" stroke-width="3"/><text x="901" y="327" text-anchor="middle">one whole</text>
+  </g>
+  <!-- reminder -->
+  <rect x="40" y="396" width="440" height="118" rx="18" fill="#d8ece8" stroke="#37796f" stroke-width="4"/>
+  <circle cx="80" cy="436" r="19" fill="#37796f" stroke="#22304a" stroke-width="3"/>
+  <path d="M80 426l3.6 7.6 8.4 1.1-6.1 5.8 1.5 8.2-7.4-4-7.4 4 1.5-8.2-6.1-5.8 8.4-1.1z" fill="#fffdf7"/>
+  <text x="110" y="444" font-family="Fredoka" font-size="23" font-weight="600" fill="#2e6b64">Remember</text>
+  <text x="62" y="482" font-family="Atkinson Hyperlegible" font-size="20" fill="#2e6b64">Equivalent fractions cover the same</text>
+  <text x="62" y="506" font-family="Atkinson Hyperlegible" font-size="20" fill="#2e6b64">amount of the wall. The bricks differ.</text>
+  <!-- work zone -->
+  <rect x="510" y="396" width="460" height="200" rx="20" fill="#fffdf7" stroke="#bd3f63" stroke-width="5" stroke-dasharray="16 12"/>
+  <text x="740" y="446" text-anchor="middle" font-family="Fredoka" font-size="24" font-weight="600" fill="#bd3f63" opacity=".65">Write what you noticed</text>
+  <text x="740" y="480" text-anchor="middle" font-family="Atkinson Hyperlegible" font-size="19" fill="#5b6379" opacity=".7">or tap the microphone and say it</text>
+  <g stroke="#e4dcc8" stroke-width="3"><path d="M544 522h392M544 562h392"/></g>
+  <!-- word bank -->
+  <rect x="40" y="534" width="440" height="132" rx="18" fill="#f3e3c3" stroke="#a8854f" stroke-width="4" stroke-dasharray="12 8"/>
+  <text x="62" y="568" font-family="Fredoka" font-size="21" font-weight="600" fill="#22304a">Sentence starters</text>
+  <g font-family="Atkinson Hyperlegible" font-size="18" fill="#22304a">
+    <rect x="62" y="584" width="234" height="34" rx="17" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="179" y="607" text-anchor="middle">I noticed that...</text>
+    <rect x="306" y="584" width="156" height="34" rx="17" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="384" y="607" text-anchor="middle">because...</text>
+    <rect x="62" y="626" width="298" height="34" rx="17" fill="#fffdf7" stroke="#22304a" stroke-width="2.5"/><text x="211" y="649" text-anchor="middle">This proves it is the same as...</text>
+  </g>
+  <!-- mic -->
+  <g transform="translate(916,626)">
+    <circle cx="0" cy="0" r="28" fill="#bd3f63" stroke="#22304a" stroke-width="4"/>
+    <rect x="-7" y="-15" width="14" height="20" rx="7" fill="#fffdf7"/>
+    <path d="M-12 2a12 12 0 0 0 24 0M0 14v6" stroke="#fffdf7" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>
+</div>
+<p class="cap"><b>Auto-marked and hand-worked on one page.</b> The teal-bordered boxes are the quiz layer, which stays
+interactive and marks itself. Everything else is drawn on and flattened into the child's work. The
+sentence starters are what turn the written half from a blank page into something a Year 4 will
+actually attempt.</p>
+
+<h2>4. The scaffolding ladder</h2>
+<p>The same template, published three times at three levels of support. A teacher assigns the rung their
+group needs, and the fading is visible on the page rather than hidden in a setting. It also means one
+piece of design work yields three library entries.</p>
+
+<div class="grid2">
+  <div>
+    <div class="frame">
+    <svg viewBox="0 0 480 340" role="img" aria-label="Full support version">
+      <rect width="480" height="340" fill="#faf6ee"/>
+      <rect x="20" y="18" width="440" height="58" rx="14" fill="#fbeed3" stroke="#a8854f" stroke-width="3"/>
+      <text x="40" y="44" font-family="Fredoka" font-size="17" font-weight="600" fill="#8a5f1e">One is done for you</text>
+      <text x="40" y="66" font-family="Atkinson Hyperlegible" font-size="15" fill="#8a5f1e">6 add 3 lands on 9</text>
+      <rect x="20" y="86" width="440" height="52" rx="14" fill="#d8ece8" stroke="#37796f" stroke-width="3"/>
+      <text x="40" y="118" font-family="Atkinson Hyperlegible" font-size="15" fill="#2e6b64">Remember: start on the bigger number</text>
+      <g stroke="#22304a" stroke-width="4" fill="none"><path d="M40 200h400"/><path d="M40 200v-10M80 200v-10M120 200v-10M160 200v-10M200 200v-10M240 200v-10M280 200v-10M320 200v-10M360 200v-10M400 200v-10M440 200v-10"/></g>
+      <rect x="20" y="228" width="270" height="46" rx="14" fill="#f3e3c3" stroke="#a8854f" stroke-width="3" stroke-dasharray="9 6"/>
+      <text x="40" y="257" font-family="Atkinson Hyperlegible" font-size="14" fill="#22304a">add · more · altogether · I landed on</text>
+      <rect x="20" y="286" width="440" height="38" rx="12" fill="#fffdf7" stroke="#22304a" stroke-width="3"/>
+      <text x="40" y="311" font-family="Atkinson Hyperlegible" font-size="14" fill="#22304a">I can: start on 8 · make 5 hops · say my answer</text>
+    </svg>
+    </div>
+    <p class="cap"><b>Rung one, full support.</b> Worked example, reminder, word bank, success criteria. For the group
+    who need to see it done before they can do it.</p>
+  </div>
+  <div>
+    <div class="frame">
+    <svg viewBox="0 0 480 340" role="img" aria-label="Partial support version">
+      <rect width="480" height="340" fill="#faf6ee"/>
+      <rect x="20" y="18" width="440" height="52" rx="14" fill="#d8ece8" stroke="#37796f" stroke-width="3"/>
+      <text x="40" y="50" font-family="Atkinson Hyperlegible" font-size="15" fill="#2e6b64">Remember: start on the bigger number</text>
+      <g stroke="#22304a" stroke-width="4" fill="none"><path d="M40 176h400"/><path d="M40 176v-10M80 176v-10M120 176v-10M160 176v-10M200 176v-10M240 176v-10M280 176v-10M320 176v-10M360 176v-10M400 176v-10M440 176v-10"/></g>
+      <rect x="20" y="212" width="270" height="46" rx="14" fill="#f3e3c3" stroke="#a8854f" stroke-width="3" stroke-dasharray="9 6"/>
+      <text x="40" y="241" font-family="Atkinson Hyperlegible" font-size="14" fill="#22304a">add · more · altogether · I landed on</text>
+      <rect x="20" y="276" width="440" height="46" rx="14" fill="#fffdf7" stroke="#bd3f63" stroke-width="4" stroke-dasharray="12 9"/>
+      <text x="240" y="305" text-anchor="middle" font-family="Fredoka" font-size="16" font-weight="600" fill="#bd3f63" opacity=".6">Your turn</text>
+    </svg>
+    </div>
+    <p class="cap"><b>Rung two, partial.</b> The worked example goes. The rule and the words stay, and a work zone
+    appears, because the child now has something of their own to say.</p>
+  </div>
+</div>
+
+<div class="frame" style="max-width:520px">
+<svg viewBox="0 0 480 340" role="img" aria-label="Open version">
+  <rect width="480" height="340" fill="#faf6ee"/>
+  <path d="M36 18h300a14 14 0 0 1 14 14v54a14 14 0 0 1-14 14H130l-26 24V100H36a14 14 0 0 1-14-14V32a14 14 0 0 1 14-14z" fill="#fffdf7" stroke="#22304a" stroke-width="3"/>
+  <text x="52" y="56" font-family="Fredoka" font-size="19" font-weight="600" fill="#22304a">Show me 8 add 5.</text>
+  <text x="52" y="82" font-family="Atkinson Hyperlegible" font-size="15" fill="#43506b">Then show me a different way.</text>
+  <g stroke="#22304a" stroke-width="4" fill="none"><path d="M40 186h400"/><path d="M40 186v-10M80 186v-10M120 186v-10M160 186v-10M200 186v-10M240 186v-10M280 186v-10M320 186v-10M360 186v-10M400 186v-10M440 186v-10"/></g>
+  <rect x="20" y="222" width="440" height="100" rx="14" fill="#fffdf7" stroke="#bd3f63" stroke-width="4" stroke-dasharray="12 9"/>
+  <text x="240" y="266" text-anchor="middle" font-family="Fredoka" font-size="17" font-weight="600" fill="#bd3f63" opacity=".6">Your turn</text>
+  <text x="240" y="292" text-anchor="middle" font-family="Atkinson Hyperlegible" font-size="14" fill="#5b6379" opacity=".7">explain how you know</text>
+</svg>
+</div>
+<p class="cap"><b>Rung three, open.</b> A prompt, the apparatus, and space. The support has gone and the challenge has
+grown, which is the difference between fading a scaffold and just removing help.</p>
+
+<h2>5. Writing for a child to read</h2>
+<p>Instruction wording is where most classroom software quietly fails. These are the rules the library
+copy follows, tightened by band.</p>
+
+<div class="voice">
+  <div class="before"><h4>Instead of this</h4>
+    <p>Using the number line provided, demonstrate your understanding of addition by representing the calculation 8 + 5.</p>
+    <p>Consider which resources would be most appropriate before beginning.</p>
+    <p>Ensure you have checked your work carefully.</p>
+  </div>
+  <div class="after"><h4>Write this</h4>
+    <p>Show me 8 add 5.</p>
+    <p>Pick the hops you need.</p>
+    <p>Count your hops again.</p>
+  </div>
+</div>
+
+<ul>
+  <li><b>Verb first, one action per line.</b> "Draw", "Count", "Drag", "Tell me". A child scanning a page finds
+  the verb before they find the sentence.</li>
+  <li><b>Eight words or fewer for EYFS and KS1.</b> Twelve for KS2. Longer than that and it becomes a reading
+  task wearing a maths costume.</li>
+  <li><b>Speak to one child.</b> "Show me" rather than "pupils should show". It is their jar.</li>
+  <li><b>Say what finished looks like.</b> The success strip is the whole of assessment for learning that a
+  seven-year-old can operate on their own.</li>
+  <li><b>Every instruction survives being read aloud</b>, because in EYFS it will be. Read each one out before
+  it is published, and cut anything that makes you take a breath in the middle.</li>
+  <li><b>Pair a word with a picture wherever the word carries the meaning.</b> Microphone icon beside "tell me",
+  hop icon beside "hops". Picture and word together teaches the word.</li>
+</ul>
+
+<div class="note"><b>Atkinson Hyperlegible is already the body font.</b> It was designed for low vision readers and its
+letterforms are unusually distinct, which is a real advantage for early readers and dyslexic children.
+That is a genuine accessibility claim StoryJar can make and most competitors cannot, and it costs
+nothing because the decision is already taken.</div>
+
+<div class="note donot"><b>Things to keep off a template.</b> Fill patterns and gradients, since the child draws on top and
+needs contrast. More than two accent colours on one page. Text below 18 units in model space. Anything
+in the four corners, where hands rest. And red or green as a right-or-wrong signal, both because of
+colour blindness and because green is being kept back for a correctness cue that does not exist yet.</div>
+
+<h2>6. Where the line sits with schools</h2>
+<p>The distinction matters enough to write down, because it decides several product choices and a good
+deal of how we talk about the library.</p>
+
+<table>
+  <tr><th style="width:50%">What we do</th><th>What we leave alone</th></tr>
+  <tr>
+    <td>Apply the house style to activities StoryJar authors and publishes, so the library is coherent.</td>
+    <td>Any expectation that a teacher's own templates follow it. Their template, their school's colours.</td>
+  </tr>
+  <tr>
+    <td>Give a teacher who copies a library activity a full, editable copy, colours and all, to change freely.</td>
+    <td>Locking, watermarking or restyling a copied activity back towards our palette.</td>
+  </tr>
+  <tr>
+    <td>Offer a furniture group in the builder as plain, neutral, recolourable shapes.</td>
+    <td>Naming them after our meanings or defaulting them to our tints, which would read as a rule.</td>
+  </tr>
+  <tr>
+    <td>Keep the meanings in this document, for whoever authors our library content.</td>
+    <td>Putting the meanings in the product: no legend, no tooltip, no "recommended colour" nudge.</td>
+  </tr>
+  <tr>
+    <td>Talk publicly about what the canvas can do: hints, reminders, word banks, fading support.</td>
+    <td>Marketing a StoryJar colour code, or implying schools should adopt one.</td>
+  </tr>
+</table>
+
+<div class="note donot"><b>The practical reason, beyond good manners.</b> A school running a chilli challenge system, a
+traffic light self-assessment, or its own colour-coded working wall would find our meanings actively
+conflicting with what its children have already learned. Pushing a scheme into that would be worse
+than useless: it would make StoryJar the thing a teacher has to work around. Consistency in our own
+content costs a school nothing. A scheme aimed at their practice costs them something real.</div>
+
+<h2>7. What this changes about the build</h2>
+<p>All of it is data. Every box above is a locked rounded rectangle plus a locked text object in
+<code>objectsJson</code>, so a template that looks designed costs the same as one that does not. The work is
+deciding the constants once, here, and then reusing them fifteen times.</p>
+<ul>
+  <li>Outline: ink <code>#22304a</code>, stroke width 4 in model units, corner radius 18.</li>
+  <li>Body text: 20 to 21 units. Headings inside a box: 23 to 27, Fredoka weight 600.</li>
+  <li>Padding inside a box: 22 units. Gap between boxes: 22 units. Page margin: 30.</li>
+  <li>Boxes sit in bands: support along the top, the thing being worked on in the middle, tools and words
+  along the bottom where hands are.</li>
+</ul>
+<p>Two small pieces of product work would make these templates noticeably better, and both are worth
+scoping separately. A read-aloud button on activity instructions, which is what makes the EYFS band
+self-serve. And a furniture group in the template builder's shape kit, so anybody can drop a rounded
+box with a label in one tap rather than building it from a rectangle and a text object.</p>
+<p>That second one needs care. The shapes should arrive neutral and be recoloured in a tap, named for
+their form rather than our meanings, so a teacher fits them to whatever their school already uses. We
+get the same speed benefit when we author library content, and a teacher gets a better box, with no
+suggestion attached about what colour it ought to be.</p>
+
+<footer>StoryJar house style for published activities · internal · draft for review · 19 August 2026 · colours from
+<code>src/app/globals.css</code>, geometry at the canvas model space of 1000 by 700</footer>
+
+</div>
+</body>
+</html>

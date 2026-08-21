@@ -17,10 +17,15 @@
 
 import {
   clampDivisions,
+  clampLineStart,
+  clampLineStep,
+  clampOperator,
   clampParts,
+  clampSides,
   clampThickness,
   isVectorKind,
   SHAPE_KINDS,
+  type OperatorKind,
   type ShapeKind,
 } from "./canvasShapes";
 
@@ -84,7 +89,17 @@ export type ShapeObj = ObjCommon & {
   // one, a fraction ring a fat one.
   thickness?: number;
   // clock: whether the numerals 1–12 are drawn on the face.
+  // numberline: whether the numbers are printed under the ticks.
   numerals?: boolean;
+  // numberline: the number under the first tick, and the interval between one
+  // tick and the next. `parts` carries how many segments, so the last number is
+  // start + parts * step.
+  start?: number;
+  step?: number;
+  // operator: which of the four signs it draws.
+  operator?: OperatorKind;
+  // polygon: how many sides.
+  sides?: number;
   // Teacher-set: this is a SOURCE, not a single piece of apparatus. A child
   // dragging it gets a new copy and this one stays where it is, so a worksheet
   // can hand out as many counters or ten-rods as a child needs without them
@@ -108,6 +123,12 @@ export type TextObj = ObjCommon & {
   text: string;
   fontPx: number;
   color: string;
+  // Rotation in degrees, 0–359, from the canvas's turn handle — the same field,
+  // the same range and the same "absent means upright" rule as a shape's, so a
+  // text box and a shape behave identically under the same four corner
+  // controls. Mirrored by the export renderer about the same centre the screen
+  // turns about, so a turned label lands in the child's hand-in as they left it.
+  rot?: number;
 };
 
 export type CanvasObj = ImageObj | ShapeObj | TextObj;
@@ -139,6 +160,10 @@ function shapeGeometryFields(shape: ShapeKind, o: Record<string, unknown>) {
     parts?: number;
     thickness?: number;
     numerals?: boolean;
+    start?: number;
+    step?: number;
+    operator?: OperatorKind;
+    sides?: number;
     lockAspect?: boolean;
   } = {};
   if (shape === "grid") {
@@ -152,6 +177,22 @@ function shapeGeometryFields(shape: ShapeKind, o: Record<string, unknown>) {
     // Twelve hours, always — the count is not a setting. Only whether the
     // numbers are drawn.
     if (o.numerals === true) out.numerals = true;
+  }
+  if (shape === "numberline") {
+    out.parts = clampParts(o.parts);
+    out.start = clampLineStart(o.start);
+    out.step = clampLineStep(o.step);
+    // Unlike a clock's, this one defaults ON: a number line arrives numbered,
+    // and the blank one is the deliberate choice. So only an explicit `false`
+    // turns it off, and the field is stored either way rather than left absent
+    // to be guessed at.
+    out.numerals = o.numerals !== false;
+  }
+  if (shape === "operator") {
+    out.operator = clampOperator(o.operator);
+  }
+  if (shape === "polygon") {
+    out.sides = clampSides(o.sides);
   }
   if (shape === "ring") {
     // A ring may legitimately have no divisions at all — that is the plain
@@ -238,6 +279,9 @@ function normalizeObject(raw: unknown): CanvasObj | null {
   }
 
   if (o.type === "text") {
+    // Same wrap-then-drop-zero rule as a shape's, from the same helper, so the
+    // two object types cannot drift apart on what a turn means.
+    const rot = normaliseRotation(o.rot);
     return {
       id,
       type: "text",
@@ -246,6 +290,7 @@ function normalizeObject(raw: unknown): CanvasObj | null {
       y,
       fontPx: clamp(num(o.fontPx, 32), 8, 400),
       color: str(o.color, MAX_COLOR_LEN) || "#1f2430",
+      ...(rot ? { rot } : {}),
       locked,
     };
   }

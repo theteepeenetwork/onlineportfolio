@@ -83,11 +83,17 @@ export async function createTemplate(
   if (!title) return { error: "Please give the template a title." };
 
   let templatePathsJson: string | null = null;
+  let previewPathsJson: string | null = null;
   let quizJson: string | null = null;
   let objectsJson: string | null = null;
   try {
     const pages = parsePages(String(formData.get("templatePages") ?? ""));
     if (pages.length) templatePathsJson = JSON.stringify(await saveImagePages(pages));
+    // The picture of each page. Separate from the background above, which goes
+    // back into the editor and so carries neither the movable pieces nor the
+    // questions — see the column comment.
+    const shots = parsePages(String(formData.get("templatePreviews") ?? ""));
+    if (shots.length) previewPathsJson = JSON.stringify(await saveImagePages(shots));
     quizJson = await persistQuizPayload(String(formData.get("quizPayload") ?? ""));
     objectsJson = await persistObjectsPayload(String(formData.get("objectsPayload") ?? ""));
   } catch (e) {
@@ -99,6 +105,7 @@ export async function createTemplate(
       title,
       instructions,
       templatePathsJson,
+      previewPathsJson,
       quizJson,
       objectsJson,
       tagsJson: tags.length ? JSON.stringify(tags) : null,
@@ -138,6 +145,7 @@ export async function updateTemplate(
   if (!existing) return { error: "Template not found." };
 
   let templatePathsJson: string | null = null;
+  let previewPathsJson: string | null = null;
   let quizJson: string | null = null;
   let objectsJson: string | null = null;
   try {
@@ -145,6 +153,9 @@ export async function updateTemplate(
     // URLs even when unchanged; save them like a new template would.
     const pages = parsePages(String(formData.get("templatePages") ?? ""));
     if (pages.length) templatePathsJson = JSON.stringify(await saveImagePages(pages));
+    // The picture of each page, which the background above cannot be.
+    const shots = parsePages(String(formData.get("templatePreviews") ?? ""));
+    if (shots.length) previewPathsJson = JSON.stringify(await saveImagePages(shots));
     quizJson = await persistQuizPayload(String(formData.get("quizPayload") ?? ""));
     objectsJson = await persistObjectsPayload(String(formData.get("objectsPayload") ?? ""));
   } catch (e) {
@@ -157,6 +168,7 @@ export async function updateTemplate(
       title,
       instructions,
       templatePathsJson,
+      previewPathsJson,
       quizJson,
       objectsJson,
       tagsJson: tags.length ? JSON.stringify(tags) : null,
@@ -170,6 +182,7 @@ export async function updateTemplate(
       title,
       instructions,
       templateSnapshotJson: templatePathsJson,
+      previewSnapshotJson: previewPathsJson,
       quizSnapshotJson: quizJson,
       objectsSnapshotJson: objectsJson,
     },
@@ -231,6 +244,7 @@ export async function assignTemplate(
       title: template.title,
       instructions: template.instructions,
       templateSnapshotJson: template.templatePathsJson,
+      previewSnapshotJson: template.previewPathsJson,
       quizSnapshotJson: template.quizJson,
       objectsSnapshotJson: template.objectsJson,
       dueDate,

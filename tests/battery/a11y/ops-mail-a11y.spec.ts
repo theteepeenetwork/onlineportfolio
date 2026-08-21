@@ -1,6 +1,6 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { signInOperator } from "../helpers";
+import { asOperator } from "../helpers";
 import { MAIL_VERDICT_LABEL } from "@/lib/mailStatus";
 
 // ===========================================================================
@@ -68,7 +68,7 @@ test.describe("the operator mail screen", () => {
   test.beforeAll(async ({ browser }) => {
     context = await browser.newContext();
     page = await context.newPage();
-    await signInOperator(page);
+    await asOperator(page);
   });
 
   test.afterAll(async () => {

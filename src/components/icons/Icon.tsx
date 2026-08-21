@@ -45,6 +45,7 @@ export type IconName =
   | "home"
   | "class"
   | "search"
+  | "calendar"
   | "settings"
   | "back"
   | "close"
@@ -164,6 +165,14 @@ const ICONS: Record<IconName, Glyph> = {
   "search": { label: "Search", glyph: (
     <><circle cx="10.5" cy="10.5" r="6" fill="#D8ECE8" /> <line x1="15" y1="15" x2="20" y2="20" /></>
   ) },
+  // Kraft band for the lid, two tilted "moment" squares for the days — the same
+  // squares that fill the jar mark, so a new glyph joins the family rather than
+  // arriving from a generic icon set. Days are jam + honey (never three), and the
+  // band replaces binder tabs: at 18px in the teacher rail the tabs closed up
+  // into the body and read as a smudge.
+  "calendar": { label: "Calendar", glyph: (
+    <><rect x="4.6" y="3.4" width="14.8" height="4" rx="2" fill="#C9A87C" /> <rect x="3.5" y="6" width="17" height="14.5" rx="2.5" fill="#FFFDF7" /> <rect x="6.3" y="11.8" width="4.6" height="4.6" rx="1" fill="#BD3F63" stroke="none" transform="rotate(-8 8.6 14.1)" /> <rect x="13.1" y="12.6" width="4.6" height="4.6" rx="1" fill="#F0B441" stroke="none" transform="rotate(6 15.4 14.9)" /></>
+  ) },
   "settings": { label: "Settings", glyph: (
     <><line x1="4" y1="8" x2="20" y2="8" /> <circle cx="9" cy="8" r="2.6" fill="#F0B441" /> <line x1="4" y1="16" x2="20" y2="16" /> <circle cx="15" cy="16" r="2.6" fill="#4E9C94" /></>
   ) },
@@ -196,11 +205,12 @@ const ICONS: Record<IconName, Glyph> = {
   "lock-closed": { label: "Locked", glyph: (
     <><rect x="5.5" y="11" width="13" height="9" rx="2.2" fill="#F0B441" /> <path d="M8.5 11 V8 a3.5 3.5 0 0 1 7 0 V11" fill="none" /> <circle cx="12" cy="14.6" r="1.3" fill="#FFFDF7" stroke="none" /> <line x1="12" y1="15.4" x2="12" y2="17.4" /></>
   ) },
-  // Two overlapping cards: the accent one is the selected object. Bring-to-front
-  // draws it on TOP; send-to-back draws it BEHIND the plain card.
-  // A lemniscate: there is always another one of these.
+  // A lemniscate: there is always another one of these. Drawn to the Icon
+  // Library sheet — one continuous figure-of-eight filling its keyline, glass
+  // tint inside. The old one sat in the left two thirds with an amber dot
+  // beside it, which read as a symbol with a full stop after it.
   "infinite": { label: "Endless supply", glyph: (
-    <><path d="M8.6 12 C8.6 9.5 5.5 9.5 5.5 12 C5.5 14.5 8.6 14.5 8.6 12 C8.6 9.5 15.4 14.5 15.4 12 C15.4 9.5 8.6 14.5 8.6 12 Z" fill="none" /> <circle cx="18.4" cy="12" r="1.4" fill="#F0B441" stroke="none" /></>
+    <path d="M12 12 C9.6 7.8 3.6 7.8 3.6 12 C3.6 16.2 9.6 16.2 12 12 C14.4 7.8 20.4 7.8 20.4 12 C20.4 16.2 14.4 16.2 12 12 Z" fill="#D8ECE8" />
   ) },
   // An arrow chasing its own circle: turn this.
   "rotate": { label: "Turn", glyph: (
@@ -215,11 +225,15 @@ const ICONS: Record<IconName, Glyph> = {
   "duplicate": { label: "Make another one", glyph: (
     <><rect x="4" y="4" width="12" height="12" rx="2.2" fill="#FFFDF7" /> <rect x="8" y="8" width="12" height="12" rx="2.2" fill="#8AB9D6" /></>
   ) },
+  // Two overlapping cards AND an arrow, per the Icon Library sheet. Without the
+  // arrow the pair is only distinguishable by which card is on top and what
+  // colour it is — a difference of a few pixels that a teacher reads as one
+  // icon printed twice, and that disappears entirely in forced colours.
   "bring-to-front": { label: "Bring to front", glyph: (
-    <><rect x="4.5" y="4.5" width="11" height="11" rx="2" fill="#FFFDF7" /> <rect x="9" y="9" width="11" height="11" rx="2" fill="#4E9C94" /></>
+    <><rect x="3.5" y="3.5" width="10.5" height="10.5" rx="2" fill="#FFFDF7" /> <rect x="10" y="10" width="10.5" height="10.5" rx="2" fill="#4E9C94" /> <path d="M15.25 18.2 L15.25 13 M13 15.1 L15.25 12.8 L17.5 15.1" stroke="#FFFDF7" strokeWidth={1.8} /></>
   ) },
   "send-to-back": { label: "Send to back", glyph: (
-    <><rect x="9" y="9" width="11" height="11" rx="2" fill="#F0B441" /> <rect x="4.5" y="4.5" width="11" height="11" rx="2" fill="#FFFDF7" /></>
+    <><rect x="3.5" y="3.5" width="10.5" height="10.5" rx="2" fill="#4E9C94" /> <path d="M8.75 5.8 L8.75 11 M6.5 8.9 L8.75 11.2 L11 8.9" stroke="#FFFDF7" strokeWidth={1.8} /> <rect x="10" y="10" width="10.5" height="10.5" rx="2" fill="#FFFDF7" /></>
   ) },
 };
 

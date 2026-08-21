@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { teacherLogin, studentLogin, logout, drawOnCanvas } from "./helpers";
 
 // The full library flow: create a reusable template, assign it as a run, a child
@@ -140,4 +141,69 @@ test("the 3-dot menu opens above the cards and can move a template into a folder
   await page.getByRole("button", { name: /Maths & number/ }).first().click();
   await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Count the apples" })).toBeVisible();
+});
+
+// One activity, one picture, on every screen that offers it.
+//
+// The teacher's library card showed the worksheet — a photograph with the
+// question drawn on it. The child being asked to answer that question saw a
+// striped placeholder and a generic icon. Same activity, unrecognisable from
+// one screen to the next, which is exactly the "is this the right one?" moment
+// a picture exists to answer.
+test("a child's activity card shows the same picture as the teacher's library card", async ({
+  page,
+}) => {
+  const db = new PrismaClient();
+  try {
+    await teacherLogin(page);
+    await page.goto("/teacher/activities/new");
+    await page.fill("#title", "Where in the world");
+    await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+    await page.locator('button[title="Add"]').click();
+    await page.getByRole("button", { name: "Quiz", exact: true }).click();
+    const panel = page.getByRole("region", { name: "Quiz builder" });
+    await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+    await panel.getByPlaceholder("What do you want to ask?").fill("Where is this?");
+    await panel.getByPlaceholder("Type an answer").nth(0).fill("London");
+    await panel.getByPlaceholder("Type an answer").nth(1).fill("Paris");
+    await page.locator('button[title="Done"]').click();
+    await page.getByRole("button", { name: /Save to library/ }).click();
+    await expect(page.getByRole("heading", { name: "Where in the world" })).toBeVisible();
+
+    await page.getByRole("button", { name: /Assign/ }).first().click();
+    await page.getByRole("button", { name: /Assign to whole class/ }).click();
+    await page.waitForURL((url) => url.searchParams.has("run"));
+
+    // The run carries the picture, and it is the template's own.
+    const run = (await db.assignment.findFirst({
+      where: { title: "Where in the world" },
+      orderBy: { createdAt: "desc" },
+      include: { template: { select: { previewPathsJson: true } } },
+    }))!;
+    expect(run.previewSnapshotJson, "the run was given a picture").toBeTruthy();
+    expect(run.previewSnapshotJson).toBe(run.template.previewPathsJson);
+    const shot = (JSON.parse(run.previewSnapshotJson!) as string[])[0];
+
+    // --- The child ---
+    await logout(page);
+    await studentLogin(page, "Ben");
+    await page.goto("/student");
+    const card = page.getByRole("link", { name: /Where in the world/ }).first();
+    const img = card.locator(`img[src="${shot}"]`).first();
+    await expect(img, "the child's card shows the activity, not a placeholder").toBeVisible();
+
+    // And it LOADS. /uploads authorises by column and grants a child only the
+    // material of a run they were actually set — a new column it does not
+    // recognise is served to nobody, which is how a stored picture arrives as a
+    // broken image.
+    await expect
+      .poll(async () => img.evaluate((i: HTMLImageElement) => i.naturalWidth))
+      .toBeGreaterThan(0);
+
+    // The list of activities shows it too, not only the jar's tile.
+    await page.goto("/student/activities");
+    await expect(page.locator(`img[src="${shot}"]`).first()).toBeVisible();
+  } finally {
+    await db.$disconnect();
+  }
 });

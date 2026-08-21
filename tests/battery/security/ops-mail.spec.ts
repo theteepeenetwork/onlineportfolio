@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { SCHOOL_A, loginTeacher, signInOperator } from "../helpers";
+import { SCHOOL_A, loginTeacher, asOperator } from "../helpers";
 import { BATTERY_MAIL_HMAC_KEY } from "../mailHmacFixtureKey";
 import { recordMailAttempt } from "@/lib/mailCounters";
 import {
@@ -102,7 +102,7 @@ test(`${ROUTE} is 404 to a stranger and 200 to the operator, on the same URL`, a
   expect((await bodyText(page)).toLowerCase()).not.toContain("storyjar operations");
 
   // Positive control: same URL, same fixture, the other session.
-  await signInOperator(page);
+  await asOperator(page);
   const authorised = await page.goto(ROUTE);
   expect(authorised?.status()).toBe(200);
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
@@ -179,7 +179,7 @@ test.describe("the mail screen, seen by an operator", () => {
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();
-    await signInOperator(page);
+    await asOperator(page);
   });
 
   test.afterAll(async () => {
@@ -513,7 +513,7 @@ test("an adult record says whether Mailjet is refusing that address, and it is c
   // door has no bypass and consecutive sign-ins have to wait for the TOTP
   // clock. The three lookups are the assertion, and they belong together
   // anyway, because each is the other two's control.
-  await signInOperator(page);
+  await asOperator(page);
   const main = page.locator("main");
 
   await submitLookup(page, PARENT_SUPPRESSED);

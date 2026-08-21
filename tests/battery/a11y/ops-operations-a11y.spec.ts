@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { PrismaClient } from "@prisma/client";
-import { SCHOOL_C, signInOperator } from "../helpers";
+import { SCHOOL_C, asOperator } from "../helpers";
 
 // ===========================================================================
 // A28 - Accessibility of the named operations (PR4, ruling R15)
@@ -87,7 +87,7 @@ async function findTheFamily(page: Page) {
 test("a11y (AA, empty baseline): a record with both operations, closed and open", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
   // An axe scan of a page that did not render is a clean scan, so anchor first.
   await expect(page.getByRole("button", { name: ROTATE })).toBeVisible();
@@ -108,7 +108,7 @@ test("a11y (AA, empty baseline): a record with both operations, closed and open"
 });
 
 test("the whole operation is completable with the keyboard alone", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
 
   // Tab until the trigger has focus, rather than clicking it. A control that
@@ -150,7 +150,7 @@ test("the whole operation is completable with the keyboard alone", async ({ page
 });
 
 test("cancelling puts focus back on the control that was pressed", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
   await page.getByRole("button", { name: ROTATE }).click();
   await expect(page.getByRole("region", { name: ROTATE })).toBeVisible();
@@ -165,7 +165,7 @@ test("cancelling puts focus back on the control that was pressed", async ({ page
 });
 
 test("submit is never disabled, and every state is words rather than colour", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await findTheFamily(page);
   await page.getByRole("button", { name: ROTATE }).click();
   const panel = page.getByRole("region", { name: ROTATE });
@@ -185,7 +185,7 @@ test("submit is never disabled, and every state is words rather than colour", as
 });
 
 test("no horizontal overflow at 390px with a confirm step open", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await findTheFamily(page);
   await page.getByRole("button", { name: REVEAL }).click();

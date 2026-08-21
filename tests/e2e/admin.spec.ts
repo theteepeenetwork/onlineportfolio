@@ -110,7 +110,7 @@ test.describe("School admin", () => {
     // This teacher has no admin school → /admin bounces to their teacher view.
     await page.goto("/admin");
     await expect(page).toHaveURL((url) => url.pathname === "/teacher");
-    await expect(page.getByRole("heading", { name: /Hello, Ms Khan/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Ms Khan$/ })).toBeVisible();
   });
 
   test("an anonymous visitor cannot reach /admin", async ({ page }) => {
@@ -179,12 +179,11 @@ test.describe("Admin billing", () => {
     await page.goto("/admin");
     await page.getByRole("button", { name: "Classes", exact: true }).click();
 
-    // Hold on to WHICH class this is, by name, rather than by position. Handing
-    // one over re-orders the list, so a second `.first()` lands on a different
-    // row — which is how the restore below silently moved the wrong class.
     const picker = page.locator('select[name="staffId"]').first();
     await expect(picker).toBeVisible();
-    const className = (await picker.getAttribute("aria-label"))!.replace(/^Teacher for /, "");
+    // Hold on to WHICH class this is: handing it over re-sorts the list, so the
+    // row is found by its own label afterwards rather than by position.
+    const label = (await picker.getAttribute("aria-label")) ?? "";
     const before = await picker.inputValue();
     const other = await picker.locator(`option:not([value="${before}"])`).first().getAttribute("value");
     await picker.selectOption(other ?? "");
@@ -195,21 +194,16 @@ test.describe("Admin billing", () => {
     await page.getByRole("button", { name: "Audit log" }).click();
     await expect(page.getByText("Assigned a class")).toBeVisible();
 
-    // Hand it back.
-    //
-    // This suite runs SERIALLY against one database (workers: 1), and this was
-    // the only test in it that permanently moved a demo fixture: it takes the
-    // first class — Sunflower, the one the demo teacher owns — and gave it to a
-    // colleague for the rest of the run. Every later test that signs in as
-    // teacher@school.uk and expects to see their class then failed, which is
-    // what auth, journal, drafts, media access, stickers and quiz were all
-    // doing. Six unrelated-looking regressions, and one test not putting the
-    // furniture back.
+    // …and then hand it straight back. This is the ONE test that permanently
+    // moves a seeded class out of the demo teacher's hands, and the demo
+    // teacher's first class is the fixture half the suite is built on: leaving
+    // it with a colleague empties their queue, their register and their
+    // dashboard for every file that runs after this one.
     await page.getByRole("button", { name: "Classes", exact: true }).click();
-    const restore = page.getByLabel(`Teacher for ${className}`);
-    await expect(restore).toHaveValue(other ?? "");
-    await restore.selectOption(before);
+    const back = page.getByLabel(label);
+    await expect(back).toBeVisible();
+    await back.selectOption(before);
     await page.getByRole("button", { name: /^Hand to / }).click();
-    await expect(page.getByLabel(`Teacher for ${className}`)).toHaveValue(before);
+    await expect(page.getByLabel(label)).toHaveValue(before);
   });
 });

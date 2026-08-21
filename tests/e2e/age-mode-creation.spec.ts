@@ -22,6 +22,9 @@ test.afterAll(async () => {
   await db.$disconnect();
 });
 
+// The teacher shell's rail lists every class on every screen, so "the class
+// appears in the teacher's list" is asserted inside the page content — matched
+// unscoped it now finds the nav item too.
 async function openNewClassForm(page: import("@playwright/test").Page) {
   await teacherLogin(page);
   await page.goto("/teacher/class");
@@ -45,7 +48,7 @@ test("choosing 'older children' stores KS2 on the class", async ({ page }) => {
   await page.getByRole("button", { name: "Create class" }).click();
 
   // The class appears in the teacher's list once the action commits.
-  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText(name, { exact: true })).toBeVisible();
   await expect
     .poll(async () => (await db.class.findFirst({ where: { name } }))?.ageMode)
     .toBe("KS2");
@@ -59,7 +62,7 @@ test("choosing 'early years' stores EYFS on the class", async ({ page }) => {
   await page.getByRole("radio", { name: /early years/i }).check();
   await page.getByRole("button", { name: "Create class" }).click();
 
-  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText(name, { exact: true })).toBeVisible();
   await expect
     .poll(async () => (await db.class.findFirst({ where: { name } }))?.ageMode)
     .toBe("EYFS");
@@ -73,7 +76,7 @@ test("skipping the question stores NULL (→ EYFS by default)", async ({ page })
   // Deliberately touch neither radio.
   await page.getByRole("button", { name: "Create class" }).click();
 
-  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText(name, { exact: true })).toBeVisible();
   await expect
     .poll(async () => {
       const row = await db.class.findFirst({ where: { name } });
@@ -93,7 +96,7 @@ test("changing age mode in Class settings persists the new register", async ({ p
   await openNewClassForm(page);
   await page.getByLabel("Class name").fill(name);
   await page.getByRole("button", { name: "Create class" }).click();
-  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText(name, { exact: true })).toBeVisible();
 
   // Open it and reveal Class settings.
   await page.getByRole("button", { name: new RegExp(name) }).click();

@@ -42,6 +42,10 @@ model Teacher {
   // An individually-subscribing teacher's own subscription (null when the
   // teacher is covered by a school plan instead — see Subscription).
   subscription   Subscription?
+  // Bearer tokens this teacher has minted so Claude can build activities in
+  // their library, and the claude.ai connector grants behind the OAuth ones.
+  apiTokens      ApiToken[]
+  oauthGrants    OAuthGrant[]
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
@@ -226,6 +230,13 @@ model JournalItem {
   textContent     String? // body text for TEXT items
   mediaPath       String? // relative /uploads path: cover image (PHOTO / DRAWING) or the voice-note file (AUDIO). Served ONLY via the authorising /uploads route, never publicly — same as photos (SAFEGUARDING rule 7).
   mediaPathsJson  String? // JSON array of paths for multi-page drawings; when set it supersedes mediaPath
+  // JSON array of PICTURE paths, one per page: the work as it LOOKED, with the
+  // question boxes drawn on. Written only when the page carries a quiz, because
+  // that is the only thing the flattened pages leave out for a pupil. The work
+  // of record stays `mediaPathsJson` — a child's drawing is never published
+  // with question boxes baked into it — so these two are allowed to differ, and
+  // only the read-only surfaces (the queue, the viewer, the jar) use this one.
+  previewPathsJson String?
   quizAnswersJson String? // JSON QuizAnswer[] — the child's multiple-choice selections (PENDING child content)
   quizScore       Int? // server-computed number of correct answers at submit time (null = not a quiz response)
   quizTotal       Int? // number of questions in the assignment snapshot at submit time
@@ -255,6 +266,13 @@ model ActivityTemplate {
   title                  String
   instructions           String? // what to do; may be read aloud to the child
   templatePathsJson      String? // JSON array of background image paths (canvas / PDF pages)
+  // JSON array of PICTURE paths, one per page: the background with the movable
+  // pieces and the question boxes drawn on. `templatePathsJson` is deliberately
+  // partial — objects are left out so they don't appear twice when the template
+  // is reopened for editing, and questions are never flattened at all — which
+  // meant a template made of pieces and questions showed a blank white card.
+  // This is what a human is shown; that is what the editor is given back.
+  previewPathsJson       String?
   quizJson               String? // JSON QuizPayload — floating multiple-choice questions; option imagePaths are /uploads paths
   objectsJson            String? // JSON TemplateObjects — movable pictures/shapes/text (per page); each carries a `locked` flag. Image srcs are /uploads paths
   tagsJson               String? // JSON array of teacher-defined tag names (e.g. ["Maths"])
@@ -358,6 +376,17 @@ model Assignment {
   templateSnapshotJson String? // frozen template pages at assign time
   quizSnapshotJson     String? // frozen quiz definition at assign time (mirrors templateSnapshotJson)
   objectsSnapshotJson  String? // frozen movable-objects layer at assign time (mirrors templateSnapshotJson)
+  // The PICTURE of the activity, copied at assign time beside the rest. The
+  // child's "to do" card showed a striped placeholder while the teacher's
+  // library card showed the real thing — the same activity, unrecognisable
+  // from one screen to the next.
+  //
+  // Copied rather than read live through `template`, for the same reason the
+  // three fields above it are: a run outlives the template it came from (a
+  // CLOSED run keeps what it was set with, and a deleted template would take
+  // the picture with it). An edit to a LIVE template is still pushed onto its
+  // runs by updateTemplate() — deliberately, so a fix reaches a class today.
+  previewSnapshotJson  String?
   dueDate              DateTime? // optional: when the run is expected done; null = no due date (open/historical)
   createdAt            DateTime            @default(now())
   students             AssignmentStudent[] // set only when wholeClass = false
@@ -656,4 +685,115 @@ model MailSuppression {
   state       String // "BOUNCE" | "BLOCKED" | "SPAM" | "UNSUBSCRIBED"
   firstSeenAt DateTime
   lastSeenAt  DateTime
+}
+
+// ---------------------------------------------------------------------------
+// Connecting Claude to a teacher's activity library.
+// ---------------------------------------------------------------------------
+// A teacher can point Claude at StoryJar and ask it to build an activity —
+// "take this worksheet and turn it into a four-page quiz". Claude reaches the
+// product through an MCP server (src/app/api/mcp) and a small REST API
+// (src/app/api/v1), both authenticated by one of the tokens below.
+//
+// WHAT A TOKEN CAN REACH, AND WHY THAT LIST IS SHORT
+//
+// A token reads and writes ONE teacher's activity templates and folders. It
+// cannot reach a class, a child, a journal item, a draft, the approval queue or
+// any uploaded media — not because the API declines to offer those routes, but
+// because src/lib/api/ never queries those models at all. There is no scope
+// system to misconfigure and no flag that widens it: a route that wanted child
+// data would have to be written, reviewed and merged.
+//
+// That is a deliberate reading of SAFEGUARDING rule 1. A child's work reaching
+// a third party over a bearer token, outside the approval queue, is precisely
+// the shape of change the queue exists to prevent — so the connector stops at
+// the teaching material and a human still opens the canvas, looks at what
+// Claude made, and decides whether a class ever sees it.
+//
+// Retention: RETENTION.md, "Connector tokens". Purpose and residual risks:
+// docs/DPIA.md R17.
+
+// One bearer token. Either minted by the teacher on their own account page
+// (kind = PERSONAL, for Claude Code / Claude Desktop) or issued by the OAuth
+// flow when they add StoryJar as a connector on claude.ai (kind = OAUTH).
+//
+// Only the SHA-256 of the token is stored (`keyHash`), so a copy of the database
+// file is
+// not a set of live tokens (this follows OperatorSession.tokenHash rather than
+// the older Session.token, which stores raw). `hint` is the first few
+// characters of the token — enough for a teacher to tell two rows apart on the
+// account page, useless to anyone holding only the row.
+model ApiToken {
+  id         String      @id @default(cuid())
+  // The teacher's own words: "Claude on my laptop". Never shown to anyone else.
+  label      String
+  // Named keyHash, not tokenHash: OperatorSession already owns `tokenHash`, and
+  // the ops blindness gate's denylist is keyed on the column NAME. Denylisting
+  // one name would either break the operator's own sign-in or leave this one
+  // unprotected, so the two credentials get two names and both are classified.
+  keyHash    String      @unique
+  // The four characters after the fixed `sj_live_` prefix — enough for a teacher
+  // to tell two rows apart on their account page, and not a credential: the
+  // prefix is constant and four characters of a 43-character secret identify
+  // nothing. Deliberately NOT on the ops denylist, and deliberately not longer.
+  hint       String
+  // REVOKING IS DELETING, on both of these tables and on OAuthGrant. There is no
+  // `revokedAt` flag, deliberately: a row that is merely marked revoked still
+  // holds a hash somebody could match, and every read would then depend on
+  // remembering the filter. Deleting the row means the credential does not exist
+  // anywhere — a teacher revoking a token, a connector rotating its access
+  // token, and a replayed authorization code all end the same way.
+  kind       String      @default("PERSONAL") // PERSONAL | OAUTH
+  teacher    Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId  String
+  // Set only on kind = OAUTH. Cascade, so revoking a connector on the account
+  // page takes its access tokens with it rather than leaving them live.
+  oauthGrant OAuthGrant? @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  grantId    String?
+  createdAt  DateTime    @default(now())
+  expiresAt  DateTime? // null on a personal token; set on an OAuth access token
+  // Coarse, and coarse on purpose: a teacher needs to know whether a token they
+  // have forgotten about is still being used before they revoke it. It is
+  // written at most once an hour (see touchApiToken) so it never becomes a log
+  // of when a teacher works.
+  lastUsedAt DateTime?
+
+  @@index([teacherId])
+  @@index([grantId])
+}
+
+// A claude.ai connector, registered by Claude itself through RFC 7591 dynamic
+// client registration. Holds no secret: the flow is public-client + PKCE, which
+// is what MCP requires and what removes any client secret from this table.
+model OAuthClient {
+  id               String       @id @default(cuid()) // the client_id
+  name             String // the client's self-declared name, shown on the consent screen
+  redirectUrisJson String // JSON array of exact redirect URIs, matched exactly
+  createdAt        DateTime     @default(now())
+  grants           OAuthGrant[]
+}
+
+// One teacher's decision to let one client in, and the credentials that carry
+// that decision: first a single-use authorization code, then a refresh token.
+// Both are stored hashed, for the same reason ApiToken.tokenHash is.
+model OAuthGrant {
+  id            String      @id @default(cuid())
+  oauthClient   OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId      String
+  teacher       Teacher     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId     String
+  redirectUri   String // the one this grant was authorised against; the token call must match it
+  // Authorization-code stage. Single use: codeUsedAt is stamped on redemption
+  // and a second attempt revokes the whole grant (RFC 6749 §10.5).
+  codeHash      String?     @unique
+  codeChallenge String? // PKCE S256 challenge; plain is refused
+  codeExpiresAt DateTime?
+  codeUsedAt    DateTime?
+  // Refresh stage. Rotated on every use, so a stolen refresh token stops
+  // working the moment the real client uses its own.
+  refreshHash   String?     @unique
+  createdAt     DateTime    @default(now())
+  accessTokens  ApiToken[]
+
+  @@index([teacherId])
 }

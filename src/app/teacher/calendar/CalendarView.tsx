@@ -149,11 +149,11 @@ export function CalendarView({
   const selectedDate = selectedKey ? cells.find((c) => c.key === selectedKey)?.date ?? null : null;
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", width: "100%", padding: "28px 24px 80px", boxSizing: "border-box" }}>
+    <div style={{ maxWidth: 1040 }}>
       {/* header: title + view toggle + nav */}
       <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
         <div>
-          <h1 style={{ margin: 0, font: "600 32px var(--font-fredoka)" }}>Calendar</h1>
+          <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)" }}>Calendar</h1>
           <p style={{ margin: "5px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>When you set each activity, and how many pupils have done it.</p>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -167,20 +167,21 @@ export function CalendarView({
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <button onClick={() => step(-1)} aria-label="Previous month" style={navBtn}>‹</button>
-            <span style={{ font: "600 18px var(--font-fredoka)", minWidth: 168, textAlign: "center" }}>{monthLabel}</span>
+            <span style={{ font: "600 19px var(--font-fredoka)", minWidth: 170, textAlign: "center" }}>{monthLabel}</span>
             <button onClick={() => step(1)} aria-label="Next month" style={navBtn}>›</button>
-            <button onClick={goToday} style={{ ...navBtn, width: "auto", padding: "0 14px", font: "700 14px var(--font-atkinson)" }}>Today</button>
+            <button onClick={goToday} style={{ ...navBtn, width: "auto", height: 44, padding: "0 18px", borderRadius: 999, background: "var(--kraft-tag)", borderColor: "var(--ink)", font: "700 14px var(--font-atkinson)" }}>Today</button>
           </div>
         </div>
       </div>
 
-      {/* summary strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 18 }}>
+      {/* summary — one band across the top of the month, so the five figures
+          read as one sentence about it rather than five competing cards */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", background: "var(--kraft-tag)", border: "3px solid var(--ink)", borderRadius: 16, padding: "14px 18px", marginBottom: 18 }}>
         <Stat value={`${summary.runs}`} label="Runs this month" color="var(--ink)" />
-        <Stat value={`${summary.pct}%`} label="Completion" color="#37796f" />
+        <Stat value={`${summary.pct}%`} label="Completion" color="var(--glass-ink)" />
         <Stat value={`${summary.live}`} label="Live now" color="var(--ink)" />
         <Stat value={`${summary.waiting}`} label="Waiting to approve" color="var(--honey-ink)" />
-        <Stat value={`${summary.overdue}`} label="Overdue" color={summary.overdue > 0 ? "var(--jam)" : "var(--sj-muted)"} />
+        <Stat value={`${summary.overdue}`} label="Overdue" color={summary.overdue > 0 ? "var(--jam)" : "var(--ink-soft)"} />
       </div>
 
       {/* class filter chips */}
@@ -196,7 +197,7 @@ export function CalendarView({
             return (
               <button key={c.id} onClick={() => toggleClass(c.id)} aria-pressed={on}
                 style={{ ...chip, background: on ? t.color : "var(--cream)", borderColor: "var(--ink)", color: "var(--ink)" }}>
-                <span style={{ width: 10, height: 10, borderRadius: 3, background: t.jarFill, border: "1.5px solid var(--ink)" }} />
+                <span aria-hidden style={{ width: 11, height: 11, borderRadius: 999, background: t.jarFill }} />
                 {c.name}
               </button>
             );
@@ -211,7 +212,13 @@ export function CalendarView({
       )}
 
       {selectedDate && (
-        <DayPanel date={selectedDate} runs={selectedRuns} today={today} onClose={() => setSelectedKey(null)} />
+        <DayPanel
+          date={selectedDate}
+          runs={selectedRuns}
+          today={today}
+          isToday={selectedKey === dayKey(today)}
+          onClose={() => setSelectedKey(null)}
+        />
       )}
     </div>
   );
@@ -230,13 +237,13 @@ function MonthGrid({
   selectedKey: string | null;
 }) {
   return (
-    <div className="sj-card" style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "2px solid var(--calm-border)" }}>
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginBottom: 6 }}>
         {WEEKDAYS.map((w) => (
-          <div key={w} style={{ padding: "10px 8px", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", textAlign: "center", letterSpacing: "0.04em", textTransform: "uppercase" }}>{w}</div>
+          <div key={w} style={{ padding: "4px 8px", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", textAlign: "center", letterSpacing: "0.06em", textTransform: "uppercase" }}>{w}</div>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
         {cells.map((c) => {
           const overdue = c.runs.filter((r) => runFlags(r, today).overdue).length;
           const label = `${fmtLongDay(c.date)}${c.runs.length ? `, ${c.runs.length} activit${c.runs.length === 1 ? "y" : "ies"}` : ", no activities"}${overdue ? `, ${overdue} overdue` : ""}`;
@@ -246,19 +253,21 @@ function MonthGrid({
               onClick={() => onSelect(c.key)}
               aria-label={label}
               style={{
-                textAlign: "left", cursor: "pointer", border: "none", borderRight: "1px solid #F0EADD", borderBottom: "1px solid #F0EADD",
-                background: c.isToday ? "#FCF7EC" : c.inMonth ? "var(--cream)" : "#FBF8F1",
-                minHeight: 104, padding: "6px 7px", display: "flex", flexDirection: "column", gap: 4,
-                opacity: c.inMonth ? 1 : 0.5,
-                outline: selectedKey === c.key ? "2px solid var(--glass)" : "none", outlineOffset: -2,
+                textAlign: "left", cursor: "pointer", borderRadius: 12,
+                // Selected wins over today wins over in/out of month, so the day
+                // you just chose is never ambiguous.
+                border: `2px solid ${selectedKey === c.key ? "var(--ink)" : c.isToday ? "var(--honey)" : "var(--calm-border)"}`,
+                background: c.isToday ? "var(--honey-tint)" : c.inMonth ? "var(--cream)" : "#F4F0E6",
+                color: c.inMonth ? "var(--ink)" : "#A9A294",
+                minHeight: 96, padding: "7px 8px", display: "flex", flexDirection: "column", gap: 4,
               }}
             >
               <span style={{ display: "flex", alignItems: "center" }}>
-                <span style={{ font: "700 13px var(--font-atkinson)", color: c.isToday ? "var(--paper)" : c.inMonth ? "var(--ink)" : "var(--sj-muted)", background: c.isToday ? "var(--jam)" : "transparent", borderRadius: 999, padding: c.isToday ? "1px 7px" : 0 }}>{c.date.getDate()}</span>
+                <span style={{ font: "700 13px var(--font-atkinson)", color: "inherit" }}>{c.date.getDate()}</span>
               </span>
               {c.runs.slice(0, MAX_PILLS).map((r) => <DayPill key={r.id} run={r} today={today} />)}
               {c.runs.length > MAX_PILLS && (
-                <span style={{ font: "700 11px var(--font-atkinson)", color: "var(--sj-muted)" }}>+{c.runs.length - MAX_PILLS} more</span>
+                <span style={{ font: "400 11px var(--font-atkinson)", color: "var(--sj-muted)" }}>+{c.runs.length - MAX_PILLS} more</span>
               )}
             </button>
           );
@@ -274,7 +283,7 @@ function DayPill({ run, today }: { run: CalendarRun; today: Date }) {
   const dot = f.overdue ? "var(--jam)" : f.dueSoon ? "var(--honey)" : f.complete ? "#37796f" : "transparent";
   return (
     <span title={`${run.title} · ${run.className} · ${run.completed}/${run.assigned} in the jar`}
-      style={{ display: "flex", alignItems: "center", gap: 5, background: t.color, border: "1px solid rgba(34,48,74,0.15)", borderRadius: 6, padding: "2px 6px", font: "700 11px var(--font-atkinson)", color: "var(--ink)", minWidth: 0, opacity: run.status === "CLOSED" ? 0.65 : 1 }}>
+      style={{ display: "flex", alignItems: "center", gap: 5, background: t.color, borderRadius: 6, padding: "3px 6px", font: "600 11px var(--font-atkinson)", color: "var(--ink)", minWidth: 0, opacity: run.status === "CLOSED" ? 0.65 : 1 }}>
       {dot !== "transparent" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: dot, flexShrink: 0 }} />}
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{run.title}</span>
       <span style={{ marginLeft: "auto", color: "var(--ink-soft)", flexShrink: 0 }}>{run.completed}/{run.assigned}</span>
@@ -282,23 +291,26 @@ function DayPill({ run, today }: { run: CalendarRun; today: Date }) {
   );
 }
 
-// ── day detail panel (overlay, backdrop-close) ──
-function DayPanel({ date, runs, today, onClose }: { date: Date; runs: CalendarRun[]; today: Date; onClose: () => void }) {
+// ── day detail panel ──
+//
+// A panel UNDER the month, not a sheet over it: choosing a day is a way of
+// reading the month, so covering the month to answer is the wrong shape. The
+// day stays outlined in the grid above while you read it.
+function DayPanel({ date, runs, today, isToday, onClose }: { date: Date; runs: CalendarRun[]; today: Date; isToday: boolean; onClose: () => void }) {
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(34,48,74,0.3)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "6vh 16px" }}>
-      <div onClick={(e) => e.stopPropagation()} className="sj-card" style={{ width: "100%", maxWidth: 560, padding: "22px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <h2 style={{ margin: 0, font: "600 24px var(--font-fredoka)" }}>{fmtLongDay(date)}</h2>
-          <button onClick={onClose} aria-label="Close" style={{ marginLeft: "auto", ...navBtn, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={18} decorative /></button>
-        </div>
-        {runs.length === 0 ? (
-          <p style={{ margin: "16px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Nothing assigned or due on this day.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
-            {runs.map((r) => <RunRow key={r.id} run={r} today={today} />)}
-          </div>
-        )}
+    <div style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 16, padding: "18px 20px", marginTop: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>{fmtLongDay(date)}</h2>
+        {isToday && <span style={{ font: "400 20px var(--font-fredoka)", color: "var(--sj-muted)" }}>· today</span>}
+        <button onClick={onClose} aria-label="Close the day" style={{ marginLeft: "auto", ...navBtn, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="close" size={18} decorative /></button>
       </div>
+      {runs.length === 0 ? (
+        <p style={{ margin: "16px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Nothing set for this day.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
+          {runs.map((r) => <RunRow key={r.id} run={r} today={today} />)}
+        </div>
+      )}
     </div>
   );
 }
@@ -380,22 +392,24 @@ function ProgressBar({ completed, waiting, assigned }: { completed: number; wait
   );
 }
 
+// One figure in the month band. The number carries the weight and the colour;
+// the label stays its own element so it can still be read (and asserted) alone.
 function Stat({ value, label, color }: { value: string; label: string; color: string }) {
   return (
-    <div style={{ background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 14, padding: "14px 16px" }}>
-      <p style={{ margin: 0, font: "600 28px var(--font-fredoka)", color }}>{value}</p>
-      <p style={{ margin: "2px 0 0", font: "700 13px var(--font-atkinson)", color: "var(--ink-soft)" }}>{label}</p>
-    </div>
+    <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6, font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>
+      <strong style={{ font: "700 15px var(--font-atkinson)", color }}>{value}</strong>
+      <span style={{ color }}>{label}</span>
+    </span>
   );
 }
 
 const navBtn: React.CSSProperties = {
-  width: 36, height: 36, borderRadius: 999, border: "2px solid var(--calm-border)", background: "var(--cream)",
+  width: 44, height: 44, borderRadius: 999, border: "2px solid var(--calm-border)", background: "var(--cream)",
   color: "var(--ink)", cursor: "pointer", font: "700 16px var(--font-atkinson)", display: "inline-flex", alignItems: "center", justifyContent: "center",
 };
 const chip: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", font: "700 14px var(--font-atkinson)",
-  border: "2px solid var(--calm-border)", borderRadius: 999, padding: "7px 14px",
+  display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", font: "600 14px var(--font-atkinson)",
+  border: "2px solid var(--calm-border)", borderRadius: 999, padding: "8px 14px", minHeight: 40, boxSizing: "border-box",
 };
 const tag = (color: string, bg: string): React.CSSProperties => ({
   font: "700 12px var(--font-atkinson)", color, background: bg, borderRadius: 999, padding: "3px 10px",

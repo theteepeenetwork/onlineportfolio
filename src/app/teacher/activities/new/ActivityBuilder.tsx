@@ -38,6 +38,13 @@ export function ActivityBuilder({
   // The template is built on the exact same full-screen canvas the children
   // use. It's opened as an editor; on ✓ Done the pages are handed back here.
   const [templatePages, setTemplatePages] = useState<string[]>(template?.pages ?? []);
+  // What the teacher SEES here. `templatePages` is the canvas background handed
+  // straight back to the editor, so it deliberately has no movable pieces baked
+  // into it — which left a template made entirely of pieces showing a blank
+  // white rectangle. The editor hands back a picture of the page as well now.
+  // Empty until the editor has been through once: a saved template stores only
+  // its background, so on first open there is nothing better to show than that.
+  const [templateThumbs, setTemplateThumbs] = useState<string[]>([]);
   const [quiz, setQuiz] = useState<QuizPayload>(template?.quiz ?? { questions: [] });
   const [objects, setObjects] = useState<CanvasObj[][]>(template?.objects ?? []);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -49,6 +56,7 @@ export function ActivityBuilder({
   const draftKey = editing ? `tmpl-edit:${template!.id}` : `tmpl-new:${teacherId}`;
 
   const objectCount = objects.reduce((n, page) => n + page.length, 0);
+  const thumbs = templateThumbs.length ? templateThumbs : templatePages;
   const hasContent = templatePages.length > 0 || quiz.questions.length > 0 || objectCount > 0;
 
   return (
@@ -61,6 +69,10 @@ export function ActivityBuilder({
       <input type="hidden" name="templatePages" value={JSON.stringify(templatePages)} />
       <input type="hidden" name="quizPayload" value={JSON.stringify(quiz)} />
       <input type="hidden" name="objectsPayload" value={JSON.stringify(objects)} />
+      {/* The picture of each page, with the movable pieces and the questions
+          drawn on. `templatePages` is the background handed back to the editor
+          and is deliberately partial, so it is not something to show anybody. */}
+      <input type="hidden" name="templatePreviews" value={JSON.stringify(templateThumbs)} />
 
       {/* Title + instructions + tags */}
       <div className="card space-y-4 p-5">
@@ -116,9 +128,9 @@ export function ActivityBuilder({
           )}
         </div>
 
-        {templatePages.length > 0 && (
+        {thumbs.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
-            {templatePages.map((src, i) => (
+            {thumbs.map((src, i) => (
               <Image key={i} src={src} alt={`Template page ${i + 1}`} width={160} height={112} unoptimized className="h-24 w-auto rounded-lg border border-border" />
             ))}
           </div>
@@ -132,6 +144,7 @@ export function ActivityBuilder({
             type="button"
             onClick={() => {
               setTemplatePages([]);
+              setTemplateThumbs([]);
               setQuiz({ questions: [] });
               setObjects([]);
             }}
@@ -151,6 +164,9 @@ export function ActivityBuilder({
           fullScreen
           allowImport
           quizMode="author"
+          // The one place pages are a structure being designed rather than a
+          // book being written in.
+          allowPageStructure
           initialQuiz={quiz}
           objectMode="author"
           initialObjects={objects}
@@ -170,8 +186,9 @@ export function ActivityBuilder({
             if (tagsRef.current && typeof f.tags === "string") tagsRef.current.value = f.tags;
           }}
           onClose={() => setEditorOpen(false)}
-          onDone={(pages, q, objs) => {
+          onDone={(pages, q, objs, previews) => {
             setTemplatePages(pages);
+            setTemplateThumbs(previews ?? []);
             setQuiz(q ?? { questions: [] });
             setObjects(objs ?? []);
             setEditorOpen(false);

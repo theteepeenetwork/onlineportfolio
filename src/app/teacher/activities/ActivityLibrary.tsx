@@ -69,13 +69,13 @@ export function ActivityLibrary({
     return templates.filter((t) => !t.archived && t.folderId === id).length;
   };
 
-  const sidebar: (FolderInfo & { special?: boolean })[] = [
+  const folderChips: (FolderInfo & { special?: boolean })[] = [
     { id: ALL, name: "All activities", color: "#C9C2B0", special: true },
     ...folders,
     { id: ARCHIVED, name: "Archived", color: "#B99CD6", special: true },
   ];
 
-  // The folder tab decides WHICH of the teacher's activities are in play; the
+  // The folder chip decides WHICH of the teacher's activities are in play; the
   // search narrows that, never widens it. A search that reached across folders,
   // or into the archive, would quietly undo the choice they just made.
   const inFolder = templates.filter((t) => {
@@ -85,158 +85,171 @@ export function ActivityLibrary({
   });
   const shown = inFolder.filter((t) => matchesActivitySearch(t, query));
 
-  const folderName = sidebar.find((f) => f.id === folder)?.name ?? "All activities";
+  const folderName = folderChips.find((f) => f.id === folder)?.name ?? "All activities";
   const assignTemplate = templates.find((t) => t.id === assignId);
 
   return (
     // Clicking anywhere outside an open menu closes it (the backdrop-close rule).
-    <div
-      onClick={closeMenus}
-      style={{ display: "grid", gridTemplateColumns: "232px 1fr", maxWidth: 1180, margin: "0 auto", alignItems: "start", padding: "0 24px" }}
-    >
-      {/* ══ folders sidebar ══ */}
-      <aside style={{ padding: "28px 18px 40px", position: "sticky", top: 66 }}>
-        <p style={{ margin: "0 0 10px", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Folders</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {sidebar.map((f) => {
-            const active = folder === f.id;
-            return (
-              <button
-                key={f.id}
-                onClick={() => { setFolder(f.id); closeMenus(); }}
-                style={{ display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer", font: "700 15px var(--font-atkinson)", color: active ? "var(--ink)" : "var(--ink-soft)", background: active ? "#F3E3C3" : "transparent", border: "none", borderRadius: 10, padding: "10px 12px" }}
-              >
-                <span style={{ width: 14, height: 14, borderRadius: 4, background: f.color, border: "2px solid var(--ink)", flexShrink: 0 }} />
-                <span style={{ flex: 1 }}>{f.name}</span>
-                <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>{countFor(f.id)}</span>
-              </button>
-            );
-          })}
-        </div>
-        {/* The StoryJar library is NOT a folder, and is deliberately not in the
-            list above. It holds nothing of this teacher's, nothing here is
-            counted in their totals, and putting it in the folder list would say
-            the opposite. It sits below a rule, as its own thing. */}
-        <div style={{ margin: "18px 0 4px", borderTop: "2px solid #E4DCC8", paddingTop: 16 }}>
-          <Link
-            href="/teacher/activities/shared"
-            style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", font: "700 15px var(--font-atkinson)", color: "var(--ink)", background: "#D8ECE8", border: "2px solid var(--ink)", borderRadius: 10, padding: "10px 12px" }}
-          >
-            <span style={{ flex: 1 }}>StoryJar library</span>
-            <span aria-hidden>→</span>
-          </Link>
-          <p style={{ margin: "6px 2px 0", font: "400 13px/1.45 var(--font-atkinson)", color: "var(--sj-muted)" }}>
-            Activities we made. Add one and it becomes yours.
+    <div onClick={closeMenus} style={{ maxWidth: 1100 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 18 }}>
+        <div>
+          <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)" }}>{folderName}</h1>
+          <p style={{ margin: "5px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+            {inFolder.length === 0 ? "Nothing here yet" : searchResultLabel(shown.length, inFolder.length, query)}
           </p>
         </div>
+        {inFolder.length > 0 && (
+          <ActivitySearchBox
+            id="my-activities-search"
+            value={query}
+            onChange={setQuery}
+            label={`Search ${folderName.toLowerCase()}`}
+            placeholder="title, instructions or a tag"
+            resultLabel={searchResultLabel(shown.length, inFolder.length, query)}
+          />
+        )}
+        <Link
+          href="/teacher/activities/new"
+          style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", minHeight: 48, boxSizing: "border-box", boxShadow: "0 3px 0 var(--jam-deep)" }}
+        >
+          ＋ New activity
+        </Link>
+      </div>
+
+      {/* ══ folders, as a row ══
+          The global rail already owns the left edge of every teacher screen, so
+          a second vertical list beside it would be two sidebars arguing. The
+          folders read the same way lying down. */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", borderBottom: "2px solid var(--calm-border)", paddingBottom: 16, marginBottom: 20 }}>
+        {folderChips.map((f) => {
+          const active = folder === f.id;
+          return (
+            <button
+              key={f.id}
+              onClick={() => { setFolder(f.id); closeMenus(); }}
+              aria-pressed={active}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer",
+                font: "700 14px var(--font-atkinson)", color: "var(--ink)",
+                background: active ? "var(--kraft-tag)" : "var(--cream)",
+                border: `2px solid ${active ? "var(--ink)" : "var(--calm-border)"}`,
+                borderRadius: 999, padding: "9px 15px", minHeight: 42, boxSizing: "border-box",
+              }}
+            >
+              <span aria-hidden style={{ width: 12, height: 12, borderRadius: 4, background: f.color, border: "2px solid var(--ink)", flexShrink: 0 }} />
+              <span>{f.name}</span>
+              <span style={{ font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{countFor(f.id)}</span>
+            </button>
+          );
+        })}
 
         {creatingFolder ? (
           <NewFolderForm onDone={() => setCreatingFolder(false)} />
         ) : (
           <button
             onClick={() => setCreatingFolder(true)}
-            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 14, cursor: "pointer", font: "700 14px var(--font-atkinson)", color: "var(--ink-soft)", background: "none", border: "2px dashed #C9C2B0", borderRadius: 10, padding: "10px 12px" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", font: "700 14px var(--font-atkinson)", color: "var(--ink-soft)", background: "none", border: "2px dashed #C9C2B0", borderRadius: 999, padding: "9px 15px", minHeight: 42, boxSizing: "border-box" }}
           >
             ＋ New folder
           </button>
         )}
-      </aside>
 
-      {/* ══ activities ══ */}
-      <main style={{ padding: "28px 8px 60px 14px" }}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
-          <div>
-            <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)" }}>{folderName}</h1>
-            <p style={{ margin: "5px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-              {inFolder.length === 0 ? "Nothing here yet" : searchResultLabel(shown.length, inFolder.length, query)}
-            </p>
-          </div>
-          {inFolder.length > 0 && (
-            <ActivitySearchBox
-              id="my-activities-search"
-              value={query}
-              onChange={setQuery}
-              label={`Search ${folderName.toLowerCase()}`}
-              placeholder="title, instructions or a tag"
-              resultLabel={searchResultLabel(shown.length, inFolder.length, query)}
-            />
-          )}
-          <Link href="/teacher/activities/new" style={{ marginLeft: "auto", font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}>＋ New activity</Link>
+        {/* The StoryJar library is NOT a folder, and is deliberately not in the
+            row above. It holds nothing of this teacher's, nothing in it is
+            counted in their totals, and sitting it among the folders would say
+            the opposite. It keeps its distance at the far end. */}
+        <Link
+          href="/teacher/activities/shared"
+          style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", font: "700 14px var(--font-atkinson)", color: "var(--ink)", background: "var(--glass-light)", border: "2px solid var(--ink)", borderRadius: 999, padding: "9px 16px", minHeight: 42, boxSizing: "border-box" }}
+        >
+          StoryJar library <span aria-hidden>→</span>
+        </Link>
+      </div>
+
+      {inFolder.length > 0 && shown.length === 0 ? (
+        <div className="sj-card" style={{ padding: "48px 32px", textAlign: "center" }}>
+          <p style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Nothing matches that</p>
+          <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+            Try a shorter word, or clear the search to see all {inFolder.length}.
+          </p>
         </div>
-
-        {inFolder.length > 0 && shown.length === 0 ? (
-          <div className="sj-card" style={{ padding: "48px 32px", textAlign: "center" }}>
-            <p style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Nothing matches that</p>
-            <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-              Try a shorter word, or clear the search to see all {inFolder.length}.
-            </p>
-          </div>
-        ) : shown.length === 0 ? (
-          <div className="sj-card" style={{ padding: "48px 32px", textAlign: "center" }}>
-            <Icon name="add-file" size={44} decorative />
-            <p style={{ margin: "10px 0 0", font: "600 20px var(--font-fredoka)" }}>Nothing here yet</p>
-            {templates.length === 0 ? (
-              // A teacher who has nothing at all is the reason the library
-              // exists. An empty grid tells them the product does nothing; this
-              // tells them what it can do, and is one tap from proving it.
-              <>
-                <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-                  Have a look at the activities we have made. Add one and it is yours to change.
-                </p>
-                <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 18 }}>
-                  <Link
-                    href="/teacher/activities/shared"
-                    style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}
-                  >
-                    Browse the StoryJar library
-                  </Link>
-                  <Link
-                    href="/teacher/activities/new"
-                    style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink)", textDecoration: "none", border: "2px solid var(--ink)", borderRadius: 999, padding: "12px 24px" }}
-                  >
-                    Make my own
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Make a reusable activity to assign to your classes.</p>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 18 }}>
-            {shown.map((t) => {
-              const tm = typeMeta(t);
-              const open = menuId === t.id;
-              return (
-                <div
-                  key={t.id}
-                  style={{ position: "relative", zIndex: open ? 20 : 1, background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 3px 0 rgba(34,48,74,0.08)" }}
+      ) : shown.length === 0 ? (
+        <div className="sj-card" style={{ padding: "48px 32px", textAlign: "center" }}>
+          <Icon name="add-file" size={44} decorative />
+          <p style={{ margin: "10px 0 0", font: "600 20px var(--font-fredoka)" }}>Nothing here yet</p>
+          {templates.length === 0 ? (
+            // A teacher who has nothing at all is the reason the library
+            // exists. An empty grid tells them the product does nothing; this
+            // tells them what it can do, and is one tap from proving it.
+            <>
+              <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+                Have a look at the activities we have made. Add one and it is yours to change.
+              </p>
+              <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 18 }}>
+                <Link
+                  href="/teacher/activities/shared"
+                  style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}
                 >
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <span style={{ width: 44, height: 44, borderRadius: 12, background: tm.bg, border: "2px solid var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} aria-hidden><Icon name={tm.icon} size={24} decorative /></span>
-                    <div style={{ flex: 1, minWidth: 0, paddingRight: 34 }}>
-                      <Link href={`/teacher/activities/${t.id}`} style={{ margin: 0, font: "600 19px/1.2 var(--font-fredoka)", color: "var(--ink)", textDecoration: "none" }}>{t.title}</Link>
-                      <p style={{ margin: "4px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{tm.label}</p>
-                    </div>
+                  Browse the StoryJar library
+                </Link>
+                <Link
+                  href="/teacher/activities/new"
+                  style={{ font: "700 15px var(--font-atkinson)", color: "var(--ink)", textDecoration: "none", border: "2px solid var(--ink)", borderRadius: 999, padding: "12px 24px" }}
+                >
+                  Make my own
+                </Link>
+              </div>
+            </>
+          ) : (
+            <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Make a reusable activity to assign to your classes.</p>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+          {shown.map((t) => {
+            const tm = typeMeta(t);
+            const open = menuId === t.id;
+            const state = statusOf(t);
+            return (
+              <div
+                key={t.id}
+                style={{ position: "relative", zIndex: open ? 20 : 1, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, boxShadow: "var(--pop-shadow)", display: "flex", flexDirection: "column" }}
+              >
+                {/* head band — the worksheet itself when there is one, else the
+                    type's tint and glyph. */}
+                <span
+                  aria-hidden
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 96, borderBottom: "3px solid var(--ink)", borderRadius: "15px 15px 0 0", background: tm.bg, overflow: "hidden" }}
+                >
+                  {t.thumb ? (
+                    // `contain`, not `cover`: this is a worksheet, and a crop
+                    // that beheads the picture the teacher drew is worse than
+                    // a little tint showing round the edges.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={t.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", padding: 6, boxSizing: "border-box" }} />
+                  ) : (
+                    <Icon name={tm.icon} size={32} decorative />
+                  )}
+                </span>
 
-                    {/* 3-dot button */}
+                <div style={{ padding: "14px 16px 16px", display: "flex", flexDirection: "column", gap: 9, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <Link href={`/teacher/activities/${t.id}`} style={{ flex: 1, minWidth: 0, font: "600 18px/1.25 var(--font-fredoka)", color: "var(--ink)", textDecoration: "none" }}>{t.title}</Link>
                     <button
                       onClick={(e) => { e.stopPropagation(); setMoveId(null); setMenuId(open ? null : t.id); }}
                       aria-label={`More actions for ${t.title}`}
                       aria-expanded={open}
-                      style={{ position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 8, border: "none", background: open ? "#F3E3C3" : "#F3EEE2", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}
+                      style={{ flex: "none", width: 34, height: 34, borderRadius: 10, border: "none", background: open ? "var(--kraft-tag)" : "transparent", color: "var(--sj-muted)", font: "700 17px var(--font-atkinson)", cursor: "pointer", lineHeight: 1 }}
                     >
-                      {[0, 1, 2].map((i) => (
-                        <span key={i} style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--ink-soft)" }} />
-                      ))}
+                      ⋯
                     </button>
 
-                    {/* dropdown — sits ABOVE the cards (card is overflow-visible; open card z-raised) */}
+                    {/* dropdown — sits ABOVE the cards (open card z-raised) */}
                     {open && (
                       <div
                         role="menu"
                         onClick={(e) => e.stopPropagation()}
-                        style={{ position: "absolute", top: 50, right: 14, width: 208, background: "var(--cream)", border: "2px solid var(--ink)", borderRadius: 12, padding: 6, boxShadow: "0 12px 30px rgba(34,48,74,0.28)", zIndex: 40 }}
+                        style={{ position: "absolute", top: 110, right: 14, width: 208, background: "var(--cream)", border: "2px solid var(--ink)", borderRadius: 12, padding: 6, boxShadow: "0 12px 30px rgba(34,48,74,0.28)", zIndex: 40 }}
                       >
                         {moveId === t.id ? (
                           <MoveMenu template={t} folders={folders} onBack={() => setMoveId(null)} />
@@ -258,26 +271,33 @@ export function ActivityLibrary({
                     )}
                   </div>
 
+                  {t.instructions && (
+                    <p style={{ margin: 0, font: "400 14px/1.5 var(--font-atkinson)", color: "var(--sj-muted)" }}>{t.instructions}</p>
+                  )}
+
                   {t.tags.length > 0 && (
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 14 }}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {t.tags.map((sk) => (
-                        <span key={sk} style={{ font: "700 12px var(--font-atkinson)", color: "#2E6B64", background: "var(--glass-light)", border: "1px solid #B6D8D2", borderRadius: 999, padding: "4px 10px" }}>{sk}</span>
+                        <span key={sk} style={{ font: "600 12px var(--font-atkinson)", color: "var(--ink-soft)", background: "var(--kraft-tag)", borderRadius: 999, padding: "3px 10px" }}>{sk}</span>
                       ))}
                     </div>
                   )}
-                  <p style={{ margin: "12px 0 0", paddingTop: 12, borderTop: "1px solid #F0EADD", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-                    {t.liveClassNames.length > 0
-                      ? `Live in ${t.liveClassNames.length} class${t.liveClassNames.length === 1 ? "" : "es"}${t.waiting > 0 ? ` · ${t.waiting} waiting` : ""}`
-                      : t.sentClasses > 0
-                        ? `Sent to ${t.sentClasses} class${t.sentClasses === 1 ? "" : "es"}`
-                        : "Not sent to a class yet"}
-                  </p>
+
+                  <div style={{ marginTop: "auto", paddingTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <span style={{ font: "600 13px var(--font-atkinson)", color: state.color }}>{state.label}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setAssignId(t.id); closeMenus(); }}
+                      style={{ marginLeft: "auto", font: "700 14px var(--font-atkinson)", color: "var(--ink)", background: "var(--cream)", border: "2px solid var(--ink)", borderRadius: 999, padding: "8px 15px", minHeight: 40, boxSizing: "border-box", cursor: "pointer", whiteSpace: "nowrap" }}
+                    >
+                      Set for a class
+                    </button>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </main>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {assignTemplate && (
         <AssignSheet
@@ -289,6 +309,19 @@ export function ActivityLibrary({
       )}
     </div>
   );
+}
+
+// Where a template stands right now, in the teacher's words and the palette's
+// state colours: teal for live, honey for work waiting on them, muted for
+// anything finished or filed away.
+function statusOf(t: TemplateSummary): { label: string; color: string } {
+  if (t.archived) return { label: "Archived", color: "var(--sj-muted)" };
+  if (t.waiting > 0) return { label: `${t.waiting} waiting to approve`, color: "var(--honey-ink)" };
+  if (t.liveClassNames.length > 0) {
+    return { label: `Live in ${t.liveClassNames.length} class${t.liveClassNames.length === 1 ? "" : "es"}`, color: "var(--glass-ink)" };
+  }
+  if (t.sentClasses > 0) return { label: `Sent to ${t.sentClasses} class${t.sentClasses === 1 ? "" : "es"}`, color: "var(--sj-muted)" };
+  return { label: "Not sent to a class yet", color: "var(--sj-muted)" };
 }
 
 // ── menu building blocks ──
@@ -404,19 +437,18 @@ function NewFolderForm({ onDone }: { onDone: () => void }) {
   }, [pending, state, onDone]);
 
   return (
-    <form ref={ref} action={action} style={{ marginTop: 14 }}>
+    <form ref={ref} action={action} onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <input
         name="name"
         autoFocus
+        aria-label="Folder name"
         placeholder="Folder name"
         required
-        style={{ width: "100%", boxSizing: "border-box", font: "400 14px var(--font-atkinson)", padding: "9px 11px", border: "2px solid var(--ink)", borderRadius: 10, background: "var(--paper)", color: "var(--ink)" }}
+        style={{ font: "400 14px var(--font-atkinson)", padding: "9px 14px", minHeight: 42, boxSizing: "border-box", width: 170, border: "2px solid var(--ink)", borderRadius: 999, background: "var(--paper)", color: "var(--ink)" }}
       />
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <button type="submit" disabled={pending} style={{ flex: 1, font: "700 13px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", border: "none", borderRadius: 999, padding: "8px 0", cursor: "pointer" }}>{pending ? "…" : "Create"}</button>
-        <button type="button" onClick={onDone} style={{ font: "700 13px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "none", cursor: "pointer" }}>Cancel</button>
-      </div>
-      {state.error && <p role="alert" style={{ margin: "6px 0 0", font: "700 13px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</p>}
+      <button type="submit" disabled={pending} style={{ font: "700 14px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", border: "none", borderRadius: 999, padding: "9px 18px", minHeight: 42, boxSizing: "border-box", cursor: "pointer" }}>{pending ? "…" : "Create"}</button>
+      <button type="button" onClick={onDone} style={{ font: "700 14px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "none", minHeight: 42, cursor: "pointer" }}>Cancel</button>
+      {state.error && <p role="alert" style={{ margin: 0, font: "700 13px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</p>}
     </form>
   );
 }

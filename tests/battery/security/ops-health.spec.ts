@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, signInOperator } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, asOperator } from "../helpers";
 import { MONITORED, NOT_MONITORED, NOT_RECORDED, instanceFacts } from "@/lib/ops/health";
 
 // ===========================================================================
@@ -85,7 +85,7 @@ test(`${ROUTE} is 404 to a stranger and 200 to the operator, on the same URL`, a
   expect((await payload(page)).toLowerCase()).not.toContain("storyjar operations");
 
   // Positive control: same URL, same fixture, the other session.
-  await signInOperator(page);
+  await asOperator(page);
   const authorised = await page.goto(ROUTE);
   expect(authorised?.status()).toBe(200);
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
@@ -105,7 +105,7 @@ test(`a teacher session gets 404 from ${ROUTE}, and their own console still work
 });
 
 test(`${ROUTE} is never indexed and never cached`, async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   const res = await page.goto(ROUTE);
   expect(res?.headers()["x-robots-tag"]).toBe("noindex, nofollow, noarchive");
   expect(res?.headers()["cache-control"] ?? "").toMatch(/no-store|no-cache/);
@@ -118,7 +118,7 @@ test(`${ROUTE} is never indexed and never cached`, async ({ page }) => {
 test("every tile carries a status in words, and the two vocabularies are the only ones", async ({
   page,
 }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   const tiles = page.locator("[data-tile]");
@@ -138,7 +138,7 @@ test("every tile carries a status in words, and the two vocabularies are the onl
 });
 
 test("a tile with no feed renders \"not monitored\", never something calm", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   for (const id of DARK_TILES) {
@@ -158,7 +158,7 @@ test("a tile with no feed renders \"not monitored\", never something calm", asyn
 });
 
 test("the pane names the decisions and the absences behind the dark tiles", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   // Each of these is a fact about this service on 17 August 2026, and each is
@@ -175,7 +175,7 @@ test("the pane names the decisions and the absences behind the dark tiles", asyn
 // ---------------------------------------------------------------------------
 
 test("there is no control of any kind on the health pane", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   // Positive control: the page rendered before anything is counted as absent.
   await expect(page.locator("main")).toContainText("Service health");
@@ -192,7 +192,7 @@ test("there is no control of any kind on the health pane", async ({ page }) => {
 });
 
 test("loading the pane makes no request to the public healthcheck (R19)", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
 
   const asked: string[] = [];
   page.on("request", (req) => {
@@ -228,7 +228,7 @@ test("PR6 leaves the public healthcheck contract exactly as OPS-0a built it", as
 // ---------------------------------------------------------------------------
 
 test("no child name, class name or credential value reaches the health pane", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   const body = await payload(page);
 

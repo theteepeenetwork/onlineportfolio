@@ -132,7 +132,17 @@ async function canAccess(urlPath: string): Promise<boolean> {
     return !!published;
   }
 
-  const pathMatch = { OR: [{ mediaPath: urlPath }, { mediaPathsJson: { contains: urlPath } }] };
+  // The picture of a quiz page (`previewPathsJson`) is authorised by exactly the
+  // same clause as the work it is a picture of — same owner, same class, same
+  // APPROVED gate for a parent. It is the same child's content in a second
+  // shape, so it must never be reachable on easier terms than the original.
+  const pathMatch = {
+    OR: [
+      { mediaPath: urlPath },
+      { mediaPathsJson: { contains: urlPath } },
+      { previewPathsJson: { contains: urlPath } },
+    ],
+  };
 
   // 1) A child's journal item (a photo/drawing/response) the requester is
   //    entitled to — the most sensitive case, scoped straight into the query so
@@ -188,6 +198,11 @@ async function canAccess(urlPath: string): Promise<boolean> {
         teacherId: user.teacher.id,
         OR: [
           { templatePathsJson: { contains: urlPath } },
+          // The picture of the page, shown on the library card. Authorised the
+          // same way and by the same owner as the background it was made from —
+          // a file this route does not recognise is a file it will not serve,
+          // which is how a saved thumbnail came out as a broken image.
+          { previewPathsJson: { contains: urlPath } },
           { quizJson: { contains: urlPath } },
           { objectsJson: { contains: urlPath } },
         ],
@@ -200,6 +215,7 @@ async function canAccess(urlPath: string): Promise<boolean> {
         template: { teacherId: user.teacher.id },
         OR: [
           { templateSnapshotJson: { contains: urlPath } },
+          { previewSnapshotJson: { contains: urlPath } },
           { quizSnapshotJson: { contains: urlPath } },
           { objectsSnapshotJson: { contains: urlPath } },
         ],
@@ -218,6 +234,11 @@ async function canAccess(urlPath: string): Promise<boolean> {
           {
             OR: [
               { templateSnapshotJson: { contains: urlPath } },
+              // The picture of the activity, shown on a child's "to do" card.
+              // Same owner, same run, same gate as the background it was made
+              // from — a file this route does not recognise is served to
+              // nobody, which is how a stored picture arrives broken.
+              { previewSnapshotJson: { contains: urlPath } },
               { quizSnapshotJson: { contains: urlPath } },
               { objectsSnapshotJson: { contains: urlPath } },
             ],

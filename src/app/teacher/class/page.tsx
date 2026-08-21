@@ -1,8 +1,6 @@
 import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TopBar } from "@/components/TopBar";
-import { teacherNav } from "@/lib/teacherNav";
 import { relativeDay } from "@/lib/relativeDay";
 import { CLASS_TINTS } from "@/lib/classTints";
 import { resolveAgeMode } from "@/lib/ageMode";
@@ -59,18 +57,13 @@ export default async function ClassPage() {
     };
   });
 
-  const pendingCount = cards.reduce((a, c) => a + c.waiting, 0);
-
   return (
-    <>
-      <TopBar links={teacherNav(pendingCount)} />
-      <main className="sj" style={{ maxWidth: 1100, margin: "0 auto", width: "100%", padding: "28px 24px 80px", boxSizing: "border-box", fontFamily: "var(--font-atkinson)", color: "var(--ink)" }}>
-        {/* ClassManager reads the open class from the URL (?class=), so it needs
-            a Suspense boundary around useSearchParams. */}
-        <Suspense fallback={null}>
-          <ClassManager classes={cards} />
-        </Suspense>
-      </main>
-    </>
+    <div style={{ maxWidth: 1040 }}>
+      {/* ClassManager reads the open class from the URL (?class=), so it needs
+          a Suspense boundary around useSearchParams. */}
+      <Suspense fallback={null}>
+        <ClassManager classes={cards} />
+      </Suspense>
+    </div>
   );
 }

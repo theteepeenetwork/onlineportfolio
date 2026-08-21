@@ -1,4 +1,4 @@
-import { type Page, expect } from "@playwright/test";
+import { type APIRequestContext, type Cookie, type Page, expect } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { codeForStep, totpStepAt } from "@/lib/ops/totp";
 
@@ -139,6 +139,63 @@ export function ownThrottleKey(label: string): Record<string, string> {
 }
 
 // ---------------------------------------------------------------------------
+// Connector API tokens (PR-connector). See prisma/seed-test.ts, which holds the
+// same three strings — keep them in step.
+//
+// One per tenant, so "School A's token cannot reach School B's activities" is a
+// thing a test can actually assert rather than a thing the code says about
+// itself. School C's account is frozen, so its token is how the read-only rule
+// is exercised on the API surface.
+// ---------------------------------------------------------------------------
+export const API_TOKEN = {
+  schoolA: "sj_live_fixtureSchoolAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  schoolB: "sj_live_fixtureSchoolBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+  schoolCFrozen: "sj_live_fixtureSchoolCfrozenCCCCCCCCCCCCCCCCCCC",
+} as const;
+
+// Call the MCP endpoint with a bearer token and no browser session, which is how
+// Claude reaches it. `request` is Playwright's APIRequestContext — deliberately
+// not `page`, so nothing rides on a cookie.
+export async function mcpCall(
+  request: APIRequestContext,
+  token: string,
+  method: string,
+  params?: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const res = await request.post("/api/mcp", {
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    data: { jsonrpc: "2.0", id: 1, method, ...(params ? { params } : {}) },
+    failOnStatusCode: false,
+  });
+  const text = await res.text();
+  let body: Record<string, unknown> = {};
+  try {
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    body = { raw: text };
+  }
+  return { status: res.status(), body };
+}
+
+// Call one MCP tool and hand back the tool result. `isError` is the connector's
+// own refusal channel, distinct from a transport error — see src/lib/api/mcp.ts.
+export async function mcpTool(
+  request: APIRequestContext,
+  token: string,
+  name: string,
+  args: Record<string, unknown> = {},
+): Promise<{ status: number; isError: boolean; text: string; data: Record<string, unknown> | null }> {
+  const { status, body } = await mcpCall(request, token, "tools/call", { name, arguments: args });
+  const result = (body as { result?: { content?: { text?: string }[]; isError?: boolean; structuredContent?: Record<string, unknown> } }).result;
+  return {
+    status,
+    isError: Boolean(result?.isError),
+    text: result?.content?.[0]?.text ?? JSON.stringify(body),
+    data: result?.structuredContent ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The platform operator fixture (PR1). See prisma/seed-test.ts.
 //
 // HOW A TEST AUTHENTICATES WITHOUT A BYPASS, WHICH IS THE WHOLE POINT
@@ -225,6 +282,60 @@ export async function signInOperator(page: Page) {
   await page.fill("#code", await operatorCode());
   await page.getByRole("button", { name: /^sign in$/i }).click();
   await page.waitForURL((url) => url.pathname === "/ops");
+}
+
+// ---------------------------------------------------------------------------
+// BEING the operator, for the tests that are not about the door
+//
+// `signInOperator` above walks the whole door and stays that way: ops-auth.spec
+// and ops-auth-a11y.spec are ABOUT the door, and they must keep paying for it.
+//
+// Every other ops test only needs to already be signed in, and paying the door
+// for each of those was the battery's single biggest cost. Replay protection is
+// monotonic, so two sign-ins inside one 30-second step cannot use the same code;
+// `operatorCode()` borrows the NEXT step's code and, when that would be two
+// steps ahead, waits for the clock. Across the ~90 sign-ins in the security and
+// a11y projects that wait WAS the suite: 1,197 of the a11y project's 1,305
+// seconds of test time, and most of security's, spent watching a clock.
+//
+// So the door is walked once per worker and the session it produced is reused,
+// which is exactly what an operator does — sign in in the morning, work all day
+// (30-minute idle, 8-hour absolute; see src/lib/ops/session.ts).
+//
+// NOTHING IS SKIPPED. The password is still typed, a genuine TOTP code is still
+// computed from the seeded secret and accepted by the real verifier, and the
+// session is a real session issued by the real door. Handbook ruling R6 forbids
+// a way PAST the door; this is the door, once. There is still no SKIP_TOTP, no
+// test branch in the sign-in path and no fixture flag — take the seed's secret
+// away and every one of these tests stops working.
+//
+// It is also self-healing rather than trusting: the cached session is proved on
+// use by loading the console and looking for it, and anything else — expiry, a
+// wiped fixture, a worker that inherited a stale cookie — falls back to the full
+// door and re-caches. A cached session can therefore never turn a failure into a
+// pass.
+let cachedOpsSession: Cookie[] | null = null;
+
+export async function asOperator(page: Page) {
+  await page.context().clearCookies();
+
+  if (cachedOpsSession) {
+    await page.context().addCookies(cachedOpsSession);
+    await page.goto("/ops");
+    // The console's own landmark, not the URL: an unauthorised /ops answers 404
+    // at the same address, which is the point of the area and would otherwise
+    // read as success here.
+    const signedIn = await page
+      .getByRole("navigation", { name: /operations/i })
+      .isVisible()
+      .catch(() => false);
+    if (signedIn) return;
+    cachedOpsSession = null;
+    await page.context().clearCookies();
+  }
+
+  await signInOperator(page);
+  cachedOpsSession = (await page.context().cookies()).filter((c) => c.name === OPERATOR.cookie);
 }
 
 // Clear cookies to become anonymous.

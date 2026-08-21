@@ -60,9 +60,10 @@ test.describe("A1 · A class can only be imported for staff in your own school",
     await page.getByRole("button", { name: /Create the class/ }).click();
 
     // The server refuses, and says nothing about the other school.
-    // `p[role=alert]` rather than getByRole: Next's route announcer is also a
-    // live region with role=alert, so the bare role matches two nodes.
-    const alert = page.locator('p[role="alert"]');
+    // Scoped to main: Next's route announcer is role="alert" too (as ops-auth
+    // already notes), and two matches fail strictly rather than reporting the
+    // refusal we came to read.
+    const alert = page.getByRole("main").getByRole("alert");
     await expect(alert).toContainText(/isn.t in your school/i);
     await expect(alert).not.toContainText(/Oakfield/i);
 
@@ -100,7 +101,7 @@ test.describe("A1 · A class can only be imported for staff in your own school",
     }, colleagueId as string);
 
     await page.getByRole("button", { name: /Create the class/ }).click();
-    await expect(page.locator('p[role="alert"]')).toContainText(/Only a school admin/i);
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(/Only a school admin/i);
   });
 });
 
@@ -110,7 +111,7 @@ test.describe("A8 · Importing is a mutation, so a frozen account cannot do it",
     await openImport(page, "FrozenImportShouldFail", "Tamper Child");
     await page.getByRole("button", { name: /Create the class/ }).click();
 
-    await expect(page.locator('p[role="alert"]')).toContainText(/read-only/i);
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(/read-only/i);
     await page.reload();
     await page.getByRole("button", { name: "Classes", exact: true }).click();
     await expect(page.locator("body")).not.toContainText("FrozenImportShouldFail");

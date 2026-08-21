@@ -10,7 +10,15 @@ import { Icon } from "@/components/icons/Icon";
 // "Show N more" accordion. There is no separate "see all" — the toggle reveals
 // everything. Cards deep-link into the activity, exactly as before.
 
-export type TodoActivity = { id: string; title: string; instructions: string | null };
+export type TodoActivity = {
+  id: string;
+  title: string;
+  instructions: string | null;
+  // The picture of the activity, frozen at assign time. Null for runs assigned
+  // before pictures existed, and for a template that genuinely has nothing on
+  // page 1 — both fall back to the striped placeholder below.
+  previewPath: string | null;
+};
 
 // The card thumbnail tint cycles through the jar palette, so a wall of to-dos
 // doesn't read as one flat block. Purely decorative — the "to do" pill and the
@@ -96,11 +104,28 @@ function ActivityCard({ activity, tint }: { activity: TodoActivity; tint: string
       className="sj-addtile"
       style={{ display: "block", textDecoration: "none", color: "var(--ink)", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, overflow: "hidden", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}
     >
-      <div style={{ height: 190, background: tint, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-        <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(45deg, rgba(34,48,74,0.05) 0, rgba(34,48,74,0.05) 10px, transparent 10px, transparent 20px)" }} aria-hidden="true" />
-        <span style={{ position: "relative" }}>
-          <Icon name="add-file" size={64} decorative />
-        </span>
+      <div style={{ height: 190, background: tint, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+        {/* The same picture the teacher sees on their library card. It was the
+            same activity on both screens and looked like two different things:
+            a photograph of Big Ben with a question on it for the teacher, a
+            striped placeholder for the child being asked to answer it.
+            `contain`, so the question a child is about to be asked is not
+            cropped off the card that offers it. */}
+        {activity.previewPath ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={activity.previewPath}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "contain", position: "relative" }}
+          />
+        ) : (
+          <>
+            <div style={{ position: "absolute", inset: 0, backgroundImage: "repeating-linear-gradient(45deg, rgba(34,48,74,0.05) 0, rgba(34,48,74,0.05) 10px, transparent 10px, transparent 20px)" }} aria-hidden="true" />
+            <span style={{ position: "relative" }}>
+              <Icon name="add-file" size={64} decorative />
+            </span>
+          </>
+        )}
         <span style={{ position: "absolute", top: 12, right: 12, background: "#FBEED3", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 calc(13px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "#8A5F1E" }}>to do</span>
       </div>
       <div style={{ padding: "14px 18px 18px" }}>

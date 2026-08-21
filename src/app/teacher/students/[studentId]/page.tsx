@@ -2,10 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TopBar } from "@/components/TopBar";
 import { Avatar } from "@/components/Avatar";
 import { JournalItemCard } from "@/components/JournalItemCard";
-import { teacherNav } from "@/lib/teacherNav";
 import { deleteItem } from "@/app/actions/journal";
 import { FamilyAccess } from "./FamilyAccess";
 
@@ -31,10 +29,6 @@ export default async function StudentJournal({
   });
   if (!student) notFound();
 
-  const pendingCount = await db.journalItem.count({
-    where: { status: "PENDING", class: { teacherId: user.teacher.id } },
-  });
-
   // The families who can see THIS child, and nothing about any other child they
   // may also be linked to (SAFEGUARDING rule 6 runs both ways: a teacher learns
   // nothing here about another teacher's pupils). Reached only through a pupil
@@ -54,9 +48,7 @@ export default async function StudentJournal({
 
   return (
     <>
-      <TopBar title="" links={teacherNav(pendingCount)} />
-
-      <main className="mx-auto w-full max-w-2xl flex-1 p-4">
+      <div className="w-full max-w-2xl">
         <Link href="/teacher" className="text-sm text-muted hover:text-foreground">
           ← All journals
         </Link>
@@ -108,7 +100,7 @@ export default async function StudentJournal({
             inUse: f._count.sessions > 0 || f.email !== null,
           }))}
         />
-      </main>
+      </div>
     </>
   );
 }

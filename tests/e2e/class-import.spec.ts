@@ -15,13 +15,15 @@ test("a teacher sets up a whole class from a pasted register", async ({ page }) 
   await page.getByRole("radio", { name: /Older children/ }).check();
   await page.fill("#import-names", "Olivia Smith\nOlivia Small\nJack Brown\nAmara");
 
-  // The button counts the names pasted before it is clicked.
+  // The button counts what will be created before it is clicked. It counts
+  // NAMES, which is what has been typed — the children do not exist yet, and
+  // a surname on a line is not a second child.
   const submit = page.getByRole("button", { name: /Create the class from 4 names/ });
   await expect(submit).toBeVisible();
   await submit.click();
 
   // The confirmation reports the class, the count and the code to print.
-  const done = page.locator('[role="status"]');
+  const done = page.getByRole("status");
   await expect(done).toContainText("4 pupils added");
   await expect(done).toContainText(/class code is/i);
 
@@ -45,12 +47,14 @@ test("a second class cannot reuse a name the teacher already has", async ({ page
   await page.fill("#import-name", "Twice Class");
   await page.fill("#import-names", "Ada");
   await page.getByRole("button", { name: /Create the class/ }).click();
-  await expect(page.locator('[role="status"]')).toContainText("1 pupil added");
+  await expect(page.getByRole("status")).toContainText("1 pupil added");
 
   await page.goto("/teacher/class");
   await page.getByRole("button", { name: /Paste a class list/ }).click();
   await page.fill("#import-name", "Twice Class");
   await page.fill("#import-names", "Grace");
   await page.getByRole("button", { name: /Create the class/ }).click();
-  await expect(page.locator('p[role="alert"]')).toContainText(/already have a class called/i);
+  // Scoped to main: Next's route announcer is also role="alert", and a locator
+  // that matches two things fails strictly instead of saying what the screen said.
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(/already have a class called/i);
 });

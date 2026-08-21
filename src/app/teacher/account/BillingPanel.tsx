@@ -21,13 +21,15 @@ type Props = {
   frozenNotice: boolean;
 };
 
-const box: React.CSSProperties = { borderRadius: 16, padding: 20, border: "2px solid var(--calm-border)", background: "var(--paper)" };
+// The account cards share the teacher area's card shell: a 3px ink outline and
+// an 18px radius, so a settings page reads as the same product as the register.
+const box: React.CSSProperties = { borderRadius: 18, padding: 20, border: "3px solid var(--ink)", background: "var(--cream)" };
 
 function Notice({ tone, children }: { tone: "good" | "warn" | "info"; children: React.ReactNode }) {
   const bg = tone === "good" ? "#e8f5ec" : tone === "warn" ? "#fdecef" : "#eef4f8";
   const fg = tone === "good" ? "#1f6b3a" : tone === "warn" ? "#9a3b52" : "#2b5c74";
   return (
-    <p role="status" style={{ ...box, background: bg, color: fg, border: "none", font: "600 15px var(--font-atkinson)", margin: "0 0 16px" }}>
+    <p role="status" style={{ ...box, borderRadius: 16, background: bg, color: fg, border: "none", font: "600 15px var(--font-atkinson)", margin: "0 0 16px" }}>
       {children}
     </p>
   );
@@ -47,7 +49,7 @@ export function BillingPanel(props: Props) {
   const err = checkoutState?.error || invoiceState?.error || portalState?.error;
 
   return (
-    <div style={{ display: "grid", gap: 20, maxWidth: 720 }}>
+    <div style={{ display: "grid", gap: 16 }}>
       {props.checkout === "success" && <Notice tone="good">Thank you — your plan is being set up. It can take a moment to show here.</Notice>}
       {props.checkout === "cancelled" && <Notice tone="info">Checkout was cancelled — nothing has been charged.</Notice>}
       {props.frozenNotice && <Notice tone="warn">That needs an active plan. Renew below to carry on adding and changing work.</Notice>}
@@ -55,8 +57,8 @@ export function BillingPanel(props: Props) {
       {err && <Notice tone="warn">{err}</Notice>}
 
       {/* Current status */}
-      <section style={box} aria-labelledby="plan-heading">
-        <h2 id="plan-heading" style={{ margin: 0, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>Your plan</h2>
+      <section style={{ ...box, background: "var(--glass-light)" }} aria-labelledby="plan-heading">
+        <h2 id="plan-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>Your plan</h2>
         <p style={{ margin: "8px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>
           {kind === "FREE" && (foundingMember
             ? "You’re a Founding teacher — free, unlimited, permanently. All your classes, every feature, no card and no end date. Thank you for backing StoryJar early."

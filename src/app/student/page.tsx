@@ -5,6 +5,10 @@ import { LogoutForm } from "@/components/LogoutForm";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { Sticker } from "@/components/stickers/Sticker";
 import { readStickers } from "@/lib/stickers";
+import { workCover, workPages } from "@/lib/journalMedia";
+import { momentTitle } from "@/lib/momentTitle";
+import { jsonArray } from "@/lib/activities";
+import { MomentRecord } from "./MomentRecord";
 import { studentCopy } from "@/lib/copy/student";
 import { avatarInk } from "@/lib/avatar";
 import { StickerArrival } from "./StickerArrival";
@@ -46,6 +50,8 @@ export default async function StudentHome() {
   const items = await db.journalItem.findMany({
     where: { studentId: student.id },
     orderBy: { createdAt: "desc" },
+    // The activity a moment came from is what it is CALLED (see momentTitle).
+    include: { assignment: { select: { title: true } } },
   });
   const published = items.filter((i) => i.status === "APPROVED");
   const inProgress = items.filter((i) => i.status !== "APPROVED");
@@ -87,7 +93,7 @@ export default async function StudentHome() {
       ],
     },
     orderBy: { createdAt: "desc" },
-    select: { id: true, title: true, instructions: true },
+    select: { id: true, title: true, instructions: true, previewSnapshotJson: true },
   });
   const respondedIds = new Set(
     (
@@ -115,9 +121,9 @@ export default async function StudentHome() {
         moments={published.map((i) => ({
           id: i.id,
           type: i.type,
-          title: i.caption || kindOf(i.type).fallback,
+          title: momentTitle(i, kindOf(i.type).fallback),
           dateLabel: formatDate(i.createdAt),
-          mediaPath: isImageType(i.type) ? i.mediaPath : null,
+          mediaPath: isImageType(i.type) ? workCover(i) : null,
           textContent: i.textContent,
           bandBg: kindOf(i.type).bg,
           // The teacher's feedback the child gets to see (owner decision: EYFS
@@ -138,7 +144,7 @@ export default async function StudentHome() {
           .filter((i) => i.status === "RETURNED")
           .map((i) => ({
             id: i.id,
-            title: i.caption || kindOf(i.type).fallback,
+            title: momentTitle(i, kindOf(i.type).fallback),
             note: i.teacherNote,
             assignmentId: i.assignmentId,
           }))}
@@ -194,9 +200,9 @@ export default async function StudentHome() {
                 // The arrival mini-card shows an image thumbnail; a voice note
                 // has none, so it falls back to the voice icon (its player lives
                 // on the timeline card below).
-                mediaPath: isImageType(arrived.type) ? arrived.mediaPath : null,
+                mediaPath: isImageType(arrived.type) ? workCover(arrived) : null,
                 text: arrived.textContent,
-                title: arrived.caption || kindOf(arrived.type).fallback,
+                title: momentTitle(arrived, kindOf(arrived.type).fallback),
                 dateLabel: formatDate(arrived.createdAt),
                 bandBg: kindOf(arrived.type).bg,
                 icon: kindOf(arrived.type).icon,
@@ -211,7 +217,14 @@ export default async function StudentHome() {
 
         {/* my activities — the 3 most recent to-do as preview cards, with a
             "Show more" toggle for the rest. */}
-        <MyActivities activities={todoActivities} />
+        <MyActivities
+          activities={todoActivities.map((a) => ({
+            id: a.id,
+            title: a.title,
+            instructions: a.instructions,
+            previewPath: jsonArray(a.previewSnapshotJson)[0] ?? null,
+          }))}
+        />
 
         {/* waiting strips */}
         {inProgress.map((item) => {
@@ -224,7 +237,7 @@ export default async function StudentHome() {
             <>
               <div style={{ width: 64, height: 64, borderRadius: 12, background: "repeating-linear-gradient(45deg, #FFFDF7, #FFFDF7 10px, #F6E4BE 10px, #F6E4BE 20px)", border: "3px solid var(--ink)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }} aria-hidden="true"><Icon name={k.icon} size={30} decorative /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, font: "600 calc(22px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
+                <p style={{ margin: 0, font: "600 calc(22px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{momentTitle(item, k.fallback)}</p>
                 <StatusStrip returned={!waiting} mode={mode} />
                 {/* What the teacher actually asked for (F38). The tag above says
                     something came back; this says WHICH part to change, which is
@@ -261,7 +274,10 @@ export default async function StudentHome() {
             <p style={{ margin: "4px 0 0", font: "400 calc(16px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>{c.home.emptyHelp}</p>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 22 }}>
+          // One record per row, not a grid of thumbnails: this is the screen
+          // that shows a child what they have made, and 280px of cropped page
+          // one was not showing it. See MomentRecord.
+          <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
             {published.map((item) => {
               const k = kindOf(item.type);
               const stickers = readStickers(item.stickersJson);
@@ -270,52 +286,41 @@ export default async function StudentHome() {
               // (M2). MarkSeenOnView clears it once they've looked.
               const justArrived =
                 mode === "KS2" && !!item.approvedAt && (!seen?.jarSeenAt || item.approvedAt > seen.jarSeenAt);
+              const title = momentTitle(item, k.fallback);
               return (
-                <div key={item.id} style={{ background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 18, overflow: "hidden", boxShadow: "0 4px 0 rgba(34,48,74,0.12)" }}>
-                  <div style={{ height: 190, background: k.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                    {item.type === "AUDIO" && item.mediaPath ? (
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "0 16px" }}>
-                        <Icon name="voice" size={44} decorative />
-                        <audio src={item.mediaPath} controls preload="none" aria-label={item.caption || k.fallback} style={{ width: "100%", maxWidth: 240 }} />
-                      </div>
-                    ) : isImageType(item.type) && item.mediaPath ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.mediaPath} alt={item.caption || k.fallback} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : item.textContent ? (
-                      <p style={{ margin: 0, padding: "18px 22px", font: "400 calc(18px * var(--sj-type-scale, 1))/1.5 var(--font-atkinson)", color: "var(--ink)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>{item.textContent}</p>
-                    ) : (
-                      <Icon name={k.icon} size={64} decorative />
-                    )}
-                    <span style={{ position: "absolute", top: 12, right: 12, background: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 calc(13px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>{k.label}</span>
-                    {justArrived && (
-                      <span style={{ position: "absolute", top: 12, left: 12, background: "#37796f", color: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 calc(13px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>{c.home.arrivedBadge}</span>
-                    )}
-                    {/* the teacher's stickers stay peeled onto the work */}
-                    {stickers.map((s, i) => {
-                      const spot = [
-                        { top: 8, left: 8, tilt: "-9deg" },
-                        { top: 56, left: 20, tilt: "7deg" },
-                        { top: 12, left: 62, tilt: "-6deg" },
-                        { top: 62, left: 74, tilt: "8deg" },
-                      ][i] ?? { top: 8, left: 8, tilt: "-9deg" };
-                      return (
-                        <span key={s.k} title={s.label} style={{ position: "absolute", top: spot.top, left: spot.left, transform: `rotate(${spot.tilt})` }}>
-                          <Sticker k={s.k} size={44} />
-                        </span>
-                      );
-                    })}
-                  </div>
-                  <div style={{ padding: "14px 18px 18px" }}>
-                    <p style={{ margin: 0, font: "600 calc(21px * var(--sj-type-scale, 1)) var(--font-fredoka)" }}>{item.caption || k.fallback}</p>
-                    <p style={{ margin: "4px 0 0", font: "400 calc(15px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--sj-muted)" }}>{formatDate(item.createdAt)}</p>
-                    {item.praiseNote && (
-                      <p style={{ margin: "8px 0 0", font: "400 calc(15px * var(--sj-type-scale, 1))/1.4 var(--font-atkinson)", color: "var(--ink-soft)" }}>💬 “{item.praiseNote}”</p>
-                    )}
-                    {item.stickerReply === "HEART" && (
-                      <p style={{ margin: "6px 0 0", font: "700 calc(14px * var(--sj-type-scale, 1)) var(--font-atkinson)", color: "var(--jam)" }}>💛 You sent a heart back</p>
-                    )}
-                  </div>
-                </div>
+                <MomentRecord
+                  key={item.id}
+                  title={title}
+                  dateLabel={formatDate(item.createdAt)}
+                  bandBg={k.bg}
+                  kindLabel={k.label}
+                  pages={isImageType(item.type) ? workPages(item) : []}
+                  alt={title}
+                  audioSrc={item.type === "AUDIO" ? item.mediaPath : null}
+                  textContent={item.textContent}
+                  emptyIcon={<Icon name={k.icon} size={64} decorative />}
+                  praiseNote={item.praiseNote}
+                  heartedBack={item.stickerReply === "HEART"}
+                  heartLabel="💛 You sent a heart back"
+                  arrivedBadge={
+                    justArrived ? (
+                      <span style={{ background: "#37796f", color: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 calc(13px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>{c.home.arrivedBadge}</span>
+                    ) : null
+                  }
+                  stickers={stickers.map((sk, i) => {
+                    const spot = [
+                      { top: 8, left: 8, tilt: "-9deg" },
+                      { top: 56, left: 20, tilt: "7deg" },
+                      { top: 12, left: 62, tilt: "-6deg" },
+                      { top: 62, left: 74, tilt: "8deg" },
+                    ][i] ?? { top: 8, left: 8, tilt: "-9deg" };
+                    return (
+                      <span key={sk.k} title={sk.label} style={{ position: "absolute", top: spot.top, left: spot.left, transform: `rotate(${spot.tilt})` }}>
+                        <Sticker k={sk.k} size={44} />
+                      </span>
+                    );
+                  })}
+                />
               );
             })}
           </div>

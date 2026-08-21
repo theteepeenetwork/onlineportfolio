@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { originUrl } from "@/lib/appOrigin";
 import { createSession, destroySession } from "@/lib/auth";
 import { isRateLimited, recordFailure, clearFailures, clientIp, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 import { sendMail } from "@/lib/mailer";
@@ -12,7 +13,6 @@ import { magicLinkEmail } from "@/lib/emailTemplates";
 import { normaliseFamilyCode } from "@/lib/familyCodeChars";
 import { getCurrentParent } from "@/lib/parentAuth";
 import { recordAudit } from "@/lib/audit";
-import { headers } from "next/headers";
 
 // One throttle budget for every family-code entry, wherever it is typed: the
 // sign-in form and the "add another child" form behind it (FINDINGS F2). Two
@@ -89,18 +89,6 @@ export async function requestMagicLink(
     if (signInLinkMayBeShown()) return { sent: true, openUrl: path };
   }
   return { sent: true };
-}
-
-// Absolute base URL for links inside emails. APP_URL wins where set (it is, in
-// production); otherwise derive it from the request so local development and
-// preview deploys produce links that actually resolve.
-async function originUrl(): Promise<string> {
-  const explicit = process.env.APP_URL;
-  if (explicit) return explicit.replace(/\/$/, "");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
 }
 
 // Parent signs in with the family code from their school's letter.

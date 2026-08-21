@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { studentLogin, openDrawing } from "./helpers";
+import { studentLogin, openDrawing, teacherLogin } from "./helpers";
 
 // Shapes can be added, are movable / resizable, and their fill + line colour
 // can be changed.
@@ -49,4 +49,52 @@ test("a child can add a shape, recolour it, move and resize it", async ({ page }
   await page.getByRole("link", { name: /Back to my jar/ }).click();
   await page.waitForURL((url) => url.pathname === "/student");
   await expect(page.getByText(/Waiting for your teacher/)).toBeVisible();
+});
+
+// Pentagon, hexagon, octagon — and everything between and beyond.
+//
+// One kind with one number, not three kinds: they differ by a side count, so
+// the count is a control. That is the same argument the grid makes for fronting
+// the ten rod, the hundred flat and the fraction bar, and it is why a heptagon
+// needs no button.
+test("the polygons are one shape with a number, so any of them can be reached", async ({
+  page,
+}) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.locator("#title").fill("Polygons");
+  await page.getByRole("button", { name: /Build a template/ }).click();
+
+  const place = async (name: string) => {
+    await page.locator('button[title="Add"]').click();
+    await page.getByRole("button", { name: "Shapes" }).click();
+    await page.getByRole("button", { name, exact: true }).click();
+  };
+  const corners = async () => {
+    const d = (await page.locator('svg[data-shape="polygon"] path').first().getAttribute("d"))!;
+    return (d.match(/[ML] /g) ?? []).length;
+  };
+
+  await place("Pentagon");
+  expect(await corners()).toBe(5);
+  await page.getByRole("button", { name: "Remove object" }).click();
+
+  await place("Hexagon");
+  expect(await corners()).toBe(6);
+  await page.getByRole("button", { name: "Remove object" }).click();
+
+  await place("Octagon");
+  expect(await corners()).toBe(8);
+
+  // A heptagon: no button offers one, and one is two taps away.
+  await page.getByRole("button", { name: "Sides: fewer" }).click();
+  expect(await corners()).toBe(7);
+
+  // The count cannot leave the range the geometry can draw: seven down to the
+  // floor of three, and then the control says no rather than going further.
+  for (let i = 0; i < 4; i++) {
+    await page.getByRole("button", { name: "Sides: fewer" }).click();
+  }
+  expect(await corners()).toBe(3);
+  await expect(page.getByRole("button", { name: "Sides: fewer" })).toBeDisabled();
 });

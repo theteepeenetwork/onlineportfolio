@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { SCHOOL_A, SCHOOL_B, loginTeacher, signInOperator } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, loginTeacher, asOperator } from "../helpers";
 
 // ===========================================================================
 // The operator handbook: a page of policy, held to the same door as every
@@ -41,7 +41,7 @@ test(`${ROUTE} is 404 to a stranger and 200 to the operator, on the same URL`, a
   }
 
   // Positive control: same URL, same fixture, the other session.
-  await signInOperator(page);
+  await asOperator(page);
   const authorised = await page.goto(ROUTE);
   expect(authorised?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Handbook", level: 1 })).toBeVisible();
@@ -54,7 +54,7 @@ test("a signed-in teacher gets 404 from the handbook", async ({ page }) => {
 });
 
 test("the handbook names no pupil, no class code and no family code", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   const summaries = page.locator("main details summary");
   for (let i = 0; i < (await summaries.count()); i += 1) await summaries.nth(i).click();
@@ -72,7 +72,7 @@ test("the handbook names no pupil, no class code and no family code", async ({ p
 });
 
 test("the handbook carries the procedure it exists to carry, and its notification rule", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
 
   const breakGlass = page.locator("main details", { hasText: "Break glass" }).first();

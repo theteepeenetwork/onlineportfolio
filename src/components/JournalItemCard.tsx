@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { StatusBadge } from "./StatusBadge";
 import { Icon, type IconName } from "./icons/Icon";
+import { workPages } from "@/lib/journalMedia";
 
 export type JournalItemView = {
   id: string;
@@ -9,6 +10,7 @@ export type JournalItemView = {
   textContent: string | null;
   mediaPath: string | null;
   mediaPathsJson: string | null;
+  previewPathsJson: string | null;
   status: string;
   authorRole: string;
   teacherNote: string | null;
@@ -17,20 +19,6 @@ export type JournalItemView = {
   quizScore?: number | null;
   quizTotal?: number | null;
 };
-
-// All image paths for an item: the multi-page list if present, else the single
-// cover image, else nothing.
-function mediaPaths(item: JournalItemView): string[] {
-  if (item.mediaPathsJson) {
-    try {
-      const paths = JSON.parse(item.mediaPathsJson) as string[];
-      if (Array.isArray(paths) && paths.length) return paths;
-    } catch {
-      // fall through to the single path
-    }
-  }
-  return item.mediaPath ? [item.mediaPath] : [];
-}
 
 const TYPE_ICON: Record<string, IconName> = {
   PHOTO: "camera",
@@ -99,7 +87,7 @@ export function JournalItemCard({
 
       {(() => {
         if (item.type === "AUDIO") return null; // rendered as a player above
-        const paths = mediaPaths(item);
+        const paths = workPages(item);
         if (paths.length === 0) return null;
         return (
           <div className="mt-3 space-y-1">

@@ -39,11 +39,21 @@ test("adding a voice note stores a file; removing the pupil erases it [AUDIO / r
   await page.getByRole("button", { name: /add pupil/i }).click();
   await page.locator('textarea[name="names"]').fill("Voicetest");
   await page.getByRole("button", { name: /add pupil/i }).last().click();
+  // Wait for the ADD to land, not merely for the name to be somewhere on the
+  // page: the box a teacher typed into still holds the name until the server
+  // action comes back, so "the name is visible" can be true while the register
+  // below is still the old one. The form clears itself on success, so an empty
+  // box is the signal that the roster on screen is the roster in the database —
+  // and the row locators below depend on that being true.
+  await expect(page.locator('textarea[name="names"]')).toHaveValue("");
   await expect(page.getByText("Voicetest")).toBeVisible();
 
   // Open THIS pupil's journal and add a voice note (publishes straight away for
   // a teacher — consistent with the other capture types on this path).
+  // Scoped to <main>: the teacher shell's rail sits outside it and carries a
+  // "Journals" nav item, so an unscoped /journal/i would match the chrome too.
   await page
+    .getByRole("main")
     .locator("div")
     .filter({ hasText: "Voicetest" })
     .filter({ has: page.getByRole("link", { name: /journal/i }) })
@@ -51,7 +61,9 @@ test("adding a voice note stores a file; removing the pupil erases it [AUDIO / r
     .getByRole("link", { name: /journal/i })
     .click();
   await page.waitForURL(/\/teacher\/students\/[^/]+$/);
-  await page.getByRole("link", { name: /^＋ Add$|add/i }).first().click();
+  // …and scoped for the same reason: /add/i would otherwise reach the rail's
+  // "Add a class", which is the first such link on every teacher page now.
+  await page.getByRole("main").getByRole("link", { name: /^＋ Add$|add/i }).first().click();
   await page.waitForURL(/\/new$/);
 
   // Choose the Voice tab, then arm the hidden `audio` field directly (the same
@@ -72,6 +84,7 @@ test("adding a voice note stores a file; removing the pupil erases it [AUDIO / r
   await page.getByRole("button", { name: /acorn/i }).click();
   await page.getByRole("button", { name: /class settings/i }).click();
   await page
+    .getByRole("main")
     .locator("div")
     .filter({ hasText: "Voicetest" })
     .filter({ has: page.getByRole("button", { name: /^remove$/i }) })

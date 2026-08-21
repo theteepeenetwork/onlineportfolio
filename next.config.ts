@@ -39,6 +39,14 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Where the build output goes. `.next` everywhere except a parallel test run,
+  // which sets NEXT_DIST_DIR per lane: Next refuses to start a second dev server
+  // for the same output directory, and the local battery runner
+  // (scripts/run-suites.mjs) wants three at once, each on its own port with its
+  // own database. Unset in development, in CI and in production, where it is
+  // `.next` exactly as before.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+
   // Custom hostnames used to reach the dev server on the local network. Next 16
   // blocks its /_next dev resources from unknown origins by default, which makes
   // the page load forever when opened via a nice hostname rather than the raw IP.
@@ -91,6 +99,20 @@ const nextConfig: NextConfig = {
         source: "/.well-known/apple-developer-merchantid-domain-association",
         destination: "/api/apple-pay-domain-association",
       },
+      // OAuth discovery, at the fixed paths RFC 8414 and RFC 9728 define. A
+      // connector fetches these before it holds any credentials. Rewrites
+      // rather than route files because a directory whose name begins with a
+      // dot is not something to rely on the router noticing.
+      //
+      // Both the bare path and the path-suffixed form are mapped: a client that
+      // knows the resource is /api/mcp asks for
+      // /.well-known/oauth-protected-resource/api/mcp first and falls back to
+      // the bare path, and answering only one of them is the difference between
+      // a connector that adds itself and one that fails with nothing to act on.
+      { source: "/.well-known/oauth-authorization-server", destination: "/api/oauth/metadata" },
+      { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/oauth/metadata" },
+      { source: "/.well-known/oauth-protected-resource", destination: "/api/oauth/resource" },
+      { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/oauth/resource" },
     ];
   },
 };

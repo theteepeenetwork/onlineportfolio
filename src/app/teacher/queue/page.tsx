@@ -1,7 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TopBar } from "@/components/TopBar";
-import { teacherNav } from "@/lib/teacherNav";
 import { readQuiz, readAnswers, type QuizOption } from "@/lib/quiz";
 import { QueueBoard } from "./QueueBoard";
 
@@ -47,6 +45,7 @@ export default async function ApprovalQueue() {
       orderBy: { createdAt: "asc" },
       include: {
         student: { select: { name: true, avatarColor: true } },
+        class: { select: { name: true } },
         assignment: { select: { title: true, quizSnapshotJson: true } },
       },
     }),
@@ -57,8 +56,14 @@ export default async function ApprovalQueue() {
     id: it.id,
     child: it.student.name,
     color: it.student.avatarColor,
+    classId: it.classId,
+    className: it.class.name,
     type: it.type,
     mediaPath: it.mediaPath,
+    // The whole thing, not just its cover: a drawing can run to several pages,
+    // and the queue is where a teacher decides whether to publish it.
+    mediaPathsJson: it.mediaPathsJson,
+    previewPathsJson: it.previewPathsJson,
     text: it.textContent,
     // Only assigned drawings have a saved activity a child can reopen, so only
     // those offer the "carry on / start again" choice when sent back.
@@ -71,11 +76,8 @@ export default async function ApprovalQueue() {
   }));
 
   return (
-    <div className="sj" style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", width: "100%", display: "flex", flexDirection: "column" }}>
-      <TopBar links={teacherNav(items.length)} />
-      <main style={{ maxWidth: 1060, margin: "0 auto", width: "100%", boxSizing: "border-box", padding: "28px 32px 60px", flex: 1 }}>
-        <QueueBoard items={mapped} skills={skills} />
-      </main>
+    <div style={{ maxWidth: 1000 }}>
+      <QueueBoard items={mapped} skills={skills} />
     </div>
   );
 }

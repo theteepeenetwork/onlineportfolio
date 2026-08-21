@@ -153,7 +153,20 @@ export async function teacherLogin(
 
   clearFailures(key);
   await createSession({ role: "TEACHER", teacherId: teacher.id });
-  redirect("/teacher");
+  redirect(safeNext(formData.get("next")));
+}
+
+// Where to send a teacher after signing in.
+//
+// Deliberately NOT a general "return to where you were" hook. Exactly one flow
+// needs it — a teacher who clicked "add StoryJar" on claude.ai and was sent to
+// sign in first (src/app/oauth/authorize) — and honouring anything else here
+// would turn the sign-in form into an open redirect, which is a phishing tool
+// pointed at the people who hold children's work. So: a same-site path, on the
+// one route that needs it, or the teacher's own dashboard.
+function safeNext(value: FormDataEntryValue | null): string {
+  const next = typeof value === "string" ? value : "";
+  return next.startsWith("/oauth/authorize?") && !next.includes("\\") ? next : "/teacher";
 }
 
 // Student picks their name after their class code has been verified.

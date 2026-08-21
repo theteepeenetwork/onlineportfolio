@@ -318,7 +318,26 @@ const PLATFORM_CONTENT = ["SharedActivity"];
 // text written by teacher-facing actions and routinely contains a child's first
 // name ("Approved Amara's moment"), so reading it is a child-data read wearing
 // an operations hat (ruling R4).
-const CREDENTIAL_NEVER = ["Session", "MagicToken", "AuditLog"];
+const CREDENTIAL_NEVER = [
+  "Session",
+  "MagicToken",
+  "AuditLog",
+  // The connector tables (PR-connector). A teacher's API token, and the OAuth
+  // client and grant behind a claude.ai connector, are live credentials for a
+  // teacher's account: anyone holding one can read and rewrite that teacher's
+  // activity library. They are classified exactly like Session and MagicToken,
+  // which is the strictest class in this gate — an ops file may not read them,
+  // may not count them, and may not confirm that a particular row exists.
+  //
+  // This is a TIGHTENING, not a widening (ruling R2): the drift check refused
+  // all three as OPS-MODEL-UNKNOWN until they were classified, and the class
+  // they landed in permits nothing. Support never needs one of these rows:
+  // a teacher revokes and re-mints a token on their own account page, and the
+  // operator is told a token was revoked by the teacher telling them.
+  "ApiToken",
+  "OAuthClient",
+  "OAuthGrant",
+];
 
 // The operator's own records.
 //
@@ -465,6 +484,17 @@ const BANNED_GROUP_KEYS = {
 // a denylist entry protecting nothing, and one rename should not be able to
 // quietly empty this list.
 const DENY_FIELDS = [
+  // Connector credentials (PR-connector). Each of these is, or unlocks, a live
+  // bearer token for one teacher's activity library. `keyHash` is the API token
+  // itself; `codeHash` and `refreshHash` are the two stages of the claude.ai
+  // OAuth grant; `redirectUrisJson` is where a connector may be sent back to,
+  // and an operator who could edit it could redirect a teacher's authorization
+  // code to themselves. None of them have an operational use, so all four are
+  // denied outright rather than argued about.
+  "keyHash",
+  "codeHash",
+  "refreshHash",
+  "redirectUrisJson",
   // Child work and per-child state
   "caption",
   "textContent",
@@ -486,10 +516,17 @@ const DENY_FIELDS = [
   "contextKey",
   // Teacher-authored activity content, which reaches children and can quote them
   "templatePathsJson",
+  // The rendered picture of that same content — the worksheet, its movable
+  // pieces and its questions, drawn into one image. Strictly more revealing than
+  // the background it is made from, so it is classified with it.
+  "previewPathsJson",
   "quizJson",
   "objectsJson",
   "tagsJson",
   "templateSnapshotJson",
+  // The same picture, frozen onto the run a child was set. Classified with the
+  // snapshot it mirrors.
+  "previewSnapshotJson",
   "quizSnapshotJson",
   "objectsSnapshotJson",
   // Credential VALUES (amendment C1). An operator who reads one of these can
@@ -498,6 +535,19 @@ const DENY_FIELDS = [
   "classCode",
   "token",
   "passwordHash",
+  // The connector credentials (PR-connector). An OAuth grant is a live way in
+  // to a teacher's activity library: the code and the refresh value are stored
+  // hashed, exactly as a session is, and a hash is denied here for the same
+  // reason `passwordHash` is — an operator has no business holding either.
+  // `redirectUrisJson` is not itself a secret, but it is the list of places a
+  // grant may be sent, and reading it is the first half of redirecting one.
+  //
+  // Their models are already CREDENTIAL_NEVER, so these entries are the second
+  // lock rather than the first: the model ban stops the query, and these stop
+  // the field name appearing under the ops roots at all.
+  "codeHash",
+  "refreshHash",
+  "redirectUrisJson",
 ];
 
 // Documented pending entries: named in the SAFEGUARDING amendments table but
@@ -1948,7 +1998,22 @@ for (const [field, owners] of fieldOwners) {
   if (denySet.has(field)) continue;
   // Fields on the operator's own models are ops's own business, not a read of
   // somebody else's data, so they are not denylist candidates.
-  if (owners.every((m) => OPS_OWNED.includes(m))) continue;
+  //
+  // CREDENTIAL_NEVER counts the same way here, and only here. A field on one of
+  // those models cannot be read by ops in any case — the model ban is absolute
+  // and comes first — so demanding a denylist entry for the NAME adds nothing,
+  // and for a name the operator's own tables also use it would take something
+  // away. `tokenHash` is exactly that: it is `ApiToken.tokenHash`, which ops may
+  // never touch, and it is `OperatorSession.tokenHash`, which is how the
+  // operator's own session is looked up (`src/lib/ops/session.ts`) and which
+  // this gate's own note under "token" points at as the right column to use.
+  // Banning the name outright would fail the door's own code; leaving the drift
+  // check to demand it would be asking for a ban that must not be granted.
+  //
+  // This narrows which fields the DRIFT REMINDER asks about. It does not widen
+  // what ops may read by one field: every model named here is refused whole.
+  const covered = [...OPS_OWNED, ...CREDENTIAL_NEVER];
+  if (owners.every((m) => covered.includes(m))) continue;
   if (!SENSITIVE_NAME_PATTERNS.some((re) => re.test(field))) continue;
   violations.push({
     rel: "prisma/schema.prisma",

@@ -3,11 +3,15 @@
 import { useActionState } from "react";
 import { teacherLogin } from "@/app/actions/auth";
 
-export function TeacherLoginForm() {
+// `next` is set only by the OAuth consent page, which sends a teacher here to
+// sign in mid-connection. teacherLogin refuses any value that is not that one
+// route, so this input cannot become an open redirect.
+export function TeacherLoginForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(teacherLogin, {});
 
   return (
     <form action={action} className="mt-5 space-y-4">
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       <div>
         <label className="label" htmlFor="email">
           Email

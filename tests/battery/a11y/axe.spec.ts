@@ -125,6 +125,35 @@ test("a11y (AA): a teacher's own activities grid", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "teacher activities grid");
 });
 
+test("a11y (AA): account settings, including the Claude connector panel", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/account");
+  // Anchored on the connector panel, which is the newest thing on this screen
+  // and the part carrying a labelled text field, a read-only copyable value and
+  // a list of revoke buttons.
+  await expect(page.getByRole("region", { name: "Connect Claude" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "account settings");
+});
+
+test("a11y (AA): the connector consent screen", async ({ page }) => {
+  // A teacher meets this mid-way through adding StoryJar on claude.ai, having
+  // arrived from another product. It is the one screen in the connector where
+  // they make a decision, so it is held to the same bar as the sign-in pages.
+  const reg = await page.request.post("/api/oauth/register", {
+    data: { client_name: "Accessibility check", redirect_uris: ["https://example.test/cb"] },
+  });
+  const client = await reg.json();
+
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto(
+    `/oauth/authorize?response_type=code&client_id=${client.client_id}` +
+      `&redirect_uri=${encodeURIComponent("https://example.test/cb")}` +
+      `&code_challenge=${"a".repeat(43)}&code_challenge_method=S256`,
+  );
+  await expect(page.getByRole("button", { name: /^Allow / })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "connector consent");
+});
+
 test("a11y (AA): the StoryJar shared library", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/teacher/activities/shared");

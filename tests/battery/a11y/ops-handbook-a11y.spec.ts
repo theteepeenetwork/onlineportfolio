@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { signInOperator } from "../helpers";
+import { asOperator } from "../helpers";
 
 // ===========================================================================
 // Accessibility of the operator handbook (SAFEGUARDING rule 18)
@@ -37,7 +37,7 @@ async function assertStrictNoViolations(page: Page, where: string) {
 }
 
 test("a11y (AA, empty baseline): the handbook, procedures closed", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   // An axe scan of a page that did not render is a clean scan, so anchor first.
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
@@ -46,7 +46,7 @@ test("a11y (AA, empty baseline): the handbook, procedures closed", async ({ page
 });
 
 test("a11y (AA, empty baseline): the handbook with every procedure open", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
 
@@ -60,7 +60,7 @@ test("a11y (AA, empty baseline): the handbook with every procedure open", async 
 });
 
 test("the heading order steps down one level at a time", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();
   // Open everything: the deepest headings live inside the procedures, so a
@@ -83,7 +83,7 @@ test("the heading order steps down one level at a time", async ({ page }) => {
 });
 
 test("every procedure can be opened from the keyboard alone", async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.goto(ROUTE);
   const first = page.locator("main details").first();
   await expect(first).not.toHaveAttribute("open", /.*/);
@@ -94,7 +94,7 @@ test("every procedure can be opened from the keyboard alone", async ({ page }) =
 });
 
 test(`no horizontal overflow on ${ROUTE} at 390px`, async ({ page }) => {
-  await signInOperator(page);
+  await asOperator(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(ROUTE);
   await expect(page.getByRole("navigation", { name: /operations/i })).toBeVisible();

@@ -7,8 +7,10 @@ import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
 const TITLES = ["Mr", "Miss", "Mrs", "Ms", "Mx", ""];
 const COUNTRIES = ["England", "Scotland", "Wales", "Northern Ireland", "Elsewhere"];
 
-const box: React.CSSProperties = { borderRadius: 16, padding: 20, border: "2px solid var(--calm-border)", background: "var(--paper)" };
-const input: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "2px solid var(--calm-border)", background: "var(--cream)", font: "400 16px var(--font-atkinson)", color: "var(--ink)" };
+// The account cards share the teacher area's card shell: a 3px ink outline and
+// an 18px radius, so a settings page reads as the same product as the register.
+const box: React.CSSProperties = { borderRadius: 18, padding: 20, border: "3px solid var(--ink)", background: "var(--cream)" };
+const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 12, border: "3px solid var(--ink)", background: "var(--cream)", font: "400 17px var(--font-atkinson)", color: "var(--ink)" };
 const label: React.CSSProperties = { display: "block", font: "700 14px var(--font-atkinson)", color: "var(--ink)", marginBottom: 6 };
 
 function tile(active: boolean): React.CSSProperties {
@@ -44,7 +46,7 @@ export function ProfileForm({
 
   return (
     <form action={action} style={box} aria-labelledby="profile-heading">
-      <h2 id="profile-heading" style={{ margin: 0, font: "600 22px var(--font-fredoka)", color: "var(--ink)" }}>Your details</h2>
+      <h2 id="profile-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>Your details</h2>
       <p style={{ margin: "6px 0 18px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
         How you appear in StoryJar. Pupils never have accounts — this is just you.
       </p>

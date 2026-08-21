@@ -3,19 +3,16 @@ import { mkdir, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { MEDIA_DIR, UPLOADS_PREFIX } from "@/lib/mediaPath";
+import { STORABLE_IMAGE_TYPES } from "@/lib/imageTypes";
 
 // Where uploaded photos and drawings live: a PRIVATE directory (not under
 // public/). They are served only through the authorising /uploads/[...] route,
 // never statically. Returned paths keep the /uploads/<file> URL shape.
 const UPLOAD_DIR = MEDIA_DIR;
 
-const ALLOWED_IMAGE_TYPES: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/jpg": "jpg",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
+// Shared with the client so the picker, the import and this writer cannot
+// drift apart on what may be stored (see src/lib/imageTypes.ts).
+const ALLOWED_IMAGE_TYPES = STORABLE_IMAGE_TYPES;
 
 // Audio voice notes (AUDIO items). MediaRecorder in the browser produces these
 // container types; the File.type may carry a codecs parameter (e.g.

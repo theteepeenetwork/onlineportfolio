@@ -336,7 +336,9 @@ test.describe("A1 · Class-code rotation is scoped to the owning teacher", () =>
   async function schoolAClassId(page: import("@playwright/test").Page): Promise<string> {
     await loginTeacher(page, SCHOOL_A.admin); // owns Sunflower (SUN234)
     await page.goto("/teacher/class");
-    await page.getByText("Sunflower Class", { exact: true }).first().click();
+    // Scoped to the page content: the teacher shell's rail lists class names on
+    // every screen, and the rail's entry opens Journals rather than the register.
+    await page.getByRole("main").getByText("Sunflower Class", { exact: true }).first().click();
     // The "Printable code" link in the class header carries the class id.
     const href = await page.locator('a[href*="/signup/teacher/welcome?class="]').first().getAttribute("href");
     const id = new URL(href ?? "", "http://x").searchParams.get("class") ?? "";
@@ -351,7 +353,7 @@ test.describe("A1 · Class-code rotation is scoped to the owning teacher", () =>
     // School B teacher, on their OWN class settings — a page they're entitled to.
     await loginTeacher(page, SCHOOL_B.teacher);
     await page.goto("/teacher/class");
-    await page.getByText(/Acorn/).first().click();
+    await page.getByRole("main").getByText(/Acorn/).first().click();
     await page.getByRole("button", { name: /Class settings/ }).click();
     await page.getByRole("button", { name: /New class code/ }).click();
 
