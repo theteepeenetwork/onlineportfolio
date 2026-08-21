@@ -9,6 +9,7 @@ import {
   updateActivity,
 } from "./activities";
 import { QUESTIONS_PER_PAGE } from "./quizLayout";
+import { MAX_OPTION_TEXT_LEN, MAX_OPTIONS, MAX_PROMPT_LEN, MIN_OPTIONS } from "@/lib/quiz";
 import type { ApiTeacher } from "./tokens";
 
 // The Model Context Protocol server: the surface Claude actually talks to.
@@ -53,12 +54,16 @@ You cannot see classes, pupils, pupils' work, or anything in the approval queue 
 const questionSchema = {
   type: "object",
   properties: {
-    prompt: { type: "string", description: "The question, in words a child of the right age can read." },
+    // maxLength comes from the validator's own constant rather than a repeated
+    // literal, so the schema and the refusal can never disagree. Stating it here
+    // is the point: a model that only learns the limit from a rejection has
+    // already composed the whole payload by then.
+    prompt: { type: "string", maxLength: MAX_PROMPT_LEN, description: "The question, in words a child of the right age can read." },
     options: {
       type: "array",
-      items: { type: "string" },
-      minItems: 2,
-      maxItems: 4,
+      items: { type: "string", maxLength: MAX_OPTION_TEXT_LEN },
+      minItems: MIN_OPTIONS,
+      maxItems: MAX_OPTIONS,
       description: "The answers to choose from. Between two and four.",
     },
     correct: {
@@ -76,7 +81,7 @@ const questionSchema = {
 } as const;
 
 const activityFields = {
-  title: { type: "string", description: "What the teacher will see on the card, e.g. \"Tuesday's number bonds\"." },
+  title: { type: "string", maxLength: 120, description: "What the teacher will see on the card, e.g. \"Tuesday's number bonds\"." },
   instructions: { type: "string", description: "What to do. Read aloud to younger children, so keep it to a sentence or two." },
   tags: { type: "array", items: { type: "string" }, description: "Teacher's own labels, e.g. [\"Maths\", \"Year 2\"]." },
   folder_id: { type: "string", description: "Optional folder to file it in. Get ids from list_folders." },
@@ -194,6 +199,11 @@ const TOOLS: ToolDef[] = [
         activity_id: { type: "string", description: "The id from list_activities." },
         ...activityFields,
         questions: { type: "array", items: questionSchema, description: "Replaces every question on the activity." },
+        archived: {
+          type: "boolean",
+          description:
+            "Set true to take the activity out of the teacher's library, or false to bring it back. Nothing is deleted and any class already working on it is unaffected — use this to clear up an activity you made by mistake.",
+        },
       },
       required: ["activity_id"],
       additionalProperties: false,
@@ -206,6 +216,7 @@ const TOOLS: ToolDef[] = [
         folderId: args.folder_id,
         pages: args.pages,
         questions: args.questions,
+        archived: args.archived,
       });
       if (!updated) throw new ActivityInputError("There is no activity with that id in this library.");
       return present(updated, origin);

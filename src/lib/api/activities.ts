@@ -58,6 +58,7 @@ export type ActivityInput = {
   folderId?: unknown;
   questions?: unknown;
   pages?: unknown;
+  archived?: unknown;
 };
 
 
@@ -234,8 +235,10 @@ export async function createActivity(teacher: ApiTeacher, input: ActivityInput):
 
 export async function updateActivity(teacher: ApiTeacher, id: unknown, input: ActivityInput): Promise<ActivitySummary | null> {
   if (typeof id !== "string" || !id) return null;
+  // Archived rows are reachable here on purpose, so an activity can be brought
+  // back. listActivities still hides them; this is the one door in.
   const existing = await db.activityTemplate.findFirst({
-    where: { id, teacherId: teacher.id, archived: false },
+    where: { id, teacherId: teacher.id },
     select: { id: true, templatePathsJson: true, quizJson: true },
   });
   if (!existing) return null;
@@ -263,6 +266,12 @@ export async function updateActivity(teacher: ApiTeacher, id: unknown, input: Ac
     data.tagsJson = tags.length ? JSON.stringify(tags) : null;
   }
   if (input.folderId !== undefined) data.folderId = await readFolderId(teacher, input.folderId);
+  // Archiving, not deleting. It is what the product already means by "take this
+  // out of my library": the row and its media stay, and any run that was set
+  // from it keeps working (see the column comment in schema.prisma). It gives an
+  // agent a way to clear up a probe or a mistake without a destructive verb
+  // existing on this surface at all.
+  if (input.archived !== undefined) data.archived = Boolean(input.archived);
 
   const asked = readPages(input.pages);
   const currentPages = jsonArray(existing.templatePathsJson);
