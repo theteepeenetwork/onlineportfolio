@@ -179,8 +179,12 @@ test.describe("Admin billing", () => {
     await page.goto("/admin");
     await page.getByRole("button", { name: "Classes", exact: true }).click();
 
+    // Hold on to WHICH class this is, by name, rather than by position. Handing
+    // one over re-orders the list, so a second `.first()` lands on a different
+    // row — which is how the restore below silently moved the wrong class.
     const picker = page.locator('select[name="staffId"]').first();
     await expect(picker).toBeVisible();
+    const className = (await picker.getAttribute("aria-label"))!.replace(/^Teacher for /, "");
     const before = await picker.inputValue();
     const other = await picker.locator(`option:not([value="${before}"])`).first().getAttribute("value");
     await picker.selectOption(other ?? "");
@@ -190,5 +194,22 @@ test.describe("Admin billing", () => {
     // The handover is recorded with the admin's name against it.
     await page.getByRole("button", { name: "Audit log" }).click();
     await expect(page.getByText("Assigned a class")).toBeVisible();
+
+    // Hand it back.
+    //
+    // This suite runs SERIALLY against one database (workers: 1), and this was
+    // the only test in it that permanently moved a demo fixture: it takes the
+    // first class — Sunflower, the one the demo teacher owns — and gave it to a
+    // colleague for the rest of the run. Every later test that signs in as
+    // teacher@school.uk and expects to see their class then failed, which is
+    // what auth, journal, drafts, media access, stickers and quiz were all
+    // doing. Six unrelated-looking regressions, and one test not putting the
+    // furniture back.
+    await page.getByRole("button", { name: "Classes", exact: true }).click();
+    const restore = page.getByLabel(`Teacher for ${className}`);
+    await expect(restore).toHaveValue(other ?? "");
+    await restore.selectOption(before);
+    await page.getByRole("button", { name: /^Hand to / }).click();
+    await expect(page.getByLabel(`Teacher for ${className}`)).toHaveValue(before);
   });
 });
