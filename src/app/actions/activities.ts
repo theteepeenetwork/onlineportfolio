@@ -4,18 +4,41 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { saveImagePages, saveImageDataUrl } from "@/lib/media";
+import { saveImageDataUrl } from "@/lib/media";
 import { requireWritableAccount, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
 import { parseQuizPayload } from "@/lib/quiz";
 import { normalizeTemplateObjects, hasObjects } from "@/lib/canvasObjects";
 
+// Pages come back in TWO shapes, and both have to survive.
+//
+// A page the canvas has just composited is a `data:image` URL. A page that is
+// already saved comes back as its `/uploads/<file>` path — which is what the
+// editor seeds when a teacher opens an activity and changes only its title, its
+// instructions or its tags, because the canvas is not mounted until they press
+// "Edit template & quiz".
+//
+// This used to keep data URLs ONLY, and that was silent data loss. A save that
+// never opened the canvas submitted nothing this function would accept, so
+// `if (pages.length)` was false, `templatePathsJson` was written as NULL, and
+// every page of the worksheet vanished. Renaming an activity deleted it. Worse,
+// updateTemplate pushes the same value onto LIVE runs, so the pages also went
+// from under a class working on it at that moment.
 function parsePages(raw: string): string[] {
   try {
     const pages = raw ? (JSON.parse(raw) as string[]) : [];
-    return Array.isArray(pages) ? pages.filter((p) => typeof p === "string" && p.startsWith("data:image")) : [];
+    return Array.isArray(pages)
+      ? pages.filter((p) => typeof p === "string" && (p.startsWith("data:image") || p.startsWith("/uploads/")))
+      : [];
   } catch {
     return [];
   }
+}
+
+// Save the freshly-composited pages and leave the already-saved ones alone.
+// Same shape as persistQuizPayload and persistObjectsPayload below, which have
+// always done exactly this for the images they carry.
+async function persistPages(pages: string[]): Promise<string[]> {
+  return Promise.all(pages.map((p) => (p.startsWith("data:image") ? saveImageDataUrl(p) : Promise.resolve(p))));
 }
 
 // Validate the quiz payload from the editor and persist any freshly-authored
@@ -88,12 +111,12 @@ export async function createTemplate(
   let objectsJson: string | null = null;
   try {
     const pages = parsePages(String(formData.get("templatePages") ?? ""));
-    if (pages.length) templatePathsJson = JSON.stringify(await saveImagePages(pages));
+    if (pages.length) templatePathsJson = JSON.stringify(await persistPages(pages));
     // The picture of each page. Separate from the background above, which goes
     // back into the editor and so carries neither the movable pieces nor the
     // questions — see the column comment.
     const shots = parsePages(String(formData.get("templatePreviews") ?? ""));
-    if (shots.length) previewPathsJson = JSON.stringify(await saveImagePages(shots));
+    if (shots.length) previewPathsJson = JSON.stringify(await persistPages(shots));
     quizJson = await persistQuizPayload(String(formData.get("quizPayload") ?? ""));
     objectsJson = await persistObjectsPayload(String(formData.get("objectsPayload") ?? ""));
   } catch (e) {
@@ -152,10 +175,10 @@ export async function updateTemplate(
     // The builder re-composites every page, so pages come back as fresh data
     // URLs even when unchanged; save them like a new template would.
     const pages = parsePages(String(formData.get("templatePages") ?? ""));
-    if (pages.length) templatePathsJson = JSON.stringify(await saveImagePages(pages));
+    if (pages.length) templatePathsJson = JSON.stringify(await persistPages(pages));
     // The picture of each page, which the background above cannot be.
     const shots = parsePages(String(formData.get("templatePreviews") ?? ""));
-    if (shots.length) previewPathsJson = JSON.stringify(await saveImagePages(shots));
+    if (shots.length) previewPathsJson = JSON.stringify(await persistPages(shots));
     quizJson = await persistQuizPayload(String(formData.get("quizPayload") ?? ""));
     objectsJson = await persistObjectsPayload(String(formData.get("objectsPayload") ?? ""));
   } catch (e) {

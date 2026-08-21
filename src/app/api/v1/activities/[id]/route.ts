@@ -31,6 +31,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       folderId: body.folder_id,
       pages: body.pages,
       questions: body.questions,
+      archived: body.archived,
     });
     if (!updated) return apiError("not_found", "There is no activity with that id in this library.");
     return NextResponse.json({ activity: updated });

@@ -76,7 +76,21 @@ export function layoutQuiz(input: unknown, minPages = 1): LayoutResult {
   // A question with an explicit `page` keeps it. The rest are dealt out four to
   // a page, starting after the last page anybody asked for by name, so pinned
   // and unpinned questions in the same call cannot land on top of each other.
-  const checked = raw.map((q, i) => checkQuestion(q, i));
+  // Check EVERY question before refusing any of them. This used to throw on the
+  // first bad one, so a payload with three overlong prompts cost three
+  // round-trips — the caller fixed one, resubmitted, and was told about the
+  // next. A model drafting a quiz should be told everything that is wrong with
+  // it once.
+  const problems: string[] = [];
+  const checked: Checked[] = [];
+  raw.forEach((q, i) => {
+    try {
+      checked.push(checkQuestion(q, i));
+    } catch (err) {
+      problems.push(err instanceof Error ? err.message : `Question ${i + 1} isn't valid.`);
+    }
+  });
+  if (problems.length) throw new ActivityInputError(problems.join("\n"));
   const pinnedMax = checked.reduce((max, q) => (q.page ? Math.max(max, q.page) : max), 0);
 
   let floating = 0;
@@ -110,7 +124,9 @@ export function layoutQuiz(input: unknown, minPages = 1): LayoutResult {
   return { quiz: { questions }, pageCount: Math.max(minPages, highestPage, 1) };
 }
 
-function checkQuestion(value: unknown, i: number): { prompt: string; options: string[]; correct: number; page?: number } {
+type Checked = { prompt: string; options: string[]; correct: number; page?: number };
+
+function checkQuestion(value: unknown, i: number): Checked {
   const at = `Question ${i + 1}`;
   const src = (value ?? {}) as Record<string, unknown>;
 

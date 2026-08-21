@@ -198,6 +198,27 @@ test.describe("connector — writing", () => {
     const read = await mcpTool(request, API_TOKEN.schoolA, "get_activity", { activity_id: activity.id });
     const questions = (read.data as { questions: { page: number }[] }).questions;
     expect(new Set(questions.map((q) => q.page))).toEqual(new Set([1, 2, 3]));
+    // Read back, not just reported at write time. A field session found six
+    // questions sitting on zero pages, which means five of them were on pages no
+    // child could reach.
+    expect((read.data as { pages: number }).pages).toBe(3);
+  });
+
+  test("D1b explicitly-paged questions get exactly that many pages", async ({ request }) => {
+    const made = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — one question per page",
+      questions: Array.from({ length: 6 }, (_, i) => ({
+        prompt: `Question ${i + 1}: what happened?`,
+        options: ["A", "B", "C"],
+        correct: 1,
+        page: i + 1,
+      })),
+    });
+    expect(made.isError).toBe(false);
+    expect((made.data as { pages: number }).pages).toBe(6);
+
+    const read = await mcpTool(request, API_TOKEN.schoolA, "get_activity", { activity_id: (made.data as { id: string }).id });
+    expect((read.data as { pages: number }).pages, "the pages are still there when read back").toBe(6);
   });
 
   test("D2 a quiz with no right answer is refused, in words a teacher can act on", async ({ request }) => {
@@ -210,6 +231,54 @@ test.describe("connector — writing", () => {
     // A refusal is a tool result, not a transport error — otherwise the model
     // reports "the connector is broken" instead of fixing the quiz.
     expect(bad.status).toBe(200);
+  });
+
+  test("D2b every bad question is reported at once, not one per round trip", async ({ request }) => {
+    const bad = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — three bad questions",
+      questions: [
+        { prompt: "x".repeat(400), options: ["A", "B"], correct: 0 },
+        { prompt: "only one answer", options: ["A"], correct: 0 },
+        { prompt: "correct out of range", options: ["A", "B"], correct: 9 },
+      ],
+    });
+    expect(bad.isError).toBe(true);
+    // All three, in one refusal. Reporting only the first cost a caller three
+    // attempts to learn three things it could have been told once.
+    expect(bad.text).toContain("Question 1");
+    expect(bad.text).toContain("Question 2");
+    expect(bad.text).toContain("Question 3");
+  });
+
+  test("D2c the limits are in the schema, not only in the refusal", async ({ request }) => {
+    // A model that learns the prompt cap from a rejection has already composed
+    // the whole payload. The cap has to be visible while it drafts.
+    const { body } = await mcpCall(request, API_TOKEN.schoolA, "tools/list");
+    const tools = (body as { result: { tools: { name: string; inputSchema: Record<string, unknown> }[] } }).result.tools;
+    const create = tools.find((t) => t.name === "create_activity")!;
+    const question = (create.inputSchema as { properties: { questions: { items: { properties: Record<string, { maxLength?: number }> } } } })
+      .properties.questions.items.properties;
+    expect(question.prompt.maxLength).toBe(300);
+    expect((create.inputSchema as { properties: { title: { maxLength?: number } } }).properties.title.maxLength).toBeTruthy();
+  });
+
+  test("D6 an activity can be archived and brought back, and nothing is destroyed", async ({ request }) => {
+    const made = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — archive probe",
+      questions: [{ prompt: "2 + 2?", options: ["3", "4"], correct: 1 }],
+    });
+    const id = (made.data as { id: string }).id;
+
+    await mcpTool(request, API_TOKEN.schoolA, "update_activity", { activity_id: id, archived: true });
+    const hidden = await mcpTool(request, API_TOKEN.schoolA, "list_activities", { search: "archive probe", limit: 100 });
+    expect((hidden.data as { activities: unknown[] }).activities).toHaveLength(0);
+
+    // Archiving is not deleting: it comes back whole, pages and all.
+    await mcpTool(request, API_TOKEN.schoolA, "update_activity", { activity_id: id, archived: false });
+    const back = await mcpTool(request, API_TOKEN.schoolA, "get_activity", { activity_id: id });
+    expect(back.isError).toBe(false);
+    expect((back.data as { pages: number; questionCount: number }).pages).toBe(1);
+    expect((back.data as { questionCount: number }).questionCount).toBe(1);
   });
 
   test("D3 an internal fault never returns its own message", async ({ request }) => {

@@ -207,3 +207,39 @@ test("a child's activity card shows the same picture as the teacher's library ca
     await db.$disconnect();
   }
 });
+
+// Renaming an activity must not delete its worksheet.
+//
+// The regression this guards is data loss, and it was found in the wild: an
+// activity built through the connector came back with six questions and ZERO
+// pages. The cause was not the connector. The editor seeds its hidden
+// `templatePages` field with the pages already saved — `/uploads/<file>` paths —
+// and the canvas is not mounted until the teacher presses "Edit template & quiz".
+// `parsePages` kept `data:image` entries ONLY, so a save that never opened the
+// canvas submitted nothing it would accept, `templatePathsJson` was written NULL,
+// and the worksheet was gone. updateTemplate pushes the same value onto LIVE
+// runs, so it also went from under any class working on it at that moment.
+test("renaming an activity keeps its pages, even without opening the canvas", async ({ page }) => {
+  await teacherLogin(page);
+
+  // "Minibeast hunt" is seeded with two template pages (prisma/seed.ts).
+  await page.goto("/teacher/activities");
+  await page.getByRole("link", { name: /Minibeast hunt/ }).first().click();
+  await page.waitForURL(/\/teacher\/activities\/[a-z0-9]+$/);
+  const activityUrl = page.url();
+
+  const pagesBefore = await page.locator("main img").count();
+  expect(pagesBefore, "the seeded activity has pages to lose").toBeGreaterThan(0);
+
+  // Change ONLY the title, and never open the canvas — the shape of the bug.
+  await page.goto(`${activityUrl}/edit`);
+  await expect(page.locator("canvas")).toHaveCount(0);
+  await page.locator('input[name="title"]').fill("Minibeast hunt (renamed)");
+  await page.getByRole("button", { name: /Save changes/i }).click();
+  await page.waitForURL((url) => !url.pathname.endsWith("/edit"));
+
+  // The pages are still there.
+  await page.goto(activityUrl);
+  await expect(page.getByRole("heading", { name: "Minibeast hunt (renamed)" })).toBeVisible();
+  expect(await page.locator("main img").count(), "the worksheet survived the rename").toBe(pagesBefore);
+});
