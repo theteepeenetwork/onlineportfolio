@@ -30,6 +30,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       tags: body.tags,
       folderId: body.folder_id,
       pages: body.pages,
+      pageContent: body.page_content,
       questions: body.questions,
       archived: body.archived,
     });

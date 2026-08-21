@@ -35,6 +35,7 @@ export async function POST(req: Request) {
       tags: body.tags,
       folderId: body.folder_id,
       pages: body.pages,
+      pageContent: body.page_content,
       questions: body.questions,
     });
     return NextResponse.json({ activity: created }, { status: 201 });

@@ -27,6 +27,11 @@ export type QuizOption = {
   id: string; // stable within its question, e.g. "opt0"
   text?: string; // teacher text; rendered as a React text node (auto-escaped)
   imagePath?: string; // "/uploads/<file>" at rest; a data:image URL only transiently while authoring
+  // What the picture shows, for a child who cannot see it (SAFEGUARDING rule
+  // 18). Optional because every picture answer made before this existed has
+  // none; the API requires it of a caller supplying a new picture, which is the
+  // only moment anybody has the words.
+  imageAlt?: string;
 };
 
 export type QuizQuestion = {
@@ -123,6 +128,8 @@ export function parseQuizPayload(raw: string): QuizPayload {
       const opt: QuizOption = { id: oid };
       if (text) opt.text = text;
       if (image) opt.imagePath = image;
+      const imageAlt = String(os.imageAlt ?? "").trim();
+      if (image && imageAlt) opt.imageAlt = imageAlt.slice(0, MAX_OPTION_TEXT_LEN * 3);
       return opt;
     });
 

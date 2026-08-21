@@ -66,18 +66,31 @@ card is drawn by the canvas, not the server, so an activity Claude has just made
 shows a plain card rather than a preview until the teacher opens it in the editor
 and saves once. Everything else about it works immediately.
 
-**And two things Claude cannot do for them.** If the answers to a question are
-**pictures** rather than words — a photograph of a leaf, four shapes to choose
-between — Claude cannot rewrite that quiz, and will say so. It has no way to
-express "this picture", so rewriting would replace the pictures with the words
-used to stand in for them. Renaming it, retagging it and changing the
-instructions all still work; the questions have to be edited in StoryJar.
+### Pictures and passages
 
-**The other** is that it cannot upload a picture of the worksheet itself. If a teacher wants the actual worksheet as the background —
-their own layout, their own images — they should import the PDF or photo in
-StoryJar first (the ＋ menu in the activity editor), and then ask Claude to add
-the questions to that activity. Otherwise Claude writes the questions onto blank
-pages, which is usually what people want anyway.
+Claude can put pictures on a page — the worksheet itself as a background, an
+extract beside the question that asks about it, or a picture as one of the
+answers. It can also put a **heading and a passage** on a page, which is the
+"read this, then answer these" shape most comprehension worksheets take.
+
+A few things worth knowing, because they shape what to ask for:
+
+- **A page carrying a passage doesn't also carry the questions about it.** The
+  questions go on the next page. A page whose questions have pictures holds two
+  of them, one per row, picture on the left.
+- **Question prompts stay short** — 300 characters. That is deliberate. A body of
+  text a child has to read is a *passage*, and belongs on the page; a prompt is
+  the question asking about it. Claude is told this.
+- **Every picture needs a description.** Claude has to say what the picture shows,
+  for a child using a screen reader. It is writing the question anyway, so it is
+  the only one in a position to write it.
+- **Claude sends the picture, not a link.** StoryJar will not fetch a picture from
+  a web address — see the maintainer's note below for why.
+- **The same picture used several times** should be sent once with `upload_asset`
+  and referenced by the id it gives back.
+
+There are size limits: 2 MB for one picture, 10 MB across one activity. If
+Claude runs into them it will say so in plain words.
 
 ---
 
@@ -108,11 +121,21 @@ pages, which is usually what people want anyway.
 | OAuth for claude.ai (PKCE, rotation, replay defence) | `src/lib/api/oauth.ts` |
 | Question layout — four to a page, 2 × 2 | `src/lib/api/quizLayout.ts` |
 | Blank page images, because page count *is* the page list | `src/lib/api/blankPage.ts` |
+| Taking a picture in, and the size caps | `src/lib/api/media.ts` |
 | The blocking tests | `tests/battery/security/connector-api.spec.ts` |
 
 The REST API under `/api/v1` is the same operations without MCP, and exists so
 the connector is testable without an MCP client. Both surfaces call the same
 functions; there is no second permission model to keep in step.
+
+**On pictures and web addresses.** `src/lib/api/media.ts` accepts bytes and
+refuses `https://` URLs, and that is a decision rather than an omission: fetching
+a caller-supplied URL from inside StoryJar is server-side request forgery — a
+token holder could point it at cloud metadata or at anything else reachable from
+the container but not from the internet. Making it safe needs an https-only rule,
+a private-address blocklist applied *after* DNS resolution, no redirects, a size
+cap and a timeout, all correct. Bytes cost the caller nothing and need none of
+it. If hosted URLs are ever wanted, that is its own piece of work.
 
 **If you add a tool, the checklist is short and it is not optional.** Does it
 query a model other than `ActivityTemplate` or `Folder`? Then it is not a

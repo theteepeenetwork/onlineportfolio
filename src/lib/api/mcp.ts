@@ -9,7 +9,9 @@ import {
   updateActivity,
 } from "./activities";
 import { QUESTIONS_PER_PAGE } from "./quizLayout";
+import { ImageBudget, MAX_IMAGE_BYTES, persistImage } from "./media";
 import { MAX_OPTION_TEXT_LEN, MAX_OPTIONS, MAX_PROMPT_LEN, MIN_OPTIONS } from "@/lib/quiz";
+import { MAX_TEXT_LEN } from "@/lib/canvasObjects";
 import type { ApiTeacher } from "./tokens";
 
 // The Model Context Protocol server: the surface Claude actually talks to.
@@ -43,13 +45,36 @@ Through this connector you can read, create and edit the activities in ONE teach
 Two things to tell the teacher, because they are not obvious:
 
 1. Nothing you make here reaches a child on its own. You are building an activity in the teacher's library; they open it in StoryJar, look at it, and choose whether to set it for a class. Always finish by giving them the link this connector returns.
-2. Questions are placed on the page for you — ${QUESTIONS_PER_PAGE} to a page, in the order you send them. Set "page" on a question only when it genuinely belongs on a particular page.
+2. Questions are placed on the page for you — ${QUESTIONS_PER_PAGE} to a page, in the order you send them. A page carrying a heading or a passage holds half as many, and a page whose questions have pictures holds two. Set "page" on a question only when it genuinely belongs on a particular page.
+3. A question prompt is capped at 300 characters, and that is deliberate. A body of text a child has to read goes in page_content — as a passage, or as a picture of the page — not in the question asking about it.
 
 You cannot see classes, pupils, pupils' work, or anything in the approval queue through this connector, and there is no setting that changes that. If a teacher asks you for any of it, tell them it is in StoryJar itself.`;
 
 // ---------------------------------------------------------------------------
 // Tools
 // ---------------------------------------------------------------------------
+
+// A picture. Either the bytes themselves, or an id from upload_asset when the
+// same picture is wanted in more than one place.
+//
+// `alt` is required, not optional. A caller writing a comprehension question has
+// the words for what the extract shows; a child using a screen reader has
+// nothing without them (SAFEGUARDING rule 18). Requiring it of an agent costs a
+// sentence and is the only moment anyone is in a position to write it.
+const imageSchema = {
+  type: "object",
+  properties: {
+    source: {
+      type: "string",
+      description:
+        "The picture itself, as a data:image URL (PNG, JPEG or WebP) — what you have after cropping or generating one. StoryJar does not fetch pictures from web addresses.",
+    },
+    asset_id: { type: "string", description: "Instead of `source`: an id from upload_asset, to reuse a picture you already sent." },
+    alt: { type: "string", maxLength: 300, description: "What the picture shows, for a child who cannot see it. Required." },
+  },
+  required: ["alt"],
+  additionalProperties: false,
+} as const;
 
 const questionSchema = {
   type: "object",
@@ -61,7 +86,19 @@ const questionSchema = {
     prompt: { type: "string", maxLength: MAX_PROMPT_LEN, description: "The question, in words a child of the right age can read." },
     options: {
       type: "array",
-      items: { type: "string", maxLength: MAX_OPTION_TEXT_LEN },
+      items: {
+        anyOf: [
+          { type: "string", maxLength: MAX_OPTION_TEXT_LEN },
+          {
+            type: "object",
+            properties: {
+              text: { type: "string", maxLength: MAX_OPTION_TEXT_LEN },
+              image: imageSchema,
+            },
+            additionalProperties: false,
+          },
+        ],
+      },
       minItems: MIN_OPTIONS,
       maxItems: MAX_OPTIONS,
       description: "The answers to choose from. Between two and four.",
@@ -69,6 +106,10 @@ const questionSchema = {
     correct: {
       type: "integer",
       description: "Which answer is right, as a position in `options` counting from 0.",
+    },
+    image: {
+      ...imageSchema,
+      description: "Optional. A picture that goes with this question — the extract it asks about. It is placed beside the question box, and a page holding picture questions holds two of them.",
     },
     page: {
       type: "integer",
@@ -85,6 +126,24 @@ const activityFields = {
   instructions: { type: "string", description: "What to do. Read aloud to younger children, so keep it to a sentence or two." },
   tags: { type: "array", items: { type: "string" }, description: "Teacher's own labels, e.g. [\"Maths\", \"Year 2\"]." },
   folder_id: { type: "string", description: "Optional folder to file it in. Get ids from list_folders." },
+  page_content: {
+    type: "array",
+    description:
+      "What each page carries besides its questions — the \"read this, then answer\" half of a worksheet. Entry 1 is page 1. A page with a heading or a passage gives its top half to that text and holds half as many questions.",
+    items: {
+      type: "object",
+      properties: {
+        heading: { type: "string", maxLength: 120, description: "A title across the top of the page." },
+        passage: {
+          type: "string",
+          maxLength: MAX_TEXT_LEN,
+          description: "Text for a child to read on this page. This is where a passage goes — question prompts are capped at 300 characters and are not the place for one.",
+        },
+        image: { ...imageSchema, description: "A picture filling the page — a scanned or cropped worksheet page, for instance." },
+      },
+      additionalProperties: false,
+    },
+  },
   pages: {
     type: "integer",
     description: `Optional. Force a page count. Leave it out and the activity gets exactly as many pages as the questions need (at most ${MAX_PAGES}).`,
@@ -182,6 +241,7 @@ const TOOLS: ToolDef[] = [
           tags: args.tags,
           folderId: args.folder_id,
           pages: args.pages,
+          pageContent: args.page_content,
           questions: args.questions,
         }),
         origin,
@@ -215,11 +275,34 @@ const TOOLS: ToolDef[] = [
         tags: args.tags,
         folderId: args.folder_id,
         pages: args.pages,
+        pageContent: args.page_content,
         questions: args.questions,
         archived: args.archived,
       });
       if (!updated) throw new ActivityInputError("There is no activity with that id in this library.");
       return present(updated, origin);
+    },
+  },
+  {
+    name: "upload_asset",
+    title: "Store a picture once",
+    description:
+      "Store a picture and get back an id you can use on several questions or pages. Use it when the same picture appears more than once — a full worksheet page behind every question, say — so it is sent once instead of once per question. For a picture used in only one place, put it straight on the question or the page instead.",
+    readOnly: false,
+    inputSchema: {
+      type: "object",
+      properties: {
+        source: { type: "string", description: "The picture, as a data:image URL (PNG, JPEG or WebP)." },
+        alt: { type: "string", maxLength: 300, description: "What the picture shows, for a child who cannot see it." },
+      },
+      required: ["source", "alt"],
+      additionalProperties: false,
+    },
+    handler: async (teacher, args) => {
+      // The budget here is per call, because there is nothing to charge it
+      // against yet. The activity-wide cap still applies when the id is used.
+      const stored = await persistImage(args, "The picture", new ImageBudget(MAX_IMAGE_BYTES));
+      return { asset_id: stored.src, alt: stored.alt };
     },
   },
   {
