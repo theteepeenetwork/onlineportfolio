@@ -10,10 +10,12 @@ import {
   type ApiPageContent,
   type ApiQuestion,
   type ReportedOption,
+  QUESTION_FIELDS,
 } from "./quizLayout";
 import { ImageBudget, persistImage } from "./media";
 import { normalizeTemplateObjects, type CanvasObj } from "@/lib/canvasObjects";
 import { ActivityInputError } from "./errors";
+import { asList, asRecord, checkKeys, describe } from "./shapes";
 import type { ApiTeacher } from "./tokens";
 
 // Re-exported so callers need one import for the operations and the refusal.
@@ -46,6 +48,11 @@ export type ActivitySummary = {
   folderName: string | null;
   pages: number;
   questionCount: number;
+  // How many pictures the activity actually ended up holding. Reported on every
+  // write, not just on a read, because it is the cheapest possible answer to
+  // "did my picture arrive?" — the question that cost a teacher a morning when
+  // the only way to find out was to open the canvas and look.
+  pictures: number;
   liveRuns: number;
   createdAt: string;
   // Relative on purpose: only the caller knows the public origin. The MCP layer
@@ -79,6 +86,22 @@ export type ActivityInput = {
 };
 
 
+// Every picture on the activity: the ones placed in the object layer (question
+// extracts, page images) and the ones used as answers. Page backgrounds are not
+// counted — a blank page has one and it is not a picture anybody put there.
+function countPictures(objectsJson: string | null, quizJson: string | null): number {
+  let count = 0;
+  try {
+    const { pages } = normalizeTemplateObjects(objectsJson ? JSON.parse(objectsJson) : null);
+    for (const page of pages) count += page.filter((o) => o.type === "image").length;
+  } catch {
+    // A malformed object layer is not worth failing a read over; it renders as
+    // nothing on the canvas too.
+  }
+  count += quizImagePaths(readQuiz(quizJson)).length;
+  return count;
+}
+
 function summaryOf(row: {
   id: string;
   title: string;
@@ -101,6 +124,7 @@ function summaryOf(row: {
     folderName: row.folder?.name ?? null,
     pages: jsonArray(row.templatePathsJson).length,
     questionCount: readQuiz(row.quizJson).questions.length,
+    pictures: countPictures(row.objectsJson, row.quizJson),
     liveRuns: row._count.assignments,
     createdAt: row.createdAt.toISOString(),
     path: `/teacher/activities/${row.id}`,
@@ -219,18 +243,23 @@ async function readFolderId(teacher: ApiTeacher, value: unknown): Promise<string
 
 // What each page carries besides its questions. Indexed from 0, so entry 0 is
 // page 1. Pictures are stored as they are read, against the call's budget.
+export const PAGE_CONTENT_FIELDS = ["heading", "passage", "image"] as const;
+
 async function readPageContent(value: unknown, budget: ImageBudget): Promise<ApiPageContent[]> {
   if (value == null) return [];
-  if (!Array.isArray(value)) throw new ActivityInputError("`page_content` has to be a list, one entry per page.");
-  if (value.length > MAX_PAGES) throw new ActivityInputError(`An activity can have at most ${MAX_PAGES} pages.`);
+  const list = asList(value, "page_content", "one entry per page, page 1 first");
+  if (list.length > MAX_PAGES) throw new ActivityInputError(`An activity can have at most ${MAX_PAGES} pages.`);
 
   const out: ApiPageContent[] = [];
-  for (const [i, raw] of value.entries()) {
-    const entry = (raw ?? {}) as Record<string, unknown>;
+  for (const [i, raw] of list.entries()) {
     const where = `Page ${i + 1}`;
+    // An empty entry is how a caller says "nothing extra on this page" while
+    // still lining up the pages after it, so {} is allowed — null is not.
+    const entry = raw == null ? {} : asRecord(raw, where);
+    checkKeys(entry, PAGE_CONTENT_FIELDS, where);
     const heading = String(entry.heading ?? "").trim();
-    const passage = checkPassage(entry.passage, `${where}'s passage`);
-    const background = entry.image ? await persistImage(entry.image, `${where}'s picture`, budget) : undefined;
+    const passage = checkPassage(entry.passage, `${where}'s \`passage\``);
+    const background = entry.image ? await persistImage(entry.image, `${where}'s \`image\``, budget) : undefined;
     out.push({
       ...(heading ? { heading } : {}),
       ...(passage ? { passage } : {}),
@@ -244,20 +273,24 @@ async function readPageContent(value: unknown, budget: ImageBudget): Promise<Api
 // before the layout runs, so the layout only ever deals with paths.
 async function readQuestions(value: unknown, budget: ImageBudget): Promise<unknown[]> {
   if (value == null) return [];
-  if (!Array.isArray(value)) throw new ActivityInputError("`questions` has to be a list.");
+  const list = asList(value, "questions", "one entry per question");
   const out: unknown[] = [];
-  for (const [i, raw] of value.entries()) {
-    const q = (raw ?? {}) as Record<string, unknown>;
+  for (const [i, raw] of list.entries()) {
     const where = `Question ${i + 1}`;
-    const image = q.image ? await persistImage(q.image, `${where}'s picture`, budget) : undefined;
-    const rawOptions = Array.isArray(q.options) ? q.options : [];
+    const q = asRecord(raw, where);
+    // Checked here as well as in checkQuestion, because this runs FIRST and
+    // this is the pass that writes files. A question with a misspelt field
+    // should be refused before any of its pictures are on disk.
+    checkKeys(q, QUESTION_FIELDS, where);
+    const image = q.image ? await persistImage(q.image, `${where}'s \`image\``, budget) : undefined;
+    const rawOptions = q.options === undefined ? [] : asList(q.options, `${where}'s \`options\``, "one entry per answer");
     const options: unknown[] = [];
     for (const [oi, o] of rawOptions.entries()) {
       if (o && typeof o === "object" && (o as Record<string, unknown>).image) {
         const opt = o as Record<string, unknown>;
         options.push({
           ...(opt.text ? { text: opt.text } : {}),
-          image: await persistImage(opt.image, `Answer ${oi + 1} of ${where.toLowerCase()}`, budget),
+          image: await persistImage(opt.image, `Answer ${oi + 1} of ${where.toLowerCase()}'s \`image\``, budget),
         });
       } else {
         options.push(o);
@@ -314,7 +347,11 @@ function questionsOf(quizJson: string | null): unknown[] {
 function readPages(value: unknown): number | null {
   if (value == null) return null;
   const pages = Number(value);
-  if (!Number.isInteger(pages) || pages < 1) throw new ActivityInputError("`pages` has to be a whole number of at least 1.");
+  if (!Number.isInteger(pages) || pages < 1) {
+    throw new ActivityInputError(
+      `\`pages\` has to be a whole number of at least 1 — it is how MANY pages, not what is on them. I received ${describe(value)}. To say what a page carries, use \`page_content\`: a list with one entry per page, each {heading?, passage?, image?}.`,
+    );
+  }
   if (pages > MAX_PAGES) throw new ActivityInputError(`An activity can have at most ${MAX_PAGES} pages.`);
   return pages;
 }

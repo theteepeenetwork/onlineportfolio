@@ -2,6 +2,7 @@ import "server-only";
 import { saveImageDataUrl } from "@/lib/media";
 import { MAX_LABEL_LEN } from "@/lib/canvasObjects";
 import { ActivityInputError } from "./errors";
+import { asRecord, checkKeys } from "./shapes";
 
 // Taking a picture from the connector and putting it on a page.
 //
@@ -91,8 +92,14 @@ function readAlt(value: unknown, where: string): string {
 // bytes (`source`, a data:image URL) or an id from upload_asset (`asset_id`, an
 // /uploads path already written by this teacher). An asset id costs nothing
 // against the budget — that is the point of it.
+// The whole of a picture's shape. Read out by name whenever a caller sends
+// something else, because "url" and "src" and "data" are all reasonable guesses
+// and every one of them used to be accepted-then-ignored.
+export const IMAGE_FIELDS = ["source", "asset_id", "alt"] as const;
+
 export async function persistImage(value: unknown, where: string, budget: ImageBudget): Promise<PersistedImage> {
-  const input = (value ?? {}) as Record<string, unknown>;
+  const input = asRecord(value, where);
+  checkKeys(input, IMAGE_FIELDS, where);
 
   const assetId = typeof input.asset_id === "string" ? input.asset_id.trim() : "";
   if (assetId) {
