@@ -537,6 +537,104 @@ test.describe("connector — pictures and page content", () => {
   });
 });
 
+// The morning of 21 Aug 2026, reproduced. A teacher's client was holding a tool
+// list cached from before `page_content` existed, and a client that does not
+// know a parameter does not necessarily pass it through untouched — it had
+// JSON-encoded it. Every call was correct; every call was refused as "has to be
+// a list"; a dozen round-trips went by without either side being able to see
+// why. These are the four things that would each have ended it on the first
+// call, and they are gates because the next stale client is somebody else's.
+test.describe("connector — a caller working from a stale tool list", () => {
+  const smallPng =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+  test("G1 a list that arrived JSON-encoded is understood, not refused", async ({ request }) => {
+    // What the client actually sent down the wire: the right field, the right
+    // structure, wrapped in quotes on the way out. JSON has one meaning and we
+    // asked for it by name, so it is read rather than bounced.
+    const made = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — stringified page_content",
+      page_content: JSON.stringify([{ heading: "A story", passage: "Harry grows carrots and rhubarb." }]),
+      questions: JSON.stringify([{ prompt: "What does Harry grow?", options: ["Carrots", "Apples"], correct: 0 }]),
+    });
+    expect(made.isError, made.text).toBe(false);
+    expect((made.data as { pages: number }).pages).toBe(2);
+  });
+
+  test("G2 a picture sent under the wrong name is refused, never quietly dropped", async ({ request }) => {
+    // `url` is the reasonable guess, and it used to be accepted-then-ignored:
+    // the activity came back looking successful with no picture on it.
+    const bad = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — wrong picture field",
+      questions: [{ prompt: "Which one?", options: ["A", "B"], correct: 0, image: { url: smallPng, alt: "A picture" } }],
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain("`url`");
+    // The refusal carries the shape that would have worked.
+    expect(bad.text).toContain("`source`");
+    expect(bad.text).toContain("`asset_id`");
+  });
+
+  test("G3 a near-miss field name is corrected, not just rejected", async ({ request }) => {
+    const bad = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — near miss",
+      questions: [{ prompt: "Which one?", options: ["A", "B"], correct: 0, picture: { source: smallPng, alt: "A picture" } }],
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain("did you mean `image`");
+  });
+
+  test("G4 an unknown top-level field lists the ones that exist", async ({ request }) => {
+    // This is how a caller whose tool list predates a field finds out the field
+    // is there: the refusal reads out what the server takes TODAY.
+    const bad = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — unknown top-level field",
+      pageContent: [{ passage: "Harry grows carrots." }],
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain("`page_content`");
+    expect(bad.text).toContain("out of date");
+  });
+
+  test("G5 a type refusal says what actually arrived", async ({ request }) => {
+    // The sentence that was missing. "has to be a whole number" describes the
+    // requirement; "I received a list of 3" is the diagnosis.
+    const bad = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — wrong type",
+      pages: [{ passage: "one" }, { passage: "two" }, { passage: "three" }],
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toContain("I received a list of 3");
+    expect(bad.text).toContain("page_content");
+  });
+
+  test("G6 a write reports how many pictures it actually stored", async ({ request }) => {
+    // So a caller can tell a picture arrived without opening the canvas — the
+    // only check available on the morning this all happened.
+    const made = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — picture receipt",
+      page_content: [{ passage: "Harry grows carrots.", image: { source: smallPng, alt: "The worksheet page" } }],
+      questions: [
+        { prompt: "What does Harry grow?", options: ["Carrots", "Apples"], correct: 0, image: { source: smallPng, alt: "An extract" } },
+      ],
+    });
+    expect(made.isError, made.text).toBe(false);
+    // One on the question. The page image is a background, not something placed
+    // on the page, so it is not counted twice.
+    expect((made.data as { pictures: number }).pictures).toBe(1);
+  });
+
+  test("G7 initialize carries the field reference, so a stale tool list is recoverable", async ({ request }) => {
+    // tools/list is what gets cached; initialize is answered fresh every time.
+    // Anything a caller cannot work without has to survive in this string.
+    const { body } = await mcpCall(request, API_TOKEN.schoolA, "initialize", { protocolVersion: "2025-06-18" });
+    const instructions = (body as { result?: { instructions?: string } }).result?.instructions ?? "";
+    for (const needed of ["page_content", "upload_asset", "asset_id", "data:image", "alt", "pages is a NUMBER"]) {
+      expect(instructions, `initialize should mention ${needed}`).toContain(needed);
+    }
+  });
+});
+
 test.describe("connector — OAuth", () => {
   test("E1 discovery documents advertise one way in, not several", async ({ request }) => {
     const meta = await (await request.get("/.well-known/oauth-authorization-server")).json();

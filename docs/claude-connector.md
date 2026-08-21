@@ -92,6 +92,38 @@ A few things worth knowing, because they shape what to ask for:
 There are size limits: 2 MB for one picture, 10 MB across one activity. If
 Claude runs into them it will say so in plain words.
 
+### If Claude says a field doesn't exist
+
+The connector's tool list — the description of what Claude can send — is fetched
+once and then **cached by Claude's end**, sometimes for a long time. So after
+StoryJar gains a new ability, a conversation that connected before it shipped
+carries on as though it never happened. That is not a StoryJar fault and there is
+nothing to fix on this side; it also isn't obvious from inside the conversation,
+which is what makes it worth writing down.
+
+**The signs.** Claude reports that a tool or a field isn't available when this
+document says it is; or a call is refused with something that cannot be true —
+a list Claude certainly sent described as text. (A client that doesn't recognise
+a field may send it JSON-encoded, so the structure arrives wrapped in quotes.)
+
+**The fix**, and it takes a moment: remove the StoryJar connector and add it
+again. Everything reconnects; nothing in the library is affected.
+
+The connector is built to make this diagnosable rather than mysterious:
+
+- **A field it doesn't recognise is refused, not ignored**, and the refusal lists
+  the fields that do exist — so the current shape is discoverable from the error
+  itself. Nothing is saved when this happens.
+- **A type refusal says what actually arrived** ("I received a string starting…"),
+  which is what separates a wrong field name from a mangled one.
+- **A list that arrived JSON-encoded is understood anyway**, so in most cases a
+  stale tool list degrades to working rather than to failing.
+- **Every write reports what it stored** — pages, questions and *pictures*. If the
+  picture count doesn't match what was sent, Claude is told to say so rather than
+  report success.
+- **The connection message carries the whole field reference**, and it is sent
+  fresh every time, so it is right even when the cached tool list isn't.
+
 ---
 
 ## If a school asks

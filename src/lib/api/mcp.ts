@@ -38,6 +38,15 @@ const SERVER_INFO = { name: "storyjar", title: "StoryJar", version: "1.0.0" };
 
 // Shown to the model once, at connection. This is the only place to say the
 // things that are true about the whole connector rather than about one tool.
+//
+// IT ALSO CARRIES A FULL FIELD REFERENCE, which looks like duplication of the
+// schemas below and is not. `initialize` is answered fresh on every connection;
+// `tools/list` is commonly cached by the client, sometimes for weeks. On
+// 21 Aug 2026 a teacher spent a morning against a tool list cached from before
+// `page_content`, `image` and `upload_asset` existed — the server had them, the
+// client did not, and there was no way to find that out from inside the
+// conversation. Anything a caller cannot do their job without is therefore said
+// HERE as well, in prose the model reads whatever its cached schemas say.
 const INSTRUCTIONS = `StoryJar holds the activities a primary-school teacher sets for their class.
 
 Through this connector you can read, create and edit the activities in ONE teacher's own library. A common job is turning a worksheet the teacher shows you into a multi-page quiz: read the worksheet, write the questions, and call create_activity.
@@ -45,10 +54,35 @@ Through this connector you can read, create and edit the activities in ONE teach
 Two things to tell the teacher, because they are not obvious:
 
 1. Nothing you make here reaches a child on its own. You are building an activity in the teacher's library; they open it in StoryJar, look at it, and choose whether to set it for a class. Always finish by giving them the link this connector returns.
-2. Questions are placed on the page for you — ${QUESTIONS_PER_PAGE} to a page, in the order you send them. A page carrying a heading or a passage holds half as many, and a page whose questions have pictures holds two. Set "page" on a question only when it genuinely belongs on a particular page.
-3. A question prompt is capped at 300 characters, and that is deliberate. A body of text a child has to read goes in page_content — as a passage, or as a picture of the page — not in the question asking about it.
+2. You cannot see classes, pupils, pupils' work, or anything in the approval queue through this connector, and there is no setting that changes that. If a teacher asks you for any of it, tell them it is in StoryJar itself.
 
-You cannot see classes, pupils, pupils' work, or anything in the approval queue through this connector, and there is no setting that changes that. If a teacher asks you for any of it, tell them it is in StoryJar itself.`;
+TOOLS: list_activities, get_activity, create_activity, update_activity, upload_asset, list_folders. If your tool list is missing any of those, it is out of date — ask the teacher to remove and re-add the StoryJar connector, because no payload you write will work until it is refreshed.
+
+FIELDS, in full, because a cached tool list may not show them:
+
+create_activity / update_activity take title, instructions, tags, folder_id, pages, page_content, questions (and update_activity also takes activity_id and archived).
+
+- pages is a NUMBER: how many pages the activity has. It never describes what is on them.
+- page_content is a LIST, one entry per page, page 1 first. Each entry is {heading?, passage?, image?}. This is where a body of text goes: a passage a child reads before answering, up to ${MAX_TEXT_LEN} characters, laid out and sized to fit the page for you. An entry may be empty ({}) to leave a page as it is.
+- questions is a LIST of {prompt, options, correct, page?, image?}.
+  - prompt: the question, at most ${MAX_PROMPT_LEN} characters. This cap is deliberate. A passage a child has to read belongs in page_content, not in the question asking about it.
+  - options: ${MIN_OPTIONS} to ${MAX_OPTIONS} answers. Each is either a plain string (at most ${MAX_OPTION_TEXT_LEN} characters) or {text?, image?} for a picture answer.
+  - correct: which option is right, counting from 0.
+  - page: 1-based, and only when the question genuinely belongs on a particular page.
+  - image: a picture that belongs WITH the question — the extract it asks about. It is placed beside the question, never behind it.
+- instructions is one or two sentences, at most 500 characters. It is read aloud to younger children and shown under the title. It is not a place for a passage; use page_content.
+
+A PICTURE, anywhere one is accepted, is an object: {source, alt} or {asset_id, alt}.
+- source is the picture itself as a data:image URL — data:image/png;base64,... — PNG, JPEG or WebP. StoryJar does not fetch pictures from web addresses, so an https URL is refused, not downloaded. If you have just cropped a page out of a PDF you already have the bytes, which is the case this is built for.
+- asset_id is an id from upload_asset, for the same picture used in several places.
+- alt says what the picture shows, for a child who cannot see it. Required whenever you send source.
+- At most ${(MAX_IMAGE_BYTES / (1024 * 1024)).toFixed(0)} MB per picture and 10 MB per activity.
+
+PAGE LAYOUT is done for you, and it decides how many pages you get: ${QUESTIONS_PER_PAGE} plain questions to a page; half that on a page carrying a heading or a passage; two on a page whose questions have pictures. Send the questions in the order a child should meet them and let them fall.
+
+WHAT COMES BACK from a write tells you what was actually stored — pages, questionCount and pictures. Check pictures against the number you sent: if they do not match, say so rather than telling the teacher it worked.
+
+NOTHING IS IGNORED. A field this connector does not know is refused, with the fields it does know listed in the refusal, and nothing is saved. A type error tells you what actually arrived. So if a call is refused with something that looks impossible — a list you certainly sent reported as a string — the tool list your client is working from is stale, and re-adding the connector is the fix.`;
 
 // ---------------------------------------------------------------------------
 // Tools
@@ -360,6 +394,24 @@ function toolFailure(id: string | number | null, message: string) {
   return rpcResult(id, { content: [{ type: "text", text: message }], isError: true });
 }
 
+// Refuse an argument no tool declares, and say what it does declare.
+//
+// `additionalProperties: false` in the schema is a promise to a client that
+// validates; it is not enforcement. A caller who sends `picture` instead of
+// `image` used to have it quietly dropped and be told the activity was made —
+// which is exactly how a teacher lost a morning to seven pictures that were
+// never stored and never refused. Nothing is ignored here any more.
+function checkArgs(tool: ToolDef, args: Record<string, unknown>): void {
+  const declared = Object.keys((tool.inputSchema.properties ?? {}) as Record<string, unknown>);
+  const unknown = Object.keys(args).filter((k) => !declared.includes(k));
+  if (!unknown.length) return;
+  throw new ActivityInputError(
+    `${tool.name} doesn't have ${unknown.length === 1 ? "a field" : "fields"} called ${unknown.map((k) => `\`${k}\``).join(", ")}. ` +
+      `It takes ${declared.map((k) => `\`${k}\``).join(", ")}. Nothing was saved. ` +
+      `If a field you expected is missing from that list, your copy of the tool list is out of date — remove and re-add the StoryJar connector.`,
+  );
+}
+
 export type McpOutcome = { status: number; body?: unknown };
 
 // Handle one JSON-RPC message. Returns the response to send, or no body at all
@@ -415,9 +467,20 @@ export async function handleMcpMessage(message: unknown, teacher: ApiTeacher, or
     case "tools/call": {
       const name = String(req.params?.name ?? "");
       const tool = TOOLS.find((t) => t.name === name);
-      if (!tool) return { status: 200, body: rpcError(id, INVALID_PARAMS, `There is no tool called "${name}".`) };
+      if (!tool) {
+        return {
+          status: 200,
+          body: rpcError(
+            id,
+            INVALID_PARAMS,
+            `There is no tool called "${name}". This server has ${TOOLS.map((t) => t.name).join(", ")}. ` +
+              `If one of those is missing from your tool list, your copy of it is out of date — remove and re-add the StoryJar connector.`,
+          ),
+        };
+      }
       const args = (req.params?.arguments ?? {}) as Record<string, unknown>;
       try {
+        checkArgs(tool, args);
         const result = await tool.handler(teacher, args, origin);
         return {
           status: 200,

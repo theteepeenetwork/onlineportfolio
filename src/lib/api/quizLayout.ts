@@ -24,6 +24,7 @@ import {
 } from "@/lib/quiz";
 import { MAX_TEXT_LEN, type CanvasObj } from "@/lib/canvasObjects";
 import { ActivityInputError } from "./errors";
+import { asList, asRecord, checkKeys, describe } from "./shapes";
 
 // An image that has already been stored — see src/lib/api/media.ts. By the time
 // anything reaches this module the bytes are on disk and this is just a path.
@@ -331,9 +332,16 @@ function pictureSlot(n: number, rows: number[]): { x: number; y: number; w: numb
 
 type Checked = { prompt: string; options: ApiOption[]; correct: number; page?: number; image?: ResolvedImage };
 
+// Everything a question may carry. Named here rather than inline because it is
+// also what an unknown-field refusal reads out to the caller — so a caller
+// working from a stale tool list learns the real shape from the error.
+export const QUESTION_FIELDS = ["prompt", "options", "correct", "page", "image"] as const;
+export const OPTION_FIELDS = ["text", "image"] as const;
+
 function checkQuestion(value: unknown, i: number): Checked {
   const at = `Question ${i + 1}`;
-  const src = (value ?? {}) as Record<string, unknown>;
+  const src = asRecord(value, at);
+  checkKeys(src, QUESTION_FIELDS, at);
 
   const prompt = String(src.prompt ?? "").trim();
   if (!prompt) throw new ActivityInputError(`${at} needs a question to ask.`);
@@ -346,7 +354,7 @@ function checkQuestion(value: unknown, i: number): Checked {
     );
   }
 
-  const rawOptions = Array.isArray(src.options) ? src.options : [];
+  const rawOptions = src.options === undefined ? [] : asList(src.options, `${at}'s \`options\``, "one entry per answer");
   if (rawOptions.length < MIN_OPTIONS || rawOptions.length > MAX_OPTIONS) {
     throw new ActivityInputError(`${at} needs between ${MIN_OPTIONS} and ${MAX_OPTIONS} answers to choose from.`);
   }
@@ -361,7 +369,8 @@ function checkQuestion(value: unknown, i: number): Checked {
       }
       return { text };
     }
-    const obj = (o ?? {}) as Record<string, unknown>;
+    const obj = asRecord(o, `Answer ${oi + 1} of ${at.toLowerCase()}`);
+    checkKeys(obj, OPTION_FIELDS, `Answer ${oi + 1} of ${at.toLowerCase()}`);
     const text = String(obj.text ?? "").trim();
     if (text.length > MAX_OPTION_TEXT_LEN) {
       throw new ActivityInputError(`${at} has an answer that is too long (at most ${MAX_OPTION_TEXT_LEN} characters).`);
@@ -387,7 +396,7 @@ function checkQuestion(value: unknown, i: number): Checked {
 
   const page = src.page == null ? undefined : Number(src.page);
   if (page !== undefined && (!Number.isInteger(page) || page < 1)) {
-    throw new ActivityInputError(`${at} has a page number of "${String(src.page)}". Pages are counted from 1.`);
+    throw new ActivityInputError(`${at} needs \`page\` to be a whole number counting from 1. I received ${describe(src.page)}.`);
   }
 
   return { prompt, options, correct, page, image: src.image as ResolvedImage | undefined };
