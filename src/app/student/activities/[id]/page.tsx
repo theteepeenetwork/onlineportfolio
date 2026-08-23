@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { jsonArray } from "@/lib/activities";
@@ -26,7 +26,11 @@ export default async function RespondToActivity({
       ],
     },
   });
-  if (!assignment) notFound();
+  // A bad id, a stale link, or a run that has ended: notFound() would unwind
+  // the async component before Next.js closes a performance.measure, crashing
+  // with "cannot have a negative time stamp". Redirect to activities instead —
+  // a place the child knows, with the same logic the /student/new tombstone uses.
+  if (!assignment) redirect("/student/activities");
 
   // This child's response to the run, if any. A RETURNED item means the teacher
   // asked for another go, so the child may reopen and re-submit (createJournalItem

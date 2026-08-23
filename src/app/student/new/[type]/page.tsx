@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { StudentCapture, StudentDrawCapture } from "./StudentCapture";
 
@@ -23,7 +23,12 @@ export default async function StudentCapturePage({
   if (user?.role !== "STUDENT") redirect("/");
 
   const { type } = await params;
-  if (!(type in SURFACES)) notFound();
+  // An unrecognised type (e.g. /student/new/nonsense) used to call notFound(),
+  // which unwinds the async component before Next.js closes a performance.measure
+  // — causing a TypeError crash. A redirect to the jar is quieter and puts the
+  // child back somewhere they know, which is the same logic the /student/new
+  // tombstone uses (see ../page.tsx:22).
+  if (!(type in SURFACES)) redirect("/student");
 
   const kind = SURFACES[type as Surface];
   return kind === "DRAWING" ? <StudentDrawCapture /> : <StudentCapture type={kind} mode={user.student.ageMode} />;
