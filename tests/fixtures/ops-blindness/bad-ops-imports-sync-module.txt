@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// The near miss the PR5 @/lib/mailHmac widening invites. @/lib/mailHmac is on
+// the allowlist because it is a pure HMAC helper with no Prisma access.
+// @/lib/mailSuppressionSync is NOT, and must never be: it holds
+// db.mailSuppression.upsert(), and permitting it here would be the
+// OPS-MUTATION-MODULE bypass in an import list.
+import { runMailSuppressionSync } from "@/lib/mailSuppressionSync";
+
+export async function syncNow(db: unknown) {
+  return runMailSuppressionSync(db as never, () => null);
+}

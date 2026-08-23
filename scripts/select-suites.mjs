@@ -51,6 +51,10 @@ const OPS_SHARED_MODULES = [
   "@/lib/stripeMode",
   "@/lib/familyCodeMint",
   "@/lib/mailStatus",
+  // Added alongside the PR5 widening in check-ops-blindness.mjs: the HMAC
+  // helper moved out of @/lib/ops/ so the in-app scheduler can call it
+  // without entering the ops import scan.
+  "@/lib/mailHmac",
 ];
 
 function opsAllowlistMatchesTheGate() {

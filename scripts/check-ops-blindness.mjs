@@ -888,6 +888,33 @@ const ALLOWED_LOCAL_IMPORTS = [
   // bad-ops-imports-mail-counters.txt, which prove the two halves that must
   // stay out reachable are still refused.
   "@/lib/mailStatus",
+  // WIDENING (PR5, ruling R2: a widening lands in the same commit as the code
+  // it permits, with a comment naming the rule and a fixture proving the true
+  // positive still fires). The fifth entry is @/lib/mailHmac.
+  //
+  // Why it is needed. reads.ts imports mailAddressHmac() to look up a
+  // suppressed address by its HMAC label, and mailHmacConfigured() to decide
+  // whether the feature is active. The function was originally at
+  // src/lib/ops/mailHmac.ts. It was moved to src/lib/mailHmac for the same
+  // reason mailStatus was moved: instrumentation.ts (the in-app scheduler, PR5
+  // F31) needs mailAddressHmac to HMAC each address before writing, and a
+  // non-ops file that imports from @/lib/ops/ is walked and scanned as ops
+  // code — which then flags its mailSuppression.upsert() as OPS-MUTATION-MODULE.
+  // src/lib/ops/mailHmac.ts is now a re-export wrapper so reads.ts keeps working.
+  //
+  // Why this module rather than @/lib/ops/mailHmac. The wrapper in ops is still
+  // under the ops roots and therefore always permitted by ALLOWED_LOCAL_PREFIXES;
+  // this entry covers the re-export's own import of @/lib/mailHmac.
+  //
+  // What this widening does NOT do: it does not permit the sync module itself
+  // (@/lib/mailSuppressionSync) — that holds db.mailSuppression.upsert(), and
+  // permitting it here would be the OPS-MUTATION-MODULE bypass in an import
+  // list. The near miss is proved by bad-ops-imports-sync-module.txt.
+  //
+  // The true positive still fires, proved by bad-ops-imports-sync-module.txt
+  // (an ops file importing @/lib/mailSuppressionSync, the near miss this
+  // widening invites), and the clean shape by good-ops-mail-hmac-import.txt.
+  "@/lib/mailHmac",
 ];
 const ALLOWED_LOCAL_PREFIXES = ["@/lib/ops/"];
 
