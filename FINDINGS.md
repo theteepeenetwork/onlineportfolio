@@ -91,6 +91,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | **F37** | **High** | A11y (child-facing) | The blocking 64px child touch-target gate covered neither **canvas** — `/student/new/drawing` or an activity response — nor the **EYFS jar**, a different shell for the youngest children in the product. Every tool on them was under the floor: pens 58 wide, undo/redo/clear/close at 44×44, Done and ＋ at 56×56, the Text tool at 48×48, page tiles at 57, and the colour slider **24px wide**. The quiz answers a pre-reader taps measured 57 because the canvas sized them in MODEL units and scaled them down — a floor in the wrong coordinate space is not a floor. Same shape as F18: a gate reading as "child touch targets are covered" while the busiest child screens sat outside its list of URLs | **Fixed** | `a11y/child-touch-targets.spec.ts` (both canvases and the EYFS jar now in the blocking gate) |
 | **F38** | **Medium** | Feedback loop / child-facing | A teacher sent work back with a note — the queue asks for one and gives an example — and the child was never shown it. `/student` rendered a returned moment with a fixed status line ("Have another go") and nothing else; `teacherNote` was rendered by one component, on the teacher's own view. The child was told something came back and left to guess which part | **Fixed** | `e2e/journal.spec.ts` ("the teacher's note reaches the child…") |
 | **F39** | **High** | Data minimisation / SAFEGUARDING rule 2 | The sign-up wizard stored children's **surnames**. Step 4 wrote `raw.trim()` straight to `Student.name`; the roster's own paste path ran the identical input through `deriveChildNames`, which keeps first names only. The full names were then the buttons on the class sign-in screen, reached with a code written on the board | **Fixed** | `e2e/auth.spec.ts` ("a register pasted at sign-up is stored as first names only") |
+| **F43** | **High** | Third-party calls / test isolation | An in-app scheduler gated on **credentials rather than environment**, so it called the live Mailjet account and wrote production personal data into a test database. `.env` holds the real Mailjet keys on every machine in the project, so "do I have credentials" was true everywhere, including the battery's three dev servers. **It would have done the same in CI** | **Fixed** | `security/ops-mail.spec.ts` ("the in-app scheduler refuses to schedule outside a production build") |
 
 ---
 
@@ -1057,6 +1058,14 @@ Scheduling it is blocked on an unresolved Railway question from brief 05: a cron
 service starts the service's start command in a new instance, and Railway will
 not mount one volume twice. So the choice between an in-app scheduler and a cron
 service calling an authenticated endpoint has to be made before this can close.
+
+**Update, 2026-08-23.** The choice was made — an in-app scheduler, because the
+volume is mounted to the web service only — and it is built
+(`src/instrumentation-node.ts`). Its first version gated on credentials rather
+than environment and called the live Mailjet account from the test suite; see
+**F43**, which is the more important entry of the two. **F31 stays open** until
+`MAIL_SUPPRESSION_SYNC=1` is set on the Railway web service: the scheduler now
+refuses to run anywhere that variable is absent, which is currently everywhere.
 ## F32 · The operator loses the whole nav in forced colours · Medium → Open
 
 Found by PR6's accessibility spec, which is why its forced-colours scan is
@@ -1555,3 +1564,110 @@ text the same way the screen does** — about a centre measured from the same fo
 at the same size, because a text box has no stored width or height; its size is
 its words. Without that mirror a child would turn their label on screen and find
 it straight in their hand-in.
+
+## F43 · A scheduler asked "have I got the keys?" when it meant "am I allowed?" · High → Fixed
+
+Found on 2026-08-22 by a red gate, and only because the fixture it corrupted was
+built to be corrupted noticeably. `security/ops-mail.spec.ts` asserts that an
+adult record reads **"Mailjet is not refusing this address"** for
+`demo-parent@storyjar.co.uk`, whose whole job in `prisma/seed-test.ts` is to be
+the clear half of a pair — the seed says so in a comment, "deliberately NOT here,
+so the two adult records read differently and neither sentence can be the
+component's only output". It read "Bounced" instead. The address really is
+bouncing, in the real world, on the real Mailjet account.
+
+**What happened.** F31's fix — an in-app scheduler, `registerNode()` in
+`src/instrumentation-node.ts` — scheduled unconditionally, five seconds after
+every server start. `runMailSuppressionSync` then checked three things:
+`MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAIL_HMAC_KEY`. All three were
+present in the battery. The first two come from `.env`, which holds the real
+production Mailjet credentials because the mailer needs them locally and because
+`railway run` is the documented way to run the sync by hand. The third is set by
+`playwright.battery.config.ts` on purpose, so that PR5's suppression behaviour
+exists to be tested at all.
+
+So every battery lane — three dev servers, three times a run — issued a `GET` to
+`api.mailjet.com/v3/REST/message` for the production account's last 30 days and
+upserted what came back into its own `dev-shard-N.db`. Other people's bounced
+mail, HMAC-keyed but real, written into a test database by a test run.
+
+**The class of mistake, which is the part worth keeping.** The check read like a
+guard and was not one. *Credentials answer "could this call be made?" They say
+nothing about "should this process, on this machine, right now, be the one
+making it."* Every machine in this project holds the production mail keys: the
+developer's laptop, the test runner, any script anybody writes. Gating on their
+presence gates on nothing. The question a scheduler has to answer is about its
+**environment**, not its capabilities, and the two look identical right up until
+a test suite starts phoning a third party.
+
+**It would have done the same in CI.** `.github/workflows/battery.yml` runs the
+same lanes; whether it called out depended only on whether the runner had the
+Mailjet secrets in scope. Nothing in the code would have stopped it, and nothing
+in the output would have said it happened — the sync logs an outcome and a
+count, never a destination. This was found by a fixture assertion, not by a
+network alarm, and there was no network alarm to find it.
+
+**Fixed on 2026-08-23. The guard is on the scheduler, not on the sync**, and
+that division is deliberate: `scripts/mail-suppression-sync.ts` is a person
+typing a command, and the typing *is* the consent. A guard inside
+`runMailSuppressionSync` would have refused the one caller that never needed
+permission. `registerNode()` now returns early, with its own log line for each,
+unless both hold:
+
+- `NODE_ENV === "production"` — the condition that protects the battery, because
+  the lanes run `next dev` and so can never reach the call however the rest of
+  the environment is set;
+- `MAIL_SUPPRESSION_SYNC === "1"` — an operator kill switch that stops a
+  misbehaving sync by unsetting a Railway variable rather than by shipping a
+  deploy. Exactly `"1"`, the `OPS_ENABLED` convention, because a switch with
+  several spellings gets turned on by accident with `=false`.
+
+Both paths log `not scheduled: …`. A scheduler that declines in silence is
+indistinguishable from one that is broken, and the next person wondering why the
+suppression figures are stale needs something to read.
+
+**Deployment note:** `MAIL_SUPPRESSION_SYNC=1` has to be set on the Railway web
+service or F31 is still open in production — the scheduler is now correctly
+refusing to run everywhere. It belongs in the same variable change as
+`OPS_ENABLED=1` and `MAIL_HMAC_KEY`, so it is one deploy rather than three.
+
+**Repro** (on the code before the fix):
+
+1. Confirm the credentials are inherited, which is the whole premise:
+   `node -e 'require("dotenv").config(); console.log(!!process.env.MAILJET_API_KEY)'`
+   → `true`. There is no test-only value here; these are the production keys.
+2. Start any battery lane: `npm run test:changed -- --all`, or just
+   `MAIL_HMAC_KEY=battery-fixture-mail-hmac-key npm run dev`.
+3. Wait five seconds past server start.
+4. Watch the outbound call — `[mail-suppression-scheduler] SUCCESS: N suppressed
+   address(es)` in the dev-server output, with `N` non-zero.
+5. Count the damage: `MailSuppression` now holds rows whose `addressHmac` matches
+   no seeded fixture. The two the seed writes are
+   `HMAC(demo-parent-oakfield@storyjar.co.uk)` and
+   `HMAC(someone-who-left@storyjar.test)` under
+   `battery-fixture-mail-hmac-key`; anything else arrived from Mailjet.
+6. The visible symptom: `npx playwright test -c playwright.battery.config.ts
+   --project=security tests/battery/security/ops-mail.spec.ts` fails at "an adult
+   record says whether Mailjet is refusing that address", reading "Bounced" for
+   an address the seed left clear.
+
+After the fix, step 4 prints `not scheduled: not a production build` and steps 5
+and 6 find nothing to report.
+
+**Blast radius, checked rather than assumed.** The pollution reached only the
+per-lane `prisma/dev-shard-*.db` files, which `scripts/run-suites.mjs` deletes
+between runs and which are gitignored. `prisma/dev.db` was verified clean — both
+its suppression rows hash to seeded fixtures, and it holds zero
+`MAIL_SUPPRESSION_SYNC` job runs, because a plain `npm run dev` has no
+`MAIL_HMAC_KEY` and so never got past the third check. Nothing was committed:
+no `.db` file is tracked, and the only one ever committed (a bare `dev.db` at the
+repo root, `055c154`, deleted in `aca6aa8`) contains schema and no rows.
+
+**The root cause underneath, which this fix does not close.** Local `.env` holds
+live Mailjet credentials, so any code running on a developer's machine can reach
+the production mail account by accident. The guard fixes this instance, not the
+class. `railway run` injects production variables without them touching disk and
+is already how the docs say to run the sync, so the stronger fix is to take
+`MAILJET_API_KEY` and `MAILJET_SECRET_KEY` out of local `.env` entirely. Worth
+doing once launch week is over. **Until it is, the same shape of mistake is one
+unguarded outbound call away, in any code path, not just this one.**
