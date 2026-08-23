@@ -15,8 +15,11 @@ resolved. Data-protection failures are treated as critical/high per the brief
 fix is covered by a test that now passes.
 
 **F20 to F22 were opened on 16 August 2026** by the SRE work (OPS-0a, 0c and
-0d). F20 is not fixable by an agent: it is owner decision D2, and it is the most
-serious entry in this file.
+0d). F20 was the most serious entry in this file and was not fixable by an
+agent, because it was owner decision D2. **D2 was answered and executed by the
+owner on 17 August 2026** and the backups exist; F20's entry below records what
+that leaves. It is written as a proposal because closing a Critical finding is
+the owner's call, not an agent's.
 
 **F23 and F24 were opened on 16 August 2026** by the QA half of PR0, doing to
 the new ops blindness gate what handbook ruling R3 exists to make someone do:
@@ -71,34 +74,96 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F16 | High | Rate-limit / Enumeration | Class-code lookup is unthrottled, and a hit discloses the class name + every pupil's first name | **Fixed** | `security/classcode-throttle.spec.ts` (+ `findings/classcode-throttle-grind.spec.ts`) |
 | **F19** | **Critical** | **AuthN** | `requestMagicLink` returned the parent's single-use sign-in URL to the browser, rendered as "Open it now →", with no environment guard — so typing any parent's email into the PUBLIC family form handed over a working session for that family | **Fixed** | `security/f19-magic-link-never-on-screen.spec.ts` |
 | F17 | Medium | AuthZ / robustness | `/uploads` authorised **path-first**: it decided on the first journal item matching a media path and never fell through to the draft/template branches, so two records sharing a path mis-authorised each other. Now scopes ownership into each branch and grants if any (Option A); the fixture no longer shares a path (Option C). | **Fixed** | `security/uploads-path-collision.spec.ts` |
-| **F20** | **Critical** | **Availability / Claims** | There are no backups of the volume holding every child's photograph, drawing and voice note, and three documents schools read say there are | **Open, blocked on owner decision D2** | none possible; options in `docs/ops-backup-options.md` |
+| **F20** | **Critical** | **Availability / Claims** | The volume holding every child's photograph, drawing and voice note had no backups, and three documents schools read said it did. **Answered and executed by the owner on 17 August 2026** (`docs/ops-architecture.md:41`): Railway on Pro, daily and weekly volume backups on, RPO nightly. Two residuals remain and are tracked elsewhere — **a restore has never been rehearsed** (handbook R12, still blocks PR8) and **backup residency is unconfirmed** (F35) | **Original ground resolved. Status is a proposal for the owner, not an agent's decision** — see the entry | none possible; the rehearsal is an owner action |
 | F21 | Medium | Schema / deploy | Production applies schema changes with `prisma migrate deploy`; local setup and CI still use `prisma db push`, so a schema edit made the usual way ships without a migration | **Mitigated, not closed** | `security/migrations-match-schema.spec.ts` |
-| F22 | Low | Log hygiene | The stdout static check scans `src/` only; scripts run against production with `railway run` are audited by hand | **Accepted** | `security/log-hygiene.spec.ts` (scope stated in its header) |
+| F22 | Low | Log hygiene | The stdout static check scans `src/` only; scripts run by hand against production are audited by hand too | **Accepted** | `security/log-hygiene.spec.ts` (scope stated in its header) |
 | F23 | High | Ops blindness gate | Twenty-nine of forty-two attempted evasions got past the gate as first written, including three that handed over password hashes and family codes through a *permitted* call on a *permitted* model | **Fixed** (28 closed, 1 accepted in F24) | `security/ops-blindness-gate.spec.ts` + the 69-file corpus behind `--self-test` |
 | F24 | Info | Ops blindness gate | What the gate still cannot see: runtime-assembled identifiers, and `scripts/ops/` being deliberately out of scope | **Accepted** | scope stated in the gate header and in A15 |
-| F25 | Low | Ops surface | With ops enabled, an unauthorised `/ops` 404 is about 1,700 bytes smaller than a genuine one, so the route's existence is inferable by size. Accepted: the body names nothing and the sign-in door is openly reachable anyway. | Accepted |
+| F25 | Low | Ops surface | With ops enabled, an unauthorised `/ops` 404 is about 1,700 bytes smaller than a genuine one, so the route's existence is inferable by size. Accepted: the body names nothing and the sign-in door is openly reachable anyway. | Accepted | none, and none wanted. The size difference is Accepted; the assertion that actually matters — `/ops` answers 404 to the unauthorised — is covered by `security/ops-auth.spec.ts` |
 | F26 | Medium | Erasure | Deleting a `Teacher` row cascades their classes, pupils, moments, drafts and templates and erases **no** media files. Latent today (only never-activated staff are ever deleted), but it is the exact shape PR8's account deletion will reach for | **Open, logged not fixed** | none yet; must be written with the fix |
 | F27 | Medium | Erasure / Claims | Teacher-authored **template** media (`templatePathsJson`, `quizJson` option pictures, `objectsJson` image srcs) has no erasure path at all: templates are only archived, never deleted. `RETENTION.md` says this media is "deleted with the template/account". `duplicateTemplate` also copies the path strings, so two templates share files on disk | **Open, logged not fixed** | none yet; must be written with the fix |
 | F28 | Medium | Availability / build | The app fetched its two webfonts from Google at build and dev-server startup via `next/font/google`. A 404 or outage from `fonts.gstatic.com` failed the build, which took out a CI job on 2026-08-17 and would equally fail a production deploy. **Fixed 2026-08-19:** both typefaces are vendored in `src/app/fonts` with their OFL licence texts, loaded via `next/font/local`, and `scripts/check-font-independence.mjs` (in `npm run check`) fails the build if anything imports `next/font/google` again. | **Fixed** | `scripts/check-font-independence.mjs` |
-| F29 | Low | Test timing | The template restore prompt waits on an IndexedDB purge, an IndexedDB read and a Server Action round trip before it can render. On a cold CI runner that exceeded the 10 second default assertion budget twice in one day while passing locally every time. The assertion now names the precondition and allows 30 seconds. | **Withdrawn: wrong diagnosis, superseded by F34 and F36** |
-| F30 | Medium | Mail | Mail health is readable at /ops/mail and nothing announces a problem. No alert channel exists, and a MailCounter row is a UTC day so the finest window the data supports is a day, not the hour brief 05 asks for. | Open |
-| F31 | Medium | Mail | The suppression sync has no schedule. Until it is scheduled, MailSuppression is a snapshot of whenever somebody last ran it by hand, and a parent who started bouncing this morning reads as not refused. | Open |
-| F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanishes: the header paints background and text as inline colours, so a high-contrast operator loses all four nav links and the sign-out button on the one account that runs the service. Nothing in src/ handles forced-colors. | Open |
-| F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
+| F29 | Low | Test timing | The template restore prompt waits on an IndexedDB purge, an IndexedDB read and a Server Action round trip before it can render. On a cold CI runner that exceeded the 10 second default assertion budget twice in one day while passing locally every time. The assertion now names the precondition and allows 30 seconds. | **Withdrawn: wrong diagnosis, superseded by F34 and F36** | none — withdrawn. The real fault was F34's unbounded cross-device lookup (`e2e/drafts.spec.ts`) and the flake was F36's hydration race (`e2e/helpers.ts` `clickHydrated`). Both are covered there, which is why nothing is needed here |
+| F30 | Medium | Mail | Mail health is readable at /ops/mail and nothing announces a problem. No alert channel exists, and a MailCounter row is a UTC day so the finest window the data supports is a day, not the hour brief 05 asks for. | Open | **partial.** `security/ops-mail.spec.ts` covers what the screen says, including that the verdict is a daily figure. **The alerting half has no test because there is no alert:** D13 took the default, so there is no channel to assert against |
+| F31 | Medium | Mail | The suppression sync has no schedule. Until it is scheduled, MailSuppression is a snapshot of whenever somebody last ran it by hand, and a parent who started bouncing this morning reads as not refused. **And until 23 August 2026 the by-hand route did not work either** — the documented command could never have reached the production database (F44), so the fallback this entry rests on was unavailable for its whole life. | Open | none. The scheduler's refusal outside a production build is F43's test, not this one. Nothing asserts the sync has ever run, and nothing can until `MAIL_SUPPRESSION_SYNC=1` is set in production |
+| F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanished: the header painted background and text as inline colours, so a high-contrast operator lost all four nav links and the sign-out button on the one account that runs the service. Nothing in `src/` handled `forced-colors` at all. | **Fixed on the operator bar** 2026-08-23 (`shell.module.css` overrides the inline colours with system-colour keywords). **The wider sweep this entry asked for is NOT done:** `forced-colors` is still handled in that one file and nowhere else, so the teacher and child surfaces are unassessed | `a11y/ops-health-a11y.spec.ts` — and specifically that its forced-colours scan is **no longer scoped to `main`**. The entry named widening it back as the assertion that this is closed; it has been widened, so a regression on the bar turns it red |
+| F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed | **none, and that is a finding inside the finding.** Nothing in `tests/` or `scripts/` reads `railway.json`, so nothing stops the `build` block being re-added. The fix was a deletion, and a deletion is exactly the kind of fix that comes back quietly |
 | **F34** | **High** | **Resilience / data loss** | Saved work was withheld from the person who made it. The restore prompt awaited the local draft and a cross-device server lookup **together**, and the lookup had no deadline, so a request that was accepted and never answered suppressed the prompt entirely, and a teacher's or a child's work sat safe in their own browser while they were told nothing. The same shape was found a second time on `loadImage`, where a stalled template background left a child on a permanent "Loading…" overlay. Both are now bounded. | **Fixed** | `e2e/drafts.spec.ts`: "the restore prompt still arrives when the cross-device lookup never answers" and "a stalled template background still lets a child draw and restore" |
-| F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits StoryJar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
+| F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits StoryJar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open | none possible from inside the product. Where a backup physically sits is a fact about Railway's estate rather than about this codebase; the evidence is Railway's DPA and `RETENTION.md`'s backup row, and confirming it is an owner action |
 | F36 | **Medium** | Test correctness | Every post-reload click in `drafts.spec.ts` raced hydration. Playwright's actionability checks pass on server-rendered HTML, so the click landed before React attached its handler, was swallowed without error, and the test failed one line later on a missing canvas that looked like a product fault. **Measured on 2026-08-18: F36 caused the one-in-two CI flake.** With it fixed the prompt appears in 38ms and all 133 functional tests pass; without it `main` failed at 33.9s. Raised from Low because a fault that fails a blocking gate every other run, and was twice misdiagnosed as a product defect, is not a low-severity test nit. | **Fixed** | `e2e/helpers.ts` `clickHydrated`, used at both post-reload click sites |
 | **F37** | **High** | A11y (child-facing) | The blocking 64px child touch-target gate covered neither **canvas** — `/student/new/drawing` or an activity response — nor the **EYFS jar**, a different shell for the youngest children in the product. Every tool on them was under the floor: pens 58 wide, undo/redo/clear/close at 44×44, Done and ＋ at 56×56, the Text tool at 48×48, page tiles at 57, and the colour slider **24px wide**. The quiz answers a pre-reader taps measured 57 because the canvas sized them in MODEL units and scaled them down — a floor in the wrong coordinate space is not a floor. Same shape as F18: a gate reading as "child touch targets are covered" while the busiest child screens sat outside its list of URLs | **Fixed** | `a11y/child-touch-targets.spec.ts` (both canvases and the EYFS jar now in the blocking gate) |
 | **F38** | **Medium** | Feedback loop / child-facing | A teacher sent work back with a note — the queue asks for one and gives an example — and the child was never shown it. `/student` rendered a returned moment with a fixed status line ("Have another go") and nothing else; `teacherNote` was rendered by one component, on the teacher's own view. The child was told something came back and left to guess which part | **Fixed** | `e2e/journal.spec.ts` ("the teacher's note reaches the child…") |
 | **F39** | **High** | Data minimisation / SAFEGUARDING rule 2 | The sign-up wizard stored children's **surnames**. Step 4 wrote `raw.trim()` straight to `Student.name`; the roster's own paste path ran the identical input through `deriveChildNames`, which keeps first names only. The full names were then the buttons on the class sign-in screen, reached with a code written on the board | **Fixed** | `e2e/auth.spec.ts` ("a register pasted at sign-up is stored as first names only") |
+| F40 | Medium | Test isolation / diagnostic cost | The e2e suite has **no per-test draft cleanup**, and `globalSetup` reseeds once per RUN rather than per test. A test that dies inside the template builder leaves its local-first draft behind; every later test that opens the builder is then met by the "restore your draft?" dialog, which is `aria-modal` and intercepts pointer events, so the next click times out on a failure that has nothing to do with what it was testing. One broken PDF renderer presented as eleven extra red specs. **A red suite that names twelve specs when one thing is broken is a suite people stop reading** | **Open** | none; the fix is an `afterEach` in a shared fixture (local storage + the `Draft` table), not a line remembered in each spec |
+| F41 | Medium | A11y (child-facing) / gate coverage | F37 grew every drawing-canvas control to the 64px child floor and added the page to the blocking sweep — but the sweep measures the page as it **loads**, and the four controls that exist only once a child taps an object were never on it: resize and turn at 20×20, delete and edit at 24×24. These are the controls a child uses to *arrange* their work, which is most of what an apparatus worksheet asks. Sibling of F37's own lesson: **a page sweep is exactly as good as the states it visits**. Not fixable by growing them — four 64px handles on a 90px counter would bury the shape | **Fixed** 2026-08-20 (owner decision: a small visible dot inside a 64px press at all four corners, unified in `ObjectCorners`) | `a11y/child-touch-targets.spec.ts`, which now **places a shape, taps it, and measures the selected state** — the half that keeps it fixed |
+| F42 | Medium | Child-facing / WCAG 2.2 2.1.1 (A) | A text box on the canvas had exactly one way back into it: **double-click**. Invisible — nothing on screen said it could be reopened — unreliable for a young child on a classroom iPad whose second tap is often not read as a double-tap, and unreachable from a keyboard. The object *made of words* was the one with no visible way in, and a child who mistyped had to delete it and start again. Found by reading a red gate rather than a screen. Two more holes surfaced with it: a text box **could not be deleted at all**, and could not be turned | **Fixed** 2026-08-20 (owner decision: the same four corner controls a shape has, each a 64px press; double-click still works, it is simply no longer the only way) | `e2e/text.spec.ts` ("re-edit via the ✎ button"), already in the blocking suite |
 | **F43** | **High** | Third-party calls / test isolation | An in-app scheduler gated on **credentials rather than environment**, so it called the live Mailjet account and wrote production personal data into a test database. `.env` holds the real Mailjet keys on every machine in the project, so "do I have credentials" was true everywhere, including the battery's three dev servers. **It would have done the same in CI** | **Fixed** | `security/ops-mail.spec.ts` ("the in-app scheduler refuses to schedule outside a production build") |
+| **F44** | **High** | Recovery / documentation | Every database command in the operator recovery runbook said `railway run`, which executes on the operator's own Mac with production variables injected. `DATABASE_URL` is `file:/data/prod.db` on the Railway volume, which is not mounted there, so all five commands failed with SQLite error 14. The page had said since it was written that the wrapper was unrehearsed. **The only way back into the service had never once been executed** | **Fixed.** Docs corrected 2026-08-23 and **the runbook was rehearsed against production the same day: `railway ssh` reaches the container and the read-only operator query runs there.** The destructive break-glass steps stay unrehearsed by choice | none, and none proposed: see "why there is no test" in the entry |
+| F45 | Low | Family access / truthfulness | A family place is labelled "In use" / "Not used yet" from `sessions > 0 \|\| email !== null`, and both halves are wrong. Sessions are per-browser and purged 7 days after expiry, so a household that used the jar all last term reads as unused; a parent who typed an address and never looked again reads as in use. A truthful answer needs a `lastSignInAt` column, which records more about a parent's behaviour than StoryJar keeps today — a decision, not a patch. **The per-pupil export copied this heuristic before the safeguarding review caught it**, which is why the screen matters more than its severity | **Open** | none; `security/data-protection.spec.ts` asserts the export no longer carries the claim |
+| F46 | Medium | Assessment / activities | Editing a LIVE quiz rewrites `quizSnapshotJson` on runs already in flight — deliberately, so a mid-lesson fix reaches the class. But `quizScore` and `quizTotal` are computed at submit time against the snapshot as it then stood, so two children who answered the same named activity an hour apart can be marked out of different papers, and **both marks are stored as bare integers as though comparable**. Nothing in the data or the UI says otherwise | **Open**; no fix for launch. The edit screen now warns the teacher so it is an informed choice | none; `e2e/activities.spec.ts` covers the edit path, not the marking |
+| F47 | Medium | Roles / access clarity | **TEACHER and TA are byte-for-byte identical.** Every access check asks `staffRole === "ADMIN"`; `"TA"` appears six times in `src/` and gates nothing. Four surfaces implied otherwise — a Guide card titled "Change what a colleague can do", a role picker beside two controls that really do change access, per-role badge colours, and `STAFF_ROLE_CHANGED` written to the audit log as a safeguarding-relevant action that has no effect. A head teacher setting a colleague to "Teaching assistant" believed they had limited her access to the approval queue. Underneath: `Class.teacherId` is singular and assigning *moves* a class, so **the missing thing is a relationship, not a label** | **Copy fixed** 2026-08-23 (option A); **the gap is open**, autumn, with the many-to-many change | none; scoping was verified correct throughout and no gate was bypassed |
+| F48 | Low | Mail / answerability | The Admin Billing email badge can only tell a school business manager whether StoryJar's email is working **across all schools**, not whether it is working for hers — `MailCounter` has no school dimension and deliberately never will. A per-school answer **is** derivable from `MailSuppression` by hashing the school's own adult addresses, and the version she can act on names the parent, which discloses a named adult's delivery status to an ADMIN who may not be that class's teacher. **Deferred to the autumn on purpose**, needing `safeguarding-reviewer` and two Railway variables first | **Open, deferred** | `security/school-mail-health.spec.ts` guards the shipped badge against overclaiming in the meantime |
+| F49 | Low | A11y (teacher-facing) | Five controls in teacher page bodies below the 44px floor, measured by the persona team: `Manage class →` 109×17, `See all →` 59×16, `Make a class` 140×42, and class chips at 155×42 and 92×42. A sixth, `Renew your plan →` at 137×18, was fixed rather than logged — it is the only control on the banner a frozen school sees on every screen. The 42s are two pixels short from one shared padding, so a single class-chip component fixes three at once. **Not an exhaustive sweep** — it is what the personas happened to walk, which is why `a11y/teacher-touch-targets.spec.ts` is scoped to the shell's own regions rather than whole pages | **Open**; the shell's own 13 controls are fixed and gated | `a11y/teacher-touch-targets.spec.ts` covers the shell, deliberately not these |
+| F50 | Medium | A11y (child-facing) / gate blindness | **The canvas's Turn and Resize handles are announced as buttons and cannot be operated by any key.** Both are `<div role="button">` with `onPointerDown/Move/Up`, no `onKeyDown` and no `tabIndex` (`DrawingCanvas.tsx:5508-5533`) — a WCAG 2.2 **2.1.1 Keyboard** failure on two controls that are labelled, sized and, to a screen reader, present. There is no other way to rotate or resize an object, so for a keyboard or switch user those operations do not exist. **The part that generalises is why no gate caught it:** without `tabIndex` the element is not in the tab order, so a keyboard walk never reaches it to fail, and `role="button"` alone breaks no axe rule — the gate is blind precisely because the control is unreachable, which is the defect. Found while reading for the rotation investigation (`docs/rotation-findings.md`), not by a test | **Fixed** 2026-08-23, with the rotation work (options A + E). Both handles take `tabIndex` and arrow keys, stepping by the object's own rotation step so a keyboard reaches every position a pointer can; Turn and Resize are also real `<button>`s in `ObjectToolbar` | `e2e/rotation.spec.ts` — "the turn and resize handles are reachable and operable by keyboard", which asserts the `tabindex` AND that the key actually moves the object |
+| F52 | Medium | Gate hygiene / user copy | `scripts/error-string-audit.mjs` extracts strings with `/["'`]([^"'`]{6,})["'`]/g`, and both halves of that pattern are wrong. The character class excludes all three quote types, so **an apostrophe ends a double-quoted string** — 79 user-facing strings across `src` are audited only as far as their first "doesn't". And the `{6,}` sits *inside* the pattern, so a string too short to match never consumes its own quotes and every later quote on the line is off by one — 208 of the 1,521 "strings" it currently audits are **code caught between mis-paired quotes**, which is where the standing HARD hit comes from. The false negatives are the finding; the noisy line is only what led to it | **Fixed** 2026-08-23; the freeze deferral was reversed once `scripts/` was already dirty and the cost was sunk | n/a — a gate script, not the product. What makes the fix safe is the before-and-after across `src`: HARD 1 → 0, SOFT 6 → 6 on the same six sites, no new findings |
+| F53 | Low | Repo hygiene / gate legibility | Four editor duplication artefacts (`… 2.ts`, `… 2.sql`) were committed and sat in the tree for days. Three were spec files — including one in the **blocking security directory that has never executed**, because the space before `2.ts` cannot match Playwright's default `*.spec.ts` glob. A file that reads as coverage and is not is worst in that directory. The fourth is an **older draft of a migration**, still tracked, whose column is named `template` — the exact name the schema rejected because the ops blindness gate derives its child-relation denylist from relation names | **Three deleted** 2026-08-23; the migration artefact is **open**, untouched under the schema freeze | n/a — nothing collected or applied any of them, which is the finding |
 
 ---
 
-## F20 · No backups exist, and the documents say otherwise · Critical → Open
+## F20 · No backups exist, and the documents say otherwise · Critical → original ground resolved 17 August 2026, status awaiting the owner
 
-Found while doing OPS-0a/0c/0d (SRE), 16 August 2026. **Not fixed, and not
-fixable by an agent:** it is owner decision D2.
+Found while doing OPS-0a/0c/0d (SRE), 16 August 2026. Not fixable by an agent at
+the time: it was owner decision D2.
+
+**UPDATE, D2 WAS ANSWERED AND EXECUTED ON 17 AUGUST 2026.** Recorded at
+`docs/ops-architecture.md:41`: Railway was upgraded to Pro and daily and weekly
+volume backups were switched on, with RPO and RTO stated as nightly and back
+within a day, both knowingly accepted for a ten-school pilot. `RETENTION.md`'s
+backup row was rewritten to Railway's real schedule — daily kept 6 days, weekly
+1 month, monthly 3 months — and the "35-day rolling cycle" figure, which matched
+no tier, was removed rather than quietly edited, because a school's data
+protection lead may have read the old wording.
+
+So both halves of the original finding are addressed: the backups exist, and the
+document schools read during procurement no longer describes a cycle that does
+not. **This correction is six days late reaching this file**, which is its own
+small lesson: a finding whose blocker is an owner decision does not update itself
+when the owner takes it, and the entry stayed "Open, blocked on D2" in a public
+repository that a school's due-diligence questionnaire reaches for. The same
+staleness was live on the operator health screen until 23 August (F44's sweep
+found it there), where it read as "no backups exist" to the one person who would
+decide whether to attempt a restore.
+
+**What is NOT resolved, stated precisely, because it is not nothing:**
+
+- **A restore has never been rehearsed.** `docs/ops-architecture.md:41` says so
+  in terms — "R12 is NOT yet satisfied: a restore still has to be rehearsed
+  before deletion (PR8) can ship". A backup nobody has restored is a belief, not
+  a recovery position, and the RTO figure is therefore unmeasured. This is an
+  owner action; nothing an agent writes can substitute for it.
+- **Backup residency is unconfirmed, and one school-facing page still claims
+  it.** That is F35: Railway's DPA says primary processing is in the United
+  States with backups "across multiple sites and regions", none named, while
+  SAFEGUARDING rule 10 commits StoryJar to UK or EU storage. `RETENTION.md` had
+  the Amsterdam claim removed rather than repeated, but
+  `src/app/legal/privacy/page.tsx:56` still tells schools that the database,
+  uploaded media **and backups** are stored in Amsterdam. That page is the
+  owner's as DPA and DPO and is deliberately not edited here.
+
+**PROPOSED STATUS, for the owner to accept or reject in one line.** An agent does
+not close a Critical finding. The proposal is: **Fixed on its original ground** —
+the backups exist and the documents no longer contradict them — **with two named
+residuals tracked elsewhere**, the unrehearsed restore under handbook R12 (which
+continues to block PR8) and backup residency under F35. If that reading is
+accepted, F20 becomes Fixed and R12 and F35 carry what is left. If the owner
+would rather F20 stay open until a restore has actually been rehearsed, that is
+equally defensible and the entry should say so instead — the one thing that
+should not persist is the current text, which says the backups do not exist.
+
+---
+
+**The original finding follows, unaltered, as the record of what was found on 16
+August 2026.**
 
 One 5 GB Railway volume in EU West holds `/data/prod.db` and `/data/media`,
 which together are every school, every pupil name, and every photograph, drawing
@@ -129,6 +194,10 @@ and that sentence is the owner's to write.
 **Blocks:** OPS-0b, and handbook R12, which holds school deletion out of v1 until
 a backup exists and a restore has been rehearsed.
 
+*(End of the 16 August record. OPS-0b was unblocked by D2 the following day. R12
+is still not satisfied, because the backup now exists and the restore has not
+been rehearsed. Read the update at the top of this entry, not this paragraph.)*
+
 ---
 
 ## F21 · Two ways to change the schema, only one of which reaches production · Medium → Mitigated
@@ -145,7 +214,8 @@ So the trap is: edit `schema.prisma`, push it locally, watch the battery go
 green, deploy, and `migrate deploy` finds nothing new to apply. The container
 boots against last week's tables and fails on the first request that touches the
 new column, at whatever time of the morning the deploy went out, on a database
-with no backups (F20).
+whose best recovery point is last night (F20: volume backups exist as of 17
+August 2026, RPO nightly, and no restore has been rehearsed).
 
 **Mitigated** by `tests/battery/security/migrations-match-schema.spec.ts`, which
 fails the blocking security project whenever the committed migrations and the
@@ -661,6 +731,37 @@ in class settings.
 **Guards:** `security/data-protection.spec.ts` — own class exports (200, JSON,
 attachment); another tenant is denied (404).
 
+**Extended 2026-08-23 — the per-pupil export.** `GET /teacher/export/pupil/[studentId]`
+(`src/app/teacher/export/pupil/[studentId]/route.ts`, schema
+`storyjar-pupil-export-v1`) answers a subject access request about one named
+child. Same shape and the same mapper as the class export
+(`src/lib/exportBundle.ts`), so the two cannot drift; reached from a link on the
+pupil's own journal page. Paths only — media bytes stay a manual,
+identity-checked route.
+
+*Guard:* `security/data-protection.spec.ts` — "the per-pupil export answers for
+one child, and only to that child's teacher": 200 for the owning teacher, 404 for
+a colleague in the same school who does not teach that class, 404 cross-tenant,
+no other pupil's name in the file, and no class code, family code or `jarSeenAt`
+anywhere in it.
+
+*Scope:* the teacher who holds the class, and nobody else — not every teacher in
+the school, and not a school ADMIN by virtue of being an admin. A subject access
+request is a reason to read out what is held, not a reason to widen who may read
+it. The cost (an admin fielding a parent's request goes via the class teacher) is
+a recorded product decision, not an oversight.
+
+*Passed safeguarding review 2026-08-23 with five required changes, all applied:*
+family access reduced to a bare count (a per-household date or flag is a written
+claim about the *other* household in a file handed to this one, and the
+session-derived `takenUp` was wrong in both directions besides — see F45); both
+exports now write an audit row (`PUPIL_DATA_EXPORTED` / `CLASS_DATA_EXPORTED`,
+rule 16, child never named in `detail`); the count of not-yet-approved work is
+carried at the top of the payload and in plain words beside the button, because
+rule 3's gate is a person reading it; quiz answers are resolved from opaque
+option ids into the words the child was shown, because a disclosure nobody can
+read is a disclosure in name only.
+
 ## F5 · Media route SVG handling — Low → Hardened
 
 **Was:** the `/uploads` route would serve an SVG if one existed (uploads reject
@@ -779,7 +880,7 @@ clip` so cards shrink instead of overflowing at 768px. **Guards:**
 
 ---
 
-## F28 · The build depends on Google's font CDN being up · Medium → Open
+## F28 · The build depends on Google's font CDN being up · Medium → Fixed
 
 Found on 2026-08-17 when the accessibility job failed on a green commit.
 
@@ -1066,7 +1167,27 @@ than environment and called the live Mailjet account from the test suite; see
 **F43**, which is the more important entry of the two. **F31 stays open** until
 `MAIL_SUPPRESSION_SYNC=1` is set on the Railway web service: the scheduler now
 refuses to run anywhere that variable is absent, which is currently everywhere.
-## F32 · The operator loses the whole nav in forced colours · Medium → Open
+
+**And the by-hand route had never worked either, which is the part this entry
+was missing.** Everything above rests on "somebody runs it by hand" being
+available. It was not. The documented command, in this file and in the script's
+own header, was `railway run npm run mail:suppression-sync`, and that could not
+have worked at any point in F31's life: the CLI wrapper opens its own
+`PrismaClient`, and `railway run` executes on the operator's own machine, where
+`file:/data/prod.db` — a path on the Railway volume — does not exist. It fails
+with SQLite error 14. Corrected to `railway ssh` on 2026-08-23; the whole story
+is **F44**.
+
+So the honest reading of this entry is worse than it said and better than it
+sounds. Worse: for its entire life F31 had no mitigation at all, only the
+appearance of one, because the fallback it named was a command nobody had run
+and nobody could have run. Better: unless the sync was invoked some other way,
+production's `MailSuppression` is *empty* rather than *stale*, and `/ops/mail`
+has been reading "Never" — which is the true answer, plainly stated, rather than
+an old date being mistaken for a current one. The screen was right the whole
+time. **A mitigation nobody has ever executed is not a mitigation**, and that is
+the same lesson as F44, arrived at from the other end.
+## F32 · The operator loses the whole nav in forced colours · Medium → Fixed on the operator bar; the wider sweep is still open
 
 Found by PR6's accessibility spec, which is why its forced-colours scan is
 scoped to `main` rather than the whole page: widening it back is the assertion
@@ -1087,6 +1208,33 @@ between being able to work and not.
 It is scoped to the ops area here because that is where it was found. The same
 inline-colour pattern is likely elsewhere in the product, which is worth a sweep
 rather than a spot fix: children with low vision use the child surfaces.
+
+**Fixed on the operator bar, 2026-08-23** (commit `6b5109b`, "Keep the
+operator's navigation visible in forced colours"). `src/app/ops/shell.module.css`
+overrides the inline bar colours with the `Canvas` / `LinkText` / `ButtonText`
+system-colour keywords under `@media (forced-colors: active)`.
+
+**And the assertion this entry asked for has been made.** The paragraph at the
+top said the forced-colours scan was scoped to `main` *because* of this defect,
+and that "widening it back is the assertion that this is closed". It has been
+widened: `ops-health-a11y.spec.ts` now runs the forced-colours pass over the
+whole page with no `within` scope, so the bar regressing turns a blocking gate
+red. That is the half that keeps it fixed, and it is why this counts as closed on
+the operator surface rather than merely patched.
+
+**The sweep is still open, and this entry is deliberately not closed outright
+because of it.** Checked on 2026-08-23: `forced-colors` appears in exactly one
+file in the whole of `src/`, the operator shell's own CSS module. Forty-six files
+under `src/app/student`, `src/app/teacher` and `src/components` paint with inline
+`style={{ … }}`, and none of them has been assessed in forced colours. The
+sentence above — *children with low vision use the child surfaces* — is still
+true and still unanswered, and it is the half with more people behind it than the
+half that has been fixed.
+
+Status is therefore written as "fixed on the operator bar; the wider sweep is
+still open" rather than as Fixed. Closing it on the operator fix alone would
+retire the finding that carries the child-surface question, and nothing else in
+this file is currently asking it.
 
 ## F33 · railway.json pinned a builder the service no longer uses · Medium → Fixed
 
@@ -1166,7 +1314,7 @@ one being asked. The only thing that closes it is Railway answering the direct
 question in writing: *for volume backups on this service, in which country or
 region are the snapshots stored?*
 
-## F36 · Every post-reload click raced hydration · Low → Fixed
+## F36 · Every post-reload click raced hydration · Medium → Fixed
 
 Found on 2026-08-17 while reviewing the F34 fix, which is the only reason it was
 found at all: F34 shipped a test that forced a stalled network, and that test
@@ -1582,7 +1730,8 @@ every server start. `runMailSuppressionSync` then checked three things:
 `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAIL_HMAC_KEY`. All three were
 present in the battery. The first two come from `.env`, which holds the real
 production Mailjet credentials because the mailer needs them locally and because
-`railway run` is the documented way to run the sync by hand. The third is set by
+running the sync by hand against production was documented as `railway run` (a
+wrapper that could never have worked for it either — see F44). The third is set by
 `playwright.battery.config.ts` on purpose, so that PR5's suppression behaviour
 exists to be tested at all.
 
@@ -1666,8 +1815,787 @@ repo root, `055c154`, deleted in `aca6aa8`) contains schema and no rows.
 **The root cause underneath, which this fix does not close.** Local `.env` holds
 live Mailjet credentials, so any code running on a developer's machine can reach
 the production mail account by accident. The guard fixes this instance, not the
-class. `railway run` injects production variables without them touching disk and
-is already how the docs say to run the sync, so the stronger fix is to take
-`MAILJET_API_KEY` and `MAILJET_SECRET_KEY` out of local `.env` entirely. Worth
+class. Running the sync inside the container (`railway ssh`) gives it the
+production credentials without them touching anyone's disk, so the stronger fix
+is to take `MAILJET_API_KEY` and `MAILJET_SECRET_KEY` out of local `.env`
+entirely. Worth
 doing once launch week is over. **Until it is, the same shape of mistake is one
 unguarded outbound call away, in any code path, not just this one.**
+
+## F44 · The way back in had never been run · High → Fixed, and rehearsed 2026-08-23
+
+Found on 2026-08-23 by the owner, not by a gate, in the way this class of defect
+is always found: he tried to use it. Seeding the production operator account with
+the command `docs/ops-recovery.md` and `docs/TEST_LOGINS.md` both give —
+`railway run npx tsx scripts/seed-operator.ts you@example.com` — and got SQLite
+error 14, "unable to open database file". No account was created.
+
+**What happened.** `railway run` fetches the service's environment variables and
+runs the command **on your own machine** with those variables set. That is the
+right tool for a script that only needs a credential. It is the wrong tool for a
+script that needs a *file*. `DATABASE_URL` is `file:/data/prod.db`, a path on the
+Railway volume, and the volume is mounted in the container and nowhere else. The
+variables travel; the file does not. Prisma dutifully opened the path it was
+given, on a Mac where nothing is mounted at `/data`, and failed.
+
+Five commands on the recovery page were affected, and they are not incidental
+ones: clear the lockout, list the operator rows, delete the operator row, create
+the replacement, read the audit trail. That is the entire break-glass procedure.
+Two more copies of the seed command said the same thing (`docs/TEST_LOGINS.md`,
+`docs/launch-triage.md` step 4, `docs/launch-batch-b.md`), and so did
+`Context/CONTEXT.md`.
+
+**The class of mistake.** *Documentation that has never been executed is not
+documentation. It is a plan, and you find out it was wrong at the moment you
+needed it to be right.* Every individual command here was rehearsed — on
+2026-08-17, against a throwaway SQLite database, honestly and in detail, and the
+rehearsal notes are still on the page because they are still true. What was never
+run was the one word in front of them. The rehearsal covered the payload and
+skipped the wrapper, which is precisely the half that depends on where the code
+is standing.
+
+**The page knew.** The "Rehearsal" section of `docs/ops-recovery.md` said, before
+this fix:
+
+> **Not yet rehearsed:** the `railway run` wrapper, against a real Railway
+> environment. [...] So the commands are known to work against the same Prisma
+> client and the same schema the service uses; the wrapper around them is not yet
+> proved.
+
+That is the finding, written down by the author, in the document, before the
+event — and it shipped anyway. "Not yet proved" turned out to be too generous:
+it could not have worked, for a reason already stated two sections earlier on the
+same page (the database is a file on the volume). An unrehearsed step in a
+recovery runbook is not a documentation debt to tidy up later. It is the runbook
+being untrue, with the discovery deferred to the worst possible day.
+
+**Why High rather than Low.** It is only prose, and prose is normally Low. Three
+things move it up. It is the **only** way back into the service — there is
+deliberately nothing in the repository that can mint an operator session
+(handbook ruling R8), so this page is not one recovery option among several, it
+is the whole set. It fails **exactly when it is needed**, which is the moment
+somebody is locked out, probably alone, probably at speed. And it fails
+**silently in advance**: nothing in CI, no gate and no test had any opinion about
+it, so its being wrong generated no signal for as long as it existed. It is not
+Critical because no child's data is at risk and nothing is destroyed by it — the
+commands fail closed, and the correct wrapper existed the whole time.
+
+**Fixed on 2026-08-23.** Every Prisma-touching command now runs inside the
+container:
+
+```bash
+railway ssh
+```
+
+then the command at the container prompt. Given as two steps rather than
+`railway ssh node -e "..."` on one line because the one-liners contain double
+quotes and `$`, and putting them through two shells replaces a lockout with a
+quoting exercise. `docs/ops-recovery.md` gained a section, **before the first
+command rather than in a footnote**, saying why `railway run` cannot work here,
+in the sentence a skimmer will still hit: *the variables come to your machine;
+the file does not.*
+
+**Two more instructions were wrong, found by checking rather than by being
+told.** The brief that raised this named four mail scripts as safe to leave
+alone. Two of them are not:
+
+- `scripts/mail-suppression-sync.ts` — the CLI wrapper opens its **own**
+  `PrismaClient` in `main()` before delegating to `runMailSuppressionSync`, so
+  `railway run npm run mail:suppression-sync`, printed in the script's own header
+  and repeated in F43 above, has never worked either. The documented way to run
+  the suppression sync by hand against production has been broken for as long as
+  it has been documented, which matters because F31 leaves the by-hand route as
+  the only route until `MAIL_SUPPRESSION_SYNC=1` is set.
+- `scripts/fix-demo-parent-address.mjs` — imports `PrismaClient` at module scope
+  and updates a `Parent` row, and its own comment said "this script is run with
+  `railway run` against production". It is a remediation script for a live
+  bouncing address; it would have failed the same way.
+
+The other two are genuinely fine and were left alone deliberately:
+`scripts/verify-mail.ts` and `scripts/mail-events.mjs` never construct a
+`PrismaClient`, never import `@/lib/db`, and reach nothing but `api.mailjet.com`
+over HTTPS. They need the credential, not the file, so `railway run` is correct
+for them and remains. **The test is not which command is newer. It is whether
+what you are running needs the file on the volume.**
+
+**What was verified rather than assumed.** That the container can actually run
+these: the service's start command is `bash scripts/railway-start.sh`, which
+itself runs `npx prisma migrate deploy` and reads `prisma/schema.prisma`, so both
+`scripts/` and `prisma/` demonstrably exist in the running container and `npx`
+works there; and `tsx` is in `dependencies` rather than `devDependencies`, so
+`npx tsx` resolves locally and fetches nothing. `package.json` sets no
+`"type": "module"`, so the `require()` in each `node -e` one-liner is valid.
+`railway ssh` (CLI 5.41.2) takes the linked project, service and environment by
+default, so the commands need no flags.
+
+**Repro — and why there is no test.**
+
+The repro is not a spec, and pretending otherwise would repeat the mistake this
+finding is about. It is:
+
+1. On a machine that is not the container, with the Railway project linked, run
+   any of the old commands, for example `railway run node -e
+   "const{PrismaClient}=require('@prisma/client');new
+   PrismaClient().operator.findMany().then(console.log)"`.
+2. Observe SQLite error 14, "unable to open database file". The environment
+   variables are present and correct; the path they name does not exist locally.
+3. Run `railway ssh`, then the same `node -e` at the container prompt. It answers.
+
+**A static check was considered and is not proposed.** The mechanical rule would
+be: no fenced `railway run` line in `docs/` may contain `PrismaClient`, `prisma`
+or a `.ts` script that imports `@/lib/db`. It would have caught this exact
+defect, it is perhaps thirty lines in the style of `scripts/audit-static.mjs`,
+and it does not earn its keep. It gates one wrapper against one class of callee
+in one directory; it would not have caught a wrong service name, a command
+needing a flag the container does not have, or any of the other ways a runbook is
+wrong. Worse, it would produce the feeling of coverage over exactly the surface
+where that feeling did the damage — the page already carried a truthful warning
+that it was unrehearsed, and the warning did not save it. A green check saying
+"the runbook's wrappers are consistent" is a *weaker* signal than the sentence
+that was already there and was ignored.
+
+**The real remedy is a rehearsal, and it is Mark's hands, not an agent's.**
+Nothing an agent can write proves a Railway command works; only running it does.
+The rehearsal worth doing is small and carries no risk, and it is not the
+destructive one:
+
+- `railway ssh` reaches a shell on the running service;
+- `ls` there shows `package.json`, `prisma/` and `scripts/`;
+- the **read-only** command from situation 4 step 1 lists the operator rows.
+
+That is three minutes and it proves the wrapper. Steps 2 and 3 of situation 4
+delete and recreate the live operator account and stay unrehearsed by choice.
+`docs/ops-recovery.md` now carries a dated line, and it distinguishes the cheap
+rehearsal from the full break-glass one so that "unrehearsed" cannot again mean
+two different things at once.
+
+**REHEARSED 2026-08-23. IT PASSES.** The owner ran it against the production
+service the same evening the documentation was corrected, so this finding is no
+longer "fixed as documentation and unproven as a procedure" — the procedure has
+been executed and it works. What was covered, in order:
+
+- `railway ssh` reached a shell on the running service.
+- The prompt starts in **`/app`**, with the repository present. The runbook's
+  `cd /app` hedge was written as an assumption and is now a confirmed fact.
+- It is the container and not the operator's own machine, checked deliberately
+  rather than assumed: `/data` is mounted with `media/` and `media-shared/`, and
+  the hostname is a container id. Worth doing, because a first `ls` can look
+  enough like a local checkout to fool somebody in a hurry.
+- The **read-only** command from situation 4 step 1 ran there and returned one
+  operator row, `role: OWNER`, `status: ACTIVE`.
+
+So the wrapper, the working directory, the availability of `node` and `npx`, and
+Prisma's path to the file are all proved end to end. **This is the point of the
+whole entry**: the defect was a capability nobody had ever exercised, and the
+remedy was never a test — it was somebody exercising it. That has now happened.
+
+**What is still unrehearsed, and deliberately so:** situation 4 steps 2 and 3,
+which delete and recreate the live operator account. Those are not a gap to
+close. Rehearsing them against production means deleting the live account to
+watch what happens, and there is no non-production environment to do it in
+(decision D12, still open).
+
+**One thing the corrected runbook still cannot do**, now stated on the page
+rather than discovered in the moment: `railway ssh` attaches to the *running*
+deployment. A service that is crash-looping has nothing to attach to, so no
+command on that page is available during the one failure mode where the app
+itself is down. That is a real gap, it is not closable from this side, and it is
+written down so the next person meets it in prose first.
+
+## F45 · "In use" is a guess dressed as a fact · Low → Open
+
+Found on 2026-08-23 by `safeguarding-reviewer`, reviewing the per-pupil export
+(F4), and it turned out to be about a screen rather than the export.
+
+A family place is labelled **"In use" / "Not used yet"** on a pupil's journal
+page (`src/app/teacher/students/[studentId]/page.tsx`, `FamilyAccess.tsx`). The
+label is derived as `sessions > 0 || email !== null`. Both halves are wrong.
+
+**It says yes when it means nothing.** A parent who typed an address in and never
+looked at the jar again has `email !== null`, so they read as "In use". The
+address being on file is a different fact, and it is one the screen does not
+otherwise show.
+
+**It says no when it means yes.** `Parent.sessions` are per-signed-in-browser and
+are purged within 7 days of expiry (`RETENTION.md`). A household that used the
+jar every week last term and is signed out today reads as "Not used yet" — as
+does one that used it this morning on a phone that has since been cleared. The
+count means "has a live session right now", which is not the question the label
+asks.
+
+**Why Low.** It is staff-facing, it discloses nothing to anybody, and the wrong
+answer costs a teacher a wasted conversation ("has the letter arrived?") rather
+than any harm to a child.
+
+**Why it is logged rather than fixed.** A truthful answer needs a
+`lastSignInAt` column on `Parent`, written on session creation, with its own
+`RETENTION.md` entry — a schema change, and one that records more about a
+parent's behaviour than StoryJar currently keeps, which is a decision rather
+than a patch. It is out of scope for the launch freeze.
+
+**Why it matters more than its severity.** The per-pupil export copied this
+heuristic before the review caught it. Fixing the export and leaving the screen
+is how the mistake comes back: the next thing that wants to know "has this family
+started using it" will read the same two columns and reach the same wrong answer.
+
+## F46 · Editing a live quiz marks a class against two different papers · Medium → Open
+
+Found on 2026-08-23 while building the edit-while-live warning (Batch B item 2).
+**No fix is proposed for launch and none should be attempted in the freeze.**
+
+`updateTemplate` (`src/app/actions/activities.ts:201-212`) pushes an edit onto
+every LIVE run of a template, `quizSnapshotJson` included. That behaviour is
+deliberate and right — a teacher who spots a wrong answer mid-lesson needs the
+fix to reach the class in that lesson, not next term.
+
+What nobody has reckoned with is the mark. `JournalItem.quizScore` is computed at
+submit time against the snapshot as it stood at submit time, and `quizTotal` is,
+in the schema's own words, "the number of questions in the assignment snapshot at
+submit time". So:
+
+- a child who answers at 10am is scored against the quiz as it was at 10am;
+- the teacher adds a question, or fixes a `correctOptionId`, at 10:30;
+- a child who answers at 11am is scored against a different paper;
+- **both marks are stored as bare integers under the same activity title**, with
+  nothing recording that the papers differed.
+
+A teacher looking down the class list sees "3/4" and "3/5" and reads them as
+comparable. They are not. Nothing in the data says so, and nothing in the UI
+hints at it.
+
+**Why Medium and not High.** It needs a teacher to edit a quiz while a class is
+mid-run, which is uncommon, and it damages a *judgement about* a child's work
+rather than the work itself — no child's moment is lost or altered, and nothing
+reaches anybody it should not. It is above Low because assessment evidence is one
+of the things StoryJar is for, and a mark that is quietly incomparable is worse
+than a missing one: the school does not know to distrust it.
+
+**What is done about it now.** Nothing to the data. The edit screen
+(`src/app/teacher/activities/[id]/edit/page.tsx`) now names the classes working
+on the activity and says in terms that "children who answer after you save are
+answering a different question from the ones who answered before", and points at
+Duplicate as the way to edit without touching a live run. That converts a silent
+problem into an informed choice, which is the most a surfacing change can do.
+
+**What a real fix looks like**, so the autumn does not start cold. Three shapes,
+cheapest first:
+
+1. **Stop pushing quiz edits onto runs with responses.** Narrow the `updateMany`
+   to runs with no submitted work, and tell the teacher when a run is excluded.
+   Cheapest, and it protects the mark — but it takes away the mid-lesson fix that
+   the push exists for, which is a real loss.
+2. **Version the snapshot.** Add a monotonic `quizVersion` to `Assignment`,
+   stamp it onto each response, and show it wherever marks are listed. Honest,
+   small schema change, and it makes the incomparability visible instead of
+   preventing it.
+3. **Re-score on edit.** Recompute stored scores for submitted responses against
+   the new snapshot. Superficially tidy and probably wrong: it rewrites a record
+   of what a child actually did, against a paper they never sat.
+
+Option 2 is the one to cost first.
+
+## F47 · The teaching assistant role gates nothing · Medium → Copy fixed, gap open
+
+Found on 2026-08-23 by investigation (Batch B item 4), prompted by a persona
+teaching assistant who wrote: *"Nothing says what a teaching assistant is allowed
+to do. I found out by pressing things, which is exactly how somebody publishes the
+wrong thing."*
+
+**TEACHER and TA are byte-for-byte identical in behaviour.** Every access check in
+the product asks one question — `staffRole === "ADMIN"` — at
+`src/app/admin/page.tsx:14`, `src/app/actions/admin.ts:16`,
+`src/app/actions/billing.ts:49`, `src/app/actions/classImport.ts:75` and
+`src/app/teacher/layout.tsx:73`. The string `"TA"` appears six times in `src/`
+and gates nothing: a badge colour, a submenu entry, a dropdown option, an input
+allowlist, a type comment and an operator display string.
+
+So a TA holding a class can approve work into a child's jar and out to their
+family, send work back, delete a moment, rotate the class code, create family
+access, print the sign-in letter, and export the class and any child in it.
+Nothing about being a TA changes any of it.
+
+**The access model itself is defensible.** Access follows the class you hold, not
+your title, and somebody handed a class is being trusted with it. The defect is
+that four surfaces implied otherwise: a Guide card titled "Change what a
+colleague can do", a role picker sitting beside two controls that really do
+change access, distinct badge colours per role, and `STAFF_ROLE_CHANGED` written
+to the audit log — which `prisma/schema.prisma` describes as the record of
+"safeguarding-relevant actions", so StoryJar audits a change that has no effect.
+
+A head teacher who set their TA to "Teaching assistant" believed they had limited
+her. They had not, and the thing they believed they had limited was the approval
+queue.
+
+**The second half is worse, and is why this is not merely a copy bug.**
+`assignClassToStaff` (`src/app/actions/admin.ts:87`) does
+`db.class.update({ data: { teacherId: staffId } })` — it *moves* the class.
+`Class.teacherId` is singular, so a TA gets access to a class only by taking it
+away from the teacher who runs it. StoryJar cannot express what every primary
+school actually has: a TA who supports a class alongside its teacher. **The
+missing thing is a relationship, not a label.**
+
+**Why Medium.** No data is exposed to anyone who should not have it and no gate
+is bypassed — the scoping is correct everywhere, which was checked rather than
+assumed (the same persona reported that the approval queue "shows me children's
+work but neither lets me act on it"; `src/app/teacher/queue/page.tsx:43` scopes
+to `class: { teacherId: user.teacher.id }`, so her queue was empty and nothing of
+anybody else's was ever reachable). It is above Low because the product made a
+false statement about access to the person responsible for controlling it, and a
+safeguarding control a school believes it has and does not have is worth more
+than a cosmetic defect.
+
+**Fixed on 2026-08-23 (option A — the words).** The Guide card is now "Record
+what a colleague's job is", says plainly that Teacher and Teaching assistant
+permit the same things and that only Admin changes what somebody can do, and is
+followed by a second card saying what actually decides access — which classes
+they hold, and that giving a class takes it from whoever held it. The role
+submenu and the invite form say the same in one line each. The empty queue, the
+empty class list and the empty dashboard now say "you have not been given a class
+yet" instead of "All caught up ☕", which was the sentence that made a teaching
+assistant think the screen was broken.
+
+**Still open: the gap.** Making TA mean something is a change to the approval
+queue and needs the DPO, and it is only meaningful once a TA can be *on* a class
+without owning it — so it belongs with the many-to-many staff-to-class change
+rather than before it. Autumn term, together.
+
+
+## F48 · The badge answers a question she did not ask · Low → Open, deferred to the autumn
+
+Opened 2026-08-23 while building the Admin Billing email health badge (Batch B
+item 6). Proposed by `teacher-lead`, who was right that it is derivable and right
+that it is the question that matters; deferred on the reasoning below, which is
+`platform-lead`'s. Nothing here is broken. What is here is a gap between the
+question a school business manager asks and the question StoryJar can answer.
+
+**The question she asks.** She is the person parents ring when a sign-in link
+does not arrive. What she wants to know is "are *my* families getting our
+emails". What the shipped badge tells her is whether StoryJar's email is working
+across every school at once.
+
+**Why the shipped badge cannot do better.** `MailCounter` is keyed
+`[day, templateKey, outcome, statusClass]` and holds a count. No school, no
+recipient, not even a domain. That is deliberate and it is not going to change:
+F6 requires `requestMagicLink` to answer identically for an address on file and
+one that is not, so a per-send record inside the product rebuilds the very
+enumeration signal the public family form is careful not to give. **Adding a
+school dimension to `MailCounter` is therefore a safeguarding change and not a
+schema convenience, and should be argued on those terms if it is ever argued.**
+The badge says so on screen — `scopeNote` is a rendered field rather than a
+comment, so it cannot be dropped by whoever rebuilds the card.
+
+**But a per-school answer IS derivable, from the other table.** Not by adding a
+column. `MailSuppression` is keyed by an HMAC of the address, and the model's own
+comment blesses the direction that works: you may ask "is THIS address, which I
+already hold, being refused". So: walk the school's own adults, hash each under
+`MAIL_HMAC_KEY`, look each up. That never enumerates the suppression list and
+never reverses a hash. It counts refusals among addresses the school already has.
+
+**Three reasons it is not being built this week, in the order that decided it.**
+
+1. **The version she can act on names a parent, and that needs sign-off.**
+   "3 of your 40 families are being refused" stops one question short of useful:
+   her next question is *which three*, and she cannot ring anybody without it.
+   That version is equally derivable — and it discloses a named adult's delivery
+   status to a school **ADMIN**, who may not be that child's class teacher.
+   SAFEGUARDING rule 5 is "admins are not all-seeing", and the admin console
+   already redacts child names from its own audit feed for that reason. This is a
+   `safeguarding-reviewer` question. **It is also why the aggregate version is a
+   door rather than a feature:** nobody would leave it at a count for long.
+2. **It would ship dark.** `MailSuppression` is populated only by
+   `runMailSuppressionSync`, which needs `MAIL_HMAC_KEY` **and** either
+   `MAIL_SUPPRESSION_SYNC=1` for the scheduler or somebody running the CLI by
+   hand — and the documented by-hand command had never worked until 2026-08-23
+   (**F44**, and see F31's update). None of that has happened. A launch-week
+   badge sitting behind two unset variables and an unexecuted procedure is a
+   badge that says nothing on the day it is most likely to be looked at.
+3. **The obvious `monitored` flag is a trap, and naming it is the most reusable
+   thing in this entry.** The natural design gates the badge on
+   `MAIL_HMAC_KEY` being set. That is not enough: a key that is set, with a sync
+   that last succeeded three weeks ago, produces "0 refused" — a green badge
+   that means *we have not looked*. `monitored` has to mean **key set AND a sync
+   succeeded recently**, or the fix for F30 contains F30. This applies to any
+   future health indicator built on a periodically-synced table, not just this
+   one.
+
+**What shipped instead**, so this entry is not read as a gap left uncovered:
+`src/lib/schoolMailHealth.ts`, platform-wide, four distinct states with `NO_DATA`
+kept separate from "working", the scope sentence as a rendered field, and
+`tests/battery/security/school-mail-health.spec.ts` asserting in all four states
+that the badge does not claim to know about her school. It needs no Railway
+variable, because `MailCounter` is written by `recordMailAttempt` inside the
+mailer on every attempt regardless.
+
+**Why there is no repro test.** There is no defect to reproduce. The shipped
+badge is accurate; this is a capability that has been deliberately not built, and
+a test asserting the presence of a feature nobody has approved would be asserting
+a decision rather than a behaviour. The nearest honest thing is the existing spec
+holding the shipped badge to its own scope, and that is already in the blocking
+security suite.
+
+**To close this, in order:** `safeguarding-reviewer` rules on disclosing a named
+adult's delivery status to a school ADMIN; the owner sets `MAIL_HMAC_KEY` and
+`MAIL_SUPPRESSION_SYNC=1`; the sync runs once against production by the corrected
+route in `docs/ops-recovery.md`; then roughly one to two hours of query work,
+with `monitored` defined as above. **Autumn term, not launch fortnight.**
+
+## F49 · Controls below the adult touch floor in teacher page bodies · Low → Open
+
+Logged on 2026-08-23 alongside the shell fixes (Batch B item 3), deliberately as
+a finding rather than a fix: the freeze is four days away, and the shell was the
+part that renders on *every* teacher screen. These are in page bodies, each on
+one screen, and each is a smaller miss.
+
+Measured by the persona team on their own devices, so the numbers below are real
+rather than estimated. Floor is 44px for a control on a classroom iPad; 24px is
+WCAG 2.2 AA 2.5.8, which the 17-20px entries also fail.
+
+| Control | Measured | Where |
+| --- | --- | --- |
+| `Manage class →` | 109×17 | the dashboard (`src/app/teacher/page.tsx`) |
+| `See all →` | 59×16 | the dashboard |
+| `Make a class` | 140×42 | the dashboard empty state and `/teacher/class` |
+| class chips | 155×42 | the assign sheet on `/teacher/activities` |
+| class chips | 92×42 | the sticker/praise screen on `/teacher/queue` |
+
+**A seventh was on this list and has been fixed rather than logged.**
+`Renew your plan →` (`src/components/FrozenBanner.tsx`) measured 137×18 and is
+the *only* control on the banner a frozen school sees on every screen — the one
+thing a business manager is there to press, at the moment she is already cross.
+One line, and too important to defer. It sits outside the shell's `data-shell`
+regions, so the touch-target gate does not cover it; a comment in the component
+says so.
+
+**`Manage class →` deserves its own sentence too.** At 109×17 it is the link the
+triage separately flagged as an "invisible distinction": a first-time teacher
+does not know `/teacher/class` exists, and the affordance that would tell them is
+seventeen pixels tall.
+
+**The 42px entries are two pixels short**, which is worth saying because it looks
+like carelessness and is not: they are `padding: "9px 10px"` on a 15px line, and
+nobody who wrote them was aiming at 42. A single shared class-chip component
+would fix three rows of this table at once, which is the shape the autumn fix
+should take rather than six separate paddings.
+
+**This list is what the persona team happened to walk, not an exhaustive sweep.**
+A full-page gate would very probably find more — the per-moment "Delete" links on
+a child's journal are `text-xs` and were never measured. That incompleteness is
+exactly why `tests/battery/a11y/teacher-touch-targets.spec.ts` is scoped to the
+shell's own regions, whose universe is known and entirely fixed, rather than
+sweeping whole pages and going red on the first thing nobody had looked at.
+
+**Estimate:** about 2 hours for the five, or 3 if the class chip becomes one
+component. No schema, no safeguarding surface, no gate change beyond widening
+the spec's region list afterwards.
+
+## F50 · Announced as a button, operable by no key · Medium → Fixed
+
+Logged on 2026-08-23 out of the Batch B rotation investigation
+([`docs/rotation-findings.md`](./docs/rotation-findings.md)). It was found by
+reading the rotate handler, not by any test, and the reason no test found it is
+the more useful half of the finding.
+
+### What it is
+
+Two controls on the drawing canvas — the **Turn** handle and the **Resize**
+handle — are `<div role="button">` carrying `onPointerDown`, `onPointerMove` and
+`onPointerUp` and nothing else (`src/components/DrawingCanvas.tsx:5508-5533`).
+No `onKeyDown`, no `tabIndex`, no `onClick`.
+
+They are labelled (`aria-label="Turn a shape"` / `"Resize a shape"`), they are
+64px (F41 saw to that), and they are the only way to rotate or resize an object
+anywhere in the product. So for anyone driving the canvas from a keyboard or a
+switch, rotating and resizing **do not exist** — while the accessibility tree
+says they are buttons sitting right there.
+
+That is WCAG 2.2 **2.1.1 Keyboard** (A), and arguably **4.1.2 Name, Role, Value**
+as well: the role promises an interaction the element does not implement.
+
+### Why no gate caught it, which is the part that generalises
+
+The two failures cancel each other out in front of the tests:
+
+- Without `tabIndex`, the element is **not in the tab order**. `a11y/keyboard.spec.ts`
+  walks what is tabbable, so it never reaches these to fail on them.
+- `role="button"` on a `div` breaks **no axe rule** on its own. axe checks that a
+  control has an accessible name and a valid role; it does not check that a thing
+  claiming to be a button can be pressed.
+
+So the gate is blind *because* the control is unreachable — the defect is its own
+camouflage. Any future control built this way will be equally invisible, and the
+lesson is not about this canvas: **nothing in the battery asserts that an element
+announced as a button is reachable by keyboard.** A rule to that effect would be
+cheap (sweep for `[role="button"]` with no `tabindex`) and would have caught both
+of these the day they were written.
+
+### Does anything else share the shape?
+
+Checked, rather than assumed. `role="button"` on a non-`<button>` appears exactly
+**twice** in `src/`, and they are these two handles. There are no `role="slider"`
+elements. Every other control a child or teacher taps is a real `<button>`.
+
+One neighbouring gap, named so it is not mistaken for being covered: **objects
+themselves** are moved by pointer drag with no keyboard path either. That is not
+this finding — a shape is not announced as a button, so nothing is promised and
+nothing is broken — but a keyboard user cannot move an object any more than they
+can turn one, and a full answer for the canvas would have to cover all three.
+
+### What closed it — 23 August 2026
+
+Both halves, because either alone leaves a gap.
+
+**The handles are now operable.** `tabIndex={0}` and an arrow-key handler on
+each, in `ObjectCorners`. They step by the object's own rotation step
+(`rotateStepFor`), not by a coarser one, so **a keyboard reaches every position a
+pointer can** rather than a subset of them — which is the difference between
+2.1.1 being satisfied and being nearly satisfied.
+
+**And Turn / Resize are real `<button>`s in `ObjectToolbar`**, at the 64px child
+floor, where a child already looks for what they can do to a thing they have
+tapped. Those step by the coarse `ROTATE_STEP` (15°) on purpose: the toolbar is
+the control for squaring something up, and pressing one thirty times to reach a
+right angle on a long line would be its own bad screen. Every rung of the ladder
+divides 45 and 90, so a press and a drag land on the same angles.
+
+The narrower fix — keys on the handles alone — was possible only once the
+rotation work answered what a step should be. Before that, a drag handle driven
+by arrow keys had no step size to use, which is why the two were always the same
+decision.
+
+### What is still not covered
+
+Objects cannot be **moved** by keyboard. That is not this finding — a shape is
+not announced as a button, so nothing is promised and nothing is broken — but a
+keyboard user can now turn and resize an object and still cannot move it. A full
+answer for the canvas is all three, and it is the obvious next request.
+
+The general gap this finding named is also still open: **nothing in the battery
+asserts that an element announced as a button is reachable by keyboard.**
+`e2e/rotation.spec.ts` now asserts it for these two, by name. A sweep for
+`[role="button"]` without a `tabindex` would generalise it and would be cheap.
+
+---
+
+## F52 · The jargon gate cannot read past an apostrophe · Medium → Fixed
+
+Found on 2026-08-23 by `teacher-lead`, from a standing false positive; **diagnosed
+by `platform-lead`, who corrected the first diagnosis and found the half that
+matters.** Both halves below were reproduced and measured before this was
+written.
+
+`node scripts/error-string-audit.mjs` ends every run with one HARD hit —
+"a teacher must never see these" — on a line of `DrawingCanvas.tsx` that contains
+no user copy at all. That was the visible symptom. It is not the finding.
+
+**The extractor is `/["'`]([^"'`]{6,})["'`]/g` (`scripts/error-string-audit.mjs:38`)
+and both halves of it are wrong.**
+
+**1. An apostrophe ends a string.** The character class `[^"'`]` excludes all
+three quote characters, so a single quote inside a double-quoted string
+terminates the match. Every one of these is audited only as far as the
+apostrophe:
+
+| Audited as | Actually |
+| --- | --- |
+| `That refresh token isn` | `That refresh token isn't valid.` |
+| `This server doesn` | `This server doesn't open an event stream. Send JSON-RPC with POST.` |
+| `This server doesn` | `This server doesn't support "${req.method}".` |
+
+English contractions are not an edge case in user-facing copy — "doesn't",
+"isn't", "can't", "we'll", "you're" are how the whole product is written.
+**Measured across `src`: 79 strings on candidate lines are truncated this way.**
+Anything after the apostrophe has been invisible to this gate for as long as it
+has existed, and nothing anywhere would have said so.
+
+**2. A short string steals the next one's quotes.** The `{6,}` minimum is
+*inside* the pattern rather than applied afterwards, so a string shorter than six
+characters never matches and never consumes its own quotes. The engine retries
+from that string's **closing** quote, treating it as an opening one, and runs to
+the next opening quote — auditing the code in between. On
+`src/components/DrawingCanvas.tsx:3268`:
+
+```
+<FanBtn label="Quiz" onClick={() => { setFanOpen(false); setOpenKit(null); setTool("cursor"); ... }}>
+```
+
+`"Quiz"` is four characters, so the "string" the gate audits is
+`" onClick={() => { setFanOpen(false); setOpenKit(null); setTool("` — and `\bnull\b`
+fires on it. **Measured: 208 of the 1,521 strings it currently pulls from `src`
+contain `=>`, `{`, `}` or `; `** — they are code, not copy. That is one in seven.
+
+*A scanner whose extractor can mistake a closing quote for an opening one is not
+reporting on strings. It is reporting on whatever happens to lie between them.*
+
+**Why Medium rather than Low.** The false positive costs a second of reading and
+would be Low on its own; the reason it is logged at all is that it led to the
+false negatives. A gate that claims to enforce "a teacher must never see this
+word" and cannot read past a contraction has been reporting a pass it never
+earned. That is the same shape as F18 and F37 — a gate reading as "covered" while
+the real surface sat outside it — and as F44, a procedure that had never been
+executed. It is not High: the audit gates nothing (it is not in `npm run check`,
+CI runs it as `... || true` at `.github/workflows/battery.yml:160`, and nothing
+passes `--strict`), and no bad copy has actually been shown to have shipped
+because of it.
+
+**The fix was two lines** — extract with *matching* quote types, and apply the
+length minimum **afterwards**:
+
+```js
+const strings = line.match(/"([^"\n]*)"|'([^'\n]*)'|`([^`\n]*)`/g) ?? [];
+// then, inside the loop:
+const val = raw.slice(1, -1);
+if (val.length < 6) continue;
+```
+
+**Both halves are needed, and this is the part worth reading before you start.**
+Same-quote alternation *alone does not work* — reproduced: with `{6,}` still
+inside the pattern, the mis-pairing survives untouched and the DrawingCanvas line
+produces the identical bogus match. The length minimum has to move out. Kept here
+although the fix has landed, because it is the trap: it is the obvious fix, it is
+the one two of us would have written, and the next person to touch this extractor
+should not have to find that out twice.
+
+**Measured on a patched copy before it landed:** HARD 1 → 0, SOFT 6 → 6, the same
+six sites with their strings complete rather than truncated, and no new findings
+anywhere — so fixing it handed nobody new work, which is what made it safe to
+take during a freeze.
+
+**A third fault, found only after the fix landed, and it explains a lot.**
+`--strict` **now exits 0, and it never could before.** This script has advertised
+a strict mode since it was written; the permanent false positive meant it exited
+1 against a clean tree, so nobody could have promoted this gate to blocking even
+if they had wanted to. The mis-pairing did not merely make the output noisy — it
+made the one mechanism for taking the gate seriously unusable, which is the
+likeliest reason it still runs under `|| true`. Spotted by `platform-lead` after
+landing; verified here by running `node scripts/error-string-audit.mjs --strict`,
+which exits 0.
+
+**The door is open and should not be walked through yet — this is the note for
+whoever does the autumn heuristic review.** `--strict` is now a real option for
+the first time, so promoting this to a blocking gate is a decision somebody can
+actually take rather than a paragraph in a header. Do not take it on the strength
+of this fix alone. The measurement above says **208 of the 1,521 "strings" the
+audit pulled were code rather than copy** — roughly one in seven — and although
+the extractor fix removes the mis-pairing that caused the worst of them, nothing
+here has established what the *remaining* rate is, because the line filter
+(`/error|message|toast|showToast|placeholder|label|title:/i`), the HARD and SOFT
+word lists and the `/[A-Za-z]{4,}/` guard were all deliberately left untouched.
+A gate that fails a build on a heuristic with an unmeasured false-positive rate
+is a gate somebody switches off within a week, and a gate that has been switched
+off is worse than one that was never blocking. **Measure the rate first, then
+decide.** That review is the real autumn item; this fix was the thing standing in
+front of it.
+
+**Fixed on 2026-08-23** by `platform-lead`, in exactly the two lines above.
+Verified against the whole tree after landing, not before: HARD **1 → 0**, SOFT
+**6 → 6** — the same six sites, strings complete rather than truncated. "This
+server doesn" now reads "This server doesn't open an event stream. Send JSON-RPC
+with POST."
+
+**Covering test: none, and none proposed.** Said out loud because this file names
+a test for everything else. There is no spec for this script and writing one
+would mean testing a heuristic against itself; what makes the fix safe is the
+before-and-after measurement across the real tree.
+
+**Still open, and a better item than the fix was: the selection heuristic.** The
+extractor is now correct; what it is pointed at is not. It still audits any
+string on a line matching
+`/error|message|toast|showToast|placeholder|label|title:/i`, which is how one in
+seven became possible in the first place, and why two of the six standing SOFT
+findings are the CSS-ish token `token-label` rather than anything a teacher will
+ever read. **Do not make this blocking until that is looked at.** A gate that
+fails a build on a heuristic with that hit rate is a gate somebody turns off
+within a week — which is how it ends up under `|| true` again, with a better
+excuse than last time. Autumn.
+
+**It was going to wait, and then it did not.** The deferral reasoning was that
+`scripts/` is on the "select everything" list in `select-suites.mjs`, so touching
+this file makes a PR run every blocking suite — a full battery for a report-only
+fix, three days before a freeze. That was the right trade **while it was true**.
+It stopped being true the same evening: `scripts/` was already dirty from the F44
+runbook work, so the full-battery cost the deferral was protecting against was
+already sunk, and the lead reversed the call. `platform-lead` landed the two
+lines the same evening.
+
+Worth keeping rather than tidying away, because the reasoning was sound and the
+answer still changed. A deferral justified by a cost is only good until somebody
+else has already paid the cost, and nobody re-checks that unless the two people
+are talking.
+
+## F53 · Four committed files that nothing has ever run · Low → Three deleted, one open
+
+Found on 2026-08-23 by `teacher-lead`, while grepping for something else. Nothing
+was broken by any of them; that is the point of the entry.
+
+Four files carry a ` 2` before their extension — the shape a Finder or editor
+"duplicate" produces — and all four were committed:
+
+| File | State |
+| --- | --- |
+| `tests/e2e/admin.spec 2.ts` | **Deleted** |
+| `tests/e2e/class-import.spec 2.ts` | **Deleted** |
+| `tests/battery/security/class-import.spec 2.ts` | **Deleted** |
+| `prisma/migrations/20260817140000_ops_mail_status/migration 2.sql` | **Still there** — see below |
+
+**None of them has ever run.** Neither Playwright config sets `testMatch`, so the
+default `**/*.@(spec|test).?(c|m)[jt]s?(x)` applies, and a filename ending
+`2.ts` rather than `.spec.ts` cannot match it. Prisma applies the file named
+`migration.sql` in each timestamped folder and no other.
+
+**Why it is worth an entry rather than a quiet tidy-up.**
+`tests/battery/security/class-import.spec 2.ts` sat in the directory of a
+**blocking** gate. Anyone auditing what the security battery covers — which is
+exactly what a school's due-diligence questionnaire prompts, and the reason this
+file exists — finds a spec there and reasonably assumes it runs. It never did.
+That is the same shape as **F18**, **F37**, **F52** and **F44**: a signal that
+reads as covered while nothing stands behind it. It is the first instance of that
+shape found here by accident rather than by looking.
+
+No incident is claimed. Nothing has yet been misled by these files as far as
+anybody knows; the risk is standing rather than realised, and it is strong enough
+without embellishment.
+
+**The migration artefact is the consequential one, and it is left alone
+deliberately.** `migration 2.sql` is an *older draft* of the `ops_mail_status`
+migration, differing in two column names:
+
+| Draft (` 2.sql`) | Applied (`migration.sql`) |
+| --- | --- |
+| `note` | `outcomeDetail` |
+| `template` | `templateKey` |
+
+`template` is precisely the name `prisma/schema.prisma` rejects, in its own
+words, because *"`template` is a RELATION to ActivityTemplate elsewhere in this
+schema, and the blindness gate derives its child-relation denylist from relation
+names: an operator file mentioning `template` is refused"*. So the stray is the
+pre-fix draft of a decision the ops gate depends on, sitting one rename away from
+being live.
+
+**Verified applied-correct rather than assumed**: the development database's
+`MailCounter` table is `PRIMARY KEY ("day", "templateKey", "outcome",
+"statusClass")`. The right file was applied and the draft never was.
+
+It is **not deleted** because `prisma/` is inside the 27 August schema freeze and
+the deletion authorised tonight was scoped to the three spec files. Removing a
+tracked file from a migrations directory is a change to migration history, and
+that is the owner's call rather than an agent's, freeze or no freeze.
+
+**How the three were verified harmless before deletion**, recorded so nobody has
+to redo it if another of these turns up:
+
+- `tests/e2e/class-import.spec 2.ts` was **byte-identical** to its counterpart.
+- `tests/battery/security/class-import.spec 2.ts` held one test its counterpart
+  lacks — *"an imported class shows as a count in the console, never as
+  children's names"* — and that test **does exist in a collected file**, at
+  `tests/e2e/admin.spec.ts:150`. No coverage was lost.
+- `tests/e2e/admin.spec 2.ts` was a stale copy carrying the brittle
+  `getByText("Teaching assistant")).toHaveCount(2)` assertion that F47's copy
+  change exposed and which has since been rewritten to count staff rather than
+  words. A rename, or a loosened `testMatch`, would have resurrected a test that
+  fails for a correct change.
+
+**The general lesson, which outlives the files.** A duplication artefact is
+invisible to every gate in this repository: it typechecks (it is valid code), it
+passes the static audits (it is never imported), and it never runs (the glob
+excludes it). Nothing in CI has an opinion about a file that nothing references.
+The only thing that finds one is a person looking at a directory listing.
