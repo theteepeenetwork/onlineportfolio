@@ -36,7 +36,7 @@ import {
   utcDayBefore,
   type MailStatusClass,
 } from "@/lib/mailStatus";
-import { mailAddressHmac, mailHmacConfigured } from "@/lib/ops/mailHmac";
+import { mailAddressHmac, mailHmacConfigured } from "@/lib/mailHmac";
 
 // ---------------------------------------------------------------------------
 // The operator read chokepoint (PR2).

@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { IDLE_LIFETIME_MINUTES, requireOperator } from "@/lib/ops/session";
+import { readMailStatus } from "@/lib/ops/reads";
 import { OpsBar, OpsFootnote } from "./shell";
 
 // The way in, and the index of what there is. PR1 built identity and left this
@@ -35,23 +37,57 @@ export const metadata = {
 export default async function OpsConsolePage() {
   await requireOperator();
 
+  // readMailStatus() calls requireOperator() a second time internally — that
+  // is fine and deliberate: each read is a self-contained unit that does not
+  // rely on a guard in an ancestor. The page guard above remains the canonical
+  // one for this route.
+  const mailStatus = await readMailStatus();
+  const todayVerdict = mailStatus.windows[0];
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--paper)" }}>
       <OpsBar current="/ops" />
-      <main className="mx-auto w-full max-w-4xl px-4 py-8">
+      <main className="mx-auto w-full max-w-4xl px-4 py-8 space-y-4">
+        {/* Mail verdict tile — F30 render half. The sentence comes from
+            readMailStatus().windows[0].verdictLabel, which already contains the
+            complete, closed-vocabulary verdict. No colour, badge or icon: a
+            delivery state shown as a coloured dot fails handbook section 6
+            item 8. The detail screen (/ops/mail) is linked for the operator
+            who wants the breakdown. */}
+        <div className="card p-6">
+          <h2 className="font-display text-lg" style={{ color: "var(--ink)" }}>
+            Mail — {todayVerdict.label}
+          </h2>
+          <p className="mt-2" style={{ color: "var(--ink-soft)" }}>
+            {todayVerdict.verdictLabel}
+          </p>
+          <p className="mt-3 text-sm">
+            <Link
+              href="/ops/mail"
+              style={{
+                color: "var(--ink)",
+                textDecoration: "underline",
+                textUnderlineOffset: "3px",
+              }}
+            >
+              See the full mail screen for the 7-day breakdown and suppression counts
+            </Link>
+          </p>
+        </div>
+
         <div className="card p-6">
           <h1 className="font-display text-2xl" style={{ color: "var(--ink)" }}>
             Operations
           </h1>
           <p className="mt-3" style={{ color: "var(--ink-soft)" }}>
-            Nothing needs you tonight. There are no alerts here yet: deploys, backups, cron runs and
-            mail delivery all need a feed that does not exist, and a tile with no feed would be a green
-            light nobody is entitled to. They arrive later, each one saying where its number came from.
+            The mail tile above is a live feed. Deploys, backups and cron runs do not yet have one:
+            a tile with no feed would be a green light nobody is entitled to. They arrive later,
+            each one saying where its number came from.
           </p>
           <ul className="mt-4 list-disc ps-5" style={{ color: "var(--ink)" }}>
             <li>
-              <strong>Schools</strong> lists every registered school with what it pays, the band it is
-              in, and how many pupils are on roll.
+              <strong>Schools</strong> lists every registered school with what it pays, the band it
+              is in, and how many pupils are on roll.
             </li>
             <li>
               <strong>Billing</strong> shows what each school is on and what it owes, with anything
@@ -59,13 +95,13 @@ export default async function OpsConsolePage() {
               where a payment is recorded.
             </li>
             <li>
-              <strong>Find an adult</strong> looks one member of staff or one parent up by their exact
-              email address, and records why you looked.
+              <strong>Find an adult</strong> looks one member of staff or one parent up by their
+              exact email address, and records why you looked.
             </li>
           </ul>
           <p className="mt-4 text-sm" style={{ color: "var(--ink-soft)" }}>
-            You are signed out automatically after {IDLE_LIFETIME_MINUTES} minutes without using this
-            page, and after 8 hours whatever happens. Nothing here holds unsaved work.
+            You are signed out automatically after {IDLE_LIFETIME_MINUTES} minutes without using
+            this page, and after 8 hours whatever happens. Nothing here holds unsaved work.
           </p>
         </div>
       </main>
