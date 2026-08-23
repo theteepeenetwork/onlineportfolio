@@ -45,6 +45,9 @@ export default async function StudentJournal({
   });
 
   const published = student.journalItems.filter((i) => i.status === "APPROVED");
+  // Work the export will carry that no adult has passed yet — see the note by
+  // the export button.
+  const notApproved = student.journalItems.length - published.length;
 
   return (
     <>
@@ -65,6 +68,36 @@ export default async function StudentJournal({
             ＋ Add
           </Link>
         </div>
+
+        {/* The answer to "a parent has asked what you hold about my child".
+            Beside the journal it describes, and nowhere near a delete control.
+
+            The second paragraph is the human gate SAFEGUARDING rule 3 asks for.
+            The file deliberately holds work that has not been through the
+            approval queue, because the school holds it and the question was
+            what the school holds — but nobody has decided that work is suitable
+            to share, and a teacher who exports four hundred lines of JSON will
+            not discover that by reading them. The count is here, and again at
+            the top of the file itself. */}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <a href={`/teacher/export/pupil/${student.id}`} download className="btn-ghost">
+            Export {student.name}&rsquo;s data
+          </a>
+          <p className="text-sm text-muted">
+            A file listing everything the school holds for this pupil. It names the photos,
+            drawings and voice notes but does not contain them &mdash; the files themselves
+            are a separate request.
+          </p>
+        </div>
+        {notApproved > 0 && (
+          <p role="note" className="mt-2 text-sm font-semibold">
+            Read it before you share it. The file includes {notApproved}{" "}
+            {notApproved === 1 ? "piece" : "pieces"} of work that {notApproved === 1 ? "has" : "have"}{" "}
+            not been through the approval queue &mdash; waiting to be approved, or sent back.
+            Nobody has decided yet whether {notApproved === 1 ? "it is" : "they are"} suitable
+            to share.
+          </p>
+        )}
 
         <div className="mt-6 space-y-4">
           {student.journalItems.length === 0 ? (

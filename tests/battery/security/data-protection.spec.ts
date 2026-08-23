@@ -113,6 +113,69 @@ test("a teacher can export their own class; another tenant cannot (F4)", async (
   expect(theirs.status()).toBe(404);
 });
 
+test("the per-pupil export answers for one child, and only to that child's teacher", async ({ page }) => {
+  // The subject-access export: "what do you hold about my child". Scoped the
+  // same way the class export and the pupil's own journal page are — the
+  // teacher whose class the child is in, nobody else.
+  const zaraId = await studentIdFromLogin(page, SCHOOL_B.classCode, "Zara");
+  const url = `/teacher/export/pupil/${zaraId}`;
+
+  // The teacher who owns Acorn → 200, and it is about Zara.
+  await loginTeacher(page, SCHOOL_B.teacher);
+  const mine = await page.request.get(url);
+  expect(mine.status()).toBe(200);
+  expect(mine.headers()["content-disposition"]).toContain("attachment");
+  expect(mine.headers()["cache-control"]).toContain("no-store");
+  const body = await mine.json();
+  expect(body.schema).toBe("storyjar-pupil-export-v1");
+  expect(body.pupil.firstName).toBe("Zara");
+
+  // One child's file holds one child. Yusuf is in the same class and must not
+  // be in it.
+  const raw = JSON.stringify(body);
+  expect(raw, "another pupil's name leaked into a per-pupil export").not.toContain("Yusuf");
+
+  // Nothing in this file may be a credential or a profile: a parent is handed
+  // it. The class code signs somebody in as any pupil in the class, the family
+  // code signs them in as a household, and jarSeenAt is profiling (rule 11).
+  expect(raw, "a class code must never leave in a pupil export").not.toContain(SCHOOL_B.classCode);
+  expect(raw, "a family code must never leave in a pupil export").not.toContain(SCHOOL_B.parentFamilyCode);
+  expect(raw, "when a child last opened their jar must never be exported").not.toContain("jarSeenAt");
+
+  // Family access is a COUNT and nothing else. A per-household date or flag is
+  // a written claim about the OTHER household, in a file handed to this one —
+  // and `takenUp` was wrong in both directions besides, because parent sessions
+  // are purged 7 days after they expire.
+  expect(body.familyAccess.places, "how many households can see this jar").toBeGreaterThanOrEqual(0);
+  expect(body.familyAccess.households, "no per-household detail may be exported").toBeUndefined();
+  expect(raw, "a session-derived 'taken up' claim about a household").not.toContain("takenUp");
+
+  // Rule 3's human gate: the file carries work nobody has approved, so it has
+  // to say so where the person handing it over will see it.
+  expect(body.reviewBeforeSharing.momentsNotApproved).toBeGreaterThan(0); // Zara's quiz answer is PENDING
+  expect(body.reviewBeforeSharing.note).toMatch(/not been through the approval queue/i);
+
+  // A subject access answer has to be intelligible. Stored answers are opaque
+  // ids ("opt2"), so they are resolved against the frozen quiz into the words
+  // the child was actually shown.
+  const quizMoment = body.moments.find((m: { quizAnswers?: unknown[] }) => m.quizAnswers?.length);
+  expect(quizMoment, "Zara's seeded quiz response").toBeTruthy();
+  expect(quizMoment.quizAnswers[0].question, "the question, not its id").toContain("oak leaf");
+  expect(JSON.stringify(quizMoment.quizAnswers)).not.toMatch(/"opt\d/);
+
+  // Another teacher in the SAME school, who does not teach Acorn, gets nothing.
+  // A subject access request is a reason to read out what is held, not a reason
+  // to widen who may read it.
+  await loginTeacher(page, SCHOOL_B.admin);
+  const colleague = await page.request.get(url);
+  expect(colleague.status(), "a school colleague who does not teach this child").toBe(404);
+
+  // Cross-tenant: School A must not reach School B's child.
+  await loginTeacher(page, SCHOOL_A.admin);
+  const theirs = await page.request.get(url);
+  expect(theirs.status(), "School A reached School B's pupil").toBe(404);
+});
+
 test("deleting a moment erases its media file too (rule 9 — regression guard)", async ({ page }) => {
   // Guards the PR #28 fix: deleteItem must remove the row AND the file. If a
   // future change reverts to a row-only delete, this fails. (The pupil-removal
