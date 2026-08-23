@@ -53,9 +53,26 @@ export default function Privacy() {
 
       <h2>5. Where data is stored</h2>
       <p>
-        Personal data (database, uploaded media and backups) is stored and processed in the <strong>EU — Amsterdam, the Netherlands</strong>. It never leaves Europe. Transfers from the UK to the EEA are covered by the UK&apos;s adequacy regulations.
-        We do not transfer children&apos;s personal data to the United States or other jurisdictions without an adequacy
-        decision or appropriate safeguards. Our current infrastructure and sub-processors are listed in the{" "}
+        The database and uploaded media are stored and processed in the <strong>EU — Amsterdam, the
+        Netherlands</strong>, confirmed with our hosting provider on 15 August 2026. Transfers from the UK to the
+        EEA are covered by the UK&apos;s adequacy regulations.
+      </p>
+      <p>
+        <strong>Backups.</strong> Backups of that data are taken by our hosting provider. We are confirming the
+        geographic location of those backups with them in writing, and{" "}
+        <strong>it is not yet established</strong>. We would rather tell you that than imply an answer we do not
+        have, so until it is confirmed we make no claim about where backups are held. We will update this notice
+        when we have it, and a school that needs the answer before then should ask us.
+      </p>
+      <p>
+        <strong>Support access from outside the EEA.</strong> Our hosting provider is incorporated in the United
+        States, so its personnel may access the systems holding this data for support purposes from outside the
+        EEA. We have not yet obtained and recorded that provider&apos;s data processing agreement or its
+        onward-transfer terms. Children&apos;s data is not stored outside the EEA, but support access is a
+        transfer and we describe it rather than leave it out.
+      </p>
+      <p>
+        Our current infrastructure and sub-processors are listed in the{" "}
         <a href="/legal/sub-processors">Sub-processors</a> page.
       </p>
 
