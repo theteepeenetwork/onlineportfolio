@@ -41,7 +41,16 @@ test.describe("School admin", () => {
     await menu.getByRole("menuitem", { name: "Teaching assistant" }).click();
 
     // Sam Doyle was already a TA; Miss Malik becoming one makes two.
-    await expect(page.getByText("Teaching assistant")).toHaveCount(2);
+    //
+    // Scoped to the staff rows' own role badges, not counted across the page.
+    // This was `getByText("Teaching assistant")` and it worked only while that
+    // phrase existed in exactly one place in the DOM. It stopped being true when
+    // the role picker gained a line explaining that Teacher and Teaching
+    // assistant permit the same things (F47) — the count went to 4 and the test
+    // failed for a change that was correct. A count of a phrase is not a count
+    // of people; assert the thing the test is actually about.
+    const roleBadges = page.locator("[data-staff-role]");
+    await expect(roleBadges.filter({ hasText: "Teaching assistant" })).toHaveCount(2);
 
     // The action is recorded in the audit log for accountability.
     await page.getByRole("button", { name: "Audit log" }).click();

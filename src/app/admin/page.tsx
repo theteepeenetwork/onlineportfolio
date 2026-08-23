@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accountStateForTeacher, governingSubscription, planLabel } from "@/lib/billing";
 import { stripeConfigured } from "@/lib/stripe";
+import { readSchoolMailHealth } from "@/lib/schoolMailHealth";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
@@ -106,6 +107,13 @@ export default async function AdminPage() {
     configured: stripeConfigured(),
     billingEmail: user.teacher.email,
     pupilsOnRoll: childrenCount,
+    // "Is our email arriving?" — the question the business manager is rung
+    // about. Read here rather than in the client, and deliberately NOT wrapped
+    // in a try/catch: a failed read must break the page rather than render as
+    // "no emails were sent", which would be a problem that looks like
+    // everything being fine. The object holds no address, domain, school or
+    // child, which is why it may cross to the browser at all.
+    mailHealth: await readSchoolMailHealth(),
   };
 
   return (

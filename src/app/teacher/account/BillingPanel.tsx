@@ -113,7 +113,10 @@ export function BillingPanel(props: Props) {
             <legend className="label" style={{ padding: 0 }}>How many pupils are on roll?</legend>
             <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
               {SCHOOL_BANDS.map((b) => (
-                <label key={b.key} htmlFor={`band-${b.key}`} style={{ display: "flex", gap: 10, alignItems: "baseline", minHeight: 44, font: "400 15px var(--font-atkinson)" }}>
+                <label key={b.key} htmlFor={`band-${b.key}`} style={{ display: "flex", gap: 10, alignItems: "flex-start", minHeight: 44, font: "400 15px var(--font-atkinson)" }}>
+                  {/* 24px, not the browser's 13. The row is a 44px label and
+                      clicking it selects the band, but the dial itself is what a
+                      pointer lands on when it lands short (WCAG 2.2 AA 2.5.8). */}
                   <input
                     type="radio"
                     id={`band-${b.key}`}
@@ -121,6 +124,7 @@ export function BillingPanel(props: Props) {
                     value={b.key}
                     checked={band === b.key}
                     onChange={() => setBand(b.key)}
+                    style={{ width: 24, height: 24, flex: "none", marginTop: 1 }}
                   />
                   <span><strong>{b.label}</strong> — {formatPrice(b.price)} a year<br />
                     <span style={{ color: "var(--sj-muted)" }}>{b.hint}</span>

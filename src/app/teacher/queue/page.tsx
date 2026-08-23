@@ -52,6 +52,14 @@ export default async function ApprovalQueue() {
     db.skill.findMany({ orderBy: { name: "asc" } }),
   ]);
 
+  // Whether this person holds any class at all. An empty queue means two very
+  // different things — "you are up to date" and "nothing here is yours" — and a
+  // teaching assistant with no class was reading the first as the second and
+  // concluding the screen was broken or that she was not allowed. Access in
+  // StoryJar comes from the classes you hold, not from your job title, so this
+  // is the fact that answers her.
+  const classCount = await db.class.count({ where: { teacherId: user.teacher.id } });
+
   const mapped = items.map((it) => ({
     id: it.id,
     child: it.student.name,
@@ -77,7 +85,7 @@ export default async function ApprovalQueue() {
 
   return (
     <div style={{ maxWidth: 1000 }}>
-      <QueueBoard items={mapped} skills={skills} />
+      <QueueBoard items={mapped} skills={skills} hasClasses={classCount > 0} />
     </div>
   );
 }

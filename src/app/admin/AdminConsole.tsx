@@ -142,7 +142,7 @@ export function AdminConsole({
   return (
     <div className="sj" onClick={closeMenus} style={{ minHeight: "100vh", background: "#FAF6EE", fontFamily: "var(--font-atkinson)", color: "#22304A" }}>
       {/* ink top bar — signals the whole-school space */}
-      <header style={{ display: "flex", alignItems: "center", gap: 22, padding: "14px 32px", background: "#22304A", position: "sticky", top: 0, zIndex: 30, flexWrap: "wrap" }}>
+      <header data-shell="admin-header" style={{ display: "flex", alignItems: "center", gap: 22, padding: "14px 32px", background: "#22304A", position: "sticky", top: 0, zIndex: 30, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <JarMark />
           <span style={{ font: "600 19px var(--font-fredoka)", color: "#FAF6EE" }}>storyjar</span>
@@ -155,7 +155,7 @@ export function AdminConsole({
               <button
                 key={t.id}
                 onClick={(e) => { e.stopPropagation(); setTab(t.id); closeMenus(); }}
-                style={{ font: "700 15px var(--font-atkinson)", color: active ? "#22304A" : "#C4CDDD", background: active ? "#FAF6EE" : "transparent", border: "none", borderRadius: 999, padding: "7px 16px", whiteSpace: "nowrap", cursor: "pointer" }}
+                style={{ display: "inline-flex", alignItems: "center", minHeight: 44, font: "700 15px var(--font-atkinson)", color: active ? "#22304A" : "#C4CDDD", background: active ? "#FAF6EE" : "transparent", border: "none", borderRadius: 999, padding: "7px 16px", whiteSpace: "nowrap", cursor: "pointer" }}
               >
                 {t.label}
               </button>
@@ -163,7 +163,10 @@ export function AdminConsole({
           })}
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-          <Link href="/teacher" style={{ font: "700 14px var(--font-atkinson)", color: "#C4CDDD", textDecoration: "none", whiteSpace: "nowrap" }}>My teaching →</Link>
+          {/* The way back to a teacher's own classes. It measured 99×17 — the
+              only route out of the admin console, and the shortest control on
+              the screen. It now carries a 44px box like everything else. */}
+          <Link href="/teacher" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 8px", borderRadius: 10, font: "700 14px var(--font-atkinson)", color: "#C4CDDD", textDecoration: "none", whiteSpace: "nowrap" }}>My teaching →</Link>
           <span style={{ width: 38, height: 38, borderRadius: "50%", background: avatarColor(meId), display: "flex", alignItems: "center", justifyContent: "center", font: "600 16px var(--font-fredoka)", color: "#FFFDF7" }}>
             {initials(staff.find((s) => s.id === meId)?.name ?? "?")}
           </span>
@@ -462,7 +465,12 @@ function StaffTable({
                 <p style={{ margin: "1px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.email}</p>
               </div>
             </div>
-            <span style={{ font: "700 13px var(--font-atkinson)", color: rs.color, background: rs.bg, border: `1px solid ${rs.border}`, borderRadius: 999, padding: "5px 12px", justifySelf: "start", whiteSpace: "nowrap" }}>{rs.label}</span>
+            {/* data-staff-role marks THIS as the row's role, so a test can ask
+                "how many staff are teaching assistants" rather than "how many
+                times do those words appear on the page" — the latter also counts
+                the role picker, the invite form and the explanatory copy beside
+                them. Inert; see tests/e2e/admin.spec.ts. */}
+            <span data-staff-role={p.role} style={{ font: "700 13px var(--font-atkinson)", color: rs.color, background: rs.bg, border: `1px solid ${rs.border}`, borderRadius: 999, padding: "5px 12px", justifySelf: "start", whiteSpace: "nowrap" }}>{rs.label}</span>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {p.classes.length === 0 ? (
                 <span style={{ font: "400 13px var(--font-atkinson)", color: "#B0B7C6" }}>—</span>
@@ -551,6 +559,14 @@ function RoleSubmenu({ staff, onBack }: { staff: StaffRow; onBack: () => void })
     <>
       <button onClick={onBack} style={{ ...MENU_ITEM, color: "#43506B", font: "700 13px var(--font-atkinson)" }}>← Edit role</button>
       <div style={{ height: 1, background: "#F0EADD", margin: "4px 0" }} />
+      {/* Said here because this is where somebody believes they are limiting a
+          colleague. Only ADMIN changes what StoryJar permits; the other two are
+          the school's own record of who somebody is. What decides what they can
+          see is Assign classes, one menu across. See F47. */}
+      <p style={{ margin: 0, padding: "6px 12px 8px", font: "400 12px/1.45 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+        Only <strong>Admin</strong> changes what someone can do — it opens this console. What a
+        teacher or a teaching assistant can see comes from the classes they hold.
+      </p>
       {(["ADMIN", "TEACHER", "TA"] as const).map((r) => (
         <form key={r} action={setStaffRole}>
           <input type="hidden" name="staffId" value={staff.id} />
@@ -613,11 +629,15 @@ function InviteForm({ onDone }: { onDone: () => void }) {
       </div>
       <div>
         <label htmlFor="inv-role" style={{ display: "block", font: "700 13px var(--font-atkinson)", marginBottom: 5 }}>Role</label>
-        <select id="inv-role" name="role" defaultValue="TEACHER" style={{ ...INPUT, width: "auto" }}>
+        <select id="inv-role" name="role" defaultValue="TEACHER" aria-describedby="inv-role-hint" style={{ ...INPUT, width: "auto" }}>
           <option value="TEACHER">Teacher</option>
           <option value="TA">Teaching assistant</option>
           <option value="ADMIN">Admin</option>
         </select>
+        <p id="inv-role-hint" style={{ margin: "5px 0 0", maxWidth: 220, font: "400 12px/1.45 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+          Admin opens this console. Teacher and teaching assistant can do the same things &mdash; give
+          them a class to decide what they see.
+        </p>
       </div>
       <button type="submit" disabled={pending} style={{ ...JAM_BTN, opacity: pending ? 0.7 : 1 }}>{pending ? "Inviting…" : "Send invite"}</button>
       {state.error && <p role="alert" style={{ gridColumn: "1 / -1", margin: 0, font: "700 14px var(--font-atkinson)", color: "#C2476B" }}>{state.error}</p>}

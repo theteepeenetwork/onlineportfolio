@@ -39,7 +39,19 @@ type Item = {
   quizReview: QuizLine[] | null;
 };
 
-export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }) {
+export function QueueBoard({
+  items,
+  skills,
+  hasClasses,
+}: {
+  items: Item[];
+  skills: Skill[];
+  /** False when this person holds no class. An empty queue then means "none of
+   *  this is yours", not "you are up to date", and saying "All caught up" to
+   *  somebody who has never had anything to catch up on is how a teaching
+   *  assistant concluded the screen was broken. */
+  hasClasses: boolean;
+}) {
   const { clearPending } = useTeacherShell();
   const [live, setLive] = useState(items);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -65,12 +77,23 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
   };
 
   const remove = (ids: string[]) => {
-    setLive((prev) => {
-      // Tell the shell which classes just lost an item, so the rail badge and
-      // the per-class counts fall on this screen rather than on the next load.
-      clearPending(prev.filter((it) => ids.includes(it.id)).map((it) => it.classId));
-      return prev.filter((it) => !ids.includes(it.id));
-    });
+    // Tell the shell which classes just lost an item, so the rail badge and the
+    // per-class counts fall on this screen rather than on the next load.
+    //
+    // This used to sit INSIDE the setLive updater below, because the updater is
+    // where `prev` was to hand. React invokes a state updater during the render
+    // phase, so calling the shell's setState from in there was a
+    // set-state-during-render — "Cannot update a component (TeacherShell) while
+    // rendering a different component (QueueBoard)". It warned and recovered,
+    // and React 19 escalates that class of warning to an error, in a shell that
+    // renders on every teacher screen.
+    //
+    // Nothing needed the updater. `remove` is only ever called from an event
+    // handler, after an await, with the ids of items that are by definition
+    // still in `live` — so the classes they belong to are the same list, worked
+    // out here in the handler where a setState is simply a setState.
+    clearPending(live.filter((it) => ids.includes(it.id)).map((it) => it.classId));
+    setLive((prev) => prev.filter((it) => !ids.includes(it.id)));
     setSelected((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.delete(id));
@@ -154,8 +177,22 @@ export function QueueBoard({ items, skills }: { items: Item[]; skills: Skill[] }
     return (
       <div style={{ textAlign: "center", padding: "70px 20px 30px" }}>
         <div style={{ display: "inline-block" }}><JarLogo width={90} height={112} jarFill="#EAF4F1" /></div>
-        <h2 style={{ margin: "18px 0 0", font: "600 26px var(--font-fredoka)" }}>All caught up ☕</h2>
-        <p style={{ margin: "8px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>Every moment is in its jar. Put the kettle on.</p>
+        {hasClasses ? (
+          <>
+            <h2 style={{ margin: "18px 0 0", font: "600 26px var(--font-fredoka)" }}>All caught up ☕</h2>
+            <p style={{ margin: "8px 0 0", font: "400 16px var(--font-atkinson)", color: "var(--sj-muted)" }}>Every moment is in its jar. Put the kettle on.</p>
+          </>
+        ) : (
+          <>
+            <h2 style={{ margin: "18px 0 0", font: "600 26px var(--font-fredoka)" }}>You have not been given a class yet</h2>
+            <p style={{ margin: "8px 0 auto", maxWidth: 460, marginInline: "auto", font: "400 16px/1.6 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+              Nothing is wrong and nothing is hidden from you. In StoryJar you approve work for the
+              classes you hold, and you do not hold one yet. Ask whoever set StoryJar up for your
+              school to give you a class &mdash; or make your own from{" "}
+              <Link href="/teacher/class" style={{ color: "var(--jam)", fontWeight: 700 }}>My classes</Link>.
+            </p>
+          </>
+        )}
       </div>
     );
   }

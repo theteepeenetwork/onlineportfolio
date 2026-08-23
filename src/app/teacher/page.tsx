@@ -237,8 +237,10 @@ export default async function TeacherDashboard({
           ) : (
             <>
               <p style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>You don&apos;t have a class yet</p>
-              <p style={{ margin: "6px 0 18px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-                Make one and its code is ready for your pupils to sign in with.
+              <p style={{ margin: "6px 0 18px", font: "400 15px/1.6 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+                Make one and its code is ready for your pupils to sign in with &mdash; or, if somebody
+                else set StoryJar up for your school, ask them to give you one. Everything you can see
+                and do here follows the classes you hold.
               </p>
               <Link
                 href="/teacher/class"

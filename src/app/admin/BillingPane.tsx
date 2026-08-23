@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { startCheckout, requestSchoolInvoice, openCustomerPortal } from "@/app/actions/billing";
 import type { AccountStatus, PlanKind } from "@/lib/billing";
 import { SCHOOL_BANDS, bandFor, bandForPupils, formatPrice, priceNote, type PlanKey } from "@/lib/billing-plans";
+import type { SchoolMailHealth, SchoolMailHealthState } from "@/lib/schoolMailHealth";
 import { CARD } from "./tabs";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,10 @@ type Props = {
   /** Children across all classes in this school — used to suggest a band, never to charge. */
   pupilsOnRoll: number;
   invoiceRequested: boolean;
+  /** Whether StoryJar's outgoing email is working. Read on the server; it holds
+   *  no address, no domain, no school and no child, which is why it can be a
+   *  prop at all. See src/lib/schoolMailHealth.ts. */
+  mailHealth: SchoolMailHealth;
 };
 
 const ukDate = (iso: string | null) =>
@@ -96,6 +101,7 @@ export function BillingPane(props: Props) {
   const {
     schoolName, status, kind, trialDaysLeft, trialEndsISO, currentPeriodEndISO, frozenAtISO,
     currentPlanKey, hasCustomer, hasLiveSubscription, configured, billingEmail, pupilsOnRoll, invoiceRequested,
+    mailHealth,
   } = props;
 
   const [checkoutState, checkoutAction, checkoutPending] = useActionState(startCheckout, {});
@@ -286,7 +292,7 @@ export function BillingPane(props: Props) {
                     value={b.key}
                     checked={band === b.key}
                     onChange={() => setBand(b.key)}
-                    style={{ marginTop: 3, width: 18, height: 18 }}
+                    style={{ marginTop: 2, width: 24, height: 24, flex: "none" }}
                   />
                   <span>
                     <strong>{b.label}</strong> — {formatPrice(b.price)} a year
@@ -338,6 +344,9 @@ export function BillingPane(props: Props) {
         </section>
       )}
 
+      {/* ── Is our email arriving? ────────────────────────────────────── */}
+      <MailHealthCard health={mailHealth} />
+
       {/* ── Who the paperwork goes to ─────────────────────────────────── */}
       <section style={{ ...CARD, padding: "22px 24px" }} aria-labelledby="billing-contact">
         <h2 id="billing-contact" style={H2}>Billing contact</h2>
@@ -364,3 +373,82 @@ export function BillingPane(props: Props) {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// The email health badge.
+// ---------------------------------------------------------------------------
+// The person reading this is the one parents ring when a sign-in link does not
+// arrive, and until now she had nowhere to look — /ops/mail is the operator's
+// screen and she cannot reach it.
+//
+// EVERY WORD ON IT COMES FROM THE DTO, deliberately. src/lib/schoolMailHealth.ts
+// chose the headline, the detail and the caveats, and it is where the reasoning
+// about what may honestly be claimed lives. This component picks an icon and
+// lays it out. If the copy is wrong, it is wrong there, in one place, next to
+// the rule that produced it — rather than half here and half there, which is how
+// a badge ends up saying something the data does not support.
+//
+// TWO RULES IT KEEPS:
+//
+//  1. `scopeNote` is ALWAYS rendered. It is the sentence that stops this
+//     overclaiming: the figures are StoryJar's whole email, not this school's,
+//     because MailCounter has no school column and deliberately never will (F6 —
+//     a per-send record would rebuild the address-enumeration signal the sign-in
+//     form is careful not to give). A manager who inferred "my school's email is
+//     fine" from a green badge would find out otherwise with a parent on the
+//     phone, and that is precisely the F30 failure this is meant to end.
+//  2. Status is never carried by colour alone (handbook section 6 item 8). Each
+//     state has a WORD — "Working", "Needs attention" — and a symbol, and the
+//     colour is the third signal rather than the only one.
+function MailHealthCard({ health }: { health: SchoolMailHealth }) {
+  const look = MAIL_LOOK[health.state];
+  return (
+    <section style={{ ...CARD, padding: "22px 24px" }} aria-labelledby="billing-mail">
+      <h2 id="billing-mail" style={H2}>Email</h2>
+      <p style={{ ...BODY, margin: "6px 0 0" }}>
+        Whether the sign-in links StoryJar emails to parents are getting out.
+      </p>
+
+      <div
+        role="status"
+        style={{ display: "flex", alignItems: "flex-start", gap: 12, marginTop: 14, padding: "14px 18px", borderRadius: 14, background: look.bg, color: look.fg, border: `2px solid ${look.border}` }}
+      >
+        <span aria-hidden style={{ flexShrink: 0, font: "700 18px var(--font-atkinson)", lineHeight: "24px" }}>
+          {look.mark}
+        </span>
+        <span>
+          {/* The word, so the state survives greyscale, a colour-blind reader and
+              a printout. */}
+          <span style={{ display: "block", font: "700 13px var(--font-atkinson)", textTransform: "uppercase", letterSpacing: ".07em", opacity: 0.85 }}>
+            {look.word}
+          </span>
+          <span style={{ display: "block", marginTop: 3, font: "700 17px/1.4 var(--font-atkinson)" }}>
+            {health.headline}
+          </span>
+          <span style={{ display: "block", marginTop: 6, font: "400 15px/1.55 var(--font-atkinson)" }}>
+            {health.detail}
+          </span>
+        </span>
+      </div>
+
+      {health.acceptedNote && (
+        <p style={{ margin: "12px 0 0", font: "400 14px/1.55 var(--font-atkinson)", color: "var(--sj-muted, #6B7385)" }}>
+          {health.acceptedNote}
+        </p>
+      )}
+
+      <p style={{ margin: "12px 0 0", font: "400 14px/1.55 var(--font-atkinson)", color: "var(--sj-muted, #6B7385)" }}>
+        {health.scopeNote}
+      </p>
+    </section>
+  );
+}
+
+// NO_DATA gets its own grey rather than borrowing the good palette: "nothing was
+// sent" is not "everything worked", and the two must not look alike.
+const MAIL_LOOK: Record<SchoolMailHealthState, { bg: string; fg: string; border: string; mark: string; word: string }> = {
+  NO_DATA: { bg: "#F1EFE9", fg: "#4A5163", border: "#DAD4C6", mark: "–", word: "Nothing sent" },
+  ALL_ACCEPTED: { bg: "#E9F5F2", fg: "#2E6B64", border: "#B6D8D2", mark: "✓", word: "Working" },
+  SOME_FAILED: { bg: "#F3E9D6", fg: "#7A5510", border: "#E4D2AC", mark: "!", word: "Some failures" },
+  NEEDS_ATTENTION: { bg: "#F7E0E6", fg: "#93304F", border: "#E8B7C4", mark: "!", word: "Needs attention" },
+};

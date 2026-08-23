@@ -177,6 +177,14 @@ export function ClassManager({ classes }: { classes: ClassCard[] }) {
         <div className="sj-card" style={{ padding: "40px 32px", textAlign: "center" }}>
           <JarMark width={54} height={65} jarFill="#C2476B" />
           <p style={{ margin: "12px 0 0", font: "400 17px var(--font-atkinson)", color: "var(--sj-muted)" }}>No classes yet. Make an empty jar with <strong>＋ New class</strong>, or set one up in a single step with <strong>Paste a class list</strong>.</p>
+          {/* Access in StoryJar comes from the classes you hold, not from your
+              job title, so "you have none" is the whole reason the rest of the
+              product looks empty. Said here because this is where somebody
+              waiting to be given one ends up looking. */}
+          <p style={{ margin: "10px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+            If somebody else set StoryJar up for your school, they can give you a class instead &mdash;
+            ask them. Until you hold one, your queue and your journals will be empty, and that is why.
+          </p>
         </div>
       )}
 

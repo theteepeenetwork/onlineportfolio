@@ -104,7 +104,7 @@ export default async function TeacherLoginPage({
       {/* top-left brand, home link */}
       <Link
         href="/"
-        className="inline-flex items-center gap-2 self-start"
+        className="inline-flex min-h-[44px] items-center gap-2 self-start"
         style={{ color: "var(--ink)" }}
       >
         <JarLogo width={26} height={31} />
@@ -173,7 +173,7 @@ export default async function TeacherLoginPage({
           <div className="card relative px-8 pb-8 pt-12 text-center">
             <Link
               href="/"
-              className="absolute left-5 top-4 text-[13px] font-bold text-muted hover:text-foreground"
+              className="absolute left-3 top-1 inline-flex min-h-[44px] min-w-[44px] items-center px-2 text-[13px] font-bold text-muted hover:text-foreground"
             >
               ← Back
             </Link>
