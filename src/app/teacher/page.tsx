@@ -219,16 +219,35 @@ export default async function TeacherDashboard({
       {/* ── the open class, and its register ── */}
       {!active ? (
         <div className="sj-card" style={{ padding: "40px 32px", textAlign: "center" }}>
-          <p style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>You don&apos;t have a class yet</p>
-          <p style={{ margin: "6px 0 18px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-            Make one and its code is ready for your pupils to sign in with.
-          </p>
-          <Link
-            href="/teacher/class"
-            style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}
-          >
-            Make a class
-          </Link>
+          {user.teacher.staffRole === "ADMIN" ? (
+            // An admin with no classes of their own belongs in the school
+            // console, not the "make a class" flow.
+            <>
+              <p style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>Your team&apos;s classes are in the school console</p>
+              <p style={{ margin: "6px 0 18px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+                As a school admin you manage your whole school&apos;s setup from one place.
+              </p>
+              <Link
+                href="/admin"
+                style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}
+              >
+                Go to school console →
+              </Link>
+            </>
+          ) : (
+            <>
+              <p style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>You don&apos;t have a class yet</p>
+              <p style={{ margin: "6px 0 18px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+                Make one and its code is ready for your pupils to sign in with.
+              </p>
+              <Link
+                href="/teacher/class"
+                style={{ font: "700 15px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", textDecoration: "none", borderRadius: 999, padding: "12px 24px", boxShadow: "0 3px 0 var(--jam-deep)" }}
+              >
+                Make a class
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <>

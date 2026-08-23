@@ -245,6 +245,17 @@ function RosterView({
           >
             <Icon name="print" size={18} decorative /> Printable code
           </Link>
+          {/* Code rotation — always visible so a teacher mid-emergency can reach
+              it without opening settings (surfacing fix Item 4). */}
+          <RotateCodeZone klass={klass} />
+          {/* Export — visible in the header, away from the danger zone (Item 6). */}
+          <a
+            href={`/teacher/export/${klass.id}`}
+            download
+            style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}
+          >
+            <Icon name="download" size={18} decorative /> Export class data
+          </a>
           <button onClick={onToggleSettings} style={{ ...OUTLINE_BTN, display: "inline-flex", alignItems: "center", gap: 8 }} aria-pressed={settings}><Icon name="settings" size={18} decorative /> Class settings</button>
           <button onClick={onToggleAdd} style={{ ...JAM_BTN, padding: "11px 20px", fontSize: 14 }} aria-pressed={addingChild}>＋ Add pupil</button>
         </div>
@@ -297,18 +308,10 @@ function SettingsStrip({ klass }: { klass: ClassCard }) {
     <div className="sj-card" style={{ marginTop: 14, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--ink-soft)" }}>
-          Class code <strong style={{ letterSpacing: "0.12em" }}>{klass.code}</strong> · settings mode: use <strong>Remove</strong> beside a pupil to take them off the register.
+          Settings mode: use <strong>Remove</strong> beside a pupil to take them off the register.
         </p>
-        {/* Issue a new class code — the remedy for a leaked code (F16). */}
-        <RotateCodeZone klass={klass} />
-        {/* Data export (F4) — download the whole class as JSON at any time. */}
-        <a
-          href={`/teacher/export/${klass.id}`}
-          download
-          style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}
-        >
-          <Icon name="download" size={18} decorative /> Export class data
-        </a>
+        {/* Danger zone only in the settings strip — export and code rotation
+            have moved to the class header so they are always reachable. */}
         <DeleteClassZone klass={klass} />
       </div>
       {/* Change which children the class is for (SJ-06 age mode). */}
