@@ -21,9 +21,20 @@ export function FamilySignIn({ expired }: { expired?: boolean }) {
 
   return (
     <div className="sj" style={{ minHeight: "100vh", background: "var(--paper)", fontFamily: "var(--font-atkinson)", color: "var(--ink)" }}>
-      <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1.05fr 0.95fr" }}>
+      {/* Two columns on a laptop, stacked on a phone — and it wraps rather than
+          switching at a breakpoint, because this file has no stylesheet to put a
+          media query in and a JS width check would render the wrong layout first
+          and correct it in front of the parent.
+
+          The fixed two-column grid this replaces could not stack. On a 390px
+          phone it gave the sign-in column 205px, of which 112 was padding, and
+          the panel beside it held a 320px card in 40px of padding — so the page
+          it produced was wider than the phone and the parent met a sideways
+          scroll before they met Storyjar. This is the first screen every parent
+          sees, and most of them see it on a phone. */}
+      <div style={{ minHeight: "100vh", display: "flex", flexWrap: "wrap", alignItems: "stretch" }}>
         {/* left: sign-in */}
-        <div style={{ padding: "48px 56px", display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: "1 1 360px", padding: "clamp(24px, 7vw, 48px) clamp(18px, 7vw, 56px)", display: "flex", flexDirection: "column", boxSizing: "border-box", minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <JarMark size={34} />
             <span style={{ font: "600 24px var(--font-fredoka)" }}>storyjar</span>
@@ -77,8 +88,14 @@ export function FamilySignIn({ expired }: { expired?: boolean }) {
         </div>
 
         {/* right: warm illustration panel */}
-        <div style={{ background: "#F3E3C3", borderLeft: "3px solid var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
-          <div style={{ transform: "rotate(-3deg)", width: 320, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: 22, boxShadow: "0 10px 0 rgba(34,48,74,0.14)" }}>
+        {/* `overflow: hidden` because the card inside is deliberately tilted, and
+            a rotated box counts towards the page's scrollable width even though
+            its layout box does not — the last few pixels of a sideways scroll
+            came from three degrees of charm. The border moves to the change in
+            background colour, which separates the two panels whichever way round
+            they are sitting. */}
+        <div style={{ flex: "1 1 360px", background: "#F3E3C3", display: "flex", alignItems: "center", justifyContent: "center", padding: "clamp(24px, 6vw, 40px)", boxSizing: "border-box", minWidth: 0, overflow: "hidden" }}>
+          <div style={{ transform: "rotate(-3deg)", width: "min(320px, 100%)", boxSizing: "border-box", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: 22, boxShadow: "0 10px 0 rgba(34,48,74,0.14)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ width: 44, height: 44, borderRadius: "50%", background: "#E08A9B", display: "flex", alignItems: "center", justifyContent: "center", font: "600 20px var(--font-fredoka)", color: "#FFFDF7" }}>P</span>
               <div>

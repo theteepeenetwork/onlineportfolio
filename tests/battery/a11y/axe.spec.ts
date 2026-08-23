@@ -222,3 +222,28 @@ test("a11y (AA): parent family home", async ({ page }) => {
   await loginParent(page, SCHOOL_A.parentFamilyCode);
   assertNoSeriousViolations(await scan(page), "parent family home");
 });
+
+// ---------------------------------------------------------------------------
+// 1.4.10 Reflow, at the 320 CSS pixels the criterion names.
+//
+// axe cannot see this one: reflow is about whether the LAYOUT holds, and a page
+// that scrolls in two dimensions is AA-failing while every rule axe runs comes
+// back green. It is asserted here rather than in the ux project because that
+// project is report-only and off the PR path — and a signal that exists and
+// cannot stop a regression is the failure this whole battery keeps finding.
+//
+// `/family` is the page it exists for: the screen every parent meets first, and
+// the one that shipped 345px wider than a 390px phone because the responsive
+// spec's narrowest viewport was 768. 320 is stricter than the phone that found
+// it, which is the point — the criterion names 320, not "a phone I own".
+// ---------------------------------------------------------------------------
+test("a11y (AA 1.4.10): the parent sign-in reflows to 320px without a sideways scroll", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/family");
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow, "content must not require scrolling in two dimensions").toBeLessThanOrEqual(1);
+});

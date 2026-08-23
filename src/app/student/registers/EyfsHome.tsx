@@ -101,7 +101,9 @@ export function EyfsHome({
   returned = [],
 }: {
   mode: AgeMode;
-  student: { name: string; avatarColor: string; className: string };
+  // `id` is here only so a half-typed capture can be kept for THIS child and
+  // no other on a shared tablet (src/lib/captureDraft.ts).
+  student: { id: string; name: string; avatarColor: string; className: string };
   moments: EyfsMoment[];
   jarCount: number;
   waitingCount: number;
@@ -264,6 +266,7 @@ export function EyfsHome({
               <CaptureSurface
                 type={CAPTURE_TYPE[s]}
                 mode={mode}
+                studentId={student.id}
                 size="eyfs"
                 title={surfaceTitle[s]}
                 submitLabel={c.add.submit}

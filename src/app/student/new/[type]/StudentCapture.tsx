@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { createJournalItem } from "@/app/actions/journal";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
 import { PhotoCapture } from "@/components/PhotoCapture";
 import { AudioCapture } from "@/components/AudioCapture";
 import { Icon } from "@/components/icons/Icon";
 import { studentCopy } from "@/lib/copy/student";
+import { useCaptureDraft } from "@/lib/captureDraft";
 import type { AgeMode } from "@/lib/ageMode";
 
 export type CaptureType = "PHOTO" | "TEXT" | "DRAWING" | "AUDIO";
@@ -27,13 +28,30 @@ export type CaptureType = "PHOTO" | "TEXT" | "DRAWING" | "AUDIO";
 // So there are no tabs here, the register never breaks, and the caption keeps a
 // visible label. Drawing isn't handled by this shell at all — it was already
 // full-screen and child-led, which is what the rest of this is trying to be.
-export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRAWING">; mode: AgeMode }) {
+export function StudentCapture({
+  type,
+  mode,
+  studentId,
+}: {
+  type: Exclude<CaptureType, "DRAWING">;
+  mode: AgeMode;
+  studentId: string;
+}) {
   const [state, action, pending] = useActionState(createJournalItem, {});
   const c = studentCopy(mode).add;
+  const draft = useCaptureDraft(studentId, type);
+
+  // Handing in is the end of the draft's life. If the action bounces back with
+  // something to fix, the words are still on screen and still worth keeping, so
+  // they go straight back into storage rather than being lost to the tidy-up.
+  useEffect(() => {
+    if (state?.error) draft.save(draft.text, draft.caption);
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <form
       action={action}
+      onSubmit={draft.clear}
       className="sj"
       data-ks={mode}
       style={{ fontFamily: "var(--font-atkinson)", color: "var(--ink)", background: "var(--paper)", minHeight: "100vh", boxSizing: "border-box", padding: "clamp(16px, 3vw, 32px)" }}
@@ -69,6 +87,8 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
                 id="words"
                 name="textContent"
                 rows={7}
+                value={draft.text}
+                onChange={(e) => draft.setText(e.target.value)}
                 placeholder={c.wordsPlaceholder}
                 style={{ width: "100%", boxSizing: "border-box", font: "400 calc(22px * var(--sj-type-scale, 1))/1.6 var(--font-atkinson)", padding: "16px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
               />
@@ -88,6 +108,8 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
             <input
               id="caption"
               name="caption"
+              value={draft.caption}
+              onChange={(e) => draft.setCaption(e.target.value)}
               placeholder={c.captionPlaceholder}
               style={{ width: "100%", boxSizing: "border-box", marginTop: 8, minHeight: 64, font: "400 calc(22px * var(--sj-type-scale, 1)) var(--font-atkinson)", padding: "14px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
             />
@@ -119,9 +141,10 @@ export function StudentCapture({ type, mode }: { type: Exclude<CaptureType, "DRA
 // Drawing keeps its own full-screen, child-led surface: the canvas already owns
 // its caption and its ✓, and it is the best child UI in the app. All this adds
 // is a way back to the jar that lands on the jar, rather than in a photo tab.
-export function StudentDrawCapture() {
+export function StudentDrawCapture({ mode }: { mode: AgeMode }) {
   const router = useRouter();
   const [, action] = useActionState(createJournalItem, {});
+  const c = studentCopy(mode).add;
 
   return (
     <form action={action}>
@@ -130,6 +153,11 @@ export function StudentDrawCapture() {
         name="drawingPages"
         fullScreen
         withCaption
+        // The same words as the pill on the photo/words/voice shell above, for
+        // the same reason: this surface is full-screen, so the way back has to
+        // be part of the canvas and it has to say where it goes.
+        captionLabel={c.captionLabel}
+        closeLabel={c.backToJar}
         onClose={() => router.push("/student")}
       />
     </form>

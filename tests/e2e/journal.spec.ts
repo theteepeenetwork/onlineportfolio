@@ -124,6 +124,120 @@ test.describe("Adding work stays in the child's world", () => {
     await expect(waiting, "the words moment joins the queue, it doesn't publish itself").toHaveCount(before + 1);
   });
 
+  // The caption floating on the full-screen canvas was placeholder-only: silent
+  // to a screen reader, and gone from the screen the moment a child tapped into
+  // the box to answer it. The standalone capture pages fixed this at SJ-03; the
+  // canvas kept the old one.
+  test("the canvas caption keeps its instruction too", async ({ page }) => {
+    await studentLogin(page, "Finn");
+    await openDrawing(page);
+    const caption = page.getByRole("textbox", { name: /tell us about your work/i });
+    await expect(caption, "the caption must have a name a screen reader can read").toBeVisible();
+    await caption.fill("My rocket");
+    await expect(
+      page.getByText(/tell us about your work/i),
+      "the instruction must survive being answered",
+    ).toBeVisible();
+  });
+
+  // The canvas has kept a draft since F34. The words box never did, and on the
+  // jar only the open tile is mounted — so writing a sentence and then tapping
+  // Photo threw the sentence away on the spot, no reload needed. A child cannot
+  // get their own writing back, so these two are worth holding onto.
+  test("words survive tapping another tile", async ({ page }) => {
+    await studentLogin(page, "Finn");
+    await page.getByRole("button", { name: "My words", exact: true }).click();
+    const words = page.getByRole("textbox", { name: /write your words here/i });
+    await words.fill("I saw a heron on the way to school");
+
+    // Off to the camera and back — the round trip that used to lose it.
+    await page.getByRole("button", { name: "Photo", exact: true }).click();
+    await expect(page.getByText(/use camera/i)).toBeVisible();
+    await page.getByRole("button", { name: "My words", exact: true }).click();
+
+    await expect(
+      page.getByRole("textbox", { name: /write your words here/i }),
+      "a child's writing must not be the price of tapping the wrong tile",
+    ).toHaveValue("I saw a heron on the way to school");
+  });
+
+  test("words survive a reload", async ({ page }) => {
+    await studentLogin(page, "Finn");
+    await page.goto("/student/new/words");
+    await page.getByRole("textbox", { name: /write your words here/i }).fill("My rocket went to the moon");
+
+    await page.reload();
+
+    await expect(page.getByRole("textbox", { name: /write your words here/i })).toHaveValue(
+      "My rocket went to the moon",
+    );
+  });
+
+  // A draft belongs to the child who typed it. A classroom tablet is shared, so
+  // the next child to sign in on this tab must never be shown someone else's
+  // writing — the same guard the canvas draft store puts on its own records.
+  test("one child's half-written words are never shown to the next", async ({ page }) => {
+    await studentLogin(page, "Finn");
+    await page.goto("/student/new/words");
+    await page.getByRole("textbox", { name: /write your words here/i }).fill("Finn's secret");
+
+    // `logout()` only clears the cookie, which is the harder case on purpose:
+    // the tab and its storage survive into the next child's session, exactly as
+    // they do when a tablet is handed over without anyone pressing Sign out.
+    await logout(page);
+    await studentLogin(page, "Dev");
+    await page.goto("/student/new/words");
+    await expect(page.getByRole("textbox", { name: /write your words here/i })).toHaveValue("");
+
+    // And Dev arriving has not destroyed Finn's writing either: the draft is
+    // keyed by the child, so the two do not share a slot. Saving a child's
+    // words from a reload only to lose them to the next child's turn would be
+    // the same harm arriving by a different route.
+    const finnsDraft = await page.evaluate(() => {
+      const out: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i);
+        if (k?.startsWith("sj-draft-capture-")) out.push(sessionStorage.getItem(k) ?? "");
+      }
+      return out.join("\n");
+    });
+    expect(finnsDraft, "the earlier child's draft is still their own to come back to").toContain(
+      "Finn's secret",
+    );
+  });
+
+  // Signing out is the end of a child's turn on that tablet, and it has to be
+  // the end of what the tablet remembers. The canvas drafts have been swept on
+  // sign-out since they existed (`LogoutForm`); the words a child typed into a
+  // capture box are a second store of children's work on the device and were
+  // not in that path until this test existed.
+  test("signing out wipes the words a child left in a capture box", async ({ page }) => {
+    await studentLogin(page, "Finn");
+    await page.goto("/student/new/words");
+    await page.getByRole("textbox", { name: /write your words here/i }).fill("Finn's secret");
+
+    const captureKeys = () =>
+      page.evaluate(() => {
+        const out: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const k = sessionStorage.key(i);
+          if (k?.startsWith("sj-draft-capture-")) out.push(k);
+        }
+        return out;
+      });
+    expect(await captureKeys(), "the draft is there to be cleared").not.toEqual([]);
+
+    // The real button, not a cookie clear — this is the path that sweeps.
+    await page.goto("/student");
+    await page.getByRole("button", { name: /bye bye|sign out/i }).click();
+    await page.waitForURL((url) => !url.pathname.startsWith("/student"));
+
+    expect(
+      await captureKeys(),
+      "a child's unhanded-in words must not outlive their turn on the tablet",
+    ).toEqual([]);
+  });
+
   // A bookmarked or shared /student/new is a dead end for a child who can't
   // read an error — send them somewhere they recognise.
   test("the old add screen sends a child to their jar, not a 404", async ({ page }) => {

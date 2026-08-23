@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { onDeviceVoice, readAloudOnDevice } from "@/lib/readAloud";
+import { readAloudOnDevice } from "@/lib/readAloud";
+import { useOnDeviceVoiceReady } from "@/lib/useSpeechReady";
 import { studentCopy } from "@/lib/copy/student";
 import type { AgeMode } from "@/lib/ageMode";
 
@@ -29,17 +29,11 @@ export function TeacherNote({
   mode: AgeMode;
   compact?: boolean;
 }) {
-  const [canSpeak, setCanSpeak] = useState(false);
-
-  useEffect(() => {
-    // Voices load asynchronously and `getVoices()` is often empty on first
-    // paint, so this checks now and again when the list arrives.
-    const check = () => setCanSpeak(onDeviceVoice() !== null);
-    check();
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.addEventListener?.("voiceschanged", check);
-    return () => window.speechSynthesis.removeEventListener?.("voiceschanged", check);
-  }, []);
+  // The gate this component used to carry inline. It moved to a hook when the
+  // quiz question needed the same one, and this call site moved with it: two
+  // copies of a safeguarding-load-bearing check is how one of them gets
+  // hardened and the other quietly does not.
+  const canSpeak = useOnDeviceVoiceReady();
 
   const c = studentCopy(mode);
 

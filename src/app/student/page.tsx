@@ -117,7 +117,7 @@ export default async function StudentHome() {
     return (
       <EyfsHome
         mode={mode}
-        student={{ name: student.name, avatarColor: student.avatarColor, className: student.className }}
+        student={{ id: student.id, name: student.name, avatarColor: student.avatarColor, className: student.className }}
         moments={published.map((i) => ({
           id: i.id,
           type: i.type,
@@ -213,7 +213,7 @@ export default async function StudentHome() {
 
         {/* add to my jar — tiles open their capture surface inline (accordion);
             Drawing keeps its dedicated full-screen canvas. */}
-        <AddToJar mode={mode} />
+        <AddToJar mode={mode} studentId={student.id} />
 
         {/* my activities — the 3 most recent to-do as preview cards, with a
             "Show more" toggle for the rest. */}

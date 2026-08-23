@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "./icons/Icon";
 import { TeacherNote } from "@/app/student/TeacherNote";
 import {
@@ -22,8 +22,15 @@ import {
   type DraftSurface,
 } from "@/lib/draftStore";
 import { serverSaveDraft, serverLoadDraftBounded, serverDiscardDraft } from "@/lib/draftSync";
-import { MAX_OBJECTS_PER_PAGE, type CanvasObj } from "@/lib/canvasObjects";
+import {
+  MAX_OBJECTS_PER_PAGE,
+  rotateStepFor,
+  wrapRotation,
+  type CanvasObj,
+} from "@/lib/canvasObjects";
 import { isStorableImageType } from "@/lib/imageTypes";
+import { readAloudOnDevice } from "@/lib/readAloud";
+import { useOnDeviceVoiceReady } from "@/lib/useSpeechReady";
 import {
   detailStrokeWidth,
   kitsToShow,
@@ -191,10 +198,26 @@ const MAX_IMPORT_PX = 2000;
 // several of them ride in one form post.
 const MAX_OPTION_PX = 600;
 
-// Rotation snaps to this many degrees. 15° is 24 stops all the way round: fine
-// enough to point wherever a child means to, coarse enough that a right angle
-// really is a right angle rather than 89°.
+// One press of the toolbar's Turn buttons.
+//
+// This used to be the step for EVERYTHING that turned, and a flat step was the
+// bug: rotation is judged by how far the far end of a thing travels, so 15° is
+// comfortable on a counter and unusable on a 420-unit line, whose ends move
+// 5.5% of the page every step. Dragging now uses `rotateStepFor(length)`, which
+// gives a long object a finer step — see src/lib/canvasObjects.ts and
+// docs/rotation-findings.md.
+//
+// 15 stays HERE on purpose. The buttons are the coarse, exact control — the one
+// for squaring something up to 90° — and every rung of the ladder divides both
+// 45 and 90, so a press and a drag land on the same angles rather than on two
+// different grids.
 const ROTATE_STEP = 15;
+
+// One press of Bigger / Smaller, as a proportion. 10% is small enough that a
+// child can stop where they meant to and large enough that getting somewhere
+// does not take twenty presses. Proportional rather than a fixed number of
+// units so it behaves the same on a counter and on a number line.
+const SIZE_STEP = 1.1;
 
 // The corner drag handle (F41). Edit and delete moved into the floating toolbar
 // at 64px, and the handle that stayed on the corner has to be pressable at the
@@ -394,7 +417,10 @@ export function DrawingCanvas({
   subtitle,
   teacherNote,
   withCaption = false,
+  captionLabel = "Add a caption",
+  hearItLabel,
   onClose,
+  closeLabel,
   onDone,
   quizMode,
   initialQuiz,
@@ -426,7 +452,43 @@ export function DrawingCanvas({
    */
   teacherNote?: string;
   withCaption?: boolean;
+  /**
+   * The words above the caption box. A visible label, not a placeholder:
+   * placeholder text vanishes the moment a child taps the box, taking the
+   * instruction away exactly when they need it, and a screen reader was given
+   * nothing at all. Child surfaces pass their own register's wording
+   * (`studentCopy(mode).add.captionLabel`); the default is for the teacher's
+   * preview.
+   */
+  captionLabel?: string;
+  /**
+   * Set on a CHILD's response for a register that cannot read yet, and it puts
+   * a listen button on the quiz question. The string is the child's own "hear
+   * it" wording; the question itself is read from the activity.
+   *
+   * Left unset there is no button, which is what KS2 and the teacher's own
+   * preview get. Speaking is gated a second time inside, on the platform
+   * offering an on-device voice — see the button for why.
+   */
+  hearItLabel?: string;
   onClose?: () => void;
+  /**
+   * Words on the way out, for a canvas a CHILD is sitting on.
+   *
+   * Unlabelled, the way out is a ✕ captioned "Close" to a screen reader and
+   * nothing at all to a four-year-old, sat next to the green ✓ — so a child who
+   * wants to leave either taps hand-in or decides there is no way back. That is
+   * the "I have ended up somewhere with no way back to my jar" report, and it
+   * lands on the full-screen surfaces because they are `fixed inset-0`: a link
+   * on the page or in the layout underneath is covered by the canvas, and a
+   * link above it would sit on the drawing. The way out has to be part of the
+   * canvas chrome, which is here.
+   *
+   * Pass the child's own register (`studentCopy(mode).add.backToJar`) and it
+   * renders as the same ← pill the rest of the child surface uses. Left unset
+   * — the teacher editor and preview — the ✕ is unchanged.
+   */
+  closeLabel?: string;
   // `previews` are `pages` with the movable pieces drawn on: the picture to
   // show a teacher, where `pages` is the background to hand back to the editor.
   onDone?: (
@@ -540,6 +602,10 @@ export function DrawingCanvas({
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const serverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captionRef = useRef<HTMLInputElement>(null);
+  // The caption's label needs an id to point at. Generated rather than fixed:
+  // one full-screen canvas mounts at a time today, so a constant would work —
+  // and would break the label association SILENTLY on the day two do.
+  const captionId = useId();
   const [draftPrompt, setDraftPrompt] = useState<DraftCanvasV1 | null>(null);
   const [draftSource, setDraftSource] = useState<"local" | "server">("local");
   const draftFieldsRef = useRef<Record<string, string> | null>(null); // fields from a pending restore
@@ -2988,6 +3054,7 @@ export function DrawingCanvas({
       questions={quizQuestions.filter((q) => q.pageIndex === current)}
       scale={scale}
       mode={quizMode}
+      hearItLabel={hearItLabel}
       interactive={isQuizAuthor ? objectsInteractive : true}
       selectedId={selectedQuestionId}
       answers={answers}
@@ -3084,6 +3151,11 @@ export function DrawingCanvas({
     </>
   );
 
+  // Declared once because its position in the tool row changes (see below).
+  const clearPageBtn = (
+    <RoundBtn label="Clear page" onClick={clearPage}><Icon name="delete" size={20} decorative /></RoundBtn>
+  );
+
   // ---- Full-screen, child-led layout ---------------------------------------
   if (fullScreen) {
     return (
@@ -3118,13 +3190,59 @@ export function DrawingCanvas({
             </div>
           </div>
 
-          <div className="absolute left-3 top-3 flex gap-2">
-            <RoundBtn label="Clear page" onClick={clearPage}><Icon name="delete" size={20} decorative /></RoundBtn>
-            <RoundBtn label="Undo" onClick={undo} disabled={!canUndo}><Icon name="undo" size={20} decorative /></RoundBtn>
-            <RoundBtn label="Redo" onClick={redo} disabled={!canRedo}><Icon name="redo" size={20} decorative /></RoundBtn>
+          {/* Top left: the way out, then the tools under it.
+              A child's escape goes HERE rather than beside the ✓ for two
+              reasons. It is not the same kind of thing as handing in, and two
+              64px controls side by side, one of which ends the work, is a
+              mis-tap that costs a child their turn. And it is the only place
+              the words fit: on a 768px classroom tablet a labelled pill on the
+              right runs under the activity's own title, which a long title then
+              collides with (asserted in tests/e2e/child-escape.spec.ts).
+              Stacking keeps the left group no wider than the tool row it
+              already had, so the title keeps its room. */}
+          <div className="absolute left-3 top-3 flex flex-col items-start gap-3">
+            {onClose && closeLabel && (
+              <button
+                type="button"
+                onClick={onClose}
+                // 64px tall, like every other control a child taps
+                // (SAFEGUARDING rule 18, F37).
+                className="flex h-16 items-center gap-2 whitespace-nowrap rounded-full bg-white/90 px-5 text-base font-bold text-foreground shadow transition-colors hover:bg-white"
+              >
+                <span aria-hidden="true">←</span>
+                {closeLabel}
+              </button>
+            )}
+            <div className="flex gap-2">
+              {/* "Clear page" moves to the end of the row when a child's way
+                  out sits directly above it: the control nearest the escape
+                  must not be the one that wipes their work. Undo is the safe
+                  neighbour. The editor's row is unchanged. */}
+              {!closeLabel && clearPageBtn}
+              <RoundBtn label="Undo" onClick={undo} disabled={!canUndo}><Icon name="undo" size={20} decorative /></RoundBtn>
+              <RoundBtn label="Redo" onClick={redo} disabled={!canRedo}><Icon name="redo" size={20} decorative /></RoundBtn>
+              {closeLabel && clearPageBtn}
+            </div>
           </div>
 
-          <div className="pointer-events-none absolute left-1/2 top-3 z-10 w-[60vw] max-w-lg -translate-x-1/2 text-center">
+          {/* The title strip lives BETWEEN the two corners rather than across
+              the whole width. `left-56` / `right-56` is 224px, which clears the
+              widest either corner gets: the tool row is 12 + 3×64 + 2×8 = 220,
+              and a labelled escape pill is narrower than that.
+
+              It used to be 60vw centred, which on a 768px tablet reached from
+              154 to 614 and so ran underneath both corners. That was invisible
+              while the strip held one line of small title text, and stopped
+              being invisible the moment a child's way out took a second row on
+              the left: the teacher's note on a sent-back piece renders in this
+              strip, is `max-w-md` and `pointer-events-auto`, and sat on top of
+              Undo, Redo and Clear page — covering them AND swallowing the taps.
+              The child most likely to be looking for the way out is the one who
+              has just had work sent back, so that is the worst version of it.
+
+              Reserving the corners fixes it for every width at once, rather
+              than for the one someone thought to measure. */}
+          <div className="pointer-events-none absolute left-56 right-56 top-3 z-10 text-center">
             <span className="inline-flex items-center gap-1 rounded-full border-2 border-amber-400 bg-white/90 px-3 py-1 text-sm font-bold text-amber-700">
               <Icon name="edit" size={14} decorative /> Draft
             </span>
@@ -3141,7 +3259,12 @@ export function DrawingCanvas({
           </div>
 
           <div className="absolute right-3 top-3 flex items-center gap-2">
-            {onClose && <RoundBtn label="Close" onClick={onClose}><Icon name="close" size={20} decorative /></RoundBtn>}
+            {/* The ✕ is the EDITOR's way out (a teacher closing a template).
+                A child's is a labelled pill, top left — see the left-hand
+                group and `closeLabel` for why it is not here, next to the ✓. */}
+            {onClose && !closeLabel && (
+              <RoundBtn label="Close" onClick={onClose}><Icon name="close" size={20} decorative /></RoundBtn>
+            )}
             <button
               type={onDone || confirmSubmit ? "button" : "submit"}
               onClick={
@@ -3348,9 +3471,21 @@ export function DrawingCanvas({
 
           {withCaption && (
             <div className="absolute bottom-3 left-3 w-64 max-w-[70vw]">
+              <label
+                htmlFor={captionId}
+                className="mb-1 inline-block rounded-full bg-white/90 px-3 py-1 text-sm font-bold text-foreground shadow"
+              >
+                {captionLabel}
+              </label>
               {/* min-h-16: a child taps into this to say what their picture is,
                   so it carries the same 64px floor as everything else here. */}
-              <input ref={captionRef} name="caption" className="input min-h-16 bg-white/90 shadow" placeholder="💬 Add a caption…" />
+              <input
+                id={captionId}
+                ref={captionRef}
+                name="caption"
+                className="input min-h-16 bg-white/90 shadow"
+                placeholder="💬 Add a caption…"
+              />
             </div>
           )}
 
@@ -4297,6 +4432,8 @@ function ObjectToolbar({
   onBringToFront,
   onSendToBack,
   onStyle,
+  onTurn,
+  onSize,
   onDuplicate,
   canDuplicate,
 }: {
@@ -4319,6 +4456,24 @@ function ObjectToolbar({
   onBringToFront: (id: string) => void;
   onSendToBack: (id: string) => void;
   onStyle: (patch: Partial<ShapeObj>) => void;
+  /**
+   * Turn and resize as a press, one coarse step at a time.
+   *
+   * The corner handles are drags, and until F50 a drag was the ONLY way to turn
+   * or resize anything — so neither could be done from a keyboard at all, on
+   * controls that announced themselves as buttons. These are the discoverable
+   * half of the answer: real buttons, in the place a child already looks for
+   * what they can do to a thing they have tapped.
+   *
+   * Deliberately the coarse 15°, not the object's own finer step: this is the
+   * control for squaring something up, and asking a child to press it thirty
+   * times to reach a right angle on a long line would be its own bad screen.
+   * The fine path is the handle, which now takes arrow keys.
+   *
+   * `onTurn` is absent where turning is not offered — a picture has no `rot`.
+   */
+  onTurn?: (dir: -1 | 1) => void;
+  onSize?: (dir: -1 | 1) => void;
   onDuplicate: (id: string) => void;
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
@@ -4508,6 +4663,42 @@ function ObjectToolbar({
               <Icon name="infinite" size={30} decorative />
             </button>
           )}
+        </>
+      )}
+
+      {/* Turn and resize, for anyone who is not holding a mouse. See `onTurn`. */}
+      {!pinned && onTurn && (
+        <>
+          <button
+            type="button"
+            onClick={() => onTurn(-1)}
+            className={btn}
+            title="Turn it left a little"
+            aria-label="Turn left"
+          >
+            <span className="flex items-center" style={{ transform: "scaleX(-1)" }}>
+              <Icon name="rotate" size={30} decorative />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onTurn(1)}
+            className={btn}
+            title="Turn it right a little"
+            aria-label="Turn right"
+          >
+            <Icon name="rotate" size={30} decorative />
+          </button>
+        </>
+      )}
+      {!pinned && onSize && (
+        <>
+          <button type="button" onClick={() => onSize(-1)} className={`${btn} text-lg font-bold`} title="Make it smaller" aria-label="Make it smaller">
+            −
+          </button>
+          <button type="button" onClick={() => onSize(1)} className={`${btn} text-lg font-bold`} title="Make it bigger" aria-label="Make it bigger">
+            +
+          </button>
         </>
       )}
 
@@ -4858,6 +5049,51 @@ function MediaObjectView({
   const canGrab = interactive && (cap.movable || cap.showLock);
   // `rot: 0` is never persisted, so absent means upright.
   const rot = o.type === "shape" ? o.rot ?? 0 : 0;
+  // How far one step turns THIS object. Measured across its own diagonal, which
+  // is the distance from the centre to the corner a child is watching — the far
+  // end of a line, the corner of a picture.
+  const rotateStep = rotateStepFor(Math.hypot(o.w, o.h));
+
+  // Turning and resizing without a drag: the same operations the corner handles
+  // do, as one press.
+  //
+  // They exist for two reasons and the second is the load-bearing one. A child
+  // aiming a long line in 3° steps should not have to sweep for a right angle,
+  // so the buttons keep the coarse 15 the canvas has always had. And a drag
+  // handle cannot be operated by a keyboard at all — F50 — so without a press
+  // path, turning and resizing are things a keyboard or switch user simply
+  // cannot do, on a control that announces itself as a button.
+  function turnBy(delta: number) {
+    if (!cap.editable) return;
+    onStart();
+    onChange(o.id, { rot: wrapRotation(rot + delta) });
+    onEnd();
+  }
+  // Proportional, so it cannot re-aim a line the way a free resize would (the
+  // stroke runs corner to corner, so its box IS its angle) and cannot squash a
+  // shape that means something at its proportions. About the CENTRE, because
+  // that is the least surprising thing a button can do — a drag anchors the
+  // corner you are not holding, but a press has no corner in hand.
+  function sizeBy(factor: number) {
+    if (!cap.editable) return;
+    // The same two floors the drag path uses: a line or a rule really is a box
+    // a couple of units tall, everything else keeps 24 so it cannot be squashed
+    // to nothing and lost.
+    const min = o.type === "shape" ? minShapeSize(o.shape) : 24;
+    const w = Math.min(W, Math.max(min, o.w * factor));
+    const h = Math.min(H, Math.max(min, o.h * factor));
+    // Nothing to do at the limit — better than a press that silently does
+    // nothing to w and something to h, which reads as the shape distorting.
+    if (Math.abs(w - o.w) < 0.5 && Math.abs(h - o.h) < 0.5) return;
+    onStart();
+    onChange(o.id, {
+      w,
+      h,
+      x: Math.min(W - w, Math.max(0, o.x + (o.w - w) / 2)),
+      y: Math.min(H - h, Math.max(0, o.y + (o.h - h) / 2)),
+    });
+    onEnd();
+  }
   // The toolbar and the corner controls are children of the rotating wrapper,
   // so without this they hang upside-down off a shape turned 180°. The label is
   // deliberately NOT counter-rotated: it rides with the shape, which is what
@@ -5009,11 +5245,11 @@ function MediaObjectView({
     } else if (d.mode === "rotate") {
       const angle = Math.atan2(e.clientY - d.cy, e.clientX - d.cx);
       const deg = d.startRot + ((angle - d.base) * 180) / Math.PI;
-      // Snapped to 15°, which is 24 stops all the way round: fine enough to
-      // point anywhere a child means to point, coarse enough that square is
-      // actually square and a right angle is actually a right angle.
-      const snapped = Math.round(deg / ROTATE_STEP) * ROTATE_STEP;
-      onChange(o.id, { rot: ((snapped % 360) + 360) % 360 });
+      // The step is the object's, not the canvas's: a counter turns in 15s and
+      // a long line in 3s, so the far end of each moves about the same distance
+      // per step. See `rotateStepFor`, and docs/rotation-findings.md for why a
+      // flat step is comfortable on a counter and unusable on a line.
+      onChange(o.id, { rot: wrapRotation(Math.round(deg / rotateStep) * rotateStep) });
     } else {
       // Vector kinds (line / arrow) get a much smaller floor: a number line or
       // a table rule IS a box a couple of units tall. Area shapes keep 24 so a
@@ -5279,6 +5515,11 @@ function MediaObjectView({
           onDelete={() => onDelete(o.id)}
           startRotate={o.type === "shape" ? startRotate : undefined}
           startResize={startResize}
+          // The keyboard path. One press is one step of the SAME ladder the
+          // drag uses, so nothing a pointer can reach is out of a keyboard's
+          // reach (F50).
+          nudgeRotate={o.type === "shape" ? (dir) => turnBy(dir * rotateStep) : undefined}
+          nudgeSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           noun="shape"
@@ -5306,6 +5547,10 @@ function MediaObjectView({
         onSendToBack={onSendToBack}
         onDuplicate={onDuplicate}
         canDuplicate={canDuplicate}
+        // A picture has no `rot` — the export renderer draws it flat — so it is
+        // offered no turn, exactly as it is offered no turn handle.
+        onTurn={o.type === "shape" ? (dir) => turnBy(dir * ROTATE_STEP) : undefined}
+        onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
         onStyle={(patch) => {
           onChange(o.id, patch);
           onEnd();
@@ -5331,6 +5576,8 @@ function ObjectCorners({
   onDelete,
   startRotate,
   startResize,
+  nudgeRotate,
+  nudgeSize,
   onPointerMove,
   onPointerUp,
   noun,
@@ -5349,6 +5596,23 @@ function ObjectCorners({
   // land straight in the hand-in.
   startRotate?: (e: React.PointerEvent) => void;
   startResize: (e: React.PointerEvent) => void;
+  /**
+   * One step of turn / resize, without a drag: `-1` and `1` for the two
+   * directions.
+   *
+   * These are what make the two handles operable by a KEYBOARD (F50). Both were
+   * `<div role="button">` carrying pointer handlers and nothing else — announced
+   * to a screen reader as buttons, reachable by no key, and the only route to
+   * turning or resizing anything in the product. So for a keyboard or switch
+   * user those operations did not exist, while the accessibility tree said they
+   * were right there. WCAG 2.2 2.1.1, on a child-facing control.
+   *
+   * The step is the object's own (`rotateStepFor`), not the toolbar's coarse
+   * one, so a keyboard can reach every position a pointer can rather than a
+   * coarser subset of them.
+   */
+  nudgeRotate?: (dir: -1 | 1) => void;
+  nudgeSize?: (dir: -1 | 1) => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
   // What this object is called in the turn / resize labels a screen reader
@@ -5377,6 +5641,21 @@ function ObjectCorners({
     ...(unrotate ? { transform: unrotate } : {}),
   });
   const dot = "block h-5 w-5 rounded-full border-2 border-white shadow";
+  // Arrow keys step, Enter and Space step once in the "more" direction. Arrows
+  // rather than Enter alone because turning has two directions and a child
+  // driving this from a keyboard should not have to go the long way round.
+  const stepKeys =
+    (nudge: (dir: -1 | 1) => void) => (e: React.KeyboardEvent) => {
+      const back = e.key === "ArrowLeft" || e.key === "ArrowDown";
+      const on = e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ";
+      if (!back && !on) return;
+      // The canvas listens for keys of its own (delete, copy, paste), and the
+      // page scrolls on space. Neither should happen because a child pressed
+      // an arrow on a handle they had focused.
+      e.preventDefault();
+      e.stopPropagation();
+      nudge(back ? -1 : 1);
+    };
   return (
     <>
       {onEdit && (
@@ -5412,6 +5691,9 @@ function ObjectCorners({
           onPointerDown={startRotate}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
+          onKeyDown={nudgeRotate ? stepKeys(nudgeRotate) : undefined}
+          // Focusable, because it says it is a button. See `nudgeRotate`.
+          tabIndex={nudgeRotate ? 0 : undefined}
           style={at({ bottom: true, left: true })}
           className={`${HANDLE_HIT} cursor-grab`}
           title="Turn"
@@ -5427,6 +5709,8 @@ function ObjectCorners({
         onPointerDown={startResize}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onKeyDown={nudgeSize ? stepKeys(nudgeSize) : undefined}
+        tabIndex={nudgeSize ? 0 : undefined}
         style={at({ bottom: true, right: true })}
         className={`${HANDLE_HIT} cursor-nwse-resize`}
         title="Resize"
@@ -5500,6 +5784,30 @@ function TextObjectView({
   });
   const centreX = o.x * scale + box.w / 2;
   const centreY = o.y * scale + box.h / 2;
+  // A text box has no stored w/h — it is sized by its words — so its length
+  // comes off the measured box, which is in screen px, hence the divide.
+  // Zero until the first layout pass, and `rotateStepFor` treats that as the
+  // smallest band, so a step is never finer than the old flat 15 by accident.
+  const rotateStep = rotateStepFor(Math.hypot(box.w, box.h) / (scale || 1));
+
+  // Turning and resizing as one press rather than a drag — the keyboard path
+  // for the two corner handles (F50), and the coarse path for the toolbar.
+  function turnBy(delta: number) {
+    if (!cap.editable) return;
+    onStart();
+    onChange(o.id, { rot: wrapRotation(rot + delta) });
+    onEnd();
+  }
+  // A text box's size IS its font size, so this scales that — between the same
+  // 12 and 240 the drag clamps to.
+  function sizeBy(factor: number) {
+    if (!cap.editable) return;
+    const fontPx = Math.max(12, Math.min(240, o.fontPx * factor));
+    if (Math.abs(fontPx - o.fontPx) < 0.5) return;
+    onStart();
+    onChange(o.id, { fontPx });
+    onEnd();
+  }
   const clear = toolbarClearance(box.w, box.h, rot);
   // A first guess only; `ObjectToolbar` refines it by measuring.
   const toolbarBelow = centreY - clear - TOOLBAR_GAP - 80 < 0;
@@ -5578,8 +5886,9 @@ function TextObjectView({
       const angle = Math.atan2(e.clientY - d.cy, e.clientX - d.cx);
       const deg = d.startRot + ((angle - d.base) * 180) / Math.PI;
       // 15° stops, the same 24 of them a shape gets.
-      const snapped = Math.round(deg / ROTATE_STEP) * ROTATE_STEP;
-      onChange(o.id, { rot: ((snapped % 360) + 360) % 360 });
+      // The same object-sized step a shape gets. A wide caption sweeps its ends
+      // as far as a line does, and for the same reason (`rotateStepFor`).
+      onChange(o.id, { rot: wrapRotation(Math.round(deg / rotateStep) * rotateStep) });
     } else {
       // Project the drag onto the box's OWN axes before reading it as "bigger"
       // or "smaller", so pulling away from a turned box grows it however it is
@@ -5671,6 +5980,8 @@ function TextObjectView({
           onDelete={() => onDelete(o.id)}
           startRotate={startRotate}
           startResize={startResize}
+          nudgeRotate={(dir) => turnBy(dir * rotateStep)}
+          nudgeSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           noun="text"
@@ -5698,6 +6009,8 @@ function TextObjectView({
         onSendToBack={onSendToBack}
         onDuplicate={onDuplicate}
         canDuplicate={canDuplicate}
+        onTurn={(dir) => turnBy(dir * ROTATE_STEP)}
+        onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
         onStyle={() => {}}
       />
     )}
@@ -5714,6 +6027,7 @@ function QuizLayer({
   questions,
   scale,
   mode,
+  hearItLabel,
   interactive,
   selectedId,
   answers,
@@ -5730,6 +6044,7 @@ function QuizLayer({
   questions: QuizQuestion[];
   scale: number;
   mode: "author" | "answer";
+  hearItLabel?: string;
   interactive: boolean;
   selectedId: string | null;
   answers: Record<string, string>;
@@ -5752,6 +6067,7 @@ function QuizLayer({
           q={q}
           scale={scale}
           mode={mode}
+          hearItLabel={hearItLabel}
           interactive={interactive}
           selected={q.id === selectedId}
           selectedOption={answers[q.id] ?? null}
@@ -5846,6 +6162,7 @@ function QuizBoxView({
   q,
   scale,
   mode,
+  hearItLabel,
   interactive,
   selected,
   selectedOption,
@@ -5862,6 +6179,7 @@ function QuizBoxView({
   q: QuizQuestion;
   scale: number;
   mode: "author" | "answer";
+  hearItLabel?: string;
   interactive: boolean;
   selected: boolean;
   selectedOption: string | null;
@@ -5957,7 +6275,31 @@ function QuizBoxView({
   // A floor there fights the teacher's own hand and spills the contents out of
   // the box they just sized. The floor exists to protect a child's finger, so it
   // applies where a child is actually tapping: answer mode.
-  const touch = (n: number) => (author ? px(n) : Math.max(px(n), 64));
+  //
+  // The floor has to be stated in REAL pixels, and that is the part F37's fix
+  // missed. Everything in this box is laid out at logical size and then drawn
+  // through `transform: scale(scale)` on the wrapper below, so a floor of 64
+  // here reaches the child as 64·scale: 57 real pixels on the viewport the
+  // finding was filed from, and 49 on the 768px classroom tablet a Reception
+  // child holds. Dividing by the scale is what makes 64 mean 64 to a finger.
+  //
+  // Which is only half of it, because the box does not have room for the answer
+  // it now owes. See `grows` below: in answer mode the card grows to fit them
+  // instead of clipping them, which is the other half of the same fix.
+  const touch = (n: number) => (author ? px(n) : Math.max(px(n), 64 / scale));
+  // Whether this card is allowed to outgrow the size it was drawn at. Only a
+  // child's, and only ever downwards in size terms — it never shrinks below the
+  // teacher's box. The alternative, on a question box a teacher drew short, is
+  // that the floor above pushes the last answer out of an `overflow-hidden`
+  // card: a target too small traded for one a child cannot see at all, which is
+  // the worse of the two. A quiz card is opaque, so what it grows over is the
+  // worksheet behind it, and the child still has every answer.
+  const grows = !author;
+  // A listen button on the question is offered only when the caller asked for
+  // one (a child, in a register that cannot read yet) AND the platform has an
+  // on-device voice to say it with. Both, or nothing.
+  const voiceReady = useOnDeviceVoiceReady();
+  const canHear = !author && !!hearItLabel && !!q.prompt && voiceReady;
   // The sync hint is an authoring affordance, not content: below about half
   // size it's unreadable anyway and the space is better spent on the question.
   const showSyncHint = editable && k > 0.55;
@@ -6025,6 +6367,34 @@ function QuizBoxView({
     setAnswerFont((prev) => (Math.abs(prev - best) < 0.15 ? prev : best));
   }, [answerKey, answerCap, answerFloor, q.w, q.h, q.options.length, editable]);
 
+  // How tall the card actually ended up, in logical units. `offsetHeight` is a
+  // LAYOUT height, and the `scale()` on this element is a paint-time transform,
+  // so this is the same coordinate space q.h is in. Watched rather than measured
+  // once, because the answer text refits on a resize and can take a line with it.
+  //
+  // It buys one thing: a grown card that runs off the bottom of the page is
+  // pulled back on. The stage clips at the page edge, so without this a question
+  // a teacher placed low would have the very answer this fix is about taken
+  // away by the crop.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [cardH, setCardH] = useState(q.h);
+  useLayoutEffect(() => {
+    if (!grows) return;
+    const el = cardRef.current;
+    if (!el) return;
+    const read = () =>
+      setCardH((prev) => {
+        const next = el.offsetHeight;
+        return Math.abs(prev - next) < 0.5 ? prev : next;
+      });
+    read();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [grows]);
+  const topUnits = grows ? Math.max(0, Math.min(q.y, H - cardH)) : q.y;
+
   return (
     <div
       onPointerDown={author ? startMove : undefined}
@@ -6033,12 +6403,18 @@ function QuizBoxView({
       className={`absolute rounded-2xl ${
         author ? (interactive ? "pointer-events-auto cursor-move" : "pointer-events-none") : "pointer-events-auto"
       } ${selected ? "ring-2 ring-brand" : ""}`}
-      style={{ left: q.x * scale, top: q.y * scale, width: q.w * scale, height: q.h * scale }}
+      style={{
+        left: q.x * scale,
+        top: topUnits * scale,
+        width: q.w * scale,
+        height: (grows ? cardH : q.h) * scale,
+      }}
     >
       {/* Content is laid out at logical canvas size (q.w × q.h) and shrunk with a
           transform, so text and answer buttons scale with the box on small screens
           instead of overflowing it. */}
       <div
+        ref={cardRef}
         role={editable ? "group" : undefined}
         aria-label={editable ? "Question box" : undefined}
         className={`flex flex-col overflow-hidden rounded-2xl border-2 shadow-lg ${
@@ -6046,7 +6422,11 @@ function QuizBoxView({
         }`}
         style={{
           width: q.w,
-          height: q.h,
+          // A CHILD's card grows to fit answers at the touch floor; a teacher's
+          // is exactly the size they drew, because for them the box is a thing
+          // being laid out on a worksheet. The transform does not affect layout,
+          // so this height is in logical units either way.
+          ...(grows ? { minHeight: q.h } : { height: q.h }),
           transform: `scale(${scale})`,
           transformOrigin: "top left",
           padding: px(12),
@@ -6078,14 +6458,45 @@ function QuizBoxView({
           // Author mode with a drawing tool picked: the box goes non-interactive
           // so the teacher can draw across it, so echo the placeholder rather
           // than leaving a new question looking like an empty box.
-          <p
-            className={`text-center font-bold leading-tight ${
-              q.prompt ? "text-foreground" : "text-muted"
-            }`}
-            style={{ fontSize: px(24) }}
-          >
-            {q.prompt || (author ? "Type your question here" : "")}
-          </p>
+          <div className="flex items-center justify-center" style={{ gap: px(8) }}>
+            <p
+              className={`text-center font-bold leading-tight ${
+                q.prompt ? "text-foreground" : "text-muted"
+              }`}
+              style={{ fontSize: px(24) }}
+            >
+              {q.prompt || (author ? "Type your question here" : "")}
+            </p>
+            {/* In the register built for children who cannot read yet, the
+                question was the one silent thing on the screen — every other
+                word a young child meets in Storyjar can be heard, and the one
+                they actually have to answer could not. A child who cannot hear
+                the question cannot do the activity.
+
+                THE BUTTON IS CONDITIONAL, AND THAT IS THE SAFEGUARDING PART.
+                This is a teacher's own free text, not Storyjar's fixed copy, so
+                it is spoken only by a voice the platform reports as running on
+                the device (`readAloudOnDevice`, and the 2026-08-19 scope note
+                in SAFEGUARDING.md). Where there is no local voice the button is
+                not rendered at all and the question stays as text beside a
+                teacher — the correct failure, not a degraded one. Nothing is
+                ever sent to a network voice, and it never speaks by itself: a
+                child presses it, every time (WCAG 1.4.2). */}
+            {canHear && (
+              <button
+                type="button"
+                aria-label={`${hearItLabel}: ${q.prompt}`}
+                onClick={() => readAloudOnDevice(q.prompt)}
+                // The real 64px floor, like the answers below it — this is the
+                // control that exists FOR the children who cannot read the words
+                // beside it (SAFEGUARDING rule 18).
+                className="flex shrink-0 items-center justify-center rounded-full border-2 border-brand/40 bg-white"
+                style={{ minHeight: touch(64), minWidth: touch(64), fontSize: px(22) }}
+              >
+                <span aria-hidden="true">🔊</span>
+              </button>
+            )}
+          </div>
         )}
         {/* Which questions to look at again, in WORDS.
             The amber ring on their old answer is not allowed to carry this on
@@ -6101,8 +6512,16 @@ function QuizBoxView({
           </p>
         )}
         <div
-          className="grid min-h-0 flex-1"
-          style={{ gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr", gap: px(8) }}
+          className={`grid ${grows ? "" : "min-h-0 flex-1"}`}
+          style={{
+            gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr",
+            gap: px(8),
+            // `flex-1` is `flex: 1 1 0%`: the rows' own height counts for
+            // nothing, so they share out whatever is left and a 64px floor is
+            // simply clipped. Basing on content instead is what lets the card
+            // above grow rather than swallow an answer.
+            ...(grows ? { flex: "1 0 auto" } : null),
+          }}
         >
           {editable
             ? q.options.map((o) => {

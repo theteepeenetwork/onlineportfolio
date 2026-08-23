@@ -221,6 +221,50 @@ function shapeGeometryFields(shape: ShapeKind, o: Record<string, unknown>) {
 
 // Degrees into the 0–359 half-open range, or 0 for anything that isn't a real
 // number. Returns a plain number so the caller can drop a falsy 0.
+// How many degrees one step of the rotate handle turns an object.
+//
+// It used to be a flat 15° for everything, and a flat step is the bug. Rotation
+// is not judged in degrees; it is judged by how far the far end of the thing
+// travels, because a child is aiming an object at something ELSE on the page.
+// One step of θ moves each end along a chord of `L·sin(θ/2)`, so at 15° that is
+// 0.13 × the object's length — 16 model units on a 120-unit counter, and 55 on
+// the 420-unit Line preset, which is 5.5% of the page. On the maths kit's number
+// line it is 93, or a tenth of the page, every single step.
+//
+// That is why a long line "jumps like 45 degrees" when the constant says 15: a
+// 15° step on the Line preset moves its ends as far as a 54° step on a counter.
+// The full working is in docs/rotation-findings.md.
+//
+// It matters most for a LINE, where this is not a grid that fine-tuning sits on
+// top of — it is the entire vocabulary. A line's box IS the line, so resizing
+// locks its aspect ratio on purpose and turning is the only way to aim it. At
+// 15° the product could draw a line at twelve angles and no others.
+//
+// Two rules the ladder has to keep:
+//
+//  • **Every rung divides 45 and 90.** That is what the old 15 was protecting —
+//    a right angle really being a right angle, and 30° and 45° landing exactly.
+//    15, 5, 3 and 1 all do, so a finer step is a superset of the coarser one
+//    rather than a different grid.
+//  • **Every rung is an integer.** `normaliseRotation` below rounds to whole
+//    degrees when an object is saved, so a 7.5° rung would not survive a
+//    reload — the object would come back half a step out.
+//
+// The bands hold the endpoint travel at roughly 13 model units, about 1% of the
+// page, which is what a 15° step already felt like on the objects most of the
+// canvas is made of.
+export function rotateStepFor(lengthUnits: number): number {
+  if (!Number.isFinite(lengthUnits) || lengthUnits <= 100) return 15;
+  if (lengthUnits <= 300) return 5;
+  if (lengthUnits <= 500) return 3;
+  return 1;
+}
+
+/** Wrap any angle into 0–359, the range `rot` is stored in. */
+export function wrapRotation(deg: number): number {
+  return ((Math.round(deg) % 360) + 360) % 360;
+}
+
 function normaliseRotation(v: unknown): number {
   if (typeof v !== "number" || !Number.isFinite(v)) return 0;
   return (((Math.round(v) % 360) + 360) % 360);
