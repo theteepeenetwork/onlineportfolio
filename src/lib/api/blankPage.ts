@@ -1,6 +1,7 @@
 import "server-only";
 import { deflateSync } from "node:zlib";
 import { saveImageDataUrl } from "@/lib/media";
+import { chunk } from "./png";
 
 // A blank page for an activity built through the API.
 //
@@ -13,37 +14,13 @@ import { saveImageDataUrl } from "@/lib/media";
 //
 // So we draw the plain white page the canvas would have started with. No new
 // dependency: a PNG of one flat colour is four chunks and a deflate stream, and
-// node ships both zlib and the arithmetic.
+// node ships both zlib and the arithmetic. The chunk writer itself lives in
+// png.ts, which also reads them — one copy, so the two cannot drift.
 
 // Canvas model space. Matches QUIZ_W / QUIZ_H in src/lib/quiz.ts and the W × H
 // the drawing canvas uses; a background of another size is stretched to it.
 const W = 1000;
 const H = 700;
-
-const CRC_TABLE = (() => {
-  const table = new Int32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    table[n] = c;
-  }
-  return table;
-})();
-
-function crc32(buf: Buffer): number {
-  let c = -1;
-  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  return (c ^ -1) >>> 0;
-}
-
-function chunk(type: string, data: Buffer): Buffer {
-  const length = Buffer.alloc(4);
-  length.writeUInt32BE(data.length, 0);
-  const typed = Buffer.concat([Buffer.from(type, "ascii"), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(typed), 0);
-  return Buffer.concat([length, typed, crc]);
-}
 
 // One 1000×700 white PNG, built once per process. Every blank page in the
 // product is the same image, so there is nothing to vary and no reason to

@@ -9,7 +9,7 @@ import {
   updateActivity,
 } from "./activities";
 import { QUESTIONS_PER_PAGE } from "./quizLayout";
-import { ImageBudget, MAX_IMAGE_BYTES, persistImage } from "./media";
+import { MAX_IMAGE_BYTES, MAX_REGIONS, persistAsset } from "./media";
 import { MAX_OPTION_TEXT_LEN, MAX_OPTIONS, MAX_PROMPT_LEN, MIN_OPTIONS } from "@/lib/quiz";
 import { MAX_TEXT_LEN } from "@/lib/canvasObjects";
 import type { ApiTeacher } from "./tokens";
@@ -78,7 +78,19 @@ A PICTURE, anywhere one is accepted, is an object: {source, alt} or {asset_id, a
 - alt says what the picture shows, for a child who cannot see it. Required whenever you send source.
 - At most ${(MAX_IMAGE_BYTES / (1024 * 1024)).toFixed(0)} MB per picture and 10 MB per activity.
 
-PAGE LAYOUT is done for you, and it decides how many pages you get: ${QUESTIONS_PER_PAGE} plain questions to a page; half that on a page carrying a heading or a passage; two on a page whose questions have pictures. Send the questions in the order a child should meet them and let them fall.
+PAGE LAYOUT is done for you, and it decides how many pages you get: ${QUESTIONS_PER_PAGE} plain questions to a page; half that on a page carrying a heading or a passage; two on a page whose questions have pictures. Send the questions in the order a child should meet them and let them fall. A question's picture is placed beside it at its own shape, never stretched to fill the space.
+
+SPLITTING A WORKSHEET INTO PAGES is the common job, and it has one shape. Say a teacher shows you an A4 sheet with four number-bond models on it and wants a four-page activity:
+
+1. Rasterise each sheet of paper to a PNG. (StoryJar does not take PDFs — if you cannot turn the PDF into pictures, say so and tell the teacher they can import the PDF themselves in the StoryJar activity builder, which does the same thing.)
+2. Call upload_asset ONCE per sheet, passing \`regions\`: one rectangle per question, each given as FRACTIONS of that sheet — {x: 0, y: 0, w: 0.5, h: 0.5} is the top-left quarter — with an \`alt\` saying what that part shows. You get back one asset_id per region. The sheet travels once, not once per question, and it is cut up here.
+3. Put each region on its question as \`image\`, and give that question its own \`page\`.
+
+The child then gets one question per page with the piece of worksheet it is about, beside it.
+
+DO NOT instead put the whole sheet on every page as page_content. A page image sits BEHIND the question boxes and the questions cover the work; page_content's picture is for a page a child draws or writes on, not one they answer questions on.
+
+Regions are cut from PNG only. JPEG and WebP are still fine as pictures — they just cannot be cut up, and you will be told so rather than left guessing.
 
 WHAT COMES BACK from a write tells you what was actually stored — pages, questionCount and pictures. Check pictures against the number you sent: if they do not match, say so rather than telling the teacher it worked.
 
@@ -319,24 +331,52 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "upload_asset",
-    title: "Store a picture once",
+    title: "Store a picture, whole or in parts",
     description:
-      "Store a picture and get back an id you can use on several questions or pages. Use it when the same picture appears more than once — a full worksheet page behind every question, say — so it is sent once instead of once per question. For a picture used in only one place, put it straight on the question or the page instead.",
+      "Store a picture and get back an id you can put on a question or a page. Send `regions` as well and the picture is CUT UP for you — one id per part — which is how a worksheet becomes one question per page: send the sheet once, name the rectangle each question occupies, and put each part on its own question. For a single picture used in a single place, put it straight on the question instead.",
     readOnly: false,
     inputSchema: {
       type: "object",
       properties: {
-        source: { type: "string", description: "The picture, as a data:image URL (PNG, JPEG or WebP)." },
-        alt: { type: "string", maxLength: 300, description: "What the picture shows, for a child who cannot see it." },
+        source: { type: "string", description: "The picture, as a data:image URL (PNG, JPEG or WebP). Cutting into `regions` needs a PNG." },
+        alt: { type: "string", maxLength: 300, description: "What the whole picture shows, for a child who cannot see it." },
+        regions: {
+          type: "array",
+          maxItems: MAX_REGIONS,
+          description:
+            "Optional. The parts of this picture you want, each cut out and stored on its own. Give one entry per question on the sheet, in reading order. Leave it out to store the picture whole.",
+          items: {
+            type: "object",
+            properties: {
+              // Fractions, not pixels, and the descriptions say so twice over.
+              // A model is looking at a page it cannot measure: "the left half"
+              // is something it knows and "x = 148" is something it would guess.
+              x: { type: "number", description: "Left edge of this part, as a fraction of the whole picture's width: 0 is the left edge, 0.5 is halfway across." },
+              y: { type: "number", description: "Top edge of this part, as a fraction of the whole picture's height: 0 is the top, 0.5 is halfway down." },
+              w: { type: "number", description: "How WIDE this part is, as a fraction of the whole picture's width. Half the page across is 0.5." },
+              h: { type: "number", description: "How TALL this part is, as a fraction of the whole picture's height." },
+              alt: { type: "string", maxLength: 300, description: "What THIS part shows, for a child who cannot see it — not the whole sheet." },
+            },
+            required: ["x", "y", "w", "h", "alt"],
+            additionalProperties: false,
+          },
+        },
       },
       required: ["source", "alt"],
       additionalProperties: false,
     },
     handler: async (teacher, args) => {
-      // The budget here is per call, because there is nothing to charge it
-      // against yet. The activity-wide cap still applies when the id is used.
-      const stored = await persistImage(args, "The picture", new ImageBudget(MAX_IMAGE_BYTES));
-      return { asset_id: stored.src, alt: stored.alt };
+      const stored = await persistAsset(args);
+      // One picture in, one `asset_id` out; parts in, a list out. The shapes are
+      // different on purpose — a caller who asked for four regions and got one
+      // id back should be able to see that at a glance rather than by counting.
+      if (args.regions === undefined) {
+        const [only] = stored;
+        return { asset_id: only.src, alt: only.alt, ...(only.width ? { width: only.width, height: only.height } : {}) };
+      }
+      return {
+        assets: stored.map((a) => ({ asset_id: a.src, alt: a.alt, width: a.width, height: a.height })),
+      };
     },
   },
   {
