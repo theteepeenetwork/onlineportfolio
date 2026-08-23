@@ -84,19 +84,12 @@ test("every status is words, and survives having every colour taken away", async
     "a status disappeared or changed when the colours were removed",
   ).toEqual(before.map((t) => t.trim()));
 
-  // Scanned within `main`, and the scope is a finding rather than a
-  // convenience. With forced colours emulated, axe reports a serious
-  // color-contrast failure on all six elements of the operator bar (the
-  // "StoryJar operations" label, the four nav links and the sign-out button).
-  // They are painted with inline `color: var(--paper)` on a `background:
-  // var(--ink)` header, and in forced colours the background is replaced while
-  // the near-white author text colour is not, so the whole bar disappears for a
-  // Windows high-contrast user. That is real, it is in src/app/ops/shell.tsx,
-  // and it predates this pane: shell.tsx is the tech lead's file for wave 5 and
-  // this PR may not edit it, so it is reported as finding F32 rather than fixed
-  // here or scanned around silently. Widening this scan back to the whole page
-  // is the assertion that F32 is closed.
-  await assertStrictNoViolations(page, "service health with forced colours", "main");
+  // F32 is now fixed in src/app/ops/shell.tsx: forced-colour-aware CSS module
+  // classes override the inline bar colours with Canvas/LinkText/ButtonText
+  // system-colour keywords. Scanning the whole page (no `within` scope) is what
+  // confirms F32 is closed and keeps it closed — if the bar ever regresses, this
+  // assertion turns red.
+  await assertStrictNoViolations(page, "service health with forced colours");
 });
 
 test("each tile's heading and status are associated, not merely adjacent", async ({ page }) => {

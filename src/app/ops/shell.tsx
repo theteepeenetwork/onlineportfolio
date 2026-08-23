@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { opsSignOut } from "@/app/actions/ops/session";
+import styles from "./shell.module.css";
 
 // The frame every operator screen renders inside: a bar that says which hat you
 // are wearing, the three links, sign out, and a standing statement of what this
@@ -48,9 +49,12 @@ export type OpsPath = (typeof OPS_LINKS)[number]["href"];
 
 export function OpsBar({ current }: { current: OpsPath }) {
   return (
-    <header style={{ background: "var(--ink)", color: "var(--paper)" }}>
+    // The forced-colours media query in shell.module.css overrides the inline
+    // colour declarations below so the bar remains visible in Windows
+    // high-contrast mode. See the module file for the full rationale (F32).
+    <header className={styles.bar} style={{ background: "var(--ink)", color: "var(--paper)" }}>
       <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <p className="font-display text-base" style={{ color: "var(--paper)" }}>
+        <p className={`${styles.wordmark} font-display text-base`} style={{ color: "var(--paper)" }}>
           StoryJar operations
         </p>
         <nav aria-label="Operations" className="flex flex-wrap items-center gap-x-5 gap-y-1">
@@ -59,6 +63,7 @@ export function OpsBar({ current }: { current: OpsPath }) {
               key={link.href}
               href={link.href}
               aria-current={link.href === current ? "page" : undefined}
+              className={styles.link}
               style={{
                 color: "var(--paper)",
                 textDecoration: "underline",
@@ -76,6 +81,7 @@ export function OpsBar({ current }: { current: OpsPath }) {
         <form action={opsSignOut} className="ms-auto">
           <button
             type="submit"
+            className={styles.signout}
             style={{
               color: "var(--paper)",
               background: "transparent",
