@@ -454,10 +454,11 @@ a foreign key so the trail survives an account rebuild. There is no TOTP bypass
 and the rules forbid adding one.
 
 `OPS_ENABLED=1` is the kill switch. Unset means the whole area 404s to everyone
-including the operator. Seeding is
-`railway run npx tsx scripts/seed-operator.ts you@example.com`, which prints the
-password, TOTP setup key and ten recovery codes once, and refuses with exit 1
-while any operator row exists, with no override flag.
+including the operator. Seeding is `railway ssh` and then
+`npx tsx scripts/seed-operator.ts you@example.com` at the container prompt — not
+`railway run`, which cannot reach a database that is a file on the volume (F44)
+— which prints the password, TOTP setup key and ten recovery codes once, and
+refuses with exit 1 while any operator row exists, with no override flag.
 
 **Backups.** Four options were costed. Option A, Railway volume backups, was
 chosen and executed on 17 August 2026 after upgrading to Pro, because it adds no
@@ -473,16 +474,19 @@ provision and swap, and backups live in the same account as the data, so one
 compromised login loses both.
 
 **Recovery.** `docs/ops-recovery.md` covers normal sign-in, the 15-minute lockout
-(clearable with a `railway run` Prisma one-liner), a lost phone (recovery code
+(clearable with a Prisma one-liner run inside the container), a lost phone (recovery code
 then same-day rebuild), and break-glass, which is a documented row deletion
 rather than a script because committing anything that mints a session is
 forbidden. Recovery codes must live on paper, not in the repo, email, phone notes
 or a password manager the same phone unlocks. Rehearsed on 17 August 2026 against
 a throwaway database: seed, refusal on second run, delete, re-seed, session
-cascade, audit survival. **Not rehearsed:** the `railway run` wrapper against a
-real Railway environment, and any data restore at all, because there is no
-non-production environment and a restore drill would create a second live copy of
-every child's media. The RTO figure is therefore unmeasured.
+cascade, audit survival. **The wrapper was wrong:** every command said `railway
+run`, which cannot reach a database that lives as a file on the volume; found by
+the owner on 23 August 2026 trying to run the seed, corrected to `railway ssh`,
+logged as F44. **Still not rehearsed:** the `railway ssh` half against the real
+service, and any data restore at all, because there is no non-production
+environment and a restore drill would create a second live copy of every child's
+media. The RTO figure is therefore unmeasured.
 
 **Monitoring.** There is no external uptime monitor, taken as a default and
 recorded rather than closed. The accepted consequence: if the service stops

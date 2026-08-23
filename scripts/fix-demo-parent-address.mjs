@@ -27,6 +27,14 @@
 // Usage (against whichever database DATABASE_URL points at):
 //   node scripts/fix-demo-parent-address.mjs           # show what it would do
 //   node scripts/fix-demo-parent-address.mjs --apply   # actually change it
+//
+// Against production, run it inside the container — it opens a PrismaClient
+// below, and the database is a file on the volume:
+//   railway ssh
+//   node scripts/fix-demo-parent-address.mjs --apply
+//
+// NOT `railway run`: that would run this on your own machine with production
+// variables set, where `file:/data/prod.db` does not exist (FINDINGS.md F44).
 // ---------------------------------------------------------------------------
 
 import "dotenv/config";
@@ -39,9 +47,9 @@ const apply = process.argv.includes("--apply");
 const db = new PrismaClient();
 
 try {
-  // Ids only. This script is run with `railway run` against production, so its
-  // output lands in an operator's terminal and, run from the Railway shell, in
-  // Railway's log store. A family code is a credential, not a label: anyone who
+  // Ids only. This script is run against production from a shell inside the
+  // container, so its output lands in an operator's terminal and, depending on
+  // how that shell is attached, in Railway's log store. A family code is a credential, not a label: anyone who
   // can READ one can redeem it and reach that child's jar (SAFEGUARDING rule 4).
   // The parent's name is personal data that adds nothing here. Neither is
   // needed to confirm the change, so neither is selected, let alone printed.

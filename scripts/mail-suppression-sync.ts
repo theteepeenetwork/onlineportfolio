@@ -39,8 +39,18 @@ import { runMailSuppressionSync } from "@/lib/mailSuppressionSync";
 //   npm run mail:suppression-sync          # the last 30 days
 //   npm run mail:suppression-sync -- 7     # a shorter window
 //
-// Under production credentials, without ever seeing them:
-//   railway run npm run mail:suppression-sync
+// Against production, without the credentials ever touching your disk — inside
+// the container, because `main()` below opens a PrismaClient of its own and the
+// database is a file on the volume:
+//   railway ssh
+//   npm run mail:suppression-sync
+//
+// NOT `railway run`. This wrapper is unlike the other two mail scripts:
+// verify-mail.ts and mail-events.mjs only ever reach Mailjet over HTTPS and are
+// therefore still correct under `railway run`, but this one also writes rows,
+// so it needs the file and not just the variables. It said `railway run` until
+// 23 August 2026, which means the documented way to run this by hand had never
+// worked. FINDINGS.md F44.
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {

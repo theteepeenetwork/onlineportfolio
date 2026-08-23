@@ -65,9 +65,9 @@ import { MAIL_SUPPRESSION_SYNC_JOB, type MailSuppressionState } from "@/lib/mail
 //
 // What must NOT come back is the original mistake: treating the presence of
 // MAILJET_API_KEY and MAILJET_SECRET_KEY as authority to call Mailjet. Every
-// developer's `.env` holds the real production keys so that the mailer and
-// `railway run` work, so "do I have credentials" is true on every machine in
-// the project, including the test lanes. Credentials are not consent.
+// developer's `.env` holds the real production keys so that the mailer works
+// locally, so "do I have credentials" is true on every machine in the project,
+// including the test lanes. Credentials are not consent.
 
 const DEFAULT_DAYS = 30;
 

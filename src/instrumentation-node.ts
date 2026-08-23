@@ -61,8 +61,8 @@ export function registerNode(): void {
   // CREDENTIALS ARE NOT CONSENT (FINDINGS.md F43).
   //
   // Every developer's .env holds the production Mailjet keys, because the
-  // mailer needs them locally and because `railway run` and the CLI script are
-  // the documented way to run this sync by hand. So gating the scheduler on
+  // mailer needs them locally and because the CLI script is the documented way
+  // to run this sync by hand. So gating the scheduler on
   // "are the keys present" is not a gate at all: it is true on every dev server
   // and in every battery lane. It scheduled there, called the live Mailjet
   // account five seconds after startup, and upserted real suppression rows —

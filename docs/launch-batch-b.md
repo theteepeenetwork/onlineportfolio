@@ -46,8 +46,11 @@ curl -s -o /dev/null -w "%{http_code}" https://storyjar.co.uk/ops/sign-in   # ex
 ```
 
 Then work steps 3 to 8 of the operator runbook in `docs/launch-triage.md`
-(prepare materials, `railway run npx tsx scripts/seed-operator.ts <email>`,
-sign in and enrol TOTP, ten recovery codes onto paper, verify each screen).
+(prepare materials, `railway ssh` and then
+`npx tsx scripts/seed-operator.ts <email>` at the container prompt, sign in and
+enrol TOTP, ten recovery codes onto paper, verify each screen). It is `ssh` and
+not `run` because the database is a file on the volume and only exists inside
+the container: see F44.
 
 ## What Batch B builds
 

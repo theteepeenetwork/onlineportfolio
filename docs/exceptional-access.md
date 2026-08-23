@@ -21,7 +21,8 @@ instructions to themselves, written calmly in advance.
 
 **In scope:** any access to a child's data that does not come through a StoryJar
 screen. Opening the SQLite database on the volume, reading files in the media
-directory, restoring a backup and reading it, running a query with `railway run`.
+directory, restoring a backup and reading it, running a query against the
+production database from a shell inside the container (`railway ssh`).
 
 **Out of scope:** everything the product does. Teachers and linked parents see
 children's work through StoryJar under rules 4 to 7, which is ordinary operation

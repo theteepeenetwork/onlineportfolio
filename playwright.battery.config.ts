@@ -123,10 +123,19 @@ export default defineConfig({
     // hashes its fixture addresses under the SAME constant
     // (tests/battery/global-setup.ts), because two different keys would hash
     // one address to two labels and the seeded rows would match nothing.
+    //
+    // PW_HIDE_DEV_INDICATOR turns off Next's dev-tools badge for this server
+    // only. The lanes run `next dev` on purpose (a production build withholds
+    // the parent magic link, so family.spec.ts would fail because the gate is
+    // working), and the badge is rendered in a portal at bottom-left whose
+    // subtree intercepts pointer events — on 2026-08-23 it sat on top of the
+    // teacher rail's expand button and ate 227 click retries. `npm run dev`
+    // still has the badge; only these lanes lose it. See next.config.ts.
     env: {
       OPS_ENABLED: "1",
       STRIPE_SECRET_KEY: BATTERY_STRIPE_KEY,
       MAIL_HMAC_KEY: BATTERY_MAIL_HMAC_KEY,
+      PW_HIDE_DEV_INDICATOR: "1",
     },
   },
 });

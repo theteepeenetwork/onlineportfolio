@@ -220,11 +220,22 @@ Have ready, before you run anything:
 
 ### The steps
 
-**1. Run the script once, against production.**
+**1. Run the script once, against production — inside the container.**
 
 ```bash
-railway run npx tsx scripts/seed-operator.ts you@example.com
+railway ssh
 ```
+
+Then, at the container prompt:
+
+```bash
+npx tsx scripts/seed-operator.ts you@example.com
+```
+
+**Not `railway run`.** That injects the production variables into a process on
+your own Mac, and `DATABASE_URL` is `file:/data/prod.db`, a path on the Railway
+volume that is not mounted there. The variables travel; the file does not. You
+get SQLite error 14 and no account (F44).
 
 Use an address you will still control in two years. It is only an identifier
 for sign-in; the script sends no email.
@@ -251,7 +262,8 @@ together. A drawer is the correct answer and is not a joke.
 
 ### For a local operator account
 
-Same script, no `railway run`, and start the dev server with the switch on:
+Same script, run straight on your own machine against your own database, and
+start the dev server with the switch on:
 
 ```bash
 npx tsx scripts/seed-operator.ts you@example.com

@@ -271,9 +271,11 @@ export default async function OpsHealthPage() {
               <p>
                 There is no backup job in this repository, nothing schedules one and nothing records
                 one, so there is no last-successful time and no size to compare against yesterday.
-                The backup decision is owner decision D2 and it is still open. Note while it is:
-                RETENTION.md describes a 35-day rolling backup cycle to schools, and until D2 is
-                answered that line and this tile disagree. This tile is the one that is true.
+                Backups do exist: owner decision D2 was answered and executed on 17 August 2026, and
+                Railway takes them on its own side, where this service cannot see them. RETENTION.md
+                carries the schedule, the retention tiers and the caveats; read them there rather than
+                here. This tile says not monitored because nothing inside this process can confirm a
+                backup ran, not because there is nothing to confirm.
               </p>
             }
           />
@@ -283,15 +285,24 @@ export default async function OpsHealthPage() {
             heading="Scheduled jobs"
             status={NOT_MONITORED}
             value={
-              <p>
-                <code>billing:freeze</code> exists as a command and does the right thing when it is
-                run by hand: it is idempotent, it deletes nothing and it writes its own audit row.
-                Nothing schedules it and nothing writes down that it ran, so there is no last run to
-                show. There is deliberately no button here to run it either. A job an operator can set
-                off is an operation, and operations are named, listed on the closed registry, and
-                carry a reason and an audit row; adding this one is the owner&rsquo;s call, not a
-                convenience to be slipped onto a status screen.
-              </p>
+              <>
+                <p>
+                  <code>billing:freeze</code> exists as a command and does the right thing when it is
+                  run by hand: it is idempotent, it deletes nothing and it writes its own audit row.
+                  Nothing schedules it and nothing writes down that it ran, so there is no last run to
+                  show. There is deliberately no button here to run it either. A job an operator can
+                  set off is an operation, and operations are named, listed on the closed registry,
+                  and carry a reason and an audit row; adding this one is the owner&rsquo;s call, not
+                  a convenience to be slipped onto a status screen.
+                </p>
+                <p className="mt-2">
+                  One job is scheduled: the mail suppression sync runs inside the app once a day, and
+                  only in a production build with <code>MAIL_SUPPRESSION_SYNC</code> set to exactly
+                  <code> 1</code>, so it does not run on a developer&rsquo;s machine or in a test
+                  lane. It writes down each run, and the last one is shown on the mail screen rather
+                  than here. If it has never run, that screen says so in those words.
+                </p>
+              </>
             }
           />
         </ul>

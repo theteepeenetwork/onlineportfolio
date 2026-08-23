@@ -31,5 +31,13 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: true,
     timeout: 120_000,
+    // Same reason as playwright.battery.config.ts: this suite also runs
+    // `next dev`, so it meets the same dev-tools badge at bottom-left, whose
+    // portal subtree intercepts pointer events over whatever is under it. Set
+    // here as well because the artefact is a property of running dev, not of
+    // which suite is running. `npm run dev` is unaffected. See next.config.ts.
+    env: {
+      PW_HIDE_DEV_INDICATOR: "1",
+    },
   },
 });

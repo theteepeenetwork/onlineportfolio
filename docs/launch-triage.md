@@ -165,8 +165,12 @@ sign-in, no bypass. **Steps 1, 2, 4, 7 need Railway auth — Mark's hands only.*
    addresses; no effect on delivery. Batch with step 1 to avoid a second deploy.
 3. **Prep materials** (local): authenticator app, password manager open, printer/
    paper. The seed prints credentials **once**.
-4. **Run the seed:** `railway run npx tsx scripts/seed-operator.ts you@example.com`
-   (address is an identifier, no email sent). Prints a 28-char password, a TOTP
+4. **Run the seed:** `railway ssh`, then at the container prompt
+   `npx tsx scripts/seed-operator.ts you@example.com` (address is an identifier,
+   no email sent). **Not `railway run`** — that runs on your Mac with the
+   production variables injected, and `DATABASE_URL` is `file:/data/prod.db` on
+   the volume, which is not mounted there. It fails with SQLite error 14
+   (F44, and `docs/ops-recovery.md`). Prints a 28-char password, a TOTP
    secret, and 10 recovery codes; creates the `Operator` row `ACTIVE`,
    `totpConfirmedAt: null`, `role: OWNER`. Password → manager; recovery codes →
    **paper in a drawer, not the manager, not email** (`docs/ops-recovery.md`);
