@@ -40,6 +40,8 @@ async function assignTemplateWithAShape(page: Page, title: string) {
   await page.getByRole("button", { name: /Save to library/ }).click();
   await page.waitForURL((u) => /^\/teacher\/activities\/[^/]+$/.test(u.pathname));
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((u) => u.searchParams.has("run"));
 }

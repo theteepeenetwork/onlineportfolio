@@ -131,6 +131,36 @@ test.describe("Adding work stays in the child's world", () => {
     await page.goto("/student/new");
     await expect(page).toHaveURL(/\/student$/);
   });
+
+  // Regression: /student/new/<nonsense> used to call notFound(), which unwound
+  // the async server component before Next.js closed a performance.measure —
+  // throwing "TypeError: Failed to execute 'measure' on 'Performance': cannot
+  // have a negative time stamp". A mistyped or bookmarked URL must NEVER crash;
+  // it sends the child back to the jar instead (the jar IS the safe destination).
+  test("a bad add-work URL lands on the jar, not a crash", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+
+    await studentLogin(page, "Finn");
+    await page.goto("/student/new/nonsense");
+    // No throw — a quiet redirect to the jar. The child is on a screen they know.
+    await expect(page).toHaveURL(/\/student$/);
+    // The jar has tappable add-work tiles, not an error page.
+    await expect(page.getByRole("button", { name: /photo/i }).first()).toBeVisible();
+    expect(errors.filter((e) => /performance/i.test(e)), "no performance.measure crash").toHaveLength(0);
+  });
+
+  // Same crash on a bad activity id. The child must land somewhere they know.
+  test("a bad activity URL lands on the activities list, not a crash", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+
+    await studentLogin(page, "Finn");
+    await page.goto("/student/activities/not-a-real-id");
+    // Quiet redirect to the activities list.
+    await expect(page).toHaveURL(/\/student\/activities$/);
+    expect(errors.filter((e) => /performance/i.test(e)), "no performance.measure crash").toHaveLength(0);
+  });
 });
 
 // SJ-04 — "where is my work?" used to be answered with a sentence ("Waiting for

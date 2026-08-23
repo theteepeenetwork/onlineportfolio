@@ -88,6 +88,8 @@ test.describe("Teacher calendar", () => {
     // Assign the unfiled "Draw your family" template with a due date of today.
     await page.getByRole("button", { name: "More actions for Draw your family" }).click();
     await page.getByRole("menu").getByRole("menuitem", { name: "Send to a class" }).click();
+    // No class is preselected; choose one before assigning (Item 5).
+    await page.getByRole("button", { name: "Sunflower Class" }).click();
     await page.locator('input[name="dueDate"]').fill(todayInput);
     await page.getByRole("button", { name: /Assign to whole class/ }).click();
     await expect(page).toHaveURL(/\/teacher\/activities\/[^/]+\?run=/);

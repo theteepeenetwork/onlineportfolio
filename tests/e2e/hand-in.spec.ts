@@ -44,6 +44,8 @@ async function assignTwoPager(page: Page, title: string) {
   await page.locator('button[title="Done"]').click();
   await page.getByRole("button", { name: /Save to library/ }).click();
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((u) => u.searchParams.has("run"));
   return new URL(page.url()).searchParams.get("run")!;

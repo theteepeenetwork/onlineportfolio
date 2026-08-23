@@ -50,6 +50,8 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
 
   // --- Assign it to the whole class ---
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((url) => url.searchParams.has("run"));
 
@@ -432,6 +434,8 @@ test("a sent-back quiz says which ones to look at again, without giving the answ
     await page.getByRole("button", { name: /Save to library/ }).click();
     await expect(page.getByRole("heading", { name: "Second go" })).toBeVisible();
     await page.getByRole("button", { name: /Assign/ }).first().click();
+    // No class is preselected; choose one before assigning (Item 5).
+    await page.getByRole("button", { name: "Sunflower Class" }).click();
     await page.getByRole("button", { name: /Assign to whole class/ }).click();
     await page.waitForURL((url) => url.searchParams.has("run"));
     // Every DB check below is scoped to THIS run: the spec above also leaves

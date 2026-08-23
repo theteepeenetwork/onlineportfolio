@@ -103,6 +103,8 @@ test("a child's in-progress drawing survives a reload", async ({ page }) => {
   await page.getByRole("button", { name: /Save to library/ }).click();
   await expect(page.getByRole("heading", { name: "Draft recovery activity" })).toBeVisible();
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((url) => url.searchParams.has("run"));
   await logout(page);
@@ -140,6 +142,8 @@ test("a child never sees another child's draft on a shared device", async ({ pag
   await page.getByRole("button", { name: /Save to library/ }).click();
   await expect(page.getByRole("heading", { name: "Shared device activity" })).toBeVisible();
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((url) => url.searchParams.has("run"));
   await logout(page);
@@ -250,6 +254,8 @@ test("a stalled template background still lets a child draw and restore", async 
   await page.getByRole("button", { name: /Save to library/ }).click();
   await expect(page.getByRole("heading", { name: "Stalled background activity" })).toBeVisible();
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((url) => url.searchParams.has("run"));
   await logout(page);

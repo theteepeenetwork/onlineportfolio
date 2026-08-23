@@ -32,6 +32,8 @@ test("teacher creates a template, assigns it, a child responds, teacher sees the
 
   // --- Assign it to the whole class (a new run) ---
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((url) => url.searchParams.has("run"));
   await expect(page.getByText(/whole class/).first()).toBeVisible();
@@ -84,6 +86,8 @@ test("editing an activity updates its title and pushes the change onto a live ru
 
   // Assign to the whole class → a LIVE run that snapshots the current wording.
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((url) => url.searchParams.has("run"));
 
@@ -171,6 +175,8 @@ test("a child's activity card shows the same picture as the teacher's library ca
     await expect(page.getByRole("heading", { name: "Where in the world" })).toBeVisible();
 
     await page.getByRole("button", { name: /Assign/ }).first().click();
+    // No class is preselected; choose one before assigning (Item 5).
+    await page.getByRole("button", { name: "Sunflower Class" }).click();
     await page.getByRole("button", { name: /Assign to whole class/ }).click();
     await page.waitForURL((url) => url.searchParams.has("run"));
 
@@ -242,4 +248,38 @@ test("renaming an activity keeps its pages, even without opening the canvas", as
   await page.goto(activityUrl);
   await expect(page.getByRole("heading", { name: "Minibeast hunt (renamed)" })).toBeVisible();
   expect(await page.locator("main img").count(), "the worksheet survived the rename").toBe(pagesBefore);
+});
+
+// A teacher with three classes must say which one before work can go anywhere
+// (Item 5). The old sheet preselected classes[0], so "Assign to whole class"
+// was one tap away from sending Year 6 work to Reception with nothing
+// afterwards saying which class got it. Neither entry point — the library or a
+// template's detail page — knows which class the teacher has in mind, so the
+// only honest default is none.
+//
+// This test exists so that protection cannot be quietly removed: it asserts the
+// confirm button is BOTH unusable and clearly labelled until a class is chosen.
+// A future change that restores a default will fail here, not in a persona note.
+test("the assign sheet cannot send work anywhere until a class is chosen", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities");
+
+  // Open the sheet from the library — the entry point with the most templates
+  // on screen, and so the one where a wrong preselection is easiest to miss.
+  await page.getByRole("button", { name: "More actions for Draw your family" }).click();
+  await page.getByRole("menu").getByRole("menuitem", { name: "Send to a class" }).click();
+
+  // Nothing is chosen: the button says what is missing and refuses the tap.
+  const confirm = page.getByRole("button", { name: "Choose a class first" });
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toBeDisabled();
+  // The whole-class wording must not be reachable yet.
+  await expect(page.getByRole("button", { name: /Assign to whole class/ })).toHaveCount(0);
+
+  // Choosing a class is what unlocks it — and only then.
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
+  const whole = page.getByRole("button", { name: /Assign to whole class/ });
+  await expect(whole).toBeVisible();
+  await expect(whole).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Choose a class first" })).toHaveCount(0);
 });

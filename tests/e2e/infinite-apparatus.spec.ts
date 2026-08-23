@@ -87,6 +87,8 @@ async function buildTemplateWithSource(page: import("@playwright/test").Page, ti
   await page.waitForURL((url) => /^\/teacher\/activities\/[^/]+$/.test(url.pathname));
 
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((url) => url.searchParams.has("run"));
 }
