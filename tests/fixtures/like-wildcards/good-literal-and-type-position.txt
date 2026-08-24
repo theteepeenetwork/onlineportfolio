@@ -1,0 +1,16 @@
+// @path: src/lib/somewhere.ts
+// Two things that are not queries over user input and must not be made to look
+// like a problem, or the gate gets switched off.
+//
+// A literal cannot be user-supplied. A type declaration is a shape rather than a
+// value — `establishmentWhere`'s return type spells all three operators out, and
+// there is nothing there to sanitise.
+import { db } from "@/lib/db";
+
+export type Where = {
+  OR: ({ name: { startsWith: string } } | { name: { contains: string } })[];
+};
+
+export async function findDrafts() {
+  return db.activityTemplate.findMany({ where: { title: { contains: "Untitled" } } });
+}

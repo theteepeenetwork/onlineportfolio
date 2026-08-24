@@ -1,0 +1,11 @@
+// @path: src/app/actions/somewhere.ts
+// @expect: startsWith
+// One operator per fixture, deliberately. A single fixture naming two of them
+// still fires when one is dropped from the gate's list, so it proves the pair
+// and not either half — which is how a corpus comes to look thorough and cover
+// less than it claims.
+import { db } from "@/lib/db";
+
+export async function byPostcodePrefix(prefix: string) {
+  return db.establishment.findMany({ where: { postcode: { startsWith: prefix } } });
+}

@@ -1,0 +1,9 @@
+// @path: src/app/actions/somewhere.ts
+// @expect: endsWith
+// The operator most likely to be forgotten when somebody writes this gate's
+// list from memory. It becomes LIKE exactly as the other two do.
+import { db } from "@/lib/db";
+
+export async function byPostcodeSuffix(suffix: string) {
+  return db.establishment.findMany({ where: { postcode: { endsWith: suffix } } });
+}

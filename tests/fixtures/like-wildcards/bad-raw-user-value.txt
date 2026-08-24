@@ -1,0 +1,10 @@
+// @path: src/app/actions/somewhere.ts
+// @expect: contains
+// The shape F55 is about: a value that came in from a request, handed straight
+// to a LIKE. Prisma does not escape the wildcards, so a query of "%" returns
+// every row of the table.
+import { db } from "@/lib/db";
+
+export async function searchSchools(query: string) {
+  return db.establishment.findMany({ where: { name: { contains: query } } });
+}

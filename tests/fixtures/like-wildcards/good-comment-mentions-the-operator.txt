@@ -1,0 +1,9 @@
+// @path: src/lib/somewhere.ts
+// Prose that names the operator must not fire. The gate blanks comments before
+// it reads anything, and this fixture is why: the module that DOCUMENTS this
+// rule inevitably writes `contains: someValue` in a sentence explaining it, and
+// a gate that flagged its own documentation would be turned off within a week.
+//
+// A worked example, of the kind a comment legitimately contains:
+//   db.thing.findMany({ where: { name: { contains: userInput } } })   // never do this
+export const NOTE = "see FINDINGS.md F55";

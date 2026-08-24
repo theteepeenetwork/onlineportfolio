@@ -1,0 +1,16 @@
+// @path: src/app/actions/somewhere.ts
+// @expect: contains
+// Sanitised into a variable one line early, then the variable is what reaches
+// the query. This is SAFE code and the gate refuses it anyway, deliberately.
+//
+// The gate cannot follow a value across a statement, and a rule that pretended
+// to would be the hollow kind. So the requirement is that the safety is visible
+// AT THE CALL SITE — which is also what a reviewer reading the query needs. The
+// fix is to move the call, not to widen the rule.
+import { db } from "@/lib/db";
+import { likeSafe } from "@/lib/likeSafe";
+
+export async function searchSchools(query: string) {
+  const safe = likeSafe(query);
+  return db.establishment.findMany({ where: { name: { contains: safe } } });
+}
