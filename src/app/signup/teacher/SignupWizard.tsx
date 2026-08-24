@@ -6,6 +6,7 @@ import { createTeacherAccount } from "@/app/actions/auth";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
 import { deriveChildNames } from "@/lib/childNames";
 import { AGE_MODE_OPTIONS, type AgeMode } from "@/lib/ageMode";
+import { SchoolPicker } from "./SchoolPicker";
 
 const CARD: React.CSSProperties = {
   background: "var(--cream)",
@@ -102,6 +103,11 @@ export function SignupWizard() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [school, setSchool] = useState("");
+  // The DfE's URN, stored ALONGSIDE the free-text name and never instead of it
+  // (docs/school-identity.md §2). Null is a real answer, not a missing one: it
+  // is what every teacher outside England has, and what an English teacher whose
+  // school is not in the register snapshot has.
+  const [urn, setUrn] = useState<string | null>(null);
   const [country, setCountry] = useState("England");
   const [yearGroup, setYearGroup] = useState("Year 2");
   const [className, setClassName] = useState("");
@@ -165,7 +171,7 @@ export function SignupWizard() {
     setError("");
     try {
       const result = await createTeacherAccount({
-        title, fullName, displayStyle, email, password, school, country, yearGroup, className, ageMode,
+        title, fullName, displayStyle, email, password, school, urn, country, yearGroup, className, ageMode,
         children: childrenNames,
       });
       if (result?.error) {
@@ -253,14 +259,26 @@ export function SignupWizard() {
           <h1 style={H1}>Where do you teach?</h1>
           <p style={LEAD}>This helps us keep your data in the right place — and greet you properly.</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 28 }}>
-            <div>
-              <label htmlFor="su-school" style={FIELD_LABEL}>School name</label>
-              <input id="su-school" type="text" value={school} onChange={(e) => setSchool(e.target.value)} placeholder="e.g. St Bede’s Primary" style={INPUT} />
-            </div>
+            {/* England gets the register; everywhere else keeps the plain box.
+                The register is GIAS, which covers English establishments only,
+                so a picker elsewhere would be a search that always fails. The
+                free-text field is a first-class path, not a degraded one
+                (docs/school-identity.md, "Non-England schools"). */}
+            {country === "England" ? (
+              <SchoolPicker value={school} urn={urn} onPick={(name, picked) => { setSchool(name); setUrn(picked); setError(""); }} />
+            ) : (
+              <div>
+                <label htmlFor="su-school" style={FIELD_LABEL}>School name</label>
+                <input id="su-school" type="text" value={school} onChange={(e) => setSchool(e.target.value)} placeholder="e.g. St Bede’s Primary" style={INPUT} />
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
               <div>
                 <label htmlFor="su-country" style={FIELD_LABEL}>Country</label>
-                <select id="su-country" value={country} onChange={(e) => setCountry(e.target.value)} style={INPUT}>
+                {/* Leaving England drops the URN. It is a key into the English
+                    register, so keeping it beside a Welsh school's name would
+                    be storing a join that points at the wrong country. */}
+                <select id="su-country" value={country} onChange={(e) => { setCountry(e.target.value); if (e.target.value !== "England") setUrn(null); }} style={INPUT}>
                   {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>

@@ -26,6 +26,15 @@ export async function createTeacherAccount(input: {
   email: string;
   password: string;
   school: string;
+  /**
+   * The DfE URN the teacher picked, or null when they typed the name instead.
+   * Stored ALONGSIDE `school`, never in place of it (docs/school-identity.md
+   * §2): the free text is what the teacher believes their school is called and
+   * is what the teacher shell and the ops console already show; the URN is a
+   * join key for later. Keeping both is what stops a future re-import renaming
+   * a teacher's own school out from under them.
+   */
+  urn: string | null;
   country: string;
   yearGroup: string;
   className: string;
@@ -48,6 +57,45 @@ export async function createTeacherAccount(input: {
     return { error: "Your password needs at least 8 characters.", step: 1 };
   if (!school) return { error: "What’s your school called?", step: 2 };
   if (!className) return { error: "Give your class a name — anything you like.", step: 3 };
+
+  // The URN is CHECKED AGAINST THE REGISTER, not taken on trust.
+  //
+  // This is a server action, so `input.urn` is whatever the caller sent, and
+  // the picker is not the only possible caller. A URN that is not in the
+  // register is worse than no URN at all: null honestly says "this teacher
+  // typed their school's name", while a made-up key is a join that will one day
+  // be followed. It is also the only field on the row a later step will trust
+  // without asking a human, so it earns a lookup.
+  //
+  // A URN that does not check out is DROPPED rather than refused. Nothing is
+  // lost by dropping it — the free text the teacher typed is the school name
+  // either way, and it is the field the product displays — and a signup is not
+  // the place to make somebody argue with a validator about a field they did
+  // not know existed.
+  //
+  // AND A REAL TEACHER CAN REACH THIS BRANCH, which an earlier version of this
+  // comment denied. The import replaces the register wholesale, so a school
+  // picked on step 2 can be gone by the time step 4 submits — no tampering
+  // required, just a refresh landing mid-signup. That is the case the drop is
+  // FOR: refusing would fail a real teacher over a row that moved underneath
+  // them, and it is driven end to end in tests/e2e/school-picker.spec.ts.
+  //
+  // WHAT IT DOES NOT CHECK, said here rather than assumed: that the URN matches
+  // the NAME beside it. A tampered client can still send one school's name with
+  // another's URN. The row is already fetched, so requiring a match is cheap —
+  // and it is deliberately not done, because it would reject a real teacher
+  // whose school has been renamed in the register since they picked it. The
+  // asymmetry is recorded in docs/school-identity.md; the blast radius is one
+  // adult's own account, self-inflicted, joined to nothing.
+  //
+  // Country is part of the check because GIAS is the English register. A URN
+  // beside "Wales" is a join pointing at the wrong country, and the picker is
+  // not even rendered there.
+  const urn =
+    input.urn && input.country === "England" &&
+    (await db.establishment.findUnique({ where: { urn: input.urn }, select: { urn: true } }))
+      ? input.urn
+      : null;
 
   // The class list, through the SAME derivation the roster uses.
   //
@@ -82,6 +130,7 @@ export async function createTeacherAccount(input: {
       email,
       passwordHash: await bcrypt.hash(password, 10),
       schoolName: school,
+      urn,
       country: input.country,
       // Signed up before launch day → a Founding teacher, promised free
       // unlimited access permanently. Decided once, here, and stored — never
