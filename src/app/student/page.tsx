@@ -68,10 +68,25 @@ export default async function StudentHome() {
     (i) => i.approvedAt && (!seen?.jarSeenAt || i.approvedAt > seen.jarSeenAt),
   ).length;
 
-  // A newly arrived sticker: the most recent approved moment with stickers the
-  // child hasn't sent a heart back for yet. Shown as the big arrival panel.
+  // A newly arrived sticker: the most recent stickered moment approved since the
+  // child last looked at their jar. Shown as the big arrival panel.
+  //
+  // What dismisses it changed on 2026-08-24. It used to be the child's heart
+  // reply — the panel stayed until they tapped it — and when that reply was
+  // removed, nothing was left to retire the panel, so a card headed "A new
+  // sticker just arrived" would have sat there for ever. `jarSeenAt` is the
+  // right marker and was already in this file two lines up: it is exactly "has
+  // this child looked since". Historic rows still carry `stickerReply` and are
+  // excluded, so a child who hearted something before the removal does not have
+  // it resurface as new.
   const arrived = published
-    .filter((i) => readStickers(i.stickersJson).length > 0 && !i.stickerReply)
+    .filter(
+      (i) =>
+        readStickers(i.stickersJson).length > 0 &&
+        !i.stickerReply &&
+        i.approvedAt &&
+        (!seen?.jarSeenAt || i.approvedAt > seen.jarSeenAt),
+    )
     .sort((a, b) => (b.approvedAt?.getTime() ?? 0) - (a.approvedAt?.getTime() ?? 0))[0];
   const teacherName = arrived
     ? (
@@ -131,7 +146,6 @@ export default async function StudentHome() {
           // this child's own approved moment only.
           stickers: readStickers(i.stickersJson).map((s) => s.k),
           praiseNote: i.praiseNote,
-          heartedBack: i.stickerReply === "HEART",
         }))}
         jarCount={published.length}
         waitingCount={waitingCount}
@@ -300,8 +314,6 @@ export default async function StudentHome() {
                   textContent={item.textContent}
                   emptyIcon={<Icon name={k.icon} size={64} decorative />}
                   praiseNote={item.praiseNote}
-                  heartedBack={item.stickerReply === "HEART"}
-                  heartLabel="💛 You sent a heart back"
                   arrivedBadge={
                     justArrived ? (
                       <span style={{ background: "#37796f", color: "#FFFDF7", border: "2px solid var(--ink)", borderRadius: 999, padding: "3px 12px", font: "700 calc(13px * var(--sj-type-scale, 1)) var(--font-atkinson)" }}>{c.home.arrivedBadge}</span>

@@ -45,14 +45,21 @@ test("stickers travel from the teacher's sheet to the child's jar and back", asy
   await expect(panel).toBeVisible();
   await expect(panel.getByText("“So proud of this, Finn!”")).toBeVisible();
 
-  // He sends a heart back — the button flips to its confirmation.
-  await panel.getByRole("button", { name: /Send one back/ }).click();
-  await expect(panel.getByRole("button", { name: /Sent a heart back!/ })).toBeVisible();
+  // He sends nothing back. A child is read-only to their teacher's feedback
+  // (product decision, 2026-08-24): the panel shows what arrived and offers no
+  // reply. Asserted rather than merely deleted, because a removal nothing
+  // checks is a removal that comes back.
+  await expect(panel.getByRole("button", { name: /back/i })).toHaveCount(0);
 
-  // On the next visit the panel has done its job and the stickers + note live
-  // on the moment card in the timeline.
+  // On the next visit the panel has done its job and gone. What retires it is
+  // now `jarSeenAt` — "has this child looked since" — because the heart reply
+  // that used to dismiss it no longer exists. Without that, a card headed "A
+  // new sticker just arrived" would sit there for ever, so this assertion is
+  // the one that proves the replacement works.
   await page.reload();
   await expect(page.getByRole("region", { name: /A new sticker just arrived/ })).toHaveCount(0);
+
+  // And the payoff survives the panel: the stickers and the note live on the
+  // moment card in the timeline.
   await expect(page.getByText("“So proud of this, Finn!”")).toBeVisible();
-  await expect(page.getByText("You sent a heart back")).toBeVisible();
 });

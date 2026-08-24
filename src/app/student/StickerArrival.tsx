@@ -1,15 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { sendStickerBack } from "@/app/actions/journal";
 import { Sticker } from "@/components/stickers/Sticker";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { avatarInk } from "@/lib/avatar";
 
 // "What the child sees" (design 1d): the payoff. The teacher's sticker drops
 // gently onto the moment, the card gives a little bump, and the teacher's kind
-// note sits alongside. The child can send exactly one fixed heart back — never
-// free text (SAFEGUARDING.md rule 2).
+// note sits alongside.
+//
+// The child sends nothing back. A one-tap heart reply existed here until
+// 2026-08-24 and was removed as a product decision: a child is read-only to
+// their teacher's feedback. If a "respond to feedback" feature is wanted it gets
+// designed as one, rather than growing out of a single hard-coded value.
 
 type Props = {
   itemId: string;
@@ -39,8 +42,6 @@ const DROP_SPOTS = [
 
 export function StickerArrival({ itemId, childName, avatarColor, teacherName, note, stickers, moment }: Props) {
   const [show, setShow] = useState(true);
-  const [replied, setReplied] = useState(false);
-  const [busy, setBusy] = useState(false);
   const replayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Restart the CSS animations by unmounting the animated bits for a beat.
@@ -48,19 +49,6 @@ export function StickerArrival({ itemId, childName, avatarColor, teacherName, no
     setShow(false);
     if (replayTimer.current) clearTimeout(replayTimer.current);
     replayTimer.current = setTimeout(() => setShow(true), 40);
-  };
-
-  const reply = async () => {
-    if (replied || busy) return;
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.set("itemId", itemId);
-      await sendStickerBack(fd);
-      setReplied(true);
-    } finally {
-      setBusy(false);
-    }
   };
 
   return (
@@ -130,13 +118,6 @@ export function StickerArrival({ itemId, childName, avatarColor, teacherName, no
           <p style={{ margin: 0, font: "400 21px/1.4 var(--font-atkinson)", color: "var(--ink)" }}>
             {note ? `“${note}”` : `A sticker for you, ${childName}! 🎉`}
           </p>
-          <button
-            onClick={reply}
-            disabled={replied || busy}
-            style={{ marginTop: 18, font: "600 17px var(--font-fredoka)", color: "var(--paper)", background: "var(--jam)", border: "3px solid var(--ink)", borderRadius: 999, padding: "11px 24px", minHeight: 64, cursor: replied ? "default" : "pointer", boxShadow: "0 4px 0 var(--jam-deep)", opacity: busy ? 0.7 : 1 }}
-          >
-            {replied ? "💛 Sent a heart back!" : "Send one back 💛"}
-          </button>
         </div>
       </div>
     </section>

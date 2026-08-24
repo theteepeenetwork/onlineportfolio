@@ -112,7 +112,11 @@ export function momentRecord(j: ExportableMoment) {
     teacherNote: j.teacherNote,
     praiseNote: j.praiseNote,
     stickers: j.stickersJson ? safeParse(j.stickersJson) : undefined,
-    // "HEART" once the child sent one back; a fixed value, never free text.
+    // "HEART" on moments where a child used the one-tap reply that existed
+    // until 2026-08-24. A fixed value, never free text. The reply was removed
+    // (children are read-only to their teacher's feedback) but the column and
+    // these historic values stay, and an export of what the school holds must
+    // still disclose them.
     stickerReply: j.stickerReply,
     returnMode: j.returnMode,
     createdAt: j.createdAt,

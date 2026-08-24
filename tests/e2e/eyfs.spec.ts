@@ -66,17 +66,19 @@ test("the jar bar unfolds the child's approved moments", async ({ page }) => {
   await expect(page.getByText("My words", { exact: true })).toBeVisible();
 });
 
-test("EYFS keeps the sticker/praise payoff and the one-tap heart back", async ({ page }) => {
+test("EYFS keeps the sticker/praise payoff, and the child sends nothing back", async ({ page }) => {
   await signInAcorns(page, "Ava");
   await page.getByRole("button", { name: /in your jar/i }).click();
 
   // The teacher's praise note rides along on the moment (owner decision: EYFS
-  // keeps the feedback loop).
+  // keeps the feedback loop). This is the F38 payoff and it still matters — a
+  // pre-reader who cannot see what their teacher sent has had nothing.
   await expect(page.getByText(/What a bright dragon/)).toBeVisible();
 
-  // The child can send exactly one fixed heart back — never free text (rule 2).
-  const heart = page.getByRole("button", { name: /send a heart back/i });
-  await expect(heart).toBeVisible();
-  await heart.click();
-  await expect(page.getByText(/you sent a heart back/i)).toBeVisible();
+  // A child is READ-ONLY to their teacher's feedback (product decision,
+  // 2026-08-24): they see the sticker and the note and send nothing. The
+  // one-tap heart reply was removed, so no reply control exists on this screen.
+  // Asserted rather than merely deleted, because a removal nothing checks is a
+  // removal that comes back.
+  await expect(page.getByRole("button", { name: /heart back/i })).toHaveCount(0);
 });

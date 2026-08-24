@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { Sticker } from "@/components/stickers/Sticker";
 import { LogoutForm } from "@/components/LogoutForm";
-import { sendStickerBack } from "@/app/actions/journal";
 import { studentCopy } from "@/lib/copy/student";
 import { avatarInk } from "@/lib/avatar";
 import type { AgeMode } from "@/lib/ageMode";
@@ -36,11 +35,10 @@ export type EyfsMoment = {
   textContent: string | null;
   bandBg: string;
   // The teacher's feedback the child sees on their approved work (owner decision
-  // 2026-07-19: EYFS keeps the sticker/praise payoff). Sticker catalog keys, the
-  // kind note, and whether the child has already sent their one fixed heart back.
+  // 2026-07-19: EYFS keeps the sticker/praise payoff). Sticker catalog keys and
+  // the kind note. The child reads these and sends nothing back.
   stickers: string[];
   praiseNote: string | null;
-  heartedBack: boolean;
 };
 
 // Where the teacher's stickers land, peeled onto the moment's picture.
@@ -383,41 +381,16 @@ function MomentCard({ m }: { m: EyfsMoment }) {
         {m.praiseNote && (
           <p style={{ margin: "6px 0 0", font: "400 13px/1.4 var(--font-atkinson)", color: "var(--ink-soft)" }}>💬 “{m.praiseNote}”</p>
         )}
-        {m.stickers.length > 0 && <HeartBack itemId={m.id} hearted={m.heartedBack} />}
       </div>
     </div>
   );
 }
 
-// The child's one reply to their teacher's stickers: a single fixed heart, never
-// free text (SAFEGUARDING rule 2). Mirrors StickerArrival's reply, sized for the
-// small jar-window card.
-function HeartBack({ itemId, hearted }: { itemId: string; hearted: boolean }) {
-  const [replied, setReplied] = useState(hearted);
-  const [busy, setBusy] = useState(false);
-  const send = async () => {
-    if (replied || busy) return;
-    setBusy(true);
-    try {
-      const fd = new FormData();
-      fd.set("itemId", itemId);
-      await sendStickerBack(fd);
-      setReplied(true);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <button
-      type="button"
-      onClick={send}
-      disabled={replied || busy}
-      style={{ marginTop: 8, minHeight: 64, font: "700 14px var(--font-atkinson)", color: replied ? "var(--jam)" : "var(--paper)", background: replied ? "none" : "var(--jam)", border: replied ? "none" : "3px solid var(--ink)", borderRadius: 999, padding: replied ? 0 : "6px 16px", cursor: replied ? "default" : "pointer", boxShadow: replied ? "none" : "0 3px 0 var(--jam-deep)", opacity: busy ? 0.7 : 1 }}
-    >
-      {replied ? "💛 You sent a heart back" : "Send a heart back 💛"}
-    </button>
-  );
-}
+// REMOVED 2026-08-24: `HeartBack`, the child's one-tap heart reply on the
+// jar-window card. See the note on `sendStickerBack` in
+// src/app/actions/journal.ts — a child is read-only to their teacher's feedback,
+// by decision rather than by defect. The card still shows the sticker and the
+// praise note, which is the payoff F38 is about; what is gone is the way back.
 
 // The jar mark for the bottom bar — the app's jar with a few tumbling squares,
 // matching the redesign's 6a art. Decorative.

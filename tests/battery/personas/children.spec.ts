@@ -53,7 +53,13 @@ test.describe("Bo, aged 4", () => {
     // product, and it must work without a word being read.
     await carryOn(async () => {
       t.newJob();
-      const sticker = await t.seesText(/heart|💛|back/i, 3000);
+      // What matters to a four-year-old is SEEING what their teacher sent, not
+      // having a way to answer it. This used to look for the heart-back reply,
+      // which was removed on 2026-08-24 — a child is read-only to their
+      // teacher's feedback. So the check is now the sticker arriving and the
+      // teacher being named, which is the payoff itself rather than a control
+      // that happened to sit beside it.
+      const sticker = await t.seesText(/sticker|⭐|🌟|well done|from your teacher|from mr|from mrs|from miss/i, 3000);
       const anyPicture = (await page.locator("img, svg").count()) > 0;
       t.expects(
         sticker || anyPicture,
