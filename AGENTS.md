@@ -217,6 +217,13 @@ lives only in a chat session.
 | [`docs/billing-safeguarding-review.md`](./docs/billing-safeguarding-review.md) | The safeguarding checklist worked through for the billing gate |
 | [`docs/policy-readiness.md`](./docs/policy-readiness.md) | What has to be true before the "Draft for review" banner comes off |
 
+**Plans, not yet built**
+
+| Document | Covers |
+| --- | --- |
+| [`docs/school-identity.md`](./docs/school-identity.md) | The GIAS establishment register, and who owns a school. A `School` row cannot be created by anything a user can reach today, so admin, school plans and messaging are all unreachable for real signups |
+| [`docs/parent-teacher-messages.md`](./docs/parent-teacher-messages.md) | Parent–teacher messages held to school office hours. Reverses the REJECT verdict in `COMPETITIVE_POSITIONING.md` and needs SAFEGUARDING rule 21. Depends on `docs/school-identity.md` |
+
 **Launch and operations**
 
 | Document | Covers |
