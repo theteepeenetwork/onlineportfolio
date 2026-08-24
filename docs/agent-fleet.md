@@ -107,3 +107,17 @@ messages costs both sessions a turn each time.
 - Each teammate is a separate Claude instance with its own context window, so
   tokens scale linearly with fleet size. Three focused teammates beat five
   scattered ones. Start at three.
+
+## The permission lists
+
+`.claude/settings.json` also carries an allow list for the test commands, so a
+teammate can run the battery without asking, and a deny list covering `.env`
+reads, force pushes and database resets. Those three are the actions no agent
+should ever take unattended in this repo: `.env` holds live third-party
+credentials on every machine in the project (this is the root cause behind F43),
+a force push on a public repo is unrecoverable, and a database reset destroys the
+fixtures the gates depend on.
+
+Widening the ops five-module import allowlist is never a local decision, because
+`scripts/select-suites.mjs` narrows a PR's test selection on the same list.
+`.claude/settings.local.json` is untracked but not gitignored.

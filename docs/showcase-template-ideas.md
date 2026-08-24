@@ -391,3 +391,33 @@ those two questions in front of a teacher is a strong thirty seconds.
 Matters or National Curriculum tagging is ever built, this library becomes the
 natural place to show it, and the tags in the manifest would need revisiting
 together rather than one at a time.
+
+---
+
+## Engineering notes for whoever builds these
+
+Added 24 August 2026, moved in from session memory so the build notes sit beside
+the ideas.
+
+**The canvas mechanic these templates trade on.** An unlocked object the teacher
+placed is **move only** in a child's hands. An object a child pulls off an
+**endless source** loses `fromTemplate` and becomes fully theirs: resize, delete,
+label. So sorting activities want unlocked cards, and building activities want an
+endless source. See `objCapabilities` and `spawnFromSource` in
+`src/components/DrawingCanvas.tsx`.
+
+**Product gaps some of these templates depend on.**
+
+- **Read-aloud is only on the teacher's send-back note**
+  (`src/app/student/TeacherNote.tsx`, `src/lib/readAloud.ts`), not on activity
+  instructions. Extending it is what makes the EYFS band self-serve.
+- **No AI worksheet-to-quiz code exists in the repo yet.** When it lands, the
+  fraction wall template is the one to rebuild as its demo.
+- Nice to have: a neutral, recolourable furniture group in the builder's shape
+  kit, named for form rather than for our colour meanings. See section 6 of
+  [`template-design-sheet.html`](./template-design-sheet.html).
+
+**Publishing route.** Each pick becomes an entry in
+`content/shared-activities/index.json` and publishes through
+`scripts/ops/publish-shared-activities.mjs`, which upserts on slug. The five with
+no artwork dependency go first, so each is a JSON change and a publish.
