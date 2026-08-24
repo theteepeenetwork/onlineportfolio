@@ -1,0 +1,22 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// The near miss the establishment register invites. @/lib/establishmentRegister
+// is on the allowlist because the health tile needs one job key out of it;
+// @/lib/establishmentSearch is the file next to it, it is where a reader would
+// expect the register's helpers to live, and it is not permitted.
+//
+// The reason is not stylistic. That module plans the teacher-facing search, so
+// it names `postcode` — a denied identifier — and it exists to build queries an
+// operator has no business running. Letting it in would put a browse surface for
+// the register one import away from every operator screen, and it would put a
+// denied column name into the ops scan, where the tempting fix is to stop
+// denying it.
+import { db } from "@/lib/db";
+import { requireOperator } from "@/lib/ops/session";
+import { planSearch } from "@/lib/establishmentSearch";
+
+export async function findSchools(query) {
+  await requireOperator();
+  const plan = planSearch(query);
+  return db.establishment.findMany({ where: { name: { startsWith: plan.namePrefix } } });
+}

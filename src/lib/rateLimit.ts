@@ -138,6 +138,69 @@ export function recordCodeHit(key: string): void {
   codeStore.delete(key);
 }
 
+// ---------------------------------------------------------------------------
+// The establishment search throttle.
+// ---------------------------------------------------------------------------
+//
+// Different from both limiters above, because the thing being protected is
+// different. The auth limiter guards a secret; the class-code limiter guards a
+// code that discloses a classroom. This one guards NEITHER: the establishment
+// register is the DfE's open data, published in full to anyone who asks for it,
+// so there is nothing here to keep from an attacker and nothing to disclose by
+// answering.
+//
+// What it guards is work. The search is the only unauthenticated endpoint in
+// StoryJar that scans a twenty-thousand-row table, it runs while a teacher is
+// typing, and it is reachable before any account exists. A budget stops one
+// caller making the app do that for them all afternoon.
+//
+// So the shape is a plain budget, not a failure count — there is no such thing
+// as a failed establishment search — and over budget it TRICKLES rather than
+// blocking, for the reason the class-code limiter trickles: a school is one NAT
+// IP, and a hard block would put a real teacher's signup into a dead end while
+// they were halfway through typing their school's name.
+//
+// The ceiling is generous on purpose. With a 250ms debounce and a three
+// character minimum, a teacher finding their school makes something like five
+// to fifteen requests, so 120 in ten minutes is several teachers at one school
+// signing up in the same sitting, and still far below what a scraper needs.
+type SearchEntry = { hits: number; firstAt: number; lastAllowed: number };
+
+const searchStore = new Map<string, SearchEntry>();
+
+const SEARCH_MAX_HITS = 120;
+const SEARCH_WINDOW_MS = 10 * 60 * 1000;
+const SEARCH_TRICKLE_MS = 2_000;
+
+/**
+ * May this key run an establishment search right now? Counts the search as it
+ * answers, so the caller does not have to remember to.
+ */
+export function allowEstablishmentSearch(key: string): boolean {
+  const now = Date.now();
+  if (searchStore.size >= 5000) {
+    for (const [k, e] of searchStore) {
+      if (e.firstAt + SEARCH_WINDOW_MS < now) searchStore.delete(k);
+    }
+  }
+  const e = searchStore.get(key);
+  if (!e || e.firstAt + SEARCH_WINDOW_MS < now) {
+    searchStore.set(key, { hits: 1, firstAt: now, lastAllowed: now });
+    return true;
+  }
+  if (e.hits < SEARCH_MAX_HITS) {
+    e.hits += 1;
+    return true;
+  }
+  // Over budget — trickle. Never a hard no, so a real teacher who has been
+  // typing for a while waits two seconds rather than hitting a wall.
+  if (now - e.lastAllowed >= SEARCH_TRICKLE_MS) {
+    e.lastAllowed = now;
+    return true;
+  }
+  return false;
+}
+
 // Client identifier from proxy headers, used only as a throttling key — never
 // stored, never personal data.
 //

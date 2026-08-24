@@ -351,6 +351,30 @@ export type JobRunDto = {
   ageLabel: string;
 };
 
+/**
+ * The establishment register, as the health screen shows it.
+ *
+ * Counts and dates. There is no row here and there is no way to ask for one:
+ * the register is public reference data about institutions and an operator has
+ * no reason to browse it, so the tile answers "is it there and how old is it"
+ * and stops.
+ */
+export type RegisterStatusDto = {
+  /** True once the register has ever been refreshed. */
+  imported: boolean;
+  /** How many establishments are in it right now. */
+  total: number;
+  /** When the last refresh ran, or null if it never has. */
+  lastRefresh: JobRunDto | null;
+  /**
+   * The day the DfE generated the file that was read, or null when the run did
+   * not record one. Never inferred from the run's own date.
+   */
+  sourceFileDate: string | null;
+  /** What the two figures above do and do not mean, in words, on the screen. */
+  statement: string;
+};
+
 export type MailStatusDto = {
   windows: MailWindowDto[];
   suppression: MailSuppressionSummaryDto;
@@ -424,6 +448,27 @@ const MONTHS = [
 export function formatDay(value: Date | null | undefined): string | null {
   if (!value) return null;
   return `${value.getDate()} ${MONTHS[value.getMonth()]} ${value.getFullYear()}`;
+}
+
+/**
+ * "2026-08-24" as "24 August 2026", **without ever constructing a Date**.
+ *
+ * For a CALENDAR DAY rather than a moment — the day the DfE published an
+ * extract, say. `new Date("2026-08-24")` is UTC midnight, so anywhere west of
+ * Greenwich `getDate()` returns the 23rd; this instance runs in Amsterdam where
+ * it happens to return the 24th, and a fact that is right because of where the
+ * server is, is a fact that is wrong the day the server moves. Sibling of
+ * formatDay, which takes a moment and is right to.
+ *
+ * Returns null on anything that is not exactly YYYY-MM-DD, so a caller cannot
+ * render a half-parsed date as though it knew one.
+ */
+export function formatIsoDay(iso: string | null | undefined): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
+  if (!m) return null;
+  const month = MONTHS[Number(m[2]) - 1];
+  if (!month) return null;
+  return `${Number(m[3])} ${month} ${m[1]}`;
 }
 
 /**

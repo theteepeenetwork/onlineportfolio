@@ -21,6 +21,46 @@ model Teacher {
   email          String             @unique
   passwordHash   String
   schoolName     String? // captured at signup (StoryJar onboarding); free text
+  // The DfE URN of the school this teacher said they work at, when they picked
+  // it from the register at signup rather than typing a name (Establishment).
+  //
+  // ALONGSIDE `schoolName`, NEVER INSTEAD OF IT. The free text is what the
+  // teacher believes their school is called, and it is what the product and the
+  // operator console display; this is the join key. Keeping both is what stops a
+  // later re-import renaming a teacher's own school out from under them.
+  //
+  // NULL IS A REAL ANSWER, NOT A MISSING ONE, and this is the sentence to read
+  // before "fixing" it. Null is what every teacher outside England has, because
+  // GIAS is the English register and the picker is not even rendered for them.
+  // It is also what an English teacher has whose school is missing from a
+  // hand-run snapshot — schools open, close and merge constantly, and the
+  // free-text path exists for exactly that and is first-class rather than
+  // degraded. So a column full of nulls is the product working, NOT an
+  // incomplete backfill waiting for somebody to finish it. Any future attempt to
+  // populate these by matching names is the fuzzy guess docs/school-identity.md
+  // exists to remove; it was considered and rejected there by name.
+  //
+  // NOT A RELATION, AND NOT INDEXED. A Prisma relation to Establishment would
+  // pull that model into the ops blindness gate's relation-path logic for no
+  // gain, and nothing joins on this column yet. It is a RECORDED IDENTIFIER
+  // rather than a live pointer. THERE IS NO `School.urn` — an earlier version of
+  // this comment cited one as precedent and no such column exists, in this
+  // schema or in any migration. It is planned for step 4 (docs/school-identity.md
+  // §3, late September), where it will be `@unique` because that is where
+  // uniqueness belongs; a comment citing it today was written ahead of itself.
+  // The reason stands on its own without a precedent: the register is replaced
+  // wholesale on every import, so a row it names can disappear, and no part of a
+  // person's account may depend on a row a refresh can delete.
+  //
+  // It is checked against the register before it is stored (see
+  // src/app/actions/auth.ts): a URN that is not in the register is worse than no
+  // URN, because null is honest and a made-up key is a join somebody will one
+  // day follow.
+  //
+  // Not personal data beyond the teacher row it sits on: it identifies an
+  // institution, and every character of it is published by the DfE. Deleted with
+  // the teacher by the same cascade as everything else on this row.
+  urn            String?
   country        String? // England / Scotland / Wales / NI / Elsewhere
   role           String             @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
   status         String             @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
@@ -796,4 +836,45 @@ model OAuthGrant {
   accessTokens  ApiToken[]
 
   @@index([teacherId])
+}
+// One open, primary-facing English establishment, imported from the DfE's GIAS
+// all-establishments CSV by scripts/gias-import.ts. Public reference data about
+// an INSTITUTION: there is no person in this table, no foreign key to one, and
+// no route from a row here back to a teacher, a parent or a child.
+//
+// It is a register, not a service. Nothing calls GIAS at runtime — the CSV is
+// downloaded and parsed by a person running a command, which is why there is no
+// sub-processor to declare (docs/DPIA.md) and no retention clock to run
+// (RETENTION.md: no data subject, replaced wholesale on each import).
+//
+// SIX COLUMNS, AND DELIBERATELY NO SEVENTH. GIAS also publishes each school's
+// website and telephone number; neither is needed once domain matching is off
+// the table (docs/school-identity.md), and a field nobody reads is a field
+// somebody later decides to display. That rule is why there is no lower-cased
+// name column and no space-free postcode column here either: prefix search
+// normalises the QUERY instead (src/lib/establishmentSearch.ts), which cannot drift
+// out of step with the row the way a derived column can.
+//
+// `urn` is the Unique Reference Number the DfE assigns, and it is the whole
+// point of the table: two teachers typing "St Bede's Primary" and "St Bedes
+// CofE Primary School" are the same school here and nowhere else in StoryJar.
+//
+// STALENESS IS ACCEPTED. Schools open, close and merge under new URNs, and a
+// hand-run import is a snapshot. A real school missing from the register must
+// still be able to sign up, which is why signup keeps its free-text field as a
+// first-class path rather than a degraded one.
+model Establishment {
+  // The DfE's URN, not a cuid: the row IS the establishment, and a surrogate
+  // key would let one school in twice under two ids.
+  urn            String @id
+  name           String // EstablishmentName, verbatim
+  // Postcode does the disambiguating work in the picker — there are dozens of
+  // St Mary's Primary Schools. Stored exactly as GIAS prints it.
+  postcode       String
+  localAuthority String // LA (name)
+  phase          String // PhaseOfEducation (name): Primary, Middle deemed primary, All-through
+  town           String // Town, falling back to Locality — GIAS populates Town far more reliably
+
+  @@index([name])
+  @@index([postcode])
 }

@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { GIAS_IMPORT_JOB, formatImportDetail } from "@/lib/establishmentRegister";
 
 // ---------------------------------------------------------------------------
 // Test fixtures for the QA battery (tenant isolation and friends).
@@ -643,6 +644,64 @@ async function main() {
     },
   });
 
+  // -------------------------------------------------------------------------
+  // The establishment register (PR-school-identity step 1).
+  //
+  // FICTIONAL SCHOOLS, and that is not negotiable: docs/TEST_LOGINS.md says
+  // fictional data only, forever, and a real school's name in a fixture is a
+  // real school's name in a screenshot — with a real school's postcode next to
+  // it. Nothing here is imported from GIAS. The real register is loaded by hand
+  // with `npm run gias:import`, and never in a test.
+  //
+  // Chosen so the search's decisions are testable rather than merely present:
+  //   • two schools sharing "St Cuthbert's" and differing only by postcode,
+  //     because that is what disambiguation has to survive;
+  //   • one beginning with "The", so a word-prefix match can be proved;
+  //   • one whose postcode has an outward code of a different length;
+  //   • enough rows that a bound of 20 can be shown to bite (see the loop).
+  // -------------------------------------------------------------------------
+  await db.establishment.deleteMany();
+  await db.establishment.createMany({
+    data: [
+      { urn: "900001", name: "Bramblewick Community Primary School", postcode: "AB1 2CD", localAuthority: "Barsetshire", phase: "Primary", town: "Ambledon" },
+      { urn: "900002", name: "St Cuthbert's Catholic Primary School", postcode: "AB1 3EF", localAuthority: "Barsetshire", phase: "Primary", town: "Ambledon" },
+      { urn: "900003", name: "St Cuthbert's Catholic Primary School", postcode: "CD12 9ZZ", localAuthority: "Wessex", phase: "Primary", town: "Fernhollow" },
+      { urn: "900004", name: "The Grange Infant School", postcode: "AB2 4GH", localAuthority: "Barsetshire", phase: "Primary", town: "Marlow End" },
+      { urn: "900005", name: "Little Wren Nursery School", postcode: "AB2 5JK", localAuthority: "Barsetshire", phase: "Nursery", town: "Wren Hill" },
+      { urn: "900006", name: "Halcyon House Special School", postcode: "AB1 7NP", localAuthority: "Barsetshire", phase: "Not applicable", town: "Ambledon" },
+      { urn: "900007", name: "Thornbury Green Junior School", postcode: "", localAuthority: "Barsetshire", phase: "Primary", town: "Thornbury" },
+      // Twenty-five more sharing one prefix, so a spec can prove the result set
+      // is bounded at 20 and that the caller is told there are more.
+      ...Array.from({ length: 25 }, (_, i) => ({
+        urn: `9001${String(i).padStart(2, "0")}`,
+        name: `Meadowbank Primary School ${i + 1}`,
+        postcode: `ZZ9 ${i}AA`,
+        localAuthority: "Barsetshire",
+        phase: "Primary",
+        town: "Meadowbank",
+      })),
+    ],
+  });
+
+  // The refresh that put them there. Seeded alongside the rows because the
+  // health tile reports on the IMPORT and not on the row count: rows with no
+  // recorded refresh is the "never imported" state, which is a different fact
+  // and must not render as a healthy register.
+  await db.jobRun.deleteMany({ where: { job: GIAS_IMPORT_JOB } });
+  await db.jobRun.create({
+    data: {
+      job: GIAS_IMPORT_JOB,
+      startedAt: new Date(Date.now() - 26 * 60 * 60 * 1000),
+      finishedAt: new Date(Date.now() - 26 * 60 * 60 * 1000 + 9_000),
+      outcome: "SUCCESS",
+      itemsAffected: 32,
+      // Through the formatter, not as a literal: the spelling is held to a
+      // log-hygiene invariant by tests/battery/security/ops-mail.spec.ts, and a
+      // hand-typed fixture is how a seed comes to disagree with the code.
+      outcomeDetail: formatImportDetail("2026-08-24"),
+    },
+  });
+
   console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
   console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN234 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
@@ -652,6 +711,7 @@ async function main() {
   console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class ARCH22 (Willow)  read-only");
   console.log("  StoryJar library: seed-autumn-walk (published, /uploads/shared/seed-shared-bg.svg)  seed-not-published-yet (unpublished)");
   console.log("  Connector tokens: School A/B/C — see API_TOKEN_* in prisma/seed-test.ts and tests/battery/helpers.ts");
+  console.log("  Establishment register: 32 fictional schools (Bramblewick, St Cuthbert's ×2, The Grange, 25× Meadowbank for the bound)");
   console.log("  Platform operator: ops@storyjar.test / fixture-operator-pass-9271 + a real TOTP code (no bypass exists)");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).

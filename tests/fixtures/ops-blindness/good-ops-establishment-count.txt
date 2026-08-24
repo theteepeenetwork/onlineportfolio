@@ -1,0 +1,18 @@
+// @path: src/lib/ops/reads.ts
+// The register tile on /ops/health, in the shape it actually ships in: a count
+// and the last run of the import job. A count returns a number, not a row, so
+// no projection question arises and no column is named — which is also why the
+// denylist entry on `postcode` costs this screen nothing.
+import { db } from "@/lib/db";
+import { requireOperator } from "@/lib/ops/session";
+
+export async function readRegister() {
+  await requireOperator();
+  const total = await db.establishment.count();
+  const run = await db.jobRun.findFirst({
+    where: { job: "gias:import" },
+    orderBy: [{ startedAt: "desc" }],
+    select: { startedAt: true, outcome: true, itemsAffected: true, outcomeDetail: true },
+  });
+  return { total, run };
+}

@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import { requireOperator } from "@/lib/ops/session";
-import { databaseAnswerTime } from "@/lib/ops/reads";
+import { databaseAnswerTime, readRegisterStatus } from "@/lib/ops/reads";
 import {
   MONITORED,
   NOT_MONITORED,
+  NOT_RECORDED,
   answerTimeLabel,
   instanceFacts,
   uptimeLabel,
@@ -148,6 +149,7 @@ export default async function OpsHealthPage() {
   await requireOperator();
 
   const answerMs = await databaseAnswerTime();
+  const register = await readRegisterStatus();
   const uptimeSeconds = process.uptime();
   const startedAt = new Date(Date.now() - uptimeSeconds * 1000);
   const facts = instanceFacts(process.env, startedAt);
@@ -201,6 +203,44 @@ export default async function OpsHealthPage() {
                 nothing else: there is no Railway key in this app, on purpose, so nothing here can
                 tell you about another environment or about the platform underneath.
               </p>
+            }
+          />
+
+          <Tile
+            id="school-register"
+            heading="The school register"
+            status={register.imported ? MONITORED : NOT_MONITORED}
+            facts={[
+              {
+                term: "Schools in the register",
+                // Never a bare zero on this tile. A count of nothing and a
+                // register that was never imported are different facts, and on a
+                // status screen the second one has to say so in words.
+                value: register.imported ? register.total.toLocaleString("en-GB") : NOT_RECORDED,
+              },
+              {
+                term: "Last refreshed",
+                value: register.lastRefresh
+                  ? `${register.lastRefresh.startedAt} — ${register.lastRefresh.ageLabel}`
+                  : "Never",
+              },
+              {
+                term: "Source file published",
+                value: register.sourceFileDate ?? NOT_RECORDED,
+              },
+            ]}
+            value={
+              <>
+                <p>{register.statement}</p>
+                <p className="mt-2">
+                  There is no button here to refresh it, and there is not going to be one. Replacing
+                  twenty thousand rows is not a named operation on a named row with a stated reason,
+                  which is what every write an operator can reach has to be. The refresh is a command
+                  in the repository, run by a person: <code>npm run gias:import</code>, from inside
+                  the container. The register is public information about schools published by the
+                  Department for Education — it holds no pupil, no parent and no member of staff.
+                </p>
+              </>
             }
           />
 

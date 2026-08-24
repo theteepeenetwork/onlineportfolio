@@ -23,7 +23,7 @@
 //   • The one non-obvious claim it makes — that a change under src/components
 //     or src/app/teacher cannot affect the operator screens — is not a hope. It
 //     is what scripts/check-ops-blindness.mjs enforces, deny-by-default, on
-//     every PR: ops code may import @/lib/ops/* and exactly five other local
+//     every PR: ops code may import @/lib/ops/* and exactly six other local
 //     modules, named below. `assertOpsAllowlistUnchanged` re-reads that gate and
 //     refuses to narrow anything if the list has moved.
 import { readFileSync } from "node:fs";
@@ -38,7 +38,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const SUITES = ["security", "a11y", "e2e", "ops"];
 
 // ---------------------------------------------------------------------------
-// The five non-ops modules operator code is allowed to import.
+// The six non-ops modules operator code is allowed to import.
 //
 // Read from the gate rather than remembered, because the whole narrowing rests
 // on this list being complete. If the gate's allowlist grows and this file has
@@ -55,6 +55,12 @@ const OPS_SHARED_MODULES = [
   // helper moved out of @/lib/ops/ so the in-app scheduler can call it
   // without entering the ops import scan.
   "@/lib/mailHmac",
+  // Added alongside the PR-school-identity step 1 widening in
+  // check-ops-blindness.mjs: the establishment register's job key, which the
+  // health tile needs to find the last import. Pure vocabulary — the module
+  // that actually searches the register (@/lib/establishmentSearch) is
+  // deliberately NOT on the gate's list and so is not here either.
+  "@/lib/establishmentRegister",
 ];
 
 function opsAllowlistMatchesTheGate() {

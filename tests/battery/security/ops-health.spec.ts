@@ -58,7 +58,15 @@ const CODES = [
 // The tiles, and what each one is entitled to say. This list is the spec's own
 // copy of the design: a tile added to the page without a decision about which
 // half of this table it belongs in fails here.
-const LIVE_TILES = ["database", "instance"];
+// The register tile is live in the test database because prisma/seed-test.ts
+// seeds both the establishments and a JobRun row for the refresh that put them
+// there. That pairing is the point: the tile reports on the REFRESH, not on the
+// row count, so an environment with rows and no recorded import is exactly the
+// case it must not call healthy — see readRegisterStatus(). The dark half of
+// that branch is the state of a fresh deployment before anyone has run
+// `npm run gias:import`, which is why the tile says so in words rather than
+// showing a zero.
+const LIVE_TILES = ["database", "instance", "school-register"];
 const DARK_TILES = ["media-volume", "startup-check", "outside-watch", "backups", "scheduled-jobs"];
 
 async function payload(page: Page): Promise<string> {
