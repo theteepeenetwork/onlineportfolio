@@ -313,6 +313,48 @@ const LOOKUP_ONLY = [
 //     not try.
 const PLATFORM_CONTENT = ["SharedActivity"];
 
+// Public reference data about INSTITUTIONS, published by somebody else under an
+// open licence. Read-only, and the least sensitive class in this gate.
+//
+// WIDENING (PR-school-identity step 1, ruling R2: a widening lands in the same
+// commit as the code it permits, with a comment naming the rule and a fixture
+// proving the true positive still fires — bad-ops-writes-establishment.txt).
+// Establishment was refused as OPS-MODEL-UNKNOWN until this class existed, which
+// is the drift check working.
+//
+// WHY A NEW CLASS AND NOT ADULT_READABLE, which is what the plan asked for.
+// ADULT_READABLE permits create, update, updateMany and upsert. Putting the
+// register there would mean the gate ALREADY permitted an ops screen to bulk
+// write twenty thousand rows — and docs/school-identity-launch.md keeps the
+// import a hand-run script precisely on the grounds that such a screen "would
+// need the gate widened to permit a bulk write of twenty thousand rows". A
+// classification that silently pre-authorises the thing the design refuses is
+// the wrong classification, however little data is at stake. The import is
+// scripts/gias-import.ts, in the repository, reviewable in a pull request and
+// impossible to fat-finger in production, and that is the only way rows get in.
+//
+// WHY NOT PLATFORM_CONTENT, which has exactly the right methods. Its name and
+// its comment say "StoryJar's OWN published teaching content". GIAS data is
+// neither ours nor teaching content, and a class name that has to be read past
+// is a class name the next person will file something wrong under.
+//
+// WHY AN OPERATOR MAY READ IT AT ALL. There is no person in the table: a URN, a
+// school name, a postcode, a local authority, a phase and a town, every one of
+// them already published by the DfE under the Open Government Licence. Answering
+// "is this teacher's school in the register?" is ordinary support, and the
+// register tile on /ops/health is a count and a date.
+//
+// What it does NOT do:
+//   - no write of any shape. Not create, not update, not upsert, not delete.
+//   - it does not exempt the model from the banned-identifier rule. `postcode`
+//     is on DENY_FIELDS (see the note there), so an ops file naming the column
+//     still fails, and a row read without a `select:` is still refused by the
+//     projection rule below.
+//   - it is deliberately absent from `adultTargets`, so nothing gains a relation
+//     path through it. Today it has no relations at all; when Teacher.urn lands
+//     in step 3 it is a scalar join key, not a Prisma relation, on purpose.
+const PUBLIC_REFERENCE = ["Establishment"];
+
 // No read of any shape, not even a count that could confirm a specific row.
 // Session and MagicToken hold live sign-in credentials. AuditLog.detail is free
 // text written by teacher-facing actions and routinely contains a child's first
@@ -438,6 +480,9 @@ const METHODS_BY_CLASS = {
   OPS_OWNED: PRISMA_METHODS,
   // Read-only, and no write of any shape. See the comment on PLATFORM_CONTENT.
   PLATFORM_CONTENT: ["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count"],
+  // Read-only, and no write of any shape. Same list as PLATFORM_CONTENT and for
+  // the same reason: rows get in through a reviewed script, never from a screen.
+  PUBLIC_REFERENCE: ["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count"],
 };
 
 // ---------------------------------------------------------------------------
@@ -548,6 +593,30 @@ const DENY_FIELDS = [
   "codeHash",
   "refreshHash",
   "redirectUrisJson",
+  // NOT a credential and not child data, and it is on this list anyway. Read
+  // this one before copying it as a precedent.
+  //
+  // `Establishment.postcode` (PR-school-identity step 1) trips
+  // SENSITIVE_NAME_PATTERNS on /code$/i — the pattern that exists for
+  // familyCode and classCode. That is a false positive: a school's postcode is
+  // published by the DfE under an open licence and identifies a building, not a
+  // person. The drift check's message offers two ways out, "add it to
+  // DENY_FIELDS, or say in a comment why an operator may read it", and only the
+  // first is implemented — the loop tests denySet and nothing else.
+  //
+  // Building the second way out was considered and rejected. An exemption keyed
+  // on a field NAME is global: exempting "postcode" would silence the drift
+  // check on the day somebody puts a postcode on Parent, which is a home
+  // address for a child. Denying it costs nothing instead — no operator screen
+  // needs a school's postcode, the register tile on /ops/health is a count and
+  // a date, and the establishment picker is a teacher-facing search that never
+  // runs under the ops roots. So the strict answer is also the free one.
+  //
+  // What this entry does: an ops file may not name the column, and because
+  // Establishment permits row reads, a read of it without a `select:` is
+  // refused by the projection rule. What it does not do: it makes no claim that
+  // a postcode is a secret.
+  "postcode",
 ];
 
 // Documented pending entries: named in the SAFEGUARDING amendments table but
@@ -915,6 +984,36 @@ const ALLOWED_LOCAL_IMPORTS = [
   // (an ops file importing @/lib/mailSuppressionSync, the near miss this
   // widening invites), and the clean shape by good-ops-mail-hmac-import.txt.
   "@/lib/mailHmac",
+  // WIDENING (PR-school-identity step 1, ruling R2: a widening lands in the same
+  // commit as the code it permits, with a comment naming the rule and a fixture
+  // proving the true positive still fires). The sixth entry is
+  // @/lib/establishmentRegister.
+  //
+  // Why it is needed. The register tile on /ops/health has to find the last run
+  // of the import, and finding it means knowing the one string the import writes
+  // into JobRun.job. Two copies of that string — one in the script, one in
+  // reads.ts — would agree the day they were written and disagree the first time
+  // either is renamed, and the failure is silent: the tile would say the register
+  // has never been imported, on a screen whose entire purpose is to be believed
+  // about staleness.
+  //
+  // What is in it: one job key, two functions that format and re-read a date, and
+  // the licence attribution string. No Prisma, no filesystem, no fetch, no
+  // `server-only`, and nothing that does work.
+  //
+  // Why this module rather than the obvious one. The obvious import is
+  // @/lib/establishmentSearch, which is where a reader would expect the register's
+  // helpers to live, and permitting THAT would be a real widening: it names the
+  // column `postcode`, which is on DENY_FIELDS below, so it would fail the moment
+  // it was scanned as ops code — and the wrong fix for that would be to un-deny
+  // the column. The two were split for exactly this reason, the same split as
+  // @/lib/mailStatus against @/lib/mailer.
+  //
+  // The true positive still fires, proved by
+  // bad-ops-imports-establishment-search.txt (an ops file importing
+  // @/lib/establishmentSearch, the near miss this widening invites), and the clean
+  // shape by good-ops-establishment-count.txt.
+  "@/lib/establishmentRegister",
 ];
 const ALLOWED_LOCAL_PREFIXES = ["@/lib/ops/"];
 
@@ -1154,18 +1253,87 @@ const SENSITIVE_NAME_PATTERNS = [
 
 function importSpecsOf(code) {
   const specs = [];
+
+  // ONE definition of what a module specifier may contain, shared by every
+  // pattern below INCLUDING `typeRe`, which is declared after the array.
+  //
+  // That separation is not incidental: `typeRe` is exactly the pattern the first
+  // sweep of this fault missed, because it is declared somewhere else. Sharing
+  // the class means a sixth pattern cannot quietly use a different one.
+  //
+  // WHY IT IS CONSTRAINED RATHER THAN `[^"']+` (FINDINGS F54)
+  //
+  // `[^"']+` will happily capture anything that is not a quote, including code
+  // and prose. Combined with a lazy `[\s\S]*?` before `from`, a string literal
+  // ending in the word `from` puts a CLOSING quote exactly where the pattern
+  // expects an opening one, and the capture then runs to the next quote in the
+  // file:
+  //     export const note = "a phrase ending in from";
+  //     const path = "@/lib/ops/session";
+  //   captured specifier: `";\nconst path = "`
+  // It is the same closing-quote-as-opening fault as F52 and as the bare-import
+  // form below. A constrained class cannot express that capture at all, which is
+  // the shape `scripts/select-suites.mjs` already uses: a misread quote fails to
+  // match rather than swallowing arbitrary content.
+  //
+  // THE COLON IS LOAD-BEARING AND IS THE REASON THIS IS MEASURED, NOT REASONED.
+  //
+  // A first candidate omitted `:` and would have stopped capturing `node:fs`,
+  // `node:fs/promises` and `node:crypto` — 108 real specifiers. That is not a
+  // stricter gate, it is NO gate: `OPS-FILESYSTEM` fires on
+  // `FS_IMPORT_SPECS.includes(spec)`, so a specifier that is never captured is a
+  // rule that never runs, and the check standing between an ops file and the
+  // volume holding children's media (rule 7) would have gone quiet with nothing
+  // turning red. Measured across 506 files: this class accepts all 238 real
+  // specifiers and rejects only a template literal in one spec file.
+  // `good-ops-node-fs-still-caught.txt` is the fixture that keeps it that way.
+  //
+  // If a real specifier is ever rejected, WIDEN THIS ONE CLASS. Do not add a
+  // second, looser pattern.
+  const SPEC = String.raw`[A-Za-z0-9@._~/:$-]+`;
+
   const patterns = [
-    /\bimport\s+type\s[\s\S]*?\bfrom\s*["']([^"']+)["']/g,
-    /\bimport\s+(?!type\s)[\s\S]*?\bfrom\s*["']([^"']+)["']/g,
-    /\bimport\s*["']([^"']+)["']/g,
-    /\bexport\s+type\s[\s\S]*?\bfrom\s*["']([^"']+)["']/g,
-    /\bexport\s+(?!type\s)[\s\S]*?\bfrom\s*["']([^"']+)["']/g,
-    /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g,
-    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+    new RegExp(String.raw`\bimport\s+type\s[\s\S]*?\bfrom\s*["'](${SPEC})["']`, "g"),
+    new RegExp(String.raw`\bimport\s+(?!type\s)[\s\S]*?\bfrom\s*["'](${SPEC})["']`, "g"),
+    // The bare side-effect form, `import "server-only"`. Anchored to a statement
+    // position — start of line, after `;`, `{` or `}`, or after a block comment
+    // that closes on the same line — and NOT merely to a word boundary.
+    //
+    // `\bimport\s*["']` was the original and it had the F52 fault in it: `\s*`
+    // permits zero characters, so the word `import` at the END of a string
+    // literal matched, taking that string's CLOSING quote as an opening one and
+    // capturing everything up to the next quote. A perfectly ordinary ops read
+    //     where: { job: "gias:import" },
+    //     orderBy: [{ startedAt: "desc" }],
+    // was therefore reported as importing the package
+    //     " },\n    orderBy: [{ startedAt: "
+    // and refused as off-allowlist.
+    //
+    // `\*\/` is an alternation and NOT a member of the character class, which
+    // matters: adding a bare `/` would make the second slash of a `//` comment a
+    // valid prefix, so `// import "server-only" is deliberately absent` would be
+    // read as a real import again — one of the ten prose matches this anchoring
+    // exists to remove.
+    //
+    // `)` is deliberately absent. `if (a) import "x";` is not valid JavaScript —
+    // an ImportDeclaration is only legal at module-item position — so there is
+    // no case to catch, and a string containing `) import "` is likelier than
+    // any real import.
+    //
+    // This is NOT a relaxation. Every real spelling still matches, including no
+    // space (`import"./x"`) and two on one line (`import "a"; import "b";`).
+    new RegExp(String.raw`(?:^|[;{}]|\*\/)\s*import\s*["'](${SPEC})["']`, "gm"),
+    new RegExp(String.raw`\bexport\s+type\s[\s\S]*?\bfrom\s*["'](${SPEC})["']`, "g"),
+    new RegExp(String.raw`\bexport\s+(?!type\s)[\s\S]*?\bfrom\s*["'](${SPEC})["']`, "g"),
+    new RegExp(String.raw`\brequire\s*\(\s*["'](${SPEC})["']\s*\)`, "g"),
+    new RegExp(String.raw`\bimport\s*\(\s*["'](${SPEC})["']\s*\)`, "g"),
   ];
   const typeOnly = new Set();
   let m;
-  const typeRe = /\b(?:import|export)\s+type\s[\s\S]*?\bfrom\s*["']([^"']+)["']/g;
+  const typeRe = new RegExp(
+    String.raw`\b(?:import|export)\s+type\s[\s\S]*?\bfrom\s*["'](${SPEC})["']`,
+    "g",
+  );
   while ((m = typeRe.exec(code))) typeOnly.add(m[1]);
   for (const re of patterns) {
     re.lastIndex = 0;
@@ -1958,6 +2126,7 @@ const classified = [
   [CREDENTIAL_NEVER, "CREDENTIAL_NEVER"],
   [OPS_OWNED, "OPS_OWNED"],
   [PLATFORM_CONTENT, "PLATFORM_CONTENT"],
+  [PUBLIC_REFERENCE, "PUBLIC_REFERENCE"],
 ];
 for (const [list, klass] of classified) {
   for (const model of list) {
@@ -2072,7 +2241,15 @@ const projectionRequired = new Map();
 for (const [model, klass] of modelClass) {
   // PLATFORM_CONTENT joins these two: it permits row reads, and it owns the
   // denylisted payload column names, so a bare findMany would return them.
-  if (klass !== "ADULT_READABLE" && klass !== "LOOKUP_ONLY" && klass !== "PLATFORM_CONTENT") continue;
+  // PUBLIC_REFERENCE joins them for the same reason: it permits row reads and it
+  // owns `postcode`, so a bare findMany would return the denied column.
+  if (
+    klass !== "ADULT_READABLE" &&
+    klass !== "LOOKUP_ONLY" &&
+    klass !== "PLATFORM_CONTENT" &&
+    klass !== "PUBLIC_REFERENCE"
+  )
+    continue;
   const denied = (schema.get(model)?.fields ?? [])
     .filter((f) => !schema.has(f.type) && denySet.has(f.name))
     .map((f) => f.name);

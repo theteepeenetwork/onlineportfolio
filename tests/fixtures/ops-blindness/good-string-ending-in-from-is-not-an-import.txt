@@ -1,0 +1,29 @@
+// @path: src/lib/ops/reads.ts
+// A file whose only occurrence of the word `from` is at the END of a string
+// literal. There is no import here beyond the two permitted ones, and the
+// scanner must not invent one.
+//
+// The regression this pins (F54), which is F52's mechanism for the third time:
+// with an unconstrained `[^"']+` capture, a string ending in `from` puts a
+// CLOSING quote where the pattern expects an opening one, and the capture runs
+// to the next quote in the file:
+//     export const note = "a phrase ending in from";
+//     const path = "@/lib/ops/session";
+//   captured specifier: `";\nconst path = "`
+//
+// It fits on one line too, which is why constraining the class to exclude a
+// newline was not enough:
+//     export const note = "ending in from"; const p = "@/lib/x";
+// Both shapes are below. A constrained class cannot express either capture.
+import { db } from "@/lib/db";
+import { requireOperator } from "@/lib/ops/session";
+
+export const note = "a phrase ending in from";
+const path = "@/lib/ops/session";
+
+export const oneLiner = "ending in from"; const p = "@/lib/x";
+
+export async function register() {
+  await requireOperator();
+  return { total: await db.establishment.count(), note, path, p };
+}

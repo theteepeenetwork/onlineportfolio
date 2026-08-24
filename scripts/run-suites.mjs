@@ -126,6 +126,24 @@ async function runJobs(suites) {
     }
   }
 
+  // Regenerate the Prisma client ONCE, before any lane touches a database.
+  //
+  // `prepareLane` below runs `db push --skip-generate` per lane, and that flag is
+  // right: three lanes each regenerating is waste, and `postinstall` has usually
+  // done it already. What it is not is sufficient. On the first run after a
+  // schema change the lanes get the new TABLE and the client is left not knowing
+  // the model exists — so `db.establishment` is undefined at typecheck and at
+  // runtime while the column sits there in every shard database. It presents as
+  // `Property 'establishment' does not exist on type 'PrismaClient'`, which reads
+  // like a broken branch rather than a stale artefact, and the obvious next move
+  // — run the battery — is the very thing that pushed the schema without the
+  // client. Costs a couple of seconds once per run (F54).
+  const generated = spawnSync("npx", ["prisma", "generate"], { encoding: "utf8" });
+  if (generated.status !== 0) {
+    process.stderr.write(generated.stderr ?? "");
+    throw new Error("could not generate the Prisma client");
+  }
+
   for (let lane = 1; lane <= LANES; lane += 1) prepareLane(lane);
 
   const results = [];
