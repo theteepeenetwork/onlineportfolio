@@ -272,7 +272,7 @@ media, or third parties **must** answer these in the PR:
 - [ ] Accessibility floor still met?
 
 If a box can't be ticked, the change doesn't ship without a documented,
-documented, data-protection-aware decision.
+data-protection-aware decision.
 
 ---
 

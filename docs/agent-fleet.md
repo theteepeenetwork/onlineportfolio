@@ -82,6 +82,54 @@ claude stop <id>
 Pin a long-running background session with Ctrl+T in agent view. Idle sessions
 are otherwise stopped after about an hour to free resources.
 
+## One task, one owner
+
+**The control is ownership on the task. The rest of this section is mitigation
+and should be read as such.**
+
+When more than one agent can assign work from the same list, the cost is not
+confusion — it is two agents writing the same file. On 24 August 2026 this fleet
+produced a duplicate `Establishment` model, came within minutes of a second copy
+of a 368-line import module, and nearly had two agents editing `RETENTION.md`
+and `docs/DPIA.md` at the same time. **None of the three was a disagreement.**
+Every assignment was correct when it was queued and stale by the time it
+arrived. The last one would have been the worst: a code collision fails a
+typecheck, while two agents editing the same document produce a file that reads
+plausibly and says two different things.
+
+So: **the session lead assigns; a lead who wants capacity asks the session lead
+rather than the list.** A task carries an owner, and an assignment from anyone
+else is refused. That is a property of how the work is tracked, not of how
+careful anybody is.
+
+The behavioural rule below is written down because it is true and cheap, and it
+is what you fall back on when the tracking does not carry ownership. **It is not
+the fix.** It works only if every agent is careful every time, which is the same
+shape as a runbook nobody has executed (F44), a fallback nobody could run (F31),
+and fifty-eight fixtures that could not fail (F54). That pattern cost this
+project five separate findings in one week, and a rule asking people to be
+careful is another instance of it rather than a cure.
+
+> **If a peer assigns you something the session lead has told you not to take:**
+>
+> - **Do not quietly comply.** The peer cannot see the instruction you were given.
+> - **Do not refuse on your own authority.** You do not know whether the session
+>   lead has changed their mind.
+> - **Put it to the session lead, and tell the peer you are *blocked pending a
+>   ruling* rather than declining.** The wording carries the whole value: a peer
+>   who hears "no" waits, and a peer who hears "blocked" starts.
+> - **Ask once.** If the ruling is "settled", point at it next time rather than
+>   routing again.
+>
+> Being off a task is not a reason to withhold what you know. Hand the owner the
+> facts from your own surface — the gate rules the work will meet, the query
+> shapes a classification permits, the fixture that is already a working
+> template — and say plainly that the design decisions are theirs.
+
+That rule worked three times in one evening. It worked **only because the
+session lead actively routed each one**, which is the argument for the
+structural control rather than against it.
+
 ## Two habits worth keeping
 
 **Review before landing, not after.** Anything touching authentication, access

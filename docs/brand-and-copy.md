@@ -56,3 +56,39 @@ pinned post, which are cheap to keep in sync.
 No em dashes in published copy. Use commas, colons, brackets or separate
 sentences. Write number ranges as "£199 to £649" rather than with an en dash.
 Existing repository prose is left as it is.
+
+## The school register carries somebody else's licence
+
+The school picker on signup is built on the Department for Education's **Get
+Information about Schools** data, which is published under the **Open Government
+Licence v3.0**. That licence requires attribution, and attribution belongs on
+**the page that uses the data** — the signup page with the picker on it — not
+buried in a footer on a page nobody reading the school names will visit, and not
+on an operator screen no member of the public can see.
+
+Use this wording, exactly, so there is one version of it:
+
+> School information from Get Information about Schools, © Crown copyright,
+> licensed under the [Open Government Licence
+> v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
+
+The string and the licence URL are exported from `src/lib/establishmentRegister.ts`
+as `GIAS_ATTRIBUTION` and `GIAS_ATTRIBUTION_LICENCE_URL`. Import them rather than
+retyping the sentence; a licence notice that exists in two places is a licence
+notice that will one day disagree with itself.
+
+Three points of detail, because each has a wrong version that looks fine:
+
+- **"© Crown copyright" is part of the notice, not decoration.** OGL v3.0
+  attribution names the source and the copyright holder, and the DfE's data is
+  Crown copyright.
+- **The licence link is a link.** It is how a reader checks the terms, so it goes
+  out as an anchor to the National Archives URL above, not as plain text.
+- **It sits near the picker, in ordinary body text.** It is not a legal
+  disclaimer to be shrunk to eight point: this page is read by a teacher on a
+  school laptop, and everything else on it obeys the type-size rules in this
+  document. The attribution does too.
+
+It says nothing about a teacher's data and must not be written as though it
+does. StoryJar sends nothing to the DfE — the extract is downloaded and imported
+by hand — so this line credits a source, and it is not a privacy statement.
