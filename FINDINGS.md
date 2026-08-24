@@ -107,6 +107,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F50 | Medium | A11y (child-facing) / gate blindness | **The canvas's Turn and Resize handles are announced as buttons and cannot be operated by any key.** Both are `<div role="button">` with `onPointerDown/Move/Up`, no `onKeyDown` and no `tabIndex` (`DrawingCanvas.tsx:5508-5533`) — a WCAG 2.2 **2.1.1 Keyboard** failure on two controls that are labelled, sized and, to a screen reader, present. There is no other way to rotate or resize an object, so for a keyboard or switch user those operations do not exist. **The part that generalises is why no gate caught it:** without `tabIndex` the element is not in the tab order, so a keyboard walk never reaches it to fail, and `role="button"` alone breaks no axe rule — the gate is blind precisely because the control is unreachable, which is the defect. Found while reading for the rotation investigation (`docs/rotation-findings.md`), not by a test | **Fixed** 2026-08-23, with the rotation work (options A + E). Both handles take `tabIndex` and arrow keys, stepping by the object's own rotation step so a keyboard reaches every position a pointer can; Turn and Resize are also real `<button>`s in `ObjectToolbar` | `e2e/rotation.spec.ts` — "the turn and resize handles are reachable and operable by keyboard", which asserts the `tabindex` AND that the key actually moves the object |
 | F52 | Medium | Gate hygiene / user copy | `scripts/error-string-audit.mjs` extracts strings with `/["'`]([^"'`]{6,})["'`]/g`, and both halves of that pattern are wrong. The character class excludes all three quote types, so **an apostrophe ends a double-quoted string** — 79 user-facing strings across `src` are audited only as far as their first "doesn't". And the `{6,}` sits *inside* the pattern, so a string too short to match never consumes its own quotes and every later quote on the line is off by one — 208 of the 1,521 "strings" it currently audits are **code caught between mis-paired quotes**, which is where the standing HARD hit comes from. The false negatives are the finding; the noisy line is only what led to it | **Fixed** 2026-08-23; the freeze deferral was reversed once `scripts/` was already dirty and the cost was sunk | n/a — a gate script, not the product. What makes the fix safe is the before-and-after across `src`: HARD 1 → 0, SOFT 6 → 6 on the same six sites, no new findings |
 | F53 | Low | Repo hygiene / gate legibility | Four editor duplication artefacts (`… 2.ts`, `… 2.sql`) were committed and sat in the tree for days. Three were spec files — including one in the **blocking security directory that has never executed**, because the space before `2.ts` cannot match Playwright's default `*.spec.ts` glob. A file that reads as coverage and is not is worst in that directory. The fourth is an **older draft of a migration**, still tracked, whose column is named `template` — the exact name the schema rejected because the ops blindness gate derives its child-relation denylist from relation names | **Three deleted** 2026-08-23; the migration artefact is **open**, untouched under the schema freeze | n/a — nothing collected or applied any of them, which is the finding |
+| F56 | Medium | Test harness / gate reachability | **The lane path and the direct path are two different test environments, and `npm run test:gate` is the one nobody checks.** Found 2026-08-24, twice in one evening, in two unrelated classes. **Setup:** bringing the database up to the committed schema is done in **three** independent places — `scripts/run-suites.mjs:56` (per lane, to that lane's shard database, never `prisma/dev.db`), `tests/battery/global-setup.ts:36` and `tests/global-setup.ts` — and the third had none until it was found for a third time, so plain `npm run test:e2e`, and therefore `test:gate`, died on any branch adding a column. Each of the three was added by whoever was standing on that path. **Timing:** `e2e/school-picker.spec.ts`'s in-flight test passed in lanes and failed on the direct path **deterministically**, because its outcome turned on whether a 250ms debounced search returned before a click completed, and the two paths differ in port, dist dir, database and compile order. | **Open.** Deferred past the 2026-08-24 freeze; the exception that evening was school identity and this is not it | n/a — the finding is that the harness has two environments, so no single suite can hold it. The setup half is closed at all three sites; the divergence is not |
 
 ---
 
@@ -2599,3 +2600,401 @@ invisible to every gate in this repository: it typechecks (it is valid code), it
 passes the static audits (it is never imported), and it never runs (the glob
 excludes it). Nothing in CI has an opinion about a file that nothing references.
 The only thing that finds one is a person looking at a directory listing.
+
+---
+
+## F54 · The same misread quote, in a second scanner · Medium → Fixed
+
+Found on 2026-08-24 by `platform-lead` (this session), from `npm run check`
+rejecting a **clean** fixture in the ops blindness gate's own self-test:
+
+```
+good-ops-establishment-count.txt: clean fixture was flagged: OPS-IMPORT-ALLOWLIST
+  (imports the package " },\n    orderBy: [{ startedAt: ")
+```
+
+There is no such import. The file contained `where: { job: "gias:import" }`.
+
+**It is F52's second half, in a different scanner.** The bare side-effect import
+pattern in `importSpecsOf` was:
+
+```js
+/\bimport\s*["']([^"']+)["']/g
+```
+
+`\s*` permits **zero** characters, so the word `import` at the end of the string
+literal `"gias:import"` matched, the literal's **closing** quote was taken as an
+opening one, and the capture ran to the next quote in the file — auditing the
+code in between as though it were a module specifier. F52's finding was a
+closing quote mistaken for an opening one in `error-string-audit.mjs`. This is
+the same mistake, in `check-ops-blindness.mjs`, found the same week.
+
+**Two in one repository is a pattern rather than a coincidence**, which is the
+reason this is logged rather than fixed quietly.
+
+**Fixed** by anchoring the pattern to a statement position instead of a word
+boundary:
+
+```js
+/(?:^|[;{}])\s*import\s*["']([^"']+)["']/gm
+```
+
+Checked in the direction that matters before it landed: `import"./x"` with no
+space still matches, `import "a"; import "b";` on one line still yields both, and
+across 348 files in `src/` plus the whole fixture corpus the new pattern gains
+**zero** specifiers and loses only false positives — ten of them comment prose
+like ``// deliberately free of `import "server-only"` ``, which the old pattern
+had been reading as real imports all along.
+
+**Two fixtures came with the fix**, and the first one exists because of a gap
+worth naming. Fifty-eight fixtures already contain `import "server-only";`, so
+the bare form was exercised constantly — but `server-only` is **allowlisted**, so
+every one of them passes whether the scanner reads the import or not. **None of
+them would have noticed if the narrowing had gone too far.**
+`bad-bare-side-effect-import.txt` is the only fixture in the corpus where a bare
+import must be *refused*, and it is therefore the only one that proves the true
+positive still fires. `good-string-literal-ending-in-import.txt` pins the false
+positive independently, so the regression stays covered even if the fixture that
+found it is later reworded.
+
+### A product constant was bent to fit the tool, before the tool was fixed
+
+Worth its own line, because it is the part that would have outlived the bug. The
+first response was to rename the `JobRun.job` key from `gias:import` to
+`register:refresh` **to avoid the scanner's fault**, with a comment above it
+warning the next person not to use a name ending in "import". That is a defect
+migrating out of a tool and into the product's vocabulary, where nothing will
+ever flag it and where the warning would have stayed true-looking and false for
+as long as anyone read it.
+
+The constant kept its new name — `register:refresh` is the better name on its
+merits, since it says what the job does to the register rather than where the
+rows came from — but **the comment was rewritten to record the constraint as
+lifted rather than live**, with the fix dated and the fixtures named. A stale
+warning about a fixed bug is its own small trap.
+
+### How far the pattern goes, measured
+
+Only scanners that **extract arbitrary string contents** can have this fault; one
+that merely tests for presence cannot. Two scripts in this repository extract
+quote-delimited content with an unconstrained character class, and **both had
+it**: `check-ops-blindness.mjs` (ten such captures) and `error-string-audit.mjs`
+(two, F52). Two of two.
+
+Everything else is immune by construction rather than by care:
+
+- `audit-static.mjs`, the blocking gate for raw queries and
+  `dangerouslySetInnerHTML`, **captures nothing** — it tests for presence.
+- `audit-motion.mjs`, `check-r2-tripwire.mjs` and `check-font-independence.mjs`
+  likewise.
+- `select-suites.mjs:76` does read quoted values out of the blindness gate's
+  allowlist, but with a **constrained** class (`[A-Za-z0-9/_-]`) rather than
+  `[^"']`, so a misread quote cannot swallow arbitrary content — it simply fails
+  to match, and the selector's response to a list it cannot read is to select
+  everything.
+
+**The rule for the next scanner:** if a pattern captures `[^"']+` between quotes,
+it can be entered at a closing quote. Anchor it to where the construct can
+legally begin, constrain the character class to the vocabulary you actually
+expect, or both.
+
+---
+
+## F54, second pass, 2026-08-24: the rest of the family, and the near-miss
+
+The first fix took only the bare-import pattern, because that was the one that
+turned the tree red. **The `from` family had the same fault and nobody had looked
+at it**, found by the team lead testing rather than reading:
+
+```
+export const note = "a phrase ending in from";
+const path = "@/lib/ops/session";
+  captured specifier: ";\nconst path = "
+```
+
+A string ending in the word `from` puts a closing quote exactly where
+`\bfrom\s*["']` expects an opening one. **Latent rather than live** — measured
+through the gate's own `stripComments` across 506 files, the old patterns
+produced exactly one bogus capture on real code, a template literal in a spec
+file that is not an ops file. It fires on shapes this tree does not yet contain,
+which is not a safeguard.
+
+**Three assumptions were wrong on the way to the fix, and all three fell to
+measurement rather than argument.**
+
+*Anchoring the keyword does not transfer.* The bare-import fix anchors `import`
+to a statement position; useless here, because in `export const note = "…from"`
+the keyword is **innocent and already at statement position**. What goes wrong is
+`[\s\S]*?` scanning past the statement into a string. Different defect, and it
+needed the other remedy: constrain the class.
+
+*Excluding the newline is not enough.* The obvious minimum, `[^"'\n]`, kills the
+two-line repro and not the fault — the same shape fits on one line:
+`export const note = "ending in from"; const p = "@/lib/x";`. A fix measured
+against the shape of one test case rather than against the defect.
+
+*And there were five patterns, not four.* `typeRe` was declared **outside** the
+array the other four live in, which is exactly why the first sweep missed it. The
+patterns are now all built from one shared `SPEC` constant, `typeRe` included, so
+a sixth cannot quietly use a different class. "The one declared somewhere else"
+is how the next incomplete sweep happens.
+
+### The near-miss, which is the part worth reading
+
+The first candidate class was `[A-Za-z0-9@._~/$-]`. It has no colon, so it
+**stops capturing `node:fs`, `node:fs/promises` and `node:crypto`** — 108 real
+specifiers across the tree.
+
+That is not a stricter gate. It is **no gate**: `OPS-FILESYSTEM` fires on
+`FS_IMPORT_SPECS.includes(spec)`, so a specifier that is never captured is a rule
+that never runs. Not a rejected import — no import at all, and nothing goes red.
+The check standing between an operator file and the volume holding every child's
+photograph, drawing and voice note (**SAFEGUARDING rule 7**) would have gone
+silent, inside a change whose entire justification was making the scanner
+stricter. **A tightening that disables a safeguarding gate is the worst shape
+available**, and the only reason it was caught is that the candidate was run
+against 506 files instead of being reasoned about.
+
+The corrected class is `[A-Za-z0-9@._~/:$-]`: all 238 real specifiers accepted,
+only the template-literal artefact rejected. **Measured again after the change
+across all eight patterns: 0 specifiers gained, 4 lost — the artefact and the
+three decoys inside the new fixtures themselves.** `node:fs` is still captured in
+31 files and `node:fs/promises` in 6.
+
+`bad-ops-node-fs-still-caught.txt` exists so this cannot happen twice. It is a
+**guard on the change rather than a test of the filesystem rule**, and its header
+says so, because the next person narrowing that class needs it to go red rather
+than to find a comment and believe it. The general form: **when you tighten what
+a scanner accepts, ask what downstream rule consumes the captured value, and ship
+a fixture asserting the strictest thing the class must still admit.**
+
+### Also landed in the same pass
+
+- `*/` added to the bare-import anchor as an **alternation, not a class member**.
+  A bare `/` would have made the second slash of a `//` comment a valid prefix,
+  re-admitting `// import "server-only" is deliberately absent` as a real import
+  — one of the ten prose false positives the anchoring existed to remove.
+  Narrowing and widening in the same character is how a fix undoes itself.
+- `)` deliberately **not** added: `if (a) import "x";` is not valid JavaScript, an
+  `ImportDeclaration` being legal only at module-item position, so there is no
+  case to catch and a string containing `) import "` is likelier than a real one.
+- Four fixtures: the block-comment form, the `from` fault in both directions, and
+  the `node:fs` guard. Corpus is now 86 violating and 29 clean.
+- **`prisma generate` once before the lanes** in `scripts/run-suites.mjs`, and a
+  `db push` in `tests/battery/global-setup.ts`. The runner pushes each lane's own
+  shard database and deliberately never touches `prisma/dev.db`, so a developer
+  running a single spec directly got a database a schema behind and a seed that
+  failed on a missing table. Both failures read as a broken branch and neither is
+  one.
+
+---
+
+## F55 · A search box that returns the whole table · Medium → Fixed, with a gate
+
+Found on 2026-08-24 by `platform-lead` while building the establishment search,
+and confirmed by the team lead's sweep of every other call site.
+
+**Prisma's `contains`, `startsWith` and `endsWith` compile to SQL `LIKE`, and
+Prisma does not escape LIKE's own metacharacters in the value.** A query of `%`
+reaches the database as `LIKE '%%'` and matches every row; `_` matches any single
+character.
+
+Measured against SQLite on the development database, not reasoned about:
+
+| Query | Rows returned |
+| --- | --- |
+| `db.student.findMany({ where: { name: { contains: "%" } } })` | **35 of 35** |
+| the same with `"_"` | **35 of 35** |
+| `db.establishment.findMany({ where: { name: { contains: "%" } } })` | **all 20,296** |
+
+### The part that makes it a finding rather than a footnote
+
+**Nothing in this codebase was exploitable, and none of it was safe by design.**
+Every existing LIKE is protected by something that has nothing to do with LIKE:
+
+- **`src/app/uploads/[...path]/route.ts`** — eighteen of them, on the authorising
+  media route. Its `SAFE_NAME` pattern blocks `%` but **permits `_`**, because
+  real filenames contain one. It is saved by the second control: every
+  `canAccess` branch is already scoped to the requester (the F17 fix), so a
+  wildcard can only broaden matching *within rows that caller may already read*,
+  and the file read then 404s identically.
+- **`src/lib/api/activities.ts:161`** — the connector's activity search, and the
+  one place a caller's string reaches `contains` unmodified. Scoped by
+  `teacherId` with a bounded `take`, so a `%` returns that teacher's own
+  templates — which they can already list with no search at all. No privilege
+  gain.
+
+So the property that held was **ownership scoping** (SAFEGUARDING rule 4), which
+is the right control and was doing work it was never designed to do. That is
+fine until a query has no owner to scope to.
+
+**The establishment register is the first public, unscoped search StoryJar has
+ever had, and it will not be the last.** It is reachable before any account
+exists, over a table that belongs to nobody, so there is no `teacherId` to fall
+back on. This is exactly where the latent defect becomes a live one.
+
+### Fixed, and then made hard to reintroduce
+
+The search strips its input to an allow-list of letters, digits, spaces,
+apostrophes, hyphens, ampersands and full stops, which removes `%`, `_` and the
+backslash at once (`planSearch` in `src/lib/establishmentSearch.ts`). Asserted in
+`npm run check` and in `tests/battery/security/establishment-search.spec.ts`, and
+the assertions were proved load-bearing by weakening the strip and watching seven
+of them fail.
+
+**Stripping rather than escaping is deliberate and worth recording.** SQL escapes
+LIKE with a trailing `ESCAPE '\'` clause, and Prisma's `contains` gives no way to
+emit one — so `\%` would be searched for literally, which is a different bug
+wearing a fix's clothes. Dropping the characters is the option that exists, and
+for a search box it is also the better one: a teacher typing `%` into a school
+name means nothing by it.
+
+### The gate: `scripts/check-like-wildcards.mjs`
+
+Added to `npm run check` (0.4s; the whole static loop is 2.7s). **It does not do
+taint analysis and does not pretend to.** Whether a value is user-supplied is a
+question about every caller a function has ever had, and no regex answers it.
+
+So the burden is inverted: rather than proving a value is dangerous, **the call
+site must show that it is safe**, by being a shape the gate can read where the
+query is written — a string literal, a `likeSafe(...)` call
+(`src/lib/likeSafe.ts`), a template literal whose every interpolation is one of
+those, or a TypeScript type position. Everything else fails.
+
+One consequence is deliberate and will annoy somebody: **sanitising into a
+variable one line above the query is refused**, even though it is safe. The gate
+cannot follow a value across a statement, and neither can a reviewer skimming the
+query. The fix is to move the call, not to widen the rule
+(`bad-sanitiser-in-the-wrong-place.txt` pins this).
+
+Exceptions live **in the gate script**, not in a magic comment, for the reason
+`audit-static.mjs` keeps its allowlist there: silencing a gate should be a diff a
+reviewer sees, not something added by whoever is trying to get a build green.
+They are keyed on **file and exact expression**, so a different expression in an
+allowlisted file still fails. Both entries are **printed on every successful
+run** — including the `api/activities.ts` one, which says in its own text that it
+is *not* sanitised and names the follow-up, because a residual that scrolls past
+twice a minute is a residual somebody eventually fixes.
+
+**Nine fixtures, and the corpus was rebuilt once because it was not proving what
+it claimed.** Seven mutations were run against the gate; six were caught and one
+was not:
+
+- Dropping `endsWith` from the operator list **passed**, because a single fixture
+  named `startsWith` and `endsWith` together and still fired on the first. Split
+  into one fixture per operator, and `// @expect: <operator>` added so the
+  declared operator must be the one that fires — "something fired" is not proof
+  that the right thing fired.
+- Weakening the sanitiser check to a substring test also **passed**, until
+  `bad-sanitiser-name-in-a-variable.txt` was added: a variable somebody called
+  `likeSafeQuery` is not a sanitised value, and the gate must not be fooled by a
+  reassuring name.
+
+Both are the same lesson as F53's four files nothing ran and F54's fifty-eight
+fixtures that could not fail: **a canary that cannot fail is a decoration.** The
+current corpus catches all seven mutations.
+
+### One thing found on the way, not fixed here
+
+`scripts/audit-static.mjs`'s allowlist comment says a second `dangerouslySetInnerHTML`
+in an already-allowlisted file "still fails the gate". It would not: the lookup is
+`DSIH_ALLOWLIST.find((a) => a.file === rel)`, which matches any line in that file.
+Both allowlisted files hold exactly one use today, so tightening the key to
+file-and-line would pass as-is. Reported rather than changed, because that gate is
+not this change's to edit and a cold battery was running.
+
+`check-ops-blindness.mjs`'s `stripComments` has no regex-literal handling, so a
+regex containing an odd number of quote characters — `/^"([^"\\]|\\.)*"$/` has
+three — desynchronises its string tracking and every comment after it in that file
+is missed. It gets away with it because it only reads application code under the
+ops roots. `check-like-wildcards.mjs` reads `scripts/`, where a gate script is
+mostly regexes, so it handles the case; the implementation is there to copy if
+the older gate ever needs it.
+
+---
+
+## F56 · The lane path and the direct path are two different environments · Medium → Open
+
+Found 2026-08-24, and only because it happened **twice in one evening in two
+unrelated ways**. Either one alone reads as a bug. Together they are a property
+of the arrangement.
+
+`scripts/run-suites.mjs` gives every (suite, shard) job its own port, its own
+dev server, its own `dev-shard-N.db` and its own build output, and runs three
+lanes at once. That is the isolation CI gets from three runners, on one machine,
+and it is a good design — `AGENTS.md` explains it and the numbers behind it are
+real. **What it also is, and what nothing says out loud, is a second environment
+that the documented pre-merge command does not use.**
+
+### The two divergences
+
+**Setup.** Bringing the database up to the committed schema happens in three
+independent places:
+
+- `scripts/run-suites.mjs:56` — `prepareLane()`, per lane, into that lane's own
+  shard database, and **deliberately never** `prisma/dev.db`, because that is
+  the database somebody's own `npm run dev` is pointed at;
+- `tests/battery/global-setup.ts:36` — added earlier the same day, for a person
+  running one battery spec directly;
+- `tests/global-setup.ts` — which had **none at all** until it was found for the
+  third time that evening, and which is what plain `npm run test:e2e` and
+  therefore `npm run test:gate` run.
+
+So on any branch adding a column, the lanes were green and `test:gate` died on
+the seed with a message about a missing column — which reads as a broken branch
+rather than a stale database. **Each of the three sites was fixed by whoever was
+standing on that path**, none of them looked for the other two, and the third
+was found by an agent hitting it cold on a `Teacher.urn` change.
+
+**Timing.** `tests/e2e/school-picker.spec.ts`'s "moving on with a search in
+flight is not an error" passed in lanes and failed on the direct path, **the
+same way every time, warm server or cold**. Not a flake: the test's outcome
+turned on whether a 250ms debounced search returned before a Playwright click
+completed, and the two paths differ in port, dist directory, database and
+compile order — so they sit on opposite sides of that boundary. The underlying
+product defect was real (an in-flow listbox moving the Continue button out from
+under a `mousedown`, so no `click` event fired at all), and **the lane path
+could not see it.**
+
+### Why this is a finding rather than two fixes
+
+The setup half is closed at all three sites, so the remaining risk is not "the
+push is missing". It is the shape:
+
+**Three independent entry points that must each remember the same setup step is
+a design fault, not three oversights.** Nothing enforces that a new entry point
+does the setup, nothing compares the two environments, and the failure mode in
+both classes is the worst-tasting one available — **green where you look, red
+where you merge**. `AGENTS.md` names `npm run test:changed` before a push and
+`npm run test:gate` before a merge; `test:gate` is the direct path, and it is
+the path that had neither the setup nor the timing that the lanes had.
+
+A test that passes in lanes and fails directly is worse than one that fails
+everywhere, because the second is a bug and the first is a false negative on the
+documented pre-merge command.
+
+### What would close it
+
+Not proposed as a decision, because this is deferred and the shape of the fix is
+the owner's call:
+
+- **One place that prepares a database**, called by all three entry points, so a
+  fourth cannot be added without it. This is the same collapse `audit-motion.mjs`
+  already made for the reduced-motion guard — seven scattered `@media` blocks
+  became one catch-all — and for the same reason: a rule that depends on the
+  next author remembering is not a rule.
+- **Or** make the direct path *be* a lane of one, so there is one environment
+  with a parameter rather than two environments that drift.
+
+Either removes the class. Narrowing each site as it is found does not, which is
+what this evening demonstrated three times.
+
+### Not fixed here
+
+Deferred past the freeze of 2026-08-24. The exception that evening was the
+school-identity work and this is not it; the harness is shared infrastructure
+and touching it during a commit is how a narrow exception stops being narrow.
+Written now rather than later so it can be stated precisely while the three
+sites and the two failures are still checkable — every file and line above was
+read to write this, not recalled.
+
