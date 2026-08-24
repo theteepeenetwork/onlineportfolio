@@ -77,6 +77,14 @@ if (failed.length) {
     process.stdout.write(f.output);
   }
   console.log(`\n[test:changed] ✖ ${failed.map((f) => f.name).join(", ")}`);
-  process.exit(1);
+  // `process.exitCode`, NOT `process.exit()`. Writes to a pipe are asynchronous,
+  // and `process.exit()` does not wait for them: piped into `tee`, a log file or
+  // a CI step, the failure report above is cut off at 64KB — measured — and a
+  // failing e2e shard alone prints more than that. What is lost is the end,
+  // including the ✖ line naming the suites, so a red run can read as a run that
+  // stopped mid-sentence. Setting the code and falling off the end of the script
+  // exits 1 just the same, after Node has flushed everything.
+  process.exitCode = 1;
+} else {
+  console.log("[test:changed] ✓ everything this change needs is green");
 }
-console.log("[test:changed] ✓ everything this change needs is green");
