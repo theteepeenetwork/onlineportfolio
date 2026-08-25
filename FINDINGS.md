@@ -108,6 +108,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F52 | Medium | Gate hygiene / user copy | `scripts/error-string-audit.mjs` extracts strings with `/["'`]([^"'`]{6,})["'`]/g`, and both halves of that pattern are wrong. The character class excludes all three quote types, so **an apostrophe ends a double-quoted string** — 79 user-facing strings across `src` are audited only as far as their first "doesn't". And the `{6,}` sits *inside* the pattern, so a string too short to match never consumes its own quotes and every later quote on the line is off by one — 208 of the 1,521 "strings" it currently audits are **code caught between mis-paired quotes**, which is where the standing HARD hit comes from. The false negatives are the finding; the noisy line is only what led to it | **Fixed** 2026-08-23; the freeze deferral was reversed once `scripts/` was already dirty and the cost was sunk | n/a — a gate script, not the product. What makes the fix safe is the before-and-after across `src`: HARD 1 → 0, SOFT 6 → 6 on the same six sites, no new findings |
 | F53 | Low | Repo hygiene / gate legibility | Four editor duplication artefacts (`… 2.ts`, `… 2.sql`) were committed and sat in the tree for days. Three were spec files — including one in the **blocking security directory that has never executed**, because the space before `2.ts` cannot match Playwright's default `*.spec.ts` glob. A file that reads as coverage and is not is worst in that directory. The fourth is an **older draft of a migration**, still tracked, whose column is named `template` — the exact name the schema rejected because the ops blindness gate derives its child-relation denylist from relation names | **Three deleted** 2026-08-23; the migration artefact is **open**, untouched under the schema freeze | n/a — nothing collected or applied any of them, which is the finding |
 | F56 | Medium | Test harness / gate reachability | **The lane path and the direct path are two different test environments, and `npm run test:gate` is the one nobody checks.** Found 2026-08-24, twice in one evening, in two unrelated classes. **Setup:** bringing the database up to the committed schema is done in **three** independent places — `scripts/run-suites.mjs:56` (per lane, to that lane's shard database, never `prisma/dev.db`), `tests/battery/global-setup.ts:36` and `tests/global-setup.ts` — and the third had none until it was found for a third time, so plain `npm run test:e2e`, and therefore `test:gate`, died on any branch adding a column. Each of the three was added by whoever was standing on that path. **Timing:** `e2e/school-picker.spec.ts`'s in-flight test passed in lanes and failed on the direct path **deterministically**, because its outcome turned on whether a 250ms debounced search returned before a click completed, and the two paths differ in port, dist dir, database and compile order. **That instance no longer reproduces (25 Aug 2026):** the product defect under it was fixed with the school picker, and all 10 school-picker specs pass on the direct path. The instance is gone; the divergence that hid it is not. | **Open.** Neither stated closure criterion is met — still three independent setup sites, and the direct path is still not a lane. The port guard of 25 Aug 2026 closes the stale-database class for the lane path only | n/a — the finding is that the harness has two environments, so no single suite can hold it. The setup half is closed at all three sites; the divergence is not |
+| F57 | Medium | Operations / the school register | **The documented way to refresh the school register could not run where the database is.** `npm run gias:import` — the command the script's own header gives as the production procedure — answers **403 inside the Railway container** and 200 from a laptop the same minute, because the DfE blocks the datacentre range. It fails at the FIRST fetch, before anything downloads, so nothing was ever half-written; it simply could not be done. Found 25 Aug 2026 the only way it could be: by somebody trying it for the first time. Third instance of the F44 class — a documented operational capability that had never once been exercised. | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
 
 ---
 
@@ -3032,3 +3033,103 @@ Written now rather than later so it can be stated precisely while the three
 sites and the two failures are still checkable — every file and line above was
 read to write this, not recalled.
 
+
+## F57 · The register's refresh could not run where the database is · Medium → Mitigated, not closed
+
+Found 25 August 2026, the only way this class ever is: somebody ran the
+documented command against production for the first time.
+
+`scripts/gias-import.ts` refreshes the establishment register — every open
+primary school in England, ~20,300 rows, the list behind the school picker on
+teacher signup. Its own header gives the production procedure:
+
+```
+railway ssh
+npm run gias:import
+```
+
+That command cannot work in that place. Inside the container it dies at the
+first line:
+
+```
+[gias-import] reading https://get-information-schools.service.gov.uk/Downloads
+[gias-import] failed: the GIAS Downloads page answered 403. Nothing was changed.
+```
+
+The same command, same user-agent, from a laptop minutes either side: 200, and a
+complete import. **The DfE blocks the datacentre range.** So the documented
+procedure worked in the one place the database is not, and failed in the one
+place it is.
+
+### Why it was invisible
+
+Nothing here was wrong in a way any gate could see. The script is correct, its
+tests pass, `--dry-run` works, and the whole thing had been exercised locally
+more than once. The failure lives entirely in the difference between two
+networks, and **the only instrument that can read that difference is a person
+running the command in the second one**.
+
+This is the third instance of the same class:
+
+- **F44** — every database command in the operator recovery runbook said
+  `railway run`, which runs on your own Mac where `/data/prod.db` does not
+  exist. The only documented way back into the service.
+- **F31** — its stated mitigation was "run the sync by hand", which was the
+  command F44 fixed, so the fallback it rested on was unavailable for its whole
+  life.
+- **F57** — this one.
+
+Each was a capability that existed on paper, was reviewed, was written down, and
+had never been run. **A procedure nobody has executed is a hypothesis.** The
+remedy in every case was not a test; it was somebody doing it once.
+
+### The seam that fixed it
+
+The import makes two fetches to **two different hosts**, and only one of them
+teaches it anything:
+
+1. `get-information-schools.service.gov.uk/Downloads` — read *solely* to learn
+   what date the latest extract carries. **Blocked.**
+2. `ea-edubase-api-prod.azurewebsites.net/…/edubasealldata<date>.csv` — the
+   61.6 MB file itself, its URL built from that date by `extractUrl()`.
+   **Reachable from the container**, confirmed 25 August 2026.
+
+So the container could always fetch the data. It could not discover the date.
+`--extract-date YYYY-MM-DD` lets the operator read the date off the Downloads
+page in their own browser and state it.
+
+That is **not** the guessing `resolveExtractDate` refuses to do — nothing is
+inferred from a pattern, a person has read the real page — and every guard is
+downstream of it either way: a date that never existed 404s on the download, and
+a truncated or renamed file still meets `MINIMUM_PLAUSIBLE_ROWS` and the
+register is not replaced. Verified the `JobRun` row records `source 20260825`
+identically whether the date was scraped or stated, so `/ops/health` still shows
+the true age of the register rather than the "not recorded" that `--file` has to
+say.
+
+Production was imported the same day: 52,484 rows read, 20,295 kept.
+
+### What is NOT closed
+
+**The register can only be refreshed by a person with a browser and a laptop.**
+There is no path to automating it while the DfE blocks the datacentre — a
+scheduled job inside the container cannot learn the date, and there is no job
+runner here anyway (F43). So the register goes stale by default, and staleness
+is the standing risk this entry keeps open. Schools open, close and merge
+constantly; a school that opened last term is one a teacher types by hand.
+
+That is survivable because free text is a first-class route in the picker, and
+because `/ops/health` shows the age rather than hiding it — the tile now carries
+the whole procedure, so the operator reading "last refreshed 4 months ago" has
+the command in front of them. It is survivable, not fixed.
+
+If it ever needs to be automatic, the options are a mirror of the extract on a
+host we control, or asking the DfE to allow the range. Both are decisions rather
+than changes, and neither is needed before launch.
+
+### Not established
+
+Whether the production register had ever been populated before 25 August 2026.
+The import replaces wholesale, so the prior contents are gone; the first
+recorded successful `register:refresh` is that day's. Written down because the
+answer would be worth knowing and guessing it is not.

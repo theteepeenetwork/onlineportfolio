@@ -13,6 +13,7 @@ import {
   parseImportDetail,
 } from "@/lib/establishmentRegister";
 import {
+  GIAS_DOWNLOADS_PAGE,
   GiasFormatError,
   MINIMUM_PLAUSIBLE_ROWS,
   americanDateToIso,
@@ -330,6 +331,25 @@ eq(
   "the download URL is built from the resolved date",
   extractUrl("2026-08-24"),
   "https://ea-edubase-api-prod.azurewebsites.net/edubase/downloads/public/edubasealldata20260824.csv",
+);
+
+// The invariant that makes --extract-date work at all, and F57's cheap half.
+//
+// The extract and the Downloads page are on two different hosts, and only the
+// page is blocked from the Railway container (403 there, 200 from a laptop, the
+// same minute). --extract-date exists so a refresh can skip the page and still
+// fetch the file — which holds only while the URL the date builds stays on the
+// extract host. Point extractUrl at the DfE's own domain and every production
+// refresh breaks, in a way nothing else here would notice: the laptop path would
+// go on working, so it would be found the next time somebody tried to refresh
+// the live register and not before.
+check(
+  "the extract is fetched from a host that is not the blocked Downloads page",
+  (() => {
+    const host = new URL(extractUrl("2026-08-24")).host;
+    return host !== new URL(GIAS_DOWNLOADS_PAGE).host;
+  })(),
+  "the container is refused the Downloads page; --extract-date only helps while the file itself is elsewhere",
 );
 
 check(

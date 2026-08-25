@@ -236,9 +236,37 @@ export default async function OpsHealthPage() {
                   There is no button here to refresh it, and there is not going to be one. Replacing
                   twenty thousand rows is not a named operation on a named row with a stated reason,
                   which is what every write an operator can reach has to be. The refresh is a command
-                  in the repository, run by a person: <code>npm run gias:import</code>, from inside
-                  the container. The register is public information about schools published by the
-                  Department for Education — it holds no pupil, no parent and no member of staff.
+                  in the repository, run by a person. The register is public information about
+                  schools published by the Department for Education — it holds no pupil, no parent
+                  and no member of staff.
+                </p>
+                <p className="mt-2">
+                  <strong>To refresh it,</strong> open the DfE&rsquo;s download page in a browser —{" "}
+                  <code className="break-all">
+                    get-information-schools.service.gov.uk/Downloads
+                  </code>{" "}
+                  — and read the date shown against <em>all.edubase.data</em>. Then run this from a
+                  terminal on your own machine, with that date in place of{" "}
+                  <code>YYYY-MM-DD</code>:{" "}
+                  <code className="break-all">
+                    railway ssh &apos;npm run gias:import -- --extract-date YYYY-MM-DD&apos;
+                  </code>
+                </p>
+                <p className="mt-2">
+                  Write the date the other way round from the DfE page: 25 August 2026 is{" "}
+                  <code>2026-08-25</code>. Put <code>--dry-run</code> on the end first to see the
+                  counts without writing anything. Roughly twenty thousand schools is right; a
+                  suspiciously short list is refused rather than replacing the register, because an
+                  empty picker is what every teacher signing up that day would meet.
+                </p>
+                <p className="mt-2">
+                  <strong>Why you have to type the date in.</strong> The command can find it for
+                  itself on a laptop and cannot on the server: the DfE blocks the datacentre, so the
+                  Downloads page answers 403 from inside the container while answering normally from
+                  your browser. The extract itself is on a different host that the container reaches
+                  fine — so the only thing missing is the date, and you are supplying it by reading
+                  the real page. <code>railway ssh</code> and not <code>railway run</code>: the
+                  second gives you the right settings pointed at the wrong database.
                 </p>
               </>
             }
