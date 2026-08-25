@@ -34,7 +34,13 @@ test("a lapsed account: what am I allowed to do, and how do I fix it?", async ({
     );
 
     t.expects(
-      await t.seesText(/still|can (still )?(see|view|download)|\bkept\b|\bsafe\b|not deleted/i, 2500),
+      // "still" is in ordinary English prose, so this passed on any screen with
+      // a sentence on it. Mrs Frost's question is narrow and so is this: has
+      // anybody told her the children's work has not been deleted?
+      await t.seesText(
+        /work is still (there|here|safe)|nothing has been deleted|is not deleted|remains? available|you can still (see|view|download|export)/i,
+        2500,
+      ),
       "major",
       "confusing",
       "Nobody has told me whether the children's work is still there. That is my first question and my governors' first question.",

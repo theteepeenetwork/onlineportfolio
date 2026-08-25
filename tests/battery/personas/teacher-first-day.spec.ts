@@ -72,7 +72,13 @@ test("from the landing page to a class of children who can sign in", async ({ pa
 
     // The promise a teacher needs before typing children's names in.
     t.expects(
-      await t.seesText(/safeguard|approv|privacy|\bdata\b|only you|never/i, 1500),
+      // "data" matched something on almost any page, so this had never failed.
+      // A teacher about to type a class of children's names in needs a promise,
+      // not the word "data" — so this asks for one being made.
+      await t.seesText(
+        /nothing is (kept|published|shared) until|only you (and|can)|never (sold|shared|used to)|your school (owns|controls)|approv(e|al)/i,
+        1500,
+      ),
       "major",
       "confusing",
       "Nothing on the way in says what happens to children's work or who can see it. I am about to type my class into this.",

@@ -39,7 +39,16 @@ test("the September jobs: staff in, staff out, classes moved on", async ({ page,
     // The question an admin has to be able to answer to the head: what will this
     // person be able to see?
     t.expects(
-      await t.seesText(/will (only )?see|access|their own class|cannot see/i, 1500),
+      // "access" alone was on this screen whatever it said, so this asks for
+      // the actual promise the panel makes about what a role can reach. The
+      // panel does say it — "Teacher and teaching assistant can do the same
+      // things — give them a class to decide what they see" — so this check
+      // passes honestly rather than by accident, and will notice if the
+      // sentence is ever dropped.
+      await t.seesText(
+        /can do the same things|decide what they see|will only see|opens this console|their own class/i,
+        1500,
+      ),
       "major",
       "confusing",
       "The invite form does not tell me what the person I am inviting will be able to see. I am granting access to children's photographs and I am guessing.",
@@ -89,7 +98,22 @@ test("the September jobs: staff in, staff out, classes moved on", async ({ page,
 
     // Removing a person's access to children's data is not an "undo" job. It
     // should say what happens to their classes and their work.
-    const explained = await t.seesText(/class(es)?|\bwork\b|cannot be undone|permanent|\bsure\b/i, 2000);
+    // WRITTEN FROM THE SCREEN, and it is F59's discovery site.
+    //
+    // The old pattern was /class(es)?|work|cannot be undone|permanent|sure/i.
+    // The page after removing somebody contains "Classes" as a nav item and as
+    // a stat tile, so it passed on every run since the day it was written and
+    // this journey has never once tested what it says it tests. What it was
+    // hiding: removal is a single click with no confirmation, it does not
+    // revoke the person's access, and it takes the classes out of the school.
+    //
+    // So this asks for the sentence a head teacher needs before an
+    // irreversible click, and asks for it by its meaning rather than by a word
+    // that is bound to be somewhere on an admin console.
+    const explained = await t.seesText(
+      /what happens to (their|the) class|their classes will|access (will )?end|no longer (be able to )?see|are you sure|cannot be undone/i,
+      2000,
+    );
     t.expects(
       explained,
       "major",

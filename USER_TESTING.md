@@ -14,7 +14,7 @@ Severities are the testers' own, and they mean:
 ## The run
 
 - **28** journeys, **11** testers.
-- **114** distinct findings: 0 blocker · 12 major · 98 minor · 4 polish.
+- **116** distinct findings: 0 blocker · 14 major · 98 minor · 4 polish.
 - Every journey ran to the end.
 
 ## Start here
@@ -30,6 +30,8 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - [ ] **major** — I can find the family but I cannot issue them a new code, so the answer to the school is “I will get back to you”.
 - [ ] **major** — I cannot see anything about email from here. If sign-in letters to families are bouncing, I have no way of knowing — and I am the person parents will ring.
 - [ ] **major** — I reloaded while I was typing and everything I had written was gone, with nothing to say it had been lost.
+- [ ] **major** — Nothing on the way in says what happens to children's work or who can see it. I am about to type my class into this.
+- [ ] **major** — Removing a member of staff happened without telling me what becomes of the classes they taught or the work they published. If their classes go with them, I have just deleted children's work by accident.
 - [ ] **major** — There is no way for me to close our account and have the children's data deleted. Our retention policy says we can ask for it — and the only route I can see is emailing somebody and hoping.
 - [ ] **major** — There is nothing anywhere for the September job: moving each class up a year and handing it to its new teacher. Doing it by hand means recreating every class, re-typing every child's name, and re-issuing every code and letter — and last year's work does not follow the child.
 - [ ] **major** — There is nothing here that gets our data out — no export for a subject-access request, and nothing to take with us if we ever leave.
@@ -37,11 +39,11 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 ## The shape of it
 
 - **beyond this person** — 89
-- **could not tell what was happening** — 14
+- **could not tell what was happening** — 15
 - **could not carry on** — 7
-- **worked, but only just** — 4
+- **worked, but only just** — 5
 
-## Major (12)
+## Major (14)
 
 > They got there, but the product misled them, hid something they needed, or risked a mistake they cannot undo.
 
@@ -79,7 +81,7 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** Bo · Reception, aged 4
 - **Doing:** do the quiz my teacher set, with pictures for answers
-- **Where:** the quiz (/student/activities/cmt8fdfwl002e8onglzp31ow4)
+- **Where:** the quiz (/student/activities/cmt8hyh93002e8omq3n0ftmbs)
 - **Kind:** beyond this person
 
 ### Buttons I cannot read: journal, picture. I cannot read at all, so a control labelled only in words is one I press by guessing.
@@ -107,7 +109,21 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** Wren · Year 6, aged 10
 - **Doing:** do the work my teacher sent back, and check it went
-- **Where:** back on my journal (/student)
+- **Where:** back on my journal (/student/activities)
+- **Kind:** worked, but only just
+
+### Nothing on the way in says what happens to children's work or who can see it. I am about to type my class into this.
+
+- **Who hit it:** Ms Blake · brand-new teacher
+- **Doing:** from the landing page to a class of children who can sign in
+- **Where:** the first step of signing up (/signup/teacher)
+- **Kind:** could not tell what was happening
+
+### Removing a member of staff happened without telling me what becomes of the classes they taught or the work they published. If their classes go with them, I have just deleted children's work by accident.
+
+- **Who hit it:** Mrs Hartley · school business manager
+- **Doing:** the September jobs: staff in, staff out, classes moved on
+- **Where:** the staff row menu (/admin)
 - **Kind:** worked, but only just
 
 ### There is no way for me to close our account and have the children's data deleted. Our retention policy says we can ask for it — and the only route I can see is emailing somebody and hoping.
@@ -289,7 +305,7 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** edit an activity that a class is already working on
-- **Where:** the activity editor (/teacher/activities/cmt8fdfwi00248ongp698zg2n/edit)
+- **Where:** the activity editor (/teacher/activities/cmt8hyh9000248omqsue253g6/edit)
 - **Kind:** beyond this person
 
 ### “← Back to library” is 106×17px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
@@ -303,7 +319,7 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmt8fdfux000o8ong24r5ptef/new)
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
 - **Kind:** beyond this person
 
 ### “← Back to storyjar.co.uk” is 184×20px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
@@ -371,7 +387,7 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** my calendar (/teacher/calendar)
 - **Kind:** beyond this person
 
-### “Autumn quiz 23432” is 276×23px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “Autumn quiz 69087” is 276×23px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** edit an activity that a class is already working on
@@ -385,39 +401,39 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** class settings (/teacher/class)
 - **Kind:** beyond this person
 
-### “cmt8fdfde00178omjuppita1r” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “cmt8hygpx00178olxcn2dp3r2” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmt8fdfux000o8ong24r5ptef/new)
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
 - **Kind:** beyond this person
 
-### “cmt8fdfde00188omjsv0q6bb3” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “cmt8hygpx00188olx4qrvu2fi” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmt8fdfux000o8ong24r5ptef/new)
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
 - **Kind:** beyond this person
 
-### “cmt8fdfde00198omjyn7nrsqu” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “cmt8hygpx00198olx1myz0n7h” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmt8fdfux000o8ong24r5ptef/new)
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
 - **Kind:** beyond this person
 
-### “cmt8fdfde001a8omjeggb06e6” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “cmt8hygpx001a8olxj9v329g0” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmt8fdfux000o8ong24r5ptef/new)
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
 - **Kind:** beyond this person
 
-### “cmt8fdfde001b8omjfah9wfbm” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “cmt8hygpx001b8olxbe93zs6v” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmt8fdfux000o8ong24r5ptef/new)
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
 - **Kind:** beyond this person
 
 ### “Cookies” is 53×18px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
@@ -441,7 +457,7 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** my activity library (/teacher/activities)
 - **Kind:** beyond this person
 
-### “Count the ducks” is 302×23px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “Count the ducks” is 301×23px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
@@ -459,7 +475,7 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the assign panel (/teacher/activities/cmt8ff2fw001f8ojn6gkpcwk2)
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
 - **Kind:** beyond this person
 
 ### “Ducklings” is 115×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
@@ -494,7 +510,7 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the assign panel (/teacher/activities/cmt8ff2fw001f8ojn6gkpcwk2)
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
 - **Kind:** beyond this person
 
 ### “Herons” is 96×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
@@ -554,7 +570,7 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** my calendar (/teacher/calendar)
 - **Kind:** beyond this person
 
-### “More actions for Autumn quiz 23432” is 34×34px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “More actions for Autumn quiz 69087” is 34×34px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** edit an activity that a class is already working on
@@ -588,7 +604,7 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the assign panel (/teacher/activities/cmt8ff2fw001f8ojn6gkpcwk2)
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
 - **Kind:** beyond this person
 
 ### “Pricing” is 50×18px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
@@ -623,14 +639,14 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** edit an activity that a class is already working on
-- **Where:** the activity editor (/teacher/activities/cmt8fdfwi00248ongp698zg2n/edit)
+- **Where:** the activity editor (/teacher/activities/cmt8hyh9000248omqsue253g6/edit)
 - **Kind:** beyond this person
 
 ### “Robins” is 81×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the assign panel (/teacher/activities/cmt8ff2fw001f8ojn6gkpcwk2)
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
 - **Kind:** beyond this person
 
 ### “Robins” is 95×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
@@ -752,14 +768,14 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the assign panel (/teacher/activities/cmt8ff2fw001f8ojn6gkpcwk2)
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
 - **Kind:** beyond this person
 
 ### “Wrens (old)” is 112×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the assign panel (/teacher/activities/cmt8ff2fw001f8ojn6gkpcwk2)
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
 - **Kind:** beyond this person
 
 ### “Wrens (old)” is 126×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
@@ -855,11 +871,10 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 ### The browser tab has no name, so it is unfindable among open tabs.
 
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Bo · Reception, aged 4, Bo · Reception, aged 4, Mrs Frost · admin of a lapsed school, Ms Blake · brand-new teacher, Ravi · platform operator, Ravi · platform operator, Mrs Hartley · school business manager
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks; do the quiz my teacher set, with pictures for answers; find my own name, my jar, and the thing my teacher left me; a lapsed account: what am I allowed to do, and how do I fix it?; from the landing page to a class of children who can sign in; a school rings up: a family code has gone to the wrong house; the nightly check: is anything on fire?; what an admin can see about email, and about money
-- **Where:** my home page after signing in (/teacher) · my home page after signing in (/teacher) — and 1 more screen · my jar (/student) · the end of signing up (/signup/teacher/welcome)
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Bo · Reception, aged 4, Bo · Reception, aged 4, Mrs Frost · admin of a lapsed school, Ravi · platform operator, Ravi · platform operator
+- **Doing:** clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks; do the quiz my teacher set, with pictures for answers; find my own name, my jar, and the thing my teacher left me; a lapsed account: what am I allowed to do, and how do I fix it?; is anybody's email broken?; the nightly check: is anything on fire?
+- **Where:** my home page after signing in (/teacher) · the activity editor (/teacher/activities/cmt8hyh9000248omqsue253g6/edit) · my jar (/student) · the operations console (/ops)
 - **Kind:** could not tell what was happening
-- **Evidence:** seen on: my home page after signing in (/teacher) · the activity editor (/teacher/activities/cmt8fdfwi00248ongp698zg2n/edit)
 
 ### Double-tapped “Add to my jar” to see whether it submits twice — check the child's journal for a duplicate.
 

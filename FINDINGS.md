@@ -110,7 +110,8 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F56 | Medium | Test harness / gate reachability | **The lane path and the direct path are two different test environments, and `npm run test:gate` is the one nobody checks.** Found 2026-08-24, twice in one evening, in two unrelated classes. **Setup:** bringing the database up to the committed schema is done in **three** independent places — `scripts/run-suites.mjs:56` (per lane, to that lane's shard database, never `prisma/dev.db`), `tests/battery/global-setup.ts:36` and `tests/global-setup.ts` — and the third had none until it was found for a third time, so plain `npm run test:e2e`, and therefore `test:gate`, died on any branch adding a column. Each of the three was added by whoever was standing on that path. **Timing:** `e2e/school-picker.spec.ts`'s in-flight test passed in lanes and failed on the direct path **deterministically**, because its outcome turned on whether a 250ms debounced search returned before a click completed, and the two paths differ in port, dist dir, database and compile order. **That instance no longer reproduces (25 Aug 2026):** the product defect under it was fixed with the school picker, and all 10 school-picker specs pass on the direct path. The instance is gone; the divergence that hid it is not. | **Open.** Neither stated closure criterion is met — still three independent setup sites, and the direct path is still not a lane. The port guard of 25 Aug 2026 closes the stale-database class for the lane path only | n/a — the finding is that the harness has two environments, so no single suite can hold it. The setup half is closed at all three sites; the divergence is not |
 | F57 | Medium | Operations / the school register | **The documented way to refresh the school register could not run where the database is.** `npm run gias:import` — the command the script's own header gives as the production procedure — answers **403 inside the Railway container** and 200 from a laptop the same minute, because the DfE blocks the datacentre range. It fails at the FIRST fetch, before anything downloads, so nothing was ever half-written; it simply could not be done. Found 25 Aug 2026 the only way it could be: by somebody trying it for the first time. Third instance of the F44 class — a documented operational capability that had never once been exercised. **Established 25 Aug 2026: production's register had never been imported at all** — one `register:refresh` row ever, that morning's — so the live signup picker was empty from the day the feature shipped, with every gate green over an empty table. |
 | F58 | **High** | Test harness / persona suite truthfulness | **The persona suite can report a working feature as broken and a broken one as working, and we have made decisions on its output all week.** Its "did it work?" checks are `seesText(/…/i)` against rendered copy, and 16 of 63 are unsound. Proven against real rendered text: `/…\|nothing/i` matched "**Nothing** else was searched" in a refusal and scored a miss as a find (the false major "I cannot issue them a new code" — the control exists and works); `/…\|ok\|…/i` matches "br**ok**en", so the operator health check passes on the exact word that means it is broken; and the `/ops` console check looks for words the shipped verdict tile never says, so it reported a working tile as absent. Substring hazards confirmed in real copy: `ok`→broken/looks/cookie, `ask`→task/asked, `done`→undone, `sure`→measured/erasure, `back`→background/feedback. A second class cannot fail at all: `/class(es)?\|work\|…/` on a staff page. | **Open** | `scripts/check-persona-patterns.mjs` in `npm run check` — a bare alternation shorter than 5 characters, or a failure word inside a success pattern, is refused with the word that would collide |
-| F59 | **Critical** | Access control / children's data (Rule 1) | **"Remove from school" does not remove access.** `removeStaff` sets `teacher.schoolId = null`; `Class` has **no `schoolId`**, so a class belongs to a school only through its teacher. Measured 25 Aug 2026 on the persona school: removing an ACTIVE teacher in one click, with no confirmation, took the school from 5 classes/17 pupils to **1 class/3 pupils** — while he signed straight back in to `/teacher` with all four classes, **14 pupils, 7 journal items and 2 items waiting in his approval queue**. The admin's intent is not achieved, the school cannot reassign the classes it can no longer see (the action's own comment claims it can), and the audit log records "Removed Nathan Reeves from the school", which is now false in the direction that matters. Found only because F58's cannot-fail check was tightened; `grep -rln "removeStaff\|STAFF_REMOVED" tests/` returned **nothing** — the action had never been exercised by any test. | **Open.** Fix shape is the owner's call: reassign-on-remove (narrow) or give `Class` a `schoolId` (structural, touches the ops blindness gate's relation paths) | `tests/battery/findings/staff-removal.spec.ts` — asserts the intended secure behaviour and **fails on purpose** until fixed | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
+| F59 | **Critical** | Access control / children's data (Rule 1) | **"Remove from school" does not remove access.** `removeStaff` sets `teacher.schoolId = null`; `Class` has **no `schoolId`**, so a class belongs to a school only through its teacher. Measured 25 Aug 2026 on the persona school: removing an ACTIVE teacher in one click, with no confirmation, took the school from 5 classes/17 pupils to **1 class/3 pupils** — while he signed straight back in to `/teacher` with all four classes, **14 pupils, 7 journal items and 2 items waiting in his approval queue**. The admin's intent is not achieved, the school cannot reassign the classes it can no longer see (the action's own comment claims it can), and the audit log records "Removed Nathan Reeves from the school", which is now false in the direction that matters. Found only because F58's cannot-fail check was tightened; `grep -rln "removeStaff\|STAFF_REMOVED" tests/` returned **nothing** — the action had never been exercised by any test. | **Open.** Fix shape is the owner's call: reassign-on-remove (narrow) or give `Class` a `schoolId` (structural, touches the ops blindness gate's relation paths) | `tests/battery/findings/staff-removal.spec.ts` — asserts the intended secure behaviour and **fails on purpose** until fixed |
+| F60 | Medium | Trust / transparency at signup | **A teacher signs up, and nothing on the way in says what happens to children's work or who can see it.** Step 1 of 5 asks for their name, school email and password; the next steps ask for their school and their class. The only nearby sentence is "Just you — pupils never need accounts or emails", which is about accounts, not about the work. Discovered 25 Aug 2026 by tightening one of F58's four cannot-fail checks: the old pattern was `/safeguard\|approv\|privacy\|data\|only you\|never/i` and it had been matching the word **"never"** in that unrelated sentence since the day it was written. Safeguarding is the product's whole pitch and `docs/brand-and-copy.md` governs what is claimed in StoryJar's name — the promise exists everywhere except the one screen where somebody is deciding whether to trust it. | **Open** | `personas/teacher-first-day.spec.ts:75`, now written against a promise being made rather than against the word "data" | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
 
 ---
 
@@ -3402,3 +3403,78 @@ security suite, and this entry is deleted rather than reworded.
 Whether any teacher has already been removed on production. `schoolId: null`
 with `status: ACTIVE` is the signature, and those accounts still hold their
 classes today.
+
+## F60 · Nothing at signup says what happens to children's work · Medium → Open
+
+Discovered 25 August 2026, by tightening the third of F58's four cannot-fail
+checks. Ms Blake's words, from the first step of signing up:
+
+> *"Nothing on the way in says what happens to children's work or who can see
+> it. I am about to type my class into this."*
+
+### What the screen says
+
+`/signup/teacher`, step 1 of 5, read today:
+
+```
+Setting up takes about two minutes · Step 1 of 5
+Your account — First, you
+Just you — pupils never need accounts or emails.
+Title · Full name · What your class calls you · School email · Password
+```
+
+Then step 2 asks for the school, and a later step asks for the class. So a
+teacher gives their name, their work email, a password and the names of the
+children they teach, and at no point is told what StoryJar does with any of it.
+
+The one sentence that comes close — *"Just you — pupils never need accounts or
+emails"* — is a statement about **accounts**, and a good one. It is not a
+statement about the work, the photographs, the approval queue, or who at the
+school can see them.
+
+### Why it went unnoticed
+
+The check that was meant to catch it read
+`/safeguard|approv|privacy|data|only you|never/i`, and **"never" is in "pupils
+never need accounts or emails"**. It has matched that sentence, on that screen,
+since the day it was written. The persona has walked this journey on every run
+all week and reported nothing, because the pattern was satisfied by the copy it
+was standing next to.
+
+This is F58's second class exactly — a check that could not fail — and it is
+worth noting that the collision was not a short token or a substring. It was an
+ordinary word in an ordinary sentence, which is why reading the screen is the
+only way to write one of these honestly.
+
+### Why it matters more than Medium suggests
+
+Safeguarding is not a feature of this product, it is the pitch.
+`COMPETITIVE_POSITIONING.md` sells "no AI fluff, no bloat, UK-built, your data
+never leaves Europe" as the differentiator; `docs/brand-and-copy.md` governs
+what may be claimed in StoryJar's name; `SAFEGUARDING.md` is Rule 1. The promise
+is made on the landing page, in the legal pages, on the admin console's Promises
+tab and in the teacher Guide.
+
+It is not made on the one screen where a stranger is deciding whether to type a
+class of children's names in. A teacher evaluating StoryJar against Seesaw meets
+the reassurance everywhere except at the moment of commitment.
+
+### Not a legal defect
+
+Worth stating precisely, because it would be easy to over-file. The school is
+the controller and StoryJar the processor; the teacher is not the data subject
+here and Article 13 is the school's duty to families, not StoryJar's duty to the
+teacher. `docs/DPIA.md` and the privacy page carry the transparency obligation
+and both exist. This is a trust and copy gap at the point of decision, not a
+compliance one — which is why it is Medium and not High, and why the fix is a
+sentence rather than a flow.
+
+### What would close it
+
+One sentence on step 1, and one on the step that asks for the class, saying
+what a teacher needs to hear before typing a child's name: nothing a child makes
+is published until a teacher has approved it, the school owns the work, and it
+does not leave the UK or the EU. The wording is `docs/brand-and-copy.md`'s to
+approve, and the claims must match `SAFEGUARDING.md` rather than being written
+fresh — this file has already recorded, in F57's neighbours, what happens when a
+promise is restated in a second place and then drifts.
