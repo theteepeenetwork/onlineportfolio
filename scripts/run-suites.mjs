@@ -31,6 +31,7 @@
 // `next dev` and fail against `next start` are the gate doing its job. Speed is
 // not worth testing a build nobody ships to a school.
 import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:net";
 import { cpus } from "node:os";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -53,7 +54,73 @@ const laneEnv = (lane) => ({
   NEXT_DIST_DIR: `.next-lane-${lane}`,
 });
 
+const lanePort = (lane) => BASE_PORT + lane;
+
+// Is anything already holding a lane's port? Asked by BINDING it rather than by
+// asking it for a page: a dev server that is still compiling holds the port
+// without answering HTTP, so an HTTP probe reports "free" for the case that
+// matters most.
+function portIsFree(port) {
+  return new Promise((resolve) => {
+    const probe = createServer();
+    probe.once("error", () => resolve(false));
+    probe.once("listening", () => probe.close(() => resolve(true)));
+    probe.listen(port, "127.0.0.1");
+  });
+}
+
+/**
+ * Refuse to run against a server this runner did not start.
+ *
+ * Both configs set `reuseExistingServer: true`, which is right for a person
+ * running one spec against their own `npm run dev`, and wrong here: a lane
+ * hands Playwright a PORT, and if something is already on it Playwright adopts
+ * it and never starts the lane's own. The lane's DATABASE_URL still points at
+ * `dev-shard-N.db`, so the setup wipes and seeds one database while every
+ * request is answered by a server reading another. Two ways that bites:
+ *
+ *   - Somebody is running `PORT=3201 npm run dev` on `prisma/dev.db`. The suite
+ *     then drives THEIR database — and the persona journeys delete staff,
+ *     classes and access — so the cost of getting this wrong is their own data,
+ *     not a red test.
+ *   - A second lane run is already going (two agents on one tree, which
+ *     `docs/agent-fleet.md` describes). It owns these ports and these shard
+ *     databases, and each run's setup reseeds under the other's feet. Every
+ *     symptom is a timeout somewhere unrelated.
+ *
+ * Neither is distinguishable from a slow machine once the output arrives, so
+ * this stops before the run rather than explaining afterwards.
+ */
+async function claimLanePorts() {
+  const taken = [];
+  for (let lane = 1; lane <= LANES; lane += 1) {
+    if (!(await portIsFree(lanePort(lane)))) taken.push(lanePort(lane));
+  }
+  if (!taken.length) return;
+  throw new Error(
+    `lane port${taken.length > 1 ? "s" : ""} ${taken.join(", ")} already in use.\n\n` +
+      `  A lane starts its own dev server. Something is already on that port, and because\n` +
+      `  both Playwright configs reuse an existing server, this run would test whatever is\n` +
+      `  there — against a database it did not seed.\n\n` +
+      `  If it is a leftover lane server:  pkill -f "next dev"\n` +
+      `  If it is another battery run:     let it finish; they share these ports.\n` +
+      `  If it is your own dev server:     move it, or set PW_BASE_PORT to another block.\n`,
+  );
+}
+
 function prepareLane(lane) {
+  // Start from a database file that does not exist rather than one left behind
+  // by an interrupted run. The seeds force a wipe either way, so this is not
+  // about stale ROWS; it is about a file whose schema belongs to whichever
+  // branch was last checked out, which `db push --accept-data-loss` then has to
+  // reconcile instead of simply creating. Cheap, and it removes the "stale
+  // database that reads as a broken branch" class in F56 for the lane path.
+  //
+  // The `.next-lane-N` build caches are deliberately NOT cleared: measured on
+  // 2026-08-24, the same 29 specs took 33.2s cold and 30.4s against a warm
+  // server and warm cache, so deleting them costs a full recompile per lane and
+  // buys nothing. Clearing them stays the manual step AGENTS.md describes.
+  removeLaneDb(lane);
   const push = spawnSync("npx", ["prisma", "db", "push", "--skip-generate", "--accept-data-loss"], {
     env: laneEnv(lane),
     encoding: "utf8",
@@ -126,6 +193,11 @@ async function runJobs(suites) {
     }
   }
 
+  // Before anything is generated, pushed or seeded: the lanes' ports have to be
+  // ours. First because everything below WRITES — a run that is going to refuse
+  // should refuse before it has reseeded three databases.
+  await claimLanePorts();
+
   // Regenerate the Prisma client ONCE, before any lane touches a database.
   //
   // `prepareLane` below runs `db push --skip-generate` per lane, and that flag is
@@ -162,14 +234,19 @@ async function runJobs(suites) {
   return results;
 }
 
-export function cleanUpLanes() {
-  for (let lane = 1; lane <= LANES; lane += 1) {
-    for (const suffix of ["", "-journal"]) {
-      try {
-        rmSync(`prisma/dev-shard-${lane}.db${suffix}`, { force: true });
-      } catch {
-        /* nothing to remove */
-      }
+// One lane's database and everything SQLite keeps beside it. `-wal` and `-shm`
+// matter as much as the file itself: leaving a write-ahead log next to a deleted
+// database is how a fresh file comes back holding the last run's pages.
+function removeLaneDb(lane) {
+  for (const suffix of ["", "-journal", "-wal", "-shm"]) {
+    try {
+      rmSync(`prisma/dev-shard-${lane}.db${suffix}`, { force: true });
+    } catch {
+      /* nothing to remove */
     }
   }
+}
+
+export function cleanUpLanes() {
+  for (let lane = 1; lane <= LANES; lane += 1) removeLaneDb(lane);
 }

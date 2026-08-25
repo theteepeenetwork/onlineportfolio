@@ -94,12 +94,41 @@ three lanes at once, which is the isolation CI gets from three runners, on one
 machine. `PW_SHARDS=1` turns it off; `PW_SHARDS=4` on a bigger machine turns it
 up. Nothing is skipped: `--shard` splits by file.
 
+**The lanes are the runner's, and it now says so.** Before it generates,
+pushes or seeds anything, `run-suites.mjs` binds each lane's port and **refuses
+to start if one is taken**, because both configs set `reuseExistingServer: true`
+— so a lane handed a port somebody else is already on adopts that server and
+never starts its own, while still seeding `dev-shard-N.db` and driving a server
+reading a different database. The two ways that happens are a stray
+`PORT=3201 npm run dev` (the suite then drives `prisma/dev.db`, and the persona
+journeys *delete* staff, classes and access) and a second battery run on the
+same tree, which owns these ports and these databases and reseeds under the
+first one's feet. Each lane's database is also removed and recreated at the
+start of a run rather than only at the end, so an interrupted run cannot leave a
+file whose schema belongs to another branch. Build caches are deliberately left
+alone: measured, the same 29 specs took 33.2s cold and 30.4s warm, so clearing
+`.next-lane-*` costs a recompile and buys nothing. If you need the ports for
+something else, move the block with `PW_BASE_PORT`.
+
 The cost of three lanes on a four-core machine is that a single test can lose a
 race it would never lose alone: three dev servers compiling at once have twice
 pushed a `waitForURL` past its budget — once on the operator door's keyboard
 walk, once on a child handing in words. Both passed alone in a second or two. So
 **a lone timeout in a lane run is a re-run before it is a bug**: run that spec
 by itself, and believe the second answer. Anything that fails both ways is real.
+
+**A *cluster* of timeouts in one product area is the same advice, and looks
+much more like a regression.** On 2026-08-24 a run came back 5 failed / 78
+passed on one e2e shard in 1 hour 32, every failure in the canvas-object specs,
+with Playwright blaming `objects.spec.ts (17.1m)` and `object-lock.spec.ts
+(16.3m)`. Those files run in about two seconds. Cold, alone, they passed in 33s;
+the whole 252-test e2e suite across the same three lanes passed in 2.1 minutes;
+the entire blocking battery passed in 5.7. What was actually true was
+`sysctl vm.swapusage` reading **9.4 GB used of a 10 GB swap file before the run
+began**, on a 16 GB machine. A starved machine stretches a two-second file to
+seventeen minutes and everything holding a `waitForURL` goes red together. Check
+memory pressure and re-run the named files alone before reading a line of test
+code.
 
 The lanes run `next dev`, not a shared `next build`, and that is deliberate
 however tempting the 30-second build looks. A production build is a different

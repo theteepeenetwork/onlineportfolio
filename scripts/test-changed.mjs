@@ -65,26 +65,42 @@ if (check.status !== 0) process.exit(check.status ?? 1);
 console.log("");
 
 const started = Date.now();
-const results = await runAll(chosen.map((suite) => ({ suite, argv: COMMANDS[suite] })));
-cleanUpLanes();
-
-const failed = results.filter((r) => !r.ok);
-console.log(`\n[test:changed] ${((Date.now() - started) / 1000 / 60).toFixed(1)} min wall-clock`);
-
-if (failed.length) {
-  for (const f of failed) {
-    console.log(`\n───── ${f.name} ─────`);
-    process.stdout.write(f.output);
-  }
-  console.log(`\n[test:changed] ✖ ${failed.map((f) => f.name).join(", ")}`);
-  // `process.exitCode`, NOT `process.exit()`. Writes to a pipe are asynchronous,
-  // and `process.exit()` does not wait for them: piped into `tee`, a log file or
-  // a CI step, the failure report above is cut off at 64KB — measured — and a
-  // failing e2e shard alone prints more than that. What is lost is the end,
-  // including the ✖ line naming the suites, so a red run can read as a run that
-  // stopped mid-sentence. Setting the code and falling off the end of the script
-  // exits 1 just the same, after Node has flushed everything.
+let results;
+try {
+  results = await runAll(chosen.map((suite) => ({ suite, argv: COMMANDS[suite] })));
+} catch (e) {
+  // A refusal to start — a lane port held by something else, a database that
+  // would not push. It is addressed to a person and says what to do, so print
+  // the message and not the stack that would bury it.
+  console.error(`\n[test:changed] ✖ ${e.message}`);
+  // Deliberately NOT cleanUpLanes(). The commonest refusal is "those ports
+  // belong to another run", and that run's shard databases are exactly what
+  // cleanUpLanes deletes. The ports are claimed before this process creates
+  // anything, so there is nothing of ours to tidy.
   process.exitCode = 1;
-} else {
-  console.log("[test:changed] ✓ everything this change needs is green");
+}
+if (results) {
+  cleanUpLanes();
+
+  const failed = results.filter((r) => !r.ok);
+  console.log(`\n[test:changed] ${((Date.now() - started) / 1000 / 60).toFixed(1)} min wall-clock`);
+
+  if (failed.length) {
+    for (const f of failed) {
+      console.log(`\n───── ${f.name} ─────`);
+      process.stdout.write(f.output);
+    }
+    console.log(`\n[test:changed] ✖ ${failed.map((f) => f.name).join(", ")}`);
+    // `process.exitCode`, NOT `process.exit()`. Writes to a pipe are
+    // asynchronous, and `process.exit()` does not wait for them: piped into
+    // `tee`, a log file or a CI step, the failure report above is cut off at
+    // 64KB — measured — and a failing e2e shard alone prints more than that.
+    // What is lost is the end, including the ✖ line naming the suites, so a red
+    // run can read as a run that stopped mid-sentence. Setting the code and
+    // falling off the end of the script exits 1 just the same, after Node has
+    // flushed everything.
+    process.exitCode = 1;
+  } else {
+    console.log("[test:changed] ✓ everything this change needs is green");
+  }
 }
