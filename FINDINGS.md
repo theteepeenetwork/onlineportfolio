@@ -109,7 +109,8 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F53 | Low | Repo hygiene / gate legibility | Four editor duplication artefacts (`… 2.ts`, `… 2.sql`) were committed and sat in the tree for days. Three were spec files — including one in the **blocking security directory that has never executed**, because the space before `2.ts` cannot match Playwright's default `*.spec.ts` glob. A file that reads as coverage and is not is worst in that directory. The fourth is an **older draft of a migration**, still tracked, whose column is named `template` — the exact name the schema rejected because the ops blindness gate derives its child-relation denylist from relation names | **Three deleted** 2026-08-23; the migration artefact is **open**, untouched under the schema freeze | n/a — nothing collected or applied any of them, which is the finding |
 | F56 | Medium | Test harness / gate reachability | **The lane path and the direct path are two different test environments, and `npm run test:gate` is the one nobody checks.** Found 2026-08-24, twice in one evening, in two unrelated classes. **Setup:** bringing the database up to the committed schema is done in **three** independent places — `scripts/run-suites.mjs:56` (per lane, to that lane's shard database, never `prisma/dev.db`), `tests/battery/global-setup.ts:36` and `tests/global-setup.ts` — and the third had none until it was found for a third time, so plain `npm run test:e2e`, and therefore `test:gate`, died on any branch adding a column. Each of the three was added by whoever was standing on that path. **Timing:** `e2e/school-picker.spec.ts`'s in-flight test passed in lanes and failed on the direct path **deterministically**, because its outcome turned on whether a 250ms debounced search returned before a click completed, and the two paths differ in port, dist dir, database and compile order. **That instance no longer reproduces (25 Aug 2026):** the product defect under it was fixed with the school picker, and all 10 school-picker specs pass on the direct path. The instance is gone; the divergence that hid it is not. | **Open.** Neither stated closure criterion is met — still three independent setup sites, and the direct path is still not a lane. The port guard of 25 Aug 2026 closes the stale-database class for the lane path only | n/a — the finding is that the harness has two environments, so no single suite can hold it. The setup half is closed at all three sites; the divergence is not |
 | F57 | Medium | Operations / the school register | **The documented way to refresh the school register could not run where the database is.** `npm run gias:import` — the command the script's own header gives as the production procedure — answers **403 inside the Railway container** and 200 from a laptop the same minute, because the DfE blocks the datacentre range. It fails at the FIRST fetch, before anything downloads, so nothing was ever half-written; it simply could not be done. Found 25 Aug 2026 the only way it could be: by somebody trying it for the first time. Third instance of the F44 class — a documented operational capability that had never once been exercised. **Established 25 Aug 2026: production's register had never been imported at all** — one `register:refresh` row ever, that morning's — so the live signup picker was empty from the day the feature shipped, with every gate green over an empty table. |
-| F58 | **High** | Test harness / persona suite truthfulness | **The persona suite can report a working feature as broken and a broken one as working, and we have made decisions on its output all week.** Its "did it work?" checks are `seesText(/…/i)` against rendered copy, and 16 of 63 are unsound. Proven against real rendered text: `/…\|nothing/i` matched "**Nothing** else was searched" in a refusal and scored a miss as a find (the false major "I cannot issue them a new code" — the control exists and works); `/…\|ok\|…/i` matches "br**ok**en", so the operator health check passes on the exact word that means it is broken; and the `/ops` console check looks for words the shipped verdict tile never says, so it reported a working tile as absent. Substring hazards confirmed in real copy: `ok`→broken/looks/cookie, `ask`→task/asked, `done`→undone, `sure`→measured/erasure, `back`→background/feedback. A second class cannot fail at all: `/class(es)?\|work\|…/` on a staff page. | **Open** | `scripts/check-persona-patterns.mjs` in `npm run check` — a bare alternation shorter than 5 characters, or a failure word inside a success pattern, is refused with the word that would collide | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
+| F58 | **High** | Test harness / persona suite truthfulness | **The persona suite can report a working feature as broken and a broken one as working, and we have made decisions on its output all week.** Its "did it work?" checks are `seesText(/…/i)` against rendered copy, and 16 of 63 are unsound. Proven against real rendered text: `/…\|nothing/i` matched "**Nothing** else was searched" in a refusal and scored a miss as a find (the false major "I cannot issue them a new code" — the control exists and works); `/…\|ok\|…/i` matches "br**ok**en", so the operator health check passes on the exact word that means it is broken; and the `/ops` console check looks for words the shipped verdict tile never says, so it reported a working tile as absent. Substring hazards confirmed in real copy: `ok`→broken/looks/cookie, `ask`→task/asked, `done`→undone, `sure`→measured/erasure, `back`→background/feedback. A second class cannot fail at all: `/class(es)?\|work\|…/` on a staff page. | **Open** | `scripts/check-persona-patterns.mjs` in `npm run check` — a bare alternation shorter than 5 characters, or a failure word inside a success pattern, is refused with the word that would collide |
+| F59 | **Critical** | Access control / children's data (Rule 1) | **"Remove from school" does not remove access.** `removeStaff` sets `teacher.schoolId = null`; `Class` has **no `schoolId`**, so a class belongs to a school only through its teacher. Measured 25 Aug 2026 on the persona school: removing an ACTIVE teacher in one click, with no confirmation, took the school from 5 classes/17 pupils to **1 class/3 pupils** — while he signed straight back in to `/teacher` with all four classes, **14 pupils, 7 journal items and 2 items waiting in his approval queue**. The admin's intent is not achieved, the school cannot reassign the classes it can no longer see (the action's own comment claims it can), and the audit log records "Removed Nathan Reeves from the school", which is now false in the direction that matters. Found only because F58's cannot-fail check was tightened; `grep -rln "removeStaff\|STAFF_REMOVED" tests/` returned **nothing** — the action had never been exercised by any test. | **Open.** Fix shape is the owner's call: reassign-on-remove (narrow) or give `Class` a `schoolId` (structural, touches the ops blindness gate's relation paths) | `tests/battery/findings/staff-removal.spec.ts` — asserts the intended secure behaviour and **fails on purpose** until fixed | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
 
 ---
 
@@ -3205,6 +3206,28 @@ a working feature was reported as missing. **A suite that cannot see a fix will
 keep reporting it as broken after somebody fixes it** — which is the failure mode
 that wastes the most time, because the obvious response is to fix it again.
 
+### The number that settles gate-versus-sweep
+
+The hand audit above found **16**. The gate, run against the same eleven files
+minutes later, found **41**.
+
+The audit was not careless. It read every one of the 63 patterns, in context,
+with the direction of each boolean checked, and it produced the four proven
+misreports that this entry is built on. It was still **more than half
+incomplete**, and nothing but the gate revealed that. What it missed was not
+subtle cases — it was `\bplan\b`, `\brole\b`, `\bsent\b`, `\bstop\b`,
+`\bnext\b`, `\byear\b`: ordinary short words in ordinary patterns, skipped
+because after the twentieth file a person is pattern-matching on what already
+looks wrong rather than checking each one.
+
+Worth having in writing the next time a careful manual pass is proposed as the
+remedy for anything. **A sweep finds the instances you notice. A gate finds the
+instances.** The same lesson is in F44 (three fixes to three copies of one
+command), F56 (three setup sites, each fixed by whoever stood on it) and in this
+suite's own history (the "bo" in "about" fix, applied once). This is the first
+time it has a number against it: 16 against 41, by the same reader, on the same
+files, an hour apart.
+
 ### The two classes
 
 **Substring collisions.** `seesText` has no word boundaries, so a bare
@@ -3261,3 +3284,121 @@ A gate, not a sweep, because the sweep is what the child-name fix already did:
 The gate and the 16 fixes are the work; this entry is the record of why. Until
 both land, treat any persona result whose wording is close to one of the
 patterns above as unconfirmed, and check the screen.
+
+## F59 · "Remove from school" does not remove access · Critical → Open
+
+Found 25 August 2026. Not by looking for it: F58 identified four persona checks
+that **could not fail**, and this is what the first of them was hiding. The
+check had been passing since the day it was written, so the thing it was meant
+to verify — what happens when a school removes a member of staff — **had never
+once been tested**. `grep -rln "removeStaff\|STAFF_REMOVED" tests/` returns
+nothing.
+
+### What happens
+
+`src/app/actions/admin.ts:107`, one click from the staff row menu, **no
+confirmation step and nothing said about the person's classes**:
+
+```ts
+if (staff.status === "INVITED") {
+  await db.teacher.delete({ where: { id: staffId } });
+} else {
+  await db.teacher.update({ where: { id: staffId }, data: { schoolId: null } });
+}
+```
+
+The comment above it reads *"active staff are unlinked (their classes are left
+intact and can be reassigned)"*. Neither half of that survives contact.
+
+**`Class` has no `schoolId`.** A class belongs to a school only *through* its
+teacher — `Class.teacherId` → `Teacher.schoolId`. Nulling the teacher's school
+therefore takes every class they hold out of the school with them, and leaves
+`Class.teacherId` pointing at them exactly as before.
+
+### Measured, on the persona school
+
+Removing Nathan Reeves, ACTIVE, holding four classes:
+
+| The school's console | before | after |
+| --- | --- | --- |
+| Staff | 5 | 4 |
+| Classes | 5 | **1** |
+| Pupils | 17 | **3** |
+
+Then the removed teacher signs in — a clean browser context, no session carried
+over, his own email and password:
+
+```
+REMOVED TEACHER LANDED ON: /teacher
+MY CLASSES: Ducklings · Robins · Herons · Wrens (old)
+14 pupils in 4 classes · 2 waiting for you
+Just added to their jars: Quill, Bo, Wren
+```
+
+The database agrees. `schoolId: null`, `status: ACTIVE`, and every class still
+his:
+
+```
+Ducklings 3 pupils / 1 item · Robins 6 / 3 · Herons 4 / 2 · Wrens (old) 1 / 1
+```
+
+He keeps the approval queue, the journals, the photographs, and the children's
+names.
+
+### Three consequences, worst last
+
+1. **The admin's intent is not achieved.** A head teacher removing someone who
+   has left believes they have revoked access to children's work. They have
+   not. Nothing on the screen tells them so.
+2. **The school loses what it cannot then recover.** Four classes and fourteen
+   pupils vanish from the console, so they cannot be reassigned — the opposite
+   of what the code comment promises. The only route back is to restore the
+   teacher's `schoolId`, which no screen offers.
+3. **The audit log now says something untrue.** `STAFF_REMOVED — "Removed
+   Nathan Reeves from the school"` is written in the same breath. A school
+   answering a safeguarding question months later reads a record saying access
+   was removed on a date when it was not.
+
+### Why it is Critical rather than High
+
+Rule 1 names authentication, access control, the approval queue, children's
+data and uploaded media. This is four of the five at once, in the one operation
+a school performs precisely *because* somebody should no longer have access —
+a teacher who has left, or one who has been suspended. It is the safeguarding
+case, not the housekeeping one, and it is silently a no-op.
+
+It is not remotely exploitable and needs no attacker: it needs a head teacher
+doing the right thing and believing it worked.
+
+### What the fix is, and why it is not decided here
+
+Two honest shapes, and they differ enough that an agent should not pick:
+
+- **Reassign-on-remove.** Removing active staff moves their classes to the
+  admin (or to a named colleague) in the same transaction, so access ends and
+  the school keeps the classes. Contained, no schema change. Needs a decision
+  about who receives them and what a teacher with thirty classes does to the
+  admin's console.
+- **Give `Class` a `schoolId`.** A class belongs to the school, not to a
+  person, which is what a school would say is true. Correct, and it reaches the
+  schema, every teacher-scoped query, and the ops blindness gate's child-relation
+  denylist — which derives from relation names, and which F53 already records
+  rejecting a column called `template` for that reason.
+
+The first is this week's fix. The second is the one that stops the class of
+problem, and it belongs with the school-identity work in
+`docs/school-identity.md` rather than being done in a freeze.
+
+### Covering test
+
+`tests/battery/findings/staff-removal.spec.ts`, following this repository's
+convention for a logged gap: it asserts the **intended** behaviour — a removed
+member of staff cannot reach the children's work — and therefore **fails on
+purpose** until the fix lands. When it is fixed it moves into the blocking
+security suite, and this entry is deleted rather than reworded.
+
+### One thing to check before the fix
+
+Whether any teacher has already been removed on production. `schoolId: null`
+with `status: ACTIVE` is the signature, and those accounts still hold their
+classes today.
