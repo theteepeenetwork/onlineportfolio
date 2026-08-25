@@ -48,18 +48,30 @@ import {
 // them, and importing them would start a new data category (rule 9) to no end.
 //
 // Usage:
-//   npm run gias:import                      # resolve the latest, download, replace
-//   npm run gias:import -- --dry-run         # download and parse, write nothing
-//   npm run gias:import -- --file ./x.csv    # parse a file already on disk
+//   npm run gias:import                              # resolve the latest, download, replace
+//   npm run gias:import -- --dry-run                 # download and parse, write nothing
+//   npm run gias:import -- --file ./x.csv            # parse a file already on disk
+//   npm run gias:import -- --extract-date 2026-08-25 # download that date, skip the page
 //
 // Against production, inside the container, because it writes rows and the
 // database is a file on the volume:
 //   railway ssh
-//   npm run gias:import
+//   npm run gias:import -- --extract-date <the date on the Downloads page>
 //
 // NOT `railway run` — that would give you the variables and somebody else's
 // database file. This is the same trap F44 recorded for the mail suppression
 // sync.
+//
+// WHY PRODUCTION NEEDS --extract-date AND A LAPTOP DOES NOT
+//
+// Measured 25 August 2026: the Downloads page answers **403 inside the Railway
+// container** and 200 from a laptop minutes either side of it, on the same
+// user-agent. The DfE blocks the datacentre range. The plain form of this
+// command therefore works where the database is not and fails where it is, and
+// the failure is at the very first fetch — before anything is downloaded, so
+// nothing is changed. Read the date off the Downloads page in a browser and
+// state it. See `downloadDated` for why that is not the guessing this script
+// refuses to do.
 // ---------------------------------------------------------------------------
 
 const CHUNK = 1_000;
@@ -87,9 +99,34 @@ async function resolveAndDownload(): Promise<Source> {
   process.stdout.write(`[gias-import] reading ${GIAS_DOWNLOADS_PAGE}\n`);
   const page = await (await fetchText(GIAS_DOWNLOADS_PAGE, "the GIAS Downloads page")).text();
   const sourceDate = resolveExtractDate(page);
-
-  const url = extractUrl(sourceDate);
   process.stdout.write(`[gias-import] the latest extract is ${sourceDate}; downloading\n`);
+  return downloadDated(sourceDate);
+}
+
+/**
+ * Download the extract for a date somebody has already established.
+ *
+ * The two fetches this script makes go to two different hosts, and only one of
+ * them is used to LEARN anything: the Downloads page is read solely to find out
+ * what date the latest extract carries, and the extract itself lives on
+ * `ea-edubase-api-prod.azurewebsites.net`. On 25 August 2026 the Downloads page
+ * answered **403 from inside the Railway container** while answering 200 from a
+ * laptop minutes earlier — the DfE blocks the datacentre range — so an import
+ * that can only discover the date is an import that cannot run where the
+ * database is.
+ *
+ * `--extract-date` is the seam that falls out of that: the operator reads the
+ * date off the Downloads page in their own browser and states it. This is not
+ * the "guess a date" that `resolveExtractDate` refuses to do — nothing is
+ * inferred from a pattern, a person has read the real page — and every guard
+ * that matters is downstream of here anyway. A date that never existed 404s on
+ * the download; a date whose file is truncated or renamed hits
+ * MINIMUM_PLAUSIBLE_ROWS and the register is not replaced. The JobRun row
+ * records the stated date, so `/ops/health` shows the age of what was actually
+ * imported rather than "not recorded", which is what `--file` has to say.
+ */
+async function downloadDated(sourceDate: string): Promise<Source> {
+  const url = extractUrl(sourceDate);
   // The extract is Windows-1252 and NOT UTF-8. res.text() would decode it as
   // UTF-8 and turn every curly apostrophe in the file into mojibake, so the
   // bytes are taken and decoded deliberately. There are a great many schools
@@ -180,8 +217,39 @@ async function main(): Promise<void> {
   const file = fileAt >= 0 ? argv[fileAt + 1] : undefined;
   if (fileAt >= 0 && !file) throw new Error("--file needs a path");
 
+  const dateAt = argv.indexOf("--extract-date");
+  const extractDate = dateAt >= 0 ? argv[dateAt + 1] : undefined;
+  if (dateAt >= 0 && !extractDate) {
+    throw new Error(
+      `--extract-date needs a date, as YYYY-MM-DD. It is the "file generated" date the ` +
+        `all-establishments extract carries on ${GIAS_DOWNLOADS_PAGE}. Read it there; do not ` +
+        "guess one.",
+    );
+  }
+  // Checked here rather than left to `extractUrl`, which throws a
+  // GiasFormatError — the wrapper at the bottom renders that as "the extract is
+  // not the shape this script expects", which blames the DfE's file for what is
+  // a typo in an argument.
+  if (extractDate && !/^\d{4}-\d{2}-\d{2}$/.test(extractDate)) {
+    throw new Error(
+      `--extract-date must be YYYY-MM-DD, not "${extractDate}". The Downloads page writes it ` +
+        "the other way round, so 25 August 2026 is 2026-08-25 here.",
+    );
+  }
+  if (file && extractDate) {
+    throw new Error(
+      "--file and --extract-date are two different sources. Pass one: --file parses what is " +
+        "already on disk, --extract-date downloads the extract for a date you have read off " +
+        "the Downloads page.",
+    );
+  }
+
   const startedAt = new Date();
-  const source = file ? readLocal(file) : await resolveAndDownload();
+  const source = file
+    ? readLocal(file)
+    : extractDate
+      ? await downloadDated(extractDate)
+      : await resolveAndDownload();
 
   const { rows, seen, skipped } = parseGias(source.text);
   process.stdout.write(
