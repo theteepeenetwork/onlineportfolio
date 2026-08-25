@@ -108,7 +108,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F52 | Medium | Gate hygiene / user copy | `scripts/error-string-audit.mjs` extracts strings with `/["'`]([^"'`]{6,})["'`]/g`, and both halves of that pattern are wrong. The character class excludes all three quote types, so **an apostrophe ends a double-quoted string** — 79 user-facing strings across `src` are audited only as far as their first "doesn't". And the `{6,}` sits *inside* the pattern, so a string too short to match never consumes its own quotes and every later quote on the line is off by one — 208 of the 1,521 "strings" it currently audits are **code caught between mis-paired quotes**, which is where the standing HARD hit comes from. The false negatives are the finding; the noisy line is only what led to it | **Fixed** 2026-08-23; the freeze deferral was reversed once `scripts/` was already dirty and the cost was sunk | n/a — a gate script, not the product. What makes the fix safe is the before-and-after across `src`: HARD 1 → 0, SOFT 6 → 6 on the same six sites, no new findings |
 | F53 | Low | Repo hygiene / gate legibility | Four editor duplication artefacts (`… 2.ts`, `… 2.sql`) were committed and sat in the tree for days. Three were spec files — including one in the **blocking security directory that has never executed**, because the space before `2.ts` cannot match Playwright's default `*.spec.ts` glob. A file that reads as coverage and is not is worst in that directory. The fourth is an **older draft of a migration**, still tracked, whose column is named `template` — the exact name the schema rejected because the ops blindness gate derives its child-relation denylist from relation names | **Three deleted** 2026-08-23; the migration artefact is **open**, untouched under the schema freeze | n/a — nothing collected or applied any of them, which is the finding |
 | F56 | Medium | Test harness / gate reachability | **The lane path and the direct path are two different test environments, and `npm run test:gate` is the one nobody checks.** Found 2026-08-24, twice in one evening, in two unrelated classes. **Setup:** bringing the database up to the committed schema is done in **three** independent places — `scripts/run-suites.mjs:56` (per lane, to that lane's shard database, never `prisma/dev.db`), `tests/battery/global-setup.ts:36` and `tests/global-setup.ts` — and the third had none until it was found for a third time, so plain `npm run test:e2e`, and therefore `test:gate`, died on any branch adding a column. Each of the three was added by whoever was standing on that path. **Timing:** `e2e/school-picker.spec.ts`'s in-flight test passed in lanes and failed on the direct path **deterministically**, because its outcome turned on whether a 250ms debounced search returned before a click completed, and the two paths differ in port, dist dir, database and compile order. **That instance no longer reproduces (25 Aug 2026):** the product defect under it was fixed with the school picker, and all 10 school-picker specs pass on the direct path. The instance is gone; the divergence that hid it is not. | **Open.** Neither stated closure criterion is met — still three independent setup sites, and the direct path is still not a lane. The port guard of 25 Aug 2026 closes the stale-database class for the lane path only | n/a — the finding is that the harness has two environments, so no single suite can hold it. The setup half is closed at all three sites; the divergence is not |
-| F57 | Medium | Operations / the school register | **The documented way to refresh the school register could not run where the database is.** `npm run gias:import` — the command the script's own header gives as the production procedure — answers **403 inside the Railway container** and 200 from a laptop the same minute, because the DfE blocks the datacentre range. It fails at the FIRST fetch, before anything downloads, so nothing was ever half-written; it simply could not be done. Found 25 Aug 2026 the only way it could be: by somebody trying it for the first time. Third instance of the F44 class — a documented operational capability that had never once been exercised. | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
+| F57 | Medium | Operations / the school register | **The documented way to refresh the school register could not run where the database is.** `npm run gias:import` — the command the script's own header gives as the production procedure — answers **403 inside the Railway container** and 200 from a laptop the same minute, because the DfE blocks the datacentre range. It fails at the FIRST fetch, before anything downloads, so nothing was ever half-written; it simply could not be done. Found 25 Aug 2026 the only way it could be: by somebody trying it for the first time. Third instance of the F44 class — a documented operational capability that had never once been exercised. **Established 25 Aug 2026: production's register had never been imported at all** — one `register:refresh` row ever, that morning's — so the live signup picker was empty from the day the feature shipped, with every gate green over an empty table. | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
 
 ---
 
@@ -3127,9 +3127,34 @@ If it ever needs to be automatic, the options are a mirror of the extract on a
 host we control, or asking the DfE to allow the range. Both are decisions rather
 than changes, and neither is needed before launch.
 
-### Not established
+### Established, 25 August 2026: it had never been populated at all
 
-Whether the production register had ever been populated before 25 August 2026.
-The import replaces wholesale, so the prior contents are gone; the first
-recorded successful `register:refresh` is that day's. Written down because the
-answer would be worth knowing and guessing it is not.
+The question was whether production had a register before that day. It did not.
+
+Production's `JobRun` table holds 8 rows. Exactly one is a `register:refresh`,
+and it is that morning's: `2026-08-25T06:48:36Z`, 20,295 rows, `source
+20260825`. A `JobRun` row is written on every successful import, so no earlier
+row means no earlier import — and the only other thing in the repository that
+writes `Establishment` is `prisma/seed-test.ts`, which seeds 32 fixtures and is
+never run against production. Both writers were checked rather than recalled:
+`establishment.createMany` appears in exactly those two files.
+
+**So the school picker on live teacher signup had nothing in it, from the day
+the feature shipped until that morning.** No teacher was blocked — free text is
+a first-class route in the picker and the fallback worked exactly as designed —
+but no URN was captured for anyone who signed up in that window, which is the
+whole point of the register and the thing `docs/school-identity.md` depends on.
+
+This is what makes the F44 class worth a name rather than three separate fixes.
+The register was designed, built, reviewed, given a search with bounds, given a
+gate of its own in `npm run check`, given a status tile on `/ops/health`, tested
+against two seeded schools, and deployed — and it was **inert in production the
+entire time**, because the one step that puts data in it had never been run
+there. Every gate in this repository was green over an empty table. Nothing here
+tests that a thing was *done*, only that it *works*, and those are different
+claims.
+
+Worth asking separately, and not asked here because it needs a look at real
+accounts rather than a schema: whether any teacher actually signed up in that
+window, and so whether any real school is now recorded by name with no URN
+against it.
