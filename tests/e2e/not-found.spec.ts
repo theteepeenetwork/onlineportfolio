@@ -25,7 +25,7 @@ for (const path of STRAY) {
 
     // Signed in as nobody. The boundary must render without a session, because
     // that is the commonest way to arrive at it.
-    const out = page.getByRole("link", { name: /go to the start/i });
+    const out = page.getByRole("link", { name: /back to the start/i });
     await expect(out, "a page with nothing to tap is the dead end this fixes").toBeVisible();
 
     // The child touch floor (SAFEGUARDING rule 18), because a child can reach

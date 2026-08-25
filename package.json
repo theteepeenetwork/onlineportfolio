@@ -20,7 +20,7 @@
     "test:report": "playwright show-report",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && node scripts/audit-static.mjs && node scripts/audit-motion.mjs && node scripts/check-r2-tripwire.mjs && node scripts/check-ops-blindness.mjs && node scripts/check-ops-blindness.mjs --self-test && node scripts/check-font-independence.mjs && node scripts/check-like-wildcards.mjs && node scripts/check-like-wildcards.mjs --self-test && node scripts/select-suites.mjs --self-test && tsx scripts/check-establishments.ts",
+    "check": "npm run typecheck && node scripts/audit-static.mjs && node scripts/audit-motion.mjs && node scripts/check-r2-tripwire.mjs && node scripts/check-ops-blindness.mjs && node scripts/check-ops-blindness.mjs --self-test && node scripts/check-font-independence.mjs && node scripts/check-like-wildcards.mjs && node scripts/check-like-wildcards.mjs --self-test && node scripts/check-persona-patterns.mjs && node scripts/check-persona-patterns.mjs --self-test && node scripts/select-suites.mjs --self-test && tsx scripts/check-establishments.ts",
     "test:security": "npm run check && npm run audit:prod && playwright test -c playwright.battery.config.ts --project=security",
     "test:security:findings": "playwright test -c playwright.battery.config.ts --project=security-findings",
     "test:a11y": "playwright test -c playwright.battery.config.ts --project=a11y",

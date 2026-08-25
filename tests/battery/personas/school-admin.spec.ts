@@ -55,7 +55,7 @@ test("the September jobs: staff in, staff out, classes moved on", async ({ page,
     // Did it actually send? An invite that silently fails is a member of staff
     // ringing you on Monday saying they never got anything.
     t.expects(
-      await t.seesText(/invited|sent|pending/i, 2000),
+      await t.seesText(/invited|\bsent\b|pending/i, 2000),
       "minor",
       "confusing",
       "Nothing tells me whether the invite email was actually sent, or when. If it bounced I would never know.",
@@ -89,7 +89,7 @@ test("the September jobs: staff in, staff out, classes moved on", async ({ page,
 
     // Removing a person's access to children's data is not an "undo" job. It
     // should say what happens to their classes and their work.
-    const explained = await t.seesText(/class(es)?|work|cannot be undone|permanent|sure/i, 2000);
+    const explained = await t.seesText(/class(es)?|\bwork\b|cannot be undone|permanent|\bsure\b/i, 2000);
     t.expects(
       explained,
       "major",
@@ -138,7 +138,7 @@ test("the September jobs: staff in, staff out, classes moved on", async ({ page,
     await t.sweep("the audit log");
 
     t.expects(
-      await t.seesText(/invite|role|staff|added|removed/i, 3000),
+      await t.seesText(/invite|\brole\b|staff|added|removed/i, 3000),
       "major",
       "confusing",
       "The audit log does not show the staff changes I just made, so it cannot be used to answer a question about access.",
@@ -175,7 +175,7 @@ test("what an admin can see about email, and about money", async ({ page, tester
   await carryOn(async () => {
     t.newJob();
     await t.open("/teacher/billing", "our plan and billing");
-    const answered = await t.seesText(/plan|£|renew|invoice|per year|trial/i, 3000);
+    const answered = await t.seesText(/\bplan\b|£|renew|invoice|per year|trial/i, 3000);
     t.expects(
       answered,
       "major",
@@ -192,7 +192,7 @@ test("what an admin can see about email, and about money", async ({ page, tester
 
     // The renewal question every business manager asks before signing.
     t.expects(
-      await t.seesText(/cancel|stop|leave|what happens if/i, 2000),
+      await t.seesText(/cancel|\bstop\b|leave|what happens if/i, 2000),
       "minor",
       "confusing",
       "Nothing says what happens to the children's work if we stop paying. That is the first question our data protection lead asks.",

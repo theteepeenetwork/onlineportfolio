@@ -149,8 +149,25 @@ function Result({ state }: { state: OpsLookupState }) {
       </h2>
       <div role="status" className="mt-3">
         {!record ? (
+          // SAY WHICH TABLE WAS SEARCHED. The old wording was "No account has
+          // that address", and it was false in the commonest way this screen is
+          // used wrong: the form defaults to staff, a support call about a
+          // family code is about a parent, and an operator who left the default
+          // alone was told no account existed for an account that does. The
+          // persona team hit exactly that and filed a major against the rotate
+          // control for not being there — it had rendered for nobody, because
+          // no parent had been found (F58).
+          //
+          // The narrower sentence also DISCLOSES LESS, which is why it is the
+          // right one twice over: "no account has that address" is a claim about
+          // every account in StoryJar, and this screen is only ever entitled to
+          // answer for the one table it looked in.
           <p style={{ color: "var(--ink)" }}>
-            No account has that address. Nothing else was searched, and the search was recorded.
+            No {state.kind === "PARENT" ? "parent or carer" : "member of school staff"} has that
+            address. Nothing else was searched, and the search was recorded
+            {state.kind === "PARENT"
+              ? " — if they are staff, search again for a member of school staff."
+              : " — if they are a parent or carer, search again for a parent or carer."}
           </p>
         ) : record.kind === "TEACHER" ? (
           <dl className="card grid gap-x-6 gap-y-1 p-5 sm:grid-cols-2">

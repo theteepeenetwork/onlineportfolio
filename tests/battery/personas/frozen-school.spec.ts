@@ -34,7 +34,7 @@ test("a lapsed account: what am I allowed to do, and how do I fix it?", async ({
     );
 
     t.expects(
-      await t.seesText(/still|can (still )?(see|view|download)|kept|safe|not deleted/i, 2500),
+      await t.seesText(/still|can (still )?(see|view|download)|\bkept\b|\bsafe\b|not deleted/i, 2500),
       "major",
       "confusing",
       "Nobody has told me whether the children's work is still there. That is my first question and my governors' first question.",
@@ -72,7 +72,7 @@ test("a lapsed account: what am I allowed to do, and how do I fix it?", async ({
     // The one thing that must never be blocked by money: getting the children's
     // work back out, and taking access away from somebody who should not have it.
     t.expects(
-      await t.seesText(/export|download|copy/i, 2500),
+      await t.seesText(/export|download|\bcopy\b/i, 2500),
       "major",
       "stuck",
       "I cannot get the children's work out of a lapsed account. Our data is being held behind a payment I am trying to make.",

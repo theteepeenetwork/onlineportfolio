@@ -171,7 +171,7 @@ test.describe("Nell, aged 6", () => {
 
       // Where did it go? A six-year-old needs to be told, in six-year-old words.
       t.expects(
-        await t.seesText(/teacher|waiting|jar|popped|well done/i, 3000),
+        await t.seesText(/teacher|waiting|\bjar\b|popped|well done/i, 3000),
         "major",
         "confusing",
         "I finished my picture and I do not know where it went or whether anyone will see it.",
@@ -195,7 +195,7 @@ test.describe("Nell, aged 6", () => {
       await t.sweep("the voice recorder");
 
       t.expects(
-        await t.seesText(/record|tap|press|hold/i, 2000),
+        await t.seesText(/record|\btap\b|press|\bhold\b/i, 2000),
         "major",
         "unreadable",
         "Nothing shows me what to do to start recording. A microphone picture on its own does not tell a six-year-old to press and talk.",
@@ -215,7 +215,7 @@ test.describe("Wren, aged 10", () => {
 
     await carryOn(async () => {
       t.expects(
-        await t.seesText(/again|back|improve|redo|carry on/i, 3000),
+        await t.seesText(/again|\bback\b|improve|\bredo\b|carry on/i, 3000),
         "major",
         "confusing",
         "My teacher sent my work back and my journal does not tell me. I would only find out by opening everything.",

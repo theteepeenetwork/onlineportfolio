@@ -72,7 +72,7 @@ test("from the landing page to a class of children who can sign in", async ({ pa
 
     // The promise a teacher needs before typing children's names in.
     t.expects(
-      await t.seesText(/safeguard|approv|privacy|data|only you|never/i, 1500),
+      await t.seesText(/safeguard|approv|privacy|\bdata\b|only you|never/i, 1500),
       "major",
       "confusing",
       "Nothing on the way in says what happens to children's work or who can see it. I am about to type my class into this.",
@@ -100,7 +100,7 @@ test("from the landing page to a class of children who can sign in", async ({ pa
     );
     if (modeCount > 0) {
       t.expects(
-        await t.seesText(/reception|year|3.5|5.7|7.11|younger|older|EYFS|KS1|KS2/i, 1500),
+        await t.seesText(/reception|\byear\b|3.5|5.7|7.11|younger|older|\bEYFS\b|KS1|KS2/i, 1500),
         "major",
         "confusing",
         "I am asked to choose what my children see, and the options are named in a way that does not tell me which one my Year 1 class needs.",
@@ -138,7 +138,7 @@ test("from the landing page to a class of children who can sign in", async ({ pa
     t.newJob();
 
     t.expects(
-      await t.seesText(/code|sign in|next|start|children can/i, 3000),
+      await t.seesText(/\bcode\b|sign in|\bnext\b|start|children can/i, 3000),
       "major",
       "confusing",
       "I have finished setting up and nothing tells me what to do next, or how my children get in.",

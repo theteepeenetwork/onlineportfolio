@@ -103,7 +103,7 @@ test("tap everything, twice, in the wrong order", async ({ page, tester: t }) =>
       await t.open(url, `an address I should not be at (${url})`);
       const stranded =
         (await t.seesText(/404|not found|unhandled|error/i, 1200)) &&
-        !(await t.seesText(/jar|journal|home|back|sign in/i, 800));
+        !(await t.seesText(/\bjar\b|journal|\bhome\b|\bback\b|sign in/i, 800));
       t.expects(
         !stranded,
         "major",

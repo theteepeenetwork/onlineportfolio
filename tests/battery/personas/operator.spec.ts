@@ -34,12 +34,35 @@ test("the nightly check: is anything on fire?", async ({ page, tester: t }) => {
   await carryOn(async () => {
     // The console must answer the question it exists for, in words, without
     // being read like a manual.
-    const answered = await t.seesText(/nothing needs you|no alerts|all (well|good)|needs attention/i, 3000);
+    //
+    // WRITTEN AGAINST WHAT THE TILE SAYS, which is the whole of F58's third
+    // remedy. The first version of this check looked for "nothing needs you",
+    // "no alerts" and "all well" — a guess at the wording, made before the
+    // verdict tile existed. The tile then shipped saying "Every attempt was
+    // accepted by Mailjet", none of the guessed phrases matched, and Ravi
+    // reported a working feature as missing. A pattern that cannot see a fix
+    // keeps reporting it after somebody has made it, which sends the next
+    // person to fix what is already fixed.
+    const answered = await t.seesText(
+      /every attempt was accepted|needs attention|were refused|attempts? (were|was)/i,
+      3000,
+    );
     t.expects(
       answered,
       "major",
       "confusing",
-      "The console does not answer “is anything wrong?” on the screen I land on. I have to open each area and form my own opinion.",
+      "The console does not say whether mail is working on the screen I land on. I have to open each area and form my own opinion.",
+    );
+
+    // And the honest limit of it. Mail is a live feed; deploys, backups and cron
+    // runs are not, and /ops says so in terms rather than showing a green light
+    // nobody is entitled to. That is a stated position, so the tester records
+    // what it costs him rather than calling the console blank.
+    t.expects(
+      await t.seesText(/deploys, backups and cron runs do not yet have one/i, 2000),
+      "minor",
+      "confusing",
+      "Mail is the only thing the console watches for me. Deploys, backups and cron runs are still mine to remember — the page is honest about it, but on the nightly check it means the screen answers one question of four.",
     );
 
     for (const [url, label] of CONSOLE_SCREENS.slice(1)) {
@@ -59,7 +82,7 @@ test("the nightly check: is anything on fire?", async ({ page, tester: t }) => {
   await carryOn(async () => {
     t.newJob();
     await t.open("/ops/health", "service health");
-    const inWords = await t.seesText(/not monitored|healthy|ok|watching|no signal/i, 3000);
+    const inWords = await t.seesText(/not monitored|healthy|\bok\b|watching|no signal/i, 3000);
     t.expects(
       inWords,
       "major",
@@ -111,7 +134,7 @@ test("a school rings up: a family code has gone to the wrong house", async ({ pa
         await search.fill(ACADEMY.parents.removable.email);
         await page.getByRole("button", { name: /search|find|look/i }).first().click();
       });
-      const explained = await t.seesText(/12 characters|at least|longer|more detail|why/i, 3000);
+      const explained = await t.seesText(/12 characters|at least|longer|more detail|\bwhy\b/i, 3000);
       t.expects(
         explained,
         "minor",
@@ -123,6 +146,24 @@ test("a school rings up: a family code has gone to the wrong house", async ({ pa
       });
     }
 
+    // SAY WHICH KIND OF ADULT, because the screen asks and defaults to staff.
+    //
+    // The first version of this journey never answered "Who are you looking
+    // for?", so it searched the staff table for a parent's address, was told
+    // "No account has that address", and went on to report that it could not
+    // issue a new code. The rotate control had rendered for nobody, because no
+    // parent had been found. That produced a major against a feature that
+    // works, and it is F58's worked example: the "did I find them?" check
+    // accepted the word "nothing", and the refusal says "Nothing else was
+    // searched".
+    await t.act("say I am looking for a parent, not a member of staff", async () => {
+      const parent = page
+        .getByRole("radio", { name: /parent or carer/i })
+        .or(page.getByLabel(/parent or carer/i))
+        .first();
+      await parent.check().catch(() => parent.click());
+    });
+
     await t.act("look the parent up by their address", async () => {
       await search.fill(ACADEMY.parents.removable.email);
       await page.getByRole("button", { name: /search|find|look/i }).first().click();
@@ -130,8 +171,28 @@ test("a school rings up: a family code has gone to the wrong house", async ({ pa
     await page.waitForTimeout(1200);
     await t.sweep("the adult's record");
 
-    const found = await t.seesText(/bramblewood|family|code|parent|no match|not found|nothing/i, 4000);
-    t.expects(found, "major", "confusing", "I searched for an address and the screen said nothing at all — I cannot tell whether it found them.");
+    // Judged on the RECORD, not on the page having said something. A masked
+    // address and a registered date are what a found parent looks like; a
+    // refusal shows neither, so this can no longer be satisfied by the refusal's
+    // own wording.
+    const found = await t.seesText(/registered/i, 4000);
+    t.expects(
+      found,
+      "major",
+      "confusing",
+      "I searched for an address and no record came back — I cannot tell whether it found them.",
+    );
+
+    // The refusal has to say which table it looked in. An operator on the phone
+    // who leaves the default selected is told "No account has that address"
+    // about an account that exists, which is the one sentence on this screen
+    // that must not be able to mislead.
+    t.expects(
+      !(await t.seesText(/^No account has that address\.$/i, 800)),
+      "major",
+      "confusing",
+      "The screen told me no account has that address without saying which kind of adult it searched, so I nearly told a school we had no record of a parent we do have.",
+    );
 
     // A child must not be reachable from here. This is the guarantee sold to the
     // school's data protection lead, so a tester checks it as a user, not only
@@ -199,7 +260,7 @@ test("is anybody's email broken?", async ({ page, tester: t }) => {
     // The operational gap that matters more than the screen: does anything tell
     // him, or does he have to remember to look?
     t.expects(
-      await t.seesText(/alert|notify|told|emailed you|warn/i, 2000),
+      await t.seesText(/alert|notify|\btold\b|emailed you|\bwarn\b/i, 2000),
       "major",
       "fragile",
       "Nothing here announces a problem. Mail can be failing for a day and the only way I find out is by choosing to look at this page.",

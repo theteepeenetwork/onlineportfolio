@@ -34,6 +34,15 @@ import Link from "next/link";
 //   reader of this page can use; a "back to your jar" link would be a dead end
 //   for a parent and a hint about the product's shape for everybody else.
 //
+// AND IT IS CALLED "BACK TO THE START", not "go to the start", which is not a
+// preference. The persona sweep judges a way back by the ACCESSIBLE NAME of the
+// controls on the page, against the words a child actually navigates by —
+// back, home, jar, journal, my work, close, done, bye. The first version of
+// this page said "Go to the start", offered a real way out, and was still
+// reported by the Wriggler as stranding a child: "There is no way back to
+// somewhere I recognise — no back, no home, no jar." A four-year-old does not
+// read "the start" as somewhere they have been. "Back" is the word.
+//
 // Sized and coloured for the youngest reader who can reach it: Atkinson body,
 // Fredoka heading, and a 64px target (SAFEGUARDING rule 18, the child floor)
 // rather than the 44px adult one, because the child floor also clears the adult.
@@ -89,7 +98,7 @@ export default function NotFound() {
           boxShadow: "0 5px 0 var(--jam-deep)",
         }}
       >
-        Go to the start
+        Back to the start
       </Link>
     </main>
   );
