@@ -107,7 +107,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F50 | Medium | A11y (child-facing) / gate blindness | **The canvas's Turn and Resize handles are announced as buttons and cannot be operated by any key.** Both are `<div role="button">` with `onPointerDown/Move/Up`, no `onKeyDown` and no `tabIndex` (`DrawingCanvas.tsx:5508-5533`) — a WCAG 2.2 **2.1.1 Keyboard** failure on two controls that are labelled, sized and, to a screen reader, present. There is no other way to rotate or resize an object, so for a keyboard or switch user those operations do not exist. **The part that generalises is why no gate caught it:** without `tabIndex` the element is not in the tab order, so a keyboard walk never reaches it to fail, and `role="button"` alone breaks no axe rule — the gate is blind precisely because the control is unreachable, which is the defect. Found while reading for the rotation investigation (`docs/rotation-findings.md`), not by a test | **Fixed** 2026-08-23, with the rotation work (options A + E). Both handles take `tabIndex` and arrow keys, stepping by the object's own rotation step so a keyboard reaches every position a pointer can; Turn and Resize are also real `<button>`s in `ObjectToolbar` | `e2e/rotation.spec.ts` — "the turn and resize handles are reachable and operable by keyboard", which asserts the `tabindex` AND that the key actually moves the object |
 | F52 | Medium | Gate hygiene / user copy | `scripts/error-string-audit.mjs` extracts strings with `/["'`]([^"'`]{6,})["'`]/g`, and both halves of that pattern are wrong. The character class excludes all three quote types, so **an apostrophe ends a double-quoted string** — 79 user-facing strings across `src` are audited only as far as their first "doesn't". And the `{6,}` sits *inside* the pattern, so a string too short to match never consumes its own quotes and every later quote on the line is off by one — 208 of the 1,521 "strings" it currently audits are **code caught between mis-paired quotes**, which is where the standing HARD hit comes from. The false negatives are the finding; the noisy line is only what led to it | **Fixed** 2026-08-23; the freeze deferral was reversed once `scripts/` was already dirty and the cost was sunk | n/a — a gate script, not the product. What makes the fix safe is the before-and-after across `src`: HARD 1 → 0, SOFT 6 → 6 on the same six sites, no new findings |
 | F53 | Low | Repo hygiene / gate legibility | Four editor duplication artefacts (`… 2.ts`, `… 2.sql`) were committed and sat in the tree for days. Three were spec files — including one in the **blocking security directory that has never executed**, because the space before `2.ts` cannot match Playwright's default `*.spec.ts` glob. A file that reads as coverage and is not is worst in that directory. The fourth is an **older draft of a migration**, still tracked, whose column is named `template` — the exact name the schema rejected because the ops blindness gate derives its child-relation denylist from relation names | **Three deleted** 2026-08-23; the migration artefact is **open**, untouched under the schema freeze | n/a — nothing collected or applied any of them, which is the finding |
-| F56 | Medium | Test harness / gate reachability | **The lane path and the direct path are two different test environments, and `npm run test:gate` is the one nobody checks.** Found 2026-08-24, twice in one evening, in two unrelated classes. **Setup:** bringing the database up to the committed schema is done in **three** independent places — `scripts/run-suites.mjs:56` (per lane, to that lane's shard database, never `prisma/dev.db`), `tests/battery/global-setup.ts:36` and `tests/global-setup.ts` — and the third had none until it was found for a third time, so plain `npm run test:e2e`, and therefore `test:gate`, died on any branch adding a column. Each of the three was added by whoever was standing on that path. **Timing:** `e2e/school-picker.spec.ts`'s in-flight test passed in lanes and failed on the direct path **deterministically**, because its outcome turned on whether a 250ms debounced search returned before a click completed, and the two paths differ in port, dist dir, database and compile order. | **Open.** Deferred past the 2026-08-24 freeze; the exception that evening was school identity and this is not it | n/a — the finding is that the harness has two environments, so no single suite can hold it. The setup half is closed at all three sites; the divergence is not |
+| F56 | Medium | Test harness / gate reachability | **The lane path and the direct path are two different test environments, and `npm run test:gate` is the one nobody checks.** Found 2026-08-24, twice in one evening, in two unrelated classes. **Setup:** bringing the database up to the committed schema is done in **three** independent places — `scripts/run-suites.mjs:56` (per lane, to that lane's shard database, never `prisma/dev.db`), `tests/battery/global-setup.ts:36` and `tests/global-setup.ts` — and the third had none until it was found for a third time, so plain `npm run test:e2e`, and therefore `test:gate`, died on any branch adding a column. Each of the three was added by whoever was standing on that path. **Timing:** `e2e/school-picker.spec.ts`'s in-flight test passed in lanes and failed on the direct path **deterministically**, because its outcome turned on whether a 250ms debounced search returned before a click completed, and the two paths differ in port, dist dir, database and compile order. **That instance no longer reproduces (25 Aug 2026):** the product defect under it was fixed with the school picker, and all 10 school-picker specs pass on the direct path. The instance is gone; the divergence that hid it is not. | **Open.** Neither stated closure criterion is met — still three independent setup sites, and the direct path is still not a lane. The port guard of 25 Aug 2026 closes the stale-database class for the lane path only | n/a — the finding is that the harness has two environments, so no single suite can hold it. The setup half is closed at all three sites; the divergence is not |
 
 ---
 
@@ -2956,6 +2956,16 @@ product defect was real (an in-flow listbox moving the Continue button out from
 under a `mousedown`, so no `click` event fired at all), and **the lane path
 could not see it.**
 
+**Re-measured 25 Aug 2026: that instance no longer reproduces.** The product
+defect was fixed with the school picker itself, and `school-picker.spec.ts` now
+passes **10/10 on the direct path**, cold, the in-flight test among them (3.0s).
+So the example above is history rather than a live repro — which changes the
+evidence and not the finding. What made it worth writing down was never that one
+test: it was that a real defect sat on one side of a boundary the two paths
+straddle, and **nothing about the boundary has moved.** The next defect that
+lands on the lane side will be just as invisible, and there is now no failing
+test pointing at the seam.
+
 ### Why this is a finding rather than two fixes
 
 The setup half is closed at all three sites, so the remaining risk is not "the
@@ -2988,6 +2998,30 @@ the owner's call:
 
 Either removes the class. Narrowing each site as it is found does not, which is
 what this evening demonstrated three times.
+
+### What the 25 Aug 2026 port guard did and did not touch
+
+`scripts/run-suites.mjs` now binds every lane port before it generates, pushes
+or seeds, and refuses to start if one is taken; each lane's database is removed
+and recreated at the start of a run rather than only at the end. **That is a
+different fault**, found while chasing five canvas timeouts that turned out to
+be a machine 9.4 GB into a 10 GB swap file. It is recorded here so nobody reads
+the commit and assumes this finding went with it:
+
+- **Closed by it:** the stale-database class above, *for the lane path only* — an
+  interrupted run can no longer leave a shard database whose schema belongs to
+  another branch. And a lane can no longer silently adopt somebody else's dev
+  server while seeding a database it is not reading, which was a second, unlogged
+  way for the two paths to disagree.
+- **Untouched by it:** both stated closure criteria. There are still **three**
+  independent places that bring a database up to the schema, nothing prevents a
+  fourth arriving without one, and the direct path is still not a lane. The
+  guard makes the lane path more honest about what it is running; it does not
+  make the two paths one environment.
+
+Checked rather than recalled: the three sites were re-read on 25 Aug 2026 and are
+`scripts/run-suites.mjs` (`prepareLane`, an argv array so it does not grep like
+the other two), `tests/global-setup.ts:22` and `tests/battery/global-setup.ts:36`.
 
 ### Not fixed here
 
