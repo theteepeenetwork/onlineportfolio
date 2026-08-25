@@ -3154,7 +3154,13 @@ there. Every gate in this repository was green over an empty table. Nothing here
 tests that a thing was *done*, only that it *works*, and those are different
 claims.
 
-Worth asking separately, and not asked here because it needs a look at real
-accounts rather than a schema: whether any teacher actually signed up in that
-window, and so whether any real school is now recorded by name with no URN
-against it.
+**No real school was affected.** Asked and answered by the owner, 25 August
+2026: no teachers are signing up at present — the product is pre-launch, with
+1 September 2026 the date in `docs/launch-runway.md`. So the empty window
+produced no school recorded by name with no URN, and there is no data to
+repair.
+
+That is luck rather than design, and it is the reason to keep this entry rather
+than close it. Had the register been left empty three weeks later, the same
+green gates would have been reporting the same healthy service while the first
+real schools to arrive were quietly recorded as free text.
