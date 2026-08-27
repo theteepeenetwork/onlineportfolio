@@ -113,6 +113,8 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F59 | **Critical** | Access control / children's data (Rule 1) | **"Remove from school" does not remove access.** `removeStaff` sets `teacher.schoolId = null`; `Class` has **no `schoolId`**, so a class belongs to a school only through its teacher. Measured 25 Aug 2026 on the persona school: removing an ACTIVE teacher in one click, with no confirmation, took the school from 5 classes/17 pupils to **1 class/3 pupils** — while he signed straight back in to `/teacher` with all four classes, **14 pupils, 7 journal items and 2 items waiting in his approval queue**. The admin's intent is not achieved, the school cannot reassign the classes it can no longer see (the action's own comment claims it can), and the audit log records "Removed Nathan Reeves from the school", which is now false in the direction that matters. Found only because F58's cannot-fail check was tightened; `grep -rln "removeStaff\|STAFF_REMOVED" tests/` returned **nothing** — the action had never been exercised by any test. | **Open.** Fix shape is the owner's call: reassign-on-remove (narrow) or give `Class` a `schoolId` (structural, touches the ops blindness gate's relation paths) | `tests/battery/findings/staff-removal.spec.ts` — asserts the intended secure behaviour and **fails on purpose** until fixed |
 | F60 | Medium | Trust / transparency at signup | **A teacher signs up, and nothing on the way in says what happens to children's work or who can see it.** Step 1 of 5 asks for their name, school email and password; the next steps ask for their school and their class. The only nearby sentence is "Just you — pupils never need accounts or emails", which is about accounts, not about the work. Discovered 25 Aug 2026 by tightening one of F58's four cannot-fail checks: the old pattern was `/safeguard\|approv\|privacy\|data\|only you\|never/i` and it had been matching the word **"never"** in that unrelated sentence since the day it was written. Safeguarding is the product's whole pitch and `docs/brand-and-copy.md` governs what is claimed in StoryJar's name — the promise exists everywhere except the one screen where somebody is deciding whether to trust it. | **Open** | `personas/teacher-first-day.spec.ts:75`, now written against a promise being made rather than against the word "data" |
 | F61 | **High** | Authentication / account recovery | **There was no password reset anywhere in the product, and no way for an invited teacher to receive credentials.** `src/app/actions/auth.ts` signed a teacher in and that was all: a pilot teacher who mistyped their password had no route back except the owner opening `railway ssh`. Ten to fifteen pilot teachers arrive from 1 September. The second half was the same hole — `staffInviteEmail()` had been written, styled and left uncalled for months (`mailStatus.ts:48` recorded it), `resendInvite` was a documented no-op that refreshed the page, and `inviteStaff` created a Teacher row with an empty password hash and told nobody. | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 7-day invitation; neutral response; link never on screen in production; single-use; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (6 blocking properties) and `tests/e2e/password-reset.spec.ts`, which is the acceptance test: a teacher who does not know her password gets back in with nobody touching a terminal | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 72-hour invitation; neutral response; link never on screen in production; single-use enforced in the database; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (8 blocking properties incl. the concurrent double-spend), `tests/battery/security/staff-invite-isolation.spec.ts` (cross-tenant), and `tests/e2e/password-reset.spec.ts`, the acceptance test |
+| F62 | Medium | Test harness / assertions that cannot fail | **F58's gate covers persona regexes and not `expect(...)` assertions, and two unfailable assertions were written by F58's own author on the days after it.** `check-persona-patterns.mjs` refuses a short bare alternation or a failure word in a persona success pattern. It cannot see an `expect()` that is true whatever the product does. Two instances, both green, both found by reading output rather than by any gate: a persona check asserting the ABSENCE of a sentence that no longer existed anywhere in the product, and a cross-tenant test posting forged FormData that Next refused outright (`Failed to find Server Action`), so "no token was minted" held against a request that could never mint one. | **Open**, deliberately not fixed this week — a new static gate during a freeze is how a narrow exception stops being narrow (owner decision, 27 Aug 2026). After launch | none, and that is the finding. Both instances are now fixed at their sites; nothing stops a third |
+| F63 | Medium | Fleet reliability / review coverage | **A safeguarding reviewer produced nothing across four idle cycles while a second reviewer, given the same brief, returned three must-fix findings that a green suite could not have found.** `pw-review` was asked for a verdict on F61, went idle four times, and never answered — while the change sat committed-ready. `pw-review2`, same tree, same four questions, found: single-use unenforced under concurrency, a false justification for the 7-day invitation window (an invited teacher can already hold a class), and a missing cross-tenant test on an action that had just started emitting live credentials. All three were green at the time. | **Open.** Standing rule agreed 27 Aug 2026: replace a reviewer that goes idle twice without answering, rather than chasing it | n/a — this is about how the fleet is run, not about the product |
 
 ---
 
@@ -3723,3 +3725,101 @@ live meaning until the teacher is deleted, when the cascade takes them —
 measured on a populated database, not assumed. That is the same open item as the
 audit-log purge at the foot of `RETENTION.md`, which is where this table's row
 now sits.
+
+## F62 · The gate covers persona regexes, not assertions that cannot fail · Medium → Open
+
+F58 found sixteen persona checks that could not fail, and closed the class with
+a gate: `scripts/check-persona-patterns.mjs` refuses a short bare alternation or
+a failure word inside a success pattern. That gate works and it earned its keep
+— 41 sites against a hand audit's 16.
+
+**It sees `seesText(/…/)` and nothing else.** An `expect()` that is true whatever
+the product does is invisible to it, and on the two days after F58 was written,
+its own author wrote two.
+
+### The two instances, both green, neither caught by a gate
+
+**A check asserting the absence of a sentence that no longer existed.**
+`personas/operator.spec.ts` carried
+`t.expects(!(await t.seesText(/^No account has that address\.$/i)), …)`. The
+lookup refusal copy had been changed hours earlier — deliberately, by the same
+person — so that sentence was gone from the product. The assertion was
+permanently true. It reads as coverage of the new behaviour and asserts nothing
+at all.
+
+**A cross-tenant test against a request that could not do the thing.**
+`staff-invite-isolation.spec.ts` posted forged `FormData` to `/admin` and
+asserted no token was minted. Next refused the request outright — a server
+action needs a valid action id — so the assertion held against a request that
+could never have minted anything. `grep` for the action name would have shown a
+test existed; the test proved nothing.
+
+### How they were found, which is the part that matters
+
+Not by a gate, and not by a process. The first because the failing copy
+assertion in a neighbouring file sent its author into that block; the second
+because `Failed to find Server Action` appeared in a log that was being read for
+another reason. **Both were luck plus reading output.** Recorded that way rather
+than as a success, because "we catch these now" is exactly the belief F58 exists
+to prevent.
+
+The fix in both cases was the same shape and is worth naming as the pattern: a
+**positive control**. The isolation test now drives the real control for the
+admin's own school first — proving the mechanism works — and only then asserts
+the other school's row is unreachable. An assertion whose negative case is never
+demonstrated is a guess.
+
+### What would close it, and why it is not being built this week
+
+A second gate, over `tests/`, refusing an `expect()` that cannot fail: an
+assertion on the absence of a literal that appears nowhere in `src/`; a negative
+assertion with no positive control in the same test; a `toBe(0)`/`toEqual([])`
+on a query whose subject was never created.
+
+**Deliberately not built now (owner decision, 27 August 2026).** A new static
+gate during a freeze week is how a narrow exception stops being narrow, and the
+instinct to build it immediately is the wrong one at this moment rather than the
+wrong one. After launch.
+
+Until then the mitigation is the practice, not a tool: when a test asserts that
+something did NOT happen, make it also demonstrate that the same code path CAN
+make it happen.
+
+## F63 · A reviewer produced nothing across four idles while a replacement found three must-fixes · Medium → Open
+
+Recorded because it is a pattern about how the fleet is run, and a pattern kept
+in somebody's memory of one afternoon is not recorded at all.
+
+On 25 August 2026, F61 (the password reset) was held unmerged pending a
+safeguarding review, correctly: it is Rule 1, it is an unauthenticated public
+endpoint that changes an account's password, and this repository's rule is that
+the reviewer goes before the merge and not after.
+
+`pw-review` was briefed with the surface, the decisions to attack, and four
+named questions. It went idle **four times** without producing a verdict. It was
+chased three times, told explicitly that "I did not complete the review" was a
+usable answer, and never answered.
+
+`pw-review2` was given the same tree and the same four questions, timeboxed, and
+returned **APPROVE WITH CHANGES** with three must-fix findings:
+
+- single use was not enforced under concurrency (the usable-check sat outside
+  the transaction; two interleaving submissions both passed);
+- the stated justification for a 7-day invitation window was false, because an
+  invited teacher can already hold a class;
+- an action that had just started emitting live password-setting credentials had
+  no cross-tenant test.
+
+**All three were green.** No suite would have found any of them.
+
+### The two lessons, which are different
+
+**On process:** replace a reviewer that goes idle twice without answering, rather
+than chasing it. Agreed as a standing rule with the owner, 27 August 2026. Three
+chases cost more than the replacement did, and the replacement is what produced
+the findings.
+
+**On what a green suite means:** the strongest argument in this file for
+reviewing Rule 1 changes by reading them is that the three things most worth
+finding in F61 were all invisible to a full cold battery. That is not a
+criticism of the battery. It is what a battery is for and what it is not.
