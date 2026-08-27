@@ -116,6 +116,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F62 | Medium | Test harness / assertions that cannot fail | **F58's gate covers persona regexes and not `expect(...)` assertions, and two unfailable assertions were written by F58's own author on the days after it.** `check-persona-patterns.mjs` refuses a short bare alternation or a failure word in a persona success pattern. It cannot see an `expect()` that is true whatever the product does. Two instances, both green, both found by reading output rather than by any gate: a persona check asserting the ABSENCE of a sentence that no longer existed anywhere in the product, and a cross-tenant test posting forged FormData that Next refused outright (`Failed to find Server Action`), so "no token was minted" held against a request that could never mint one. | **Open**, deliberately not fixed this week — a new static gate during a freeze is how a narrow exception stops being narrow (owner decision, 27 Aug 2026). After launch | none, and that is the finding. Both instances are now fixed at their sites; nothing stops a third |
 | F63 | Medium | Fleet reliability / review coverage | **A safeguarding reviewer produced nothing across four idle cycles while a second reviewer, given the same brief, returned three must-fix findings that a green suite could not have found.** `pw-review` was asked for a verdict on F61, went idle four times, and never answered — while the change sat committed-ready. `pw-review2`, same tree, same four questions, found: single-use unenforced under concurrency, a false justification for the 7-day invitation window (an invited teacher can already hold a class), and a missing cross-tenant test on an action that had just started emitting live credentials. All three were green at the time. | **Open.** Standing rule agreed 27 Aug 2026: replace a reviewer that goes idle twice without answering, rather than chasing it | n/a — this is about how the fleet is run, not about the product |
 | F64 | Low | Accessibility (operator) | **The operator lookup's result is announced by a live region that is created at the same instant as its text, so several screen readers will not read it.** `src/app/ops/lookup/forms.tsx:150` puts `role="status"` on a div inside `Result`, which returns null until a lookup has run — so assistive technology meets a node that has just appeared rather than a region it was already watching. The same file guards against exactly this for the error region six lines up (`:113-115`, "Always in the DOM, so assistive technology is already watching"), so the principle is understood and applied unevenly. The refusal is the case where **nothing else on the screen changes**, which makes it the one most worth hearing. Found by `lookup-review` while reviewing an unrelated copy change; pre-existing, not caused by it. | **Open.** Deferred past the freeze — a render-structure change on a Rule 1 screen wants its own commit and its own run, not a ride-along | axe will not catch it: this is an announcement-timing property, not a static violation. Needs the always-mounted pattern the error region already uses |
+| F65 | Medium | Correctness surfacing as copy | **A sentence that claims more than the code behind it checked. Three instances in one day, on three unrelated screens.** The school mail badge would have read "All 3 sign-in emails StoryJar tried to send were accepted" for a school whose only mail was staff invitations, because its filter widened while its words did not. The operator lookup said "No account has that address" — a claim about every account in StoryJar, from a screen that had read one table. And "No parent or carer has that address" gets relayed down a phone as "we have no record of that parent", when rule 6a means many parents deliberately gave no address at all. | **Open as a standing risk.** All three instances fixed; the class is not. Every screen reporting a NEGATIVE result is a candidate | none possible — no gate can read a sentence and know what the query behind it asked. The remedy is a standing review question, below |
 
 ---
 
@@ -3813,6 +3814,30 @@ returned **APPROVE WITH CHANGES** with three must-fix findings:
 
 **All three were green.** No suite would have found any of them.
 
+### The implication, which is bigger than the rule
+
+The rule above is about not wasting an afternoon. This is about what a review
+is for.
+
+**Every one of the three findings that mattered most in F61 was invisible to a
+green battery, and every one came from somebody reading somebody else's work.**
+The `tokenHash` collision (teacher-lead, from outside the change). The school
+mail badge sentence (teacher-lead again). The single-use race (pw-review2).
+Three full cold batteries passed over all three.
+
+So a review is not a gate you pass at the end. **It is the only instrument that
+finds this class at all**, and a checkpoint after the work is the wrong shape for
+an instrument you need while building. Two consequences, adopted 27 August 2026:
+
+- **Treat review as part of building, not a stage after it.** A reviewer briefed
+  when the shape is decided catches a design that cannot be tested; one briefed
+  at the end can only catch what is already written.
+- **Budget two reviewers on any Rule 1 path from the start.** Not because the
+  first is expected to fail, but because discovering you need a second one after
+  the first goes quiet costs the time this entry is about — and because two
+  independent reads of an access-control change is what the gate itself asks for
+  when it says a human must classify.
+
 ### The two lessons, which are different
 
 **On process:** replace a reviewer that goes idle twice without answering, rather
@@ -3824,3 +3849,56 @@ the findings.
 reviewing Rule 1 changes by reading them is that the three things most worth
 finding in F61 were all invisible to a full cold battery. That is not a
 criticism of the battery. It is what a battery is for and what it is not.
+
+## F65 · A sentence that claims more than the code checked · Medium → Open as a standing risk
+
+Three instances on 25–27 August 2026, on three unrelated screens, found by
+three different people. That is what makes it a class rather than three bugs.
+
+**The school mail badge.** `readSchoolMailHealth` filtered by
+`MAIL_TEMPLATE_KEYS` and its copy said "sign-in emails" in four places. While
+`magic-link` was the only key those were the same filter. F61 added two, and a
+school whose only mail was staff invitations would have read **"All 3 sign-in
+emails StoryJar tried to send were accepted"** — on a school-facing screen, to
+the person parents ring when a sign-in link does not arrive.
+
+**The operator lookup, first version.** "No account has that address" is a claim
+about **every account in StoryJar**, made by a screen that had searched one
+table. False in the commonest way that form is used wrong, since it defaults to
+staff and the commonest support call is about a parent.
+
+**The operator lookup, second version.** "No parent or carer has that address"
+is true of the table — and gets relayed down a phone as "we have no record of
+that parent", when SAFEGUARDING rule 6a means many parents deliberately gave no
+address at all. Now "No parent or carer **in StoryJar** has that address".
+
+### Why this is not a copy problem
+
+Each one reads as wording and none of them is. The defect is that the sentence
+and the query disagree about scope: the query asked a narrow question and the
+sentence answered a broad one. Nothing about that is caught by types, by a
+linter, by axe, or by a test that asserts the sentence is present — the sentence
+IS present, and it is grammatical, and it is wrong.
+
+It is also the same shape as F30, which this repository already knows: a screen
+that renders "nothing has gone wrong" when what it means is "nothing was
+checked". The difference between silence and health, one level down.
+
+### What it is not amenable to
+
+A gate. No script can read a sentence and know what the query behind it asked.
+Two of the three were caught by a person reading a diff for another reason, and
+the third by the author noticing a filter widen underneath fixed words.
+
+### The remedy, which is a question rather than a tool
+
+Adopted 27 August 2026, to be asked of any screen that reports a negative
+result — nothing found, nothing sent, nothing wrong, no record:
+
+> **What did this actually check, and does the sentence claim exactly that and
+> nothing more?**
+
+Applied to the three above it would have caught all three, in each case before
+the code shipped rather than after. Every screen that reports an absence is a
+candidate, and there is no reason to think the three found so far are all of
+them: the ones found were on screens somebody happened to be reading.
