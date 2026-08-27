@@ -57,6 +57,15 @@ const PUBLIC_PAGES = [
   ["/legal", "legal index"],
   ["/legal/privacy", "privacy policy"],
   ["/legal/accessibility", "accessibility statement"],
+  // F61's two new public pages. Both are reached by somebody who is already
+  // stuck — a teacher who cannot get in, or a colleague opening an invitation —
+  // which is the worst moment to meet an unlabelled field or a heading order
+  // that a screen reader cannot follow.
+  ["/login/teacher/forgotten", "forgotten password (request)"],
+  // With a token that is not real: the page deliberately does no database read,
+  // so it renders the same form either way and this scans what a real
+  // recipient sees.
+  ["/set-password?token=not-a-real-token", "set password"],
 ] as const;
 
 for (const [url, label] of PUBLIC_PAGES) {

@@ -187,8 +187,13 @@ test("a school rings up: a family code has gone to the wrong house", async ({ pa
     // who leaves the default selected is told "No account has that address"
     // about an account that exists, which is the one sentence on this screen
     // that must not be able to mislead.
+    // Asserted POSITIVELY. The first version of this checked for the ABSENCE of
+    // "No account has that address" — a sentence that no longer exists anywhere
+    // in the product, so the check could never fail. That is F58's second class,
+    // written by the person who wrote F58, on the same day. A check that the
+    // refusal NAMES the table can fail, and fails if the copy regresses.
     t.expects(
-      !(await t.seesText(/^No account has that address\.$/i, 800)),
+      await t.seesText(/No (parent or carer|member of school staff) has that address/i, 800),
       "major",
       "confusing",
       "The screen told me no account has that address without saying which kind of adult it searched, so I nearly told a school we had no record of a parent we do have.",

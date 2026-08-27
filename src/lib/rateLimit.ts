@@ -132,6 +132,93 @@ export function recordCodeMiss(key: string): void {
   e.misses += 1;
 }
 
+// ---------------------------------------------------------------------------
+// The outbound-email ceiling (F61)
+// ---------------------------------------------------------------------------
+//
+// WHY A SECOND, COARSER BUDGET EXISTS AT ALL.
+//
+// `requestPasswordReset` keys its per-address budget on address+source, because
+// a school sits behind one NAT and an IP-only budget locks out the staffroom.
+// The cost of that, which a review named: an IP-only budget also capped a
+// SOURCE at five emails per window in total, and per-address does not. One
+// source walking a school's published staff list can send five each to as many
+// addresses as it likes.
+//
+// The harm is not account takeover — the response is neutral and the token goes
+// to the real inbox. It is inbox flooding, and worse, StoryJar's sender
+// reputation. Every parent magic-link in the product rides on that reputation,
+// and it is the one thing here that cannot be repaired quickly: once a domain
+// is throttled or blocklisted by the large mailbox providers, sign-in letters
+// stop arriving for families who have done nothing wrong.
+//
+// WHERE THE NUMBER COMES FROM, stated so it can be argued with.
+//
+// The assumption is a LARGE primary: three-form entry, roughly 630 pupils and
+// about 60 to 70 adults with school email — teachers, TAs, office, leadership.
+// The worst honest hour is the first morning of the autumn term, when everybody
+// signs in for the first time since July: assume every one of them asks for a
+// reset, and a third ask twice because the first mail is slow. That is roughly
+// 90 requests in an hour from one address.
+//
+// Doubled, and rounded up: 200 per hour per source. A real school cannot reach
+// it — the whole staff would have to ask three times each inside the hour — and
+// an hour is chosen over fifteen minutes deliberately, so that a genuine rush
+// concentrated into one break time does not trip a ceiling meant for a bot.
+//
+// TRICKLE, NOT A HARD BLOCK, for the reason `allowCodeLookup` uses it: over
+// budget the endpoint slows to one request per ten seconds rather than closing,
+// so even the pathological case leaves a real teacher a way through. A hard
+// block here would reintroduce the staffroom lockout in different clothes.
+const MAIL_CEILING_PER_HOUR = 200;
+const MAIL_CEILING_WINDOW_MS = 60 * 60 * 1000;
+const MAIL_CEILING_TRICKLE_MS = 10_000;
+
+const mailStore = new Map<string, { sent: number; firstAt: number; lastAllowed: number }>();
+
+/**
+ * May this source cause another outbound email right now?
+ *
+ * Under budget: always true, so nothing a school does in a normal term is
+ * affected. Over budget: one per ten seconds, which is useless as a flooding
+ * tool and still usable by a person.
+ */
+export function allowOutboundMail(key: string): boolean {
+  const now = Date.now();
+  if (mailStore.size >= 5000) {
+    for (const [k, e] of mailStore) {
+      if (e.firstAt + MAIL_CEILING_WINDOW_MS < now) mailStore.delete(k);
+    }
+  }
+  const e = mailStore.get(key);
+  if (!e || e.firstAt + MAIL_CEILING_WINDOW_MS < now) {
+    mailStore.set(key, { sent: 0, firstAt: now, lastAllowed: now });
+    return true;
+  }
+  if (e.sent < MAIL_CEILING_PER_HOUR) return true;
+  if (now - e.lastAllowed >= MAIL_CEILING_TRICKLE_MS) {
+    e.lastAllowed = now;
+    return true;
+  }
+  return false;
+}
+
+/** One email actually sent for this source. Counts toward the ceiling. */
+export function recordOutboundMail(key: string): void {
+  const now = Date.now();
+  const e = mailStore.get(key);
+  if (!e || e.firstAt + MAIL_CEILING_WINDOW_MS < now) {
+    mailStore.set(key, { sent: 1, firstAt: now, lastAllowed: now });
+    return;
+  }
+  e.sent += 1;
+}
+
+/** Test seam only: forget every ceiling counter. */
+export function resetOutboundMailCeiling(): void {
+  mailStore.clear();
+}
+
 // A lookup that found a class. Clears the key entirely — an honest classroom's
 // successes keep it perpetually fresh, and one correct entry lifts a trickle.
 export function recordCodeHit(key: string): void {

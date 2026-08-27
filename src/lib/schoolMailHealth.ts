@@ -1,6 +1,5 @@
 import { db } from "@/lib/db";
 import {
-  MAIL_TEMPLATE_KEYS,
   mailVerdict,
   utcDayBefore,
   type MailVerdict,
@@ -79,6 +78,10 @@ import {
 
 /** How far back the badge looks. UTC days, matching /ops/mail's second window
  *  so that the two screens cannot disagree about the same rows. */
+/** The one template this badge is about: a parent's own sign-in link. Named
+ *  rather than inlined, so the filter and the copy point at the same thing. */
+const PARENT_SIGN_IN_TEMPLATE = "magic-link";
+
 const WINDOW_DAYS_BACK = 6;
 const WINDOW_LABEL = "the last 7 days";
 
@@ -138,10 +141,28 @@ export async function readSchoolMailHealth(now: Date = new Date()): Promise<Scho
     select: { templateKey: true, outcome: true, count: true },
   });
 
-  // Only templates this version knows about. A row left behind by a template
-  // that no longer exists should not move a badge that names none of them.
-  const known = new Set<string>(MAIL_TEMPLATE_KEYS);
-  const mine = rows.filter((row) => known.has(row.templateKey));
+  // ONE TEMPLATE, and not MAIL_TEMPLATE_KEYS, which is what this used to be.
+  //
+  // This badge answers one question for one person: the business manager whom
+  // parents ring when a PARENT'S sign-in link does not arrive. Its copy says so
+  // in those words — "No sign-in emails have been sent", "N sign-in emails did
+  // not leave StoryJar", "no parent has asked for a sign-in link".
+  //
+  // While "magic-link" was the only key, filtering by the whole list and
+  // filtering by that one key were the same filter. F61 added "password-reset"
+  // and "staff-invite", and they stop being the same: a school with no parent
+  // requests and three staff invitations would have read "All 3 sign-in emails
+  // StoryJar tried to send were accepted", which is a false sentence on a
+  // school-facing screen.
+  //
+  // Widening the copy to "emails" would have kept it true and made it useless —
+  // a failure count she reads as "parents are not getting their links" could be
+  // entirely staff invites, or the reverse, and the figure would stop answering
+  // the question she opened it to answer. So the words stay and the filter
+  // narrows to the template they name. A staff invitation that does not arrive
+  // is a different question with a different answer (a colleague resends it),
+  // and the operator's own mail screen counts every template.
+  const mine = rows.filter((row) => row.templateKey === PARENT_SIGN_IN_TEMPLATE);
 
   const total = (outcome: string) =>
     mine.filter((row) => row.outcome === outcome).reduce((sum, row) => sum + row.count, 0);

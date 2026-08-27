@@ -86,6 +86,9 @@ model Teacher {
   // their library, and the claude.ai connector grants behind the OAuth ones.
   apiTokens      ApiToken[]
   oauthGrants    OAuthGrant[]
+  // Outstanding password-reset and staff-invite tokens. Cascade on delete, the
+  // same as sessions: deleting a teacher must not leave a live link behind.
+  passwordTokens TeacherPasswordToken[]
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
@@ -259,6 +262,72 @@ model MagicToken {
   parentId  String
   expiresAt DateTime
   usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+// A single-use, expiring token that lets an ADULT set a password.
+//
+// ONE MODEL, TWO PURPOSES, and that is a decision rather than an economy. A
+// forgotten password and a staff invitation are the same mechanism — mint a
+// random secret, mail a link, let the person who opened it write a new hash
+// once — and two models would be two copies of that mechanism, drifting apart
+// the first time one of them was fixed. What actually differs between the two
+// is carried by `purpose`: how long the token lasts, which audit action a
+// completed set writes, and whether the REQUEST path has to be neutral (a
+// reset does, because anyone may ask for one; an invite is triggered by a
+// colleague who is already signed in).
+//
+// `purpose` is a closed vocabulary, "RESET" or "INVITE", checked in code
+// before a row is written. SQLite has no enum, which is the same reason
+// Session.role and JournalItem.status are strings here.
+//
+// THE TOKEN IS STORED HASHED, NEVER RAW. `resetHash` is the SHA-256 hex digest
+// of the 24 random bytes that went out in the email, and the raw token exists
+// only in that message and in the request that spends it. The reason is that a
+// database READ must not be replayable into an account takeover: with raw
+// storage, anyone who can see this table for the lifetime of a token owns any
+// account with an outstanding reset. That is not hypothetical here. FINDINGS
+// F20 records that volume backups now exist, F35 that nobody has confirmed
+// which country they sit in, and docs/exceptional-access.md describes a route
+// by which a human deliberately reads rows. A stolen dev.db, a leaked backup
+// and an authorised look are all the same shape of event, and after this
+// decision none of them yields a working link.
+//
+// SHA-256 AND NOT BCRYPT, DELIBERATELY. Slow KDFs exist to defend secrets
+// people choose; this secret is 24 bytes from `randomBytes` — 192 bits, not
+// guessable, with no dictionary to run against it. bcrypt would buy nothing
+// for that and would cost a KDF on every lookup, and it silently truncates its
+// input at 72 bytes, which is a trap to leave lying around. A single fast
+// digest is the right primitive for a high-entropy bearer token.
+//
+// Lookup is BY HASH: the caller digests the token from the URL and reads this
+// unique index. So hashing costs no scan and no extra query — the index does
+// exactly the work it did before.
+//
+// THIS DIVERGES FROM MagicToken ABOVE, WHICH STORES ITS TOKEN RAW, AND THE
+// DIVERGENCE IS THE POINT. MagicToken's raw storage is a weakness to be
+// corrected on its own terms, not a house style for new tables to match; it is
+// left alone in this commit because changing the parent sign-in path is a
+// separate, safeguarding-reviewed change and not something to smuggle in
+// beside a teacher feature. Anyone adding a third token table should copy this
+// model, not that one.
+model TeacherPasswordToken {
+  id        String    @id @default(cuid())
+  // Named resetHash, not tokenHash, for the reason ApiToken.keyHash gives above:
+  // OperatorSession already owns `tokenHash`, the ops blindness gate's denylist
+  // is keyed on the column NAME, and denylisting that name would either break
+  // the operator's own sign-in or leave this column unprotected. Two
+  // credentials, two names, both denied. This model was first written with
+  // `tokenHash` and renamed the same morning — the gate passed either way,
+  // because the model's CREDENTIAL_NEVER classification already permits
+  // nothing, but a name that can never be added to DENY_FIELDS is protected by
+  // one control where every other teacher credential has two.
+  resetHash String    @unique // SHA-256 hex of the raw token. The raw token is never stored.
+  teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  purpose   String // RESET | INVITE
+  expiresAt DateTime
+  usedAt    DateTime? // set in the same transaction as the password write, which is what makes it single-use
   createdAt DateTime  @default(now())
 }
 
@@ -815,7 +884,7 @@ model OAuthClient {
 
 // One teacher's decision to let one client in, and the credentials that carry
 // that decision: first a single-use authorization code, then a refresh token.
-// Both are stored hashed, for the same reason ApiToken.tokenHash is.
+// Both are stored hashed, for the same reason ApiToken.keyHash is.
 model OAuthGrant {
   id            String      @id @default(cuid())
   oauthClient   OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)

@@ -108,10 +108,11 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F52 | Medium | Gate hygiene / user copy | `scripts/error-string-audit.mjs` extracts strings with `/["'`]([^"'`]{6,})["'`]/g`, and both halves of that pattern are wrong. The character class excludes all three quote types, so **an apostrophe ends a double-quoted string** — 79 user-facing strings across `src` are audited only as far as their first "doesn't". And the `{6,}` sits *inside* the pattern, so a string too short to match never consumes its own quotes and every later quote on the line is off by one — 208 of the 1,521 "strings" it currently audits are **code caught between mis-paired quotes**, which is where the standing HARD hit comes from. The false negatives are the finding; the noisy line is only what led to it | **Fixed** 2026-08-23; the freeze deferral was reversed once `scripts/` was already dirty and the cost was sunk | n/a — a gate script, not the product. What makes the fix safe is the before-and-after across `src`: HARD 1 → 0, SOFT 6 → 6 on the same six sites, no new findings |
 | F53 | Low | Repo hygiene / gate legibility | Four editor duplication artefacts (`… 2.ts`, `… 2.sql`) were committed and sat in the tree for days. Three were spec files — including one in the **blocking security directory that has never executed**, because the space before `2.ts` cannot match Playwright's default `*.spec.ts` glob. A file that reads as coverage and is not is worst in that directory. The fourth is an **older draft of a migration**, still tracked, whose column is named `template` — the exact name the schema rejected because the ops blindness gate derives its child-relation denylist from relation names | **Three deleted** 2026-08-23; the migration artefact is **open**, untouched under the schema freeze | n/a — nothing collected or applied any of them, which is the finding |
 | F56 | Medium | Test harness / gate reachability | **The lane path and the direct path are two different test environments, and `npm run test:gate` is the one nobody checks.** Found 2026-08-24, twice in one evening, in two unrelated classes. **Setup:** bringing the database up to the committed schema is done in **three** independent places — `scripts/run-suites.mjs:56` (per lane, to that lane's shard database, never `prisma/dev.db`), `tests/battery/global-setup.ts:36` and `tests/global-setup.ts` — and the third had none until it was found for a third time, so plain `npm run test:e2e`, and therefore `test:gate`, died on any branch adding a column. Each of the three was added by whoever was standing on that path. **Timing:** `e2e/school-picker.spec.ts`'s in-flight test passed in lanes and failed on the direct path **deterministically**, because its outcome turned on whether a 250ms debounced search returned before a click completed, and the two paths differ in port, dist dir, database and compile order. **That instance no longer reproduces (25 Aug 2026):** the product defect under it was fixed with the school picker, and all 10 school-picker specs pass on the direct path. The instance is gone; the divergence that hid it is not. | **Open.** Neither stated closure criterion is met — still three independent setup sites, and the direct path is still not a lane. The port guard of 25 Aug 2026 closes the stale-database class for the lane path only | n/a — the finding is that the harness has two environments, so no single suite can hold it. The setup half is closed at all three sites; the divergence is not |
-| F57 | Medium | Operations / the school register | **The documented way to refresh the school register could not run where the database is.** `npm run gias:import` — the command the script's own header gives as the production procedure — answers **403 inside the Railway container** and 200 from a laptop the same minute, because the DfE blocks the datacentre range. It fails at the FIRST fetch, before anything downloads, so nothing was ever half-written; it simply could not be done. Found 25 Aug 2026 the only way it could be: by somebody trying it for the first time. Third instance of the F44 class — a documented operational capability that had never once been exercised. **Established 25 Aug 2026: production's register had never been imported at all** — one `register:refresh` row ever, that morning's — so the live signup picker was empty from the day the feature shipped, with every gate green over an empty table. |
+| F57 | Medium | Operations / the school register | **The documented way to refresh the school register could not run where the database is.** `npm run gias:import` — the command the script's own header gives as the production procedure — answers **403 inside the Railway container** and 200 from a laptop the same minute, because the DfE blocks the datacentre range. It fails at the FIRST fetch, before anything downloads, so nothing was ever half-written; it simply could not be done. Found 25 Aug 2026 the only way it could be: by somebody trying it for the first time. Third instance of the F44 class — a documented operational capability that had never once been exercised. **Established 25 Aug 2026: production's register had never been imported at all** — one `register:refresh` row ever, that morning's — so the live signup picker was empty from the day the feature shipped, with every gate green over an empty table. | | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
 | F58 | **High** | Test harness / persona suite truthfulness | **The persona suite can report a working feature as broken and a broken one as working, and we have made decisions on its output all week.** Its "did it work?" checks are `seesText(/…/i)` against rendered copy, and 16 of 63 are unsound. Proven against real rendered text: `/…\|nothing/i` matched "**Nothing** else was searched" in a refusal and scored a miss as a find (the false major "I cannot issue them a new code" — the control exists and works); `/…\|ok\|…/i` matches "br**ok**en", so the operator health check passes on the exact word that means it is broken; and the `/ops` console check looks for words the shipped verdict tile never says, so it reported a working tile as absent. Substring hazards confirmed in real copy: `ok`→broken/looks/cookie, `ask`→task/asked, `done`→undone, `sure`→measured/erasure, `back`→background/feedback. A second class cannot fail at all: `/class(es)?\|work\|…/` on a staff page. | **Open** | `scripts/check-persona-patterns.mjs` in `npm run check` — a bare alternation shorter than 5 characters, or a failure word inside a success pattern, is refused with the word that would collide |
 | F59 | **Critical** | Access control / children's data (Rule 1) | **"Remove from school" does not remove access.** `removeStaff` sets `teacher.schoolId = null`; `Class` has **no `schoolId`**, so a class belongs to a school only through its teacher. Measured 25 Aug 2026 on the persona school: removing an ACTIVE teacher in one click, with no confirmation, took the school from 5 classes/17 pupils to **1 class/3 pupils** — while he signed straight back in to `/teacher` with all four classes, **14 pupils, 7 journal items and 2 items waiting in his approval queue**. The admin's intent is not achieved, the school cannot reassign the classes it can no longer see (the action's own comment claims it can), and the audit log records "Removed Nathan Reeves from the school", which is now false in the direction that matters. Found only because F58's cannot-fail check was tightened; `grep -rln "removeStaff\|STAFF_REMOVED" tests/` returned **nothing** — the action had never been exercised by any test. | **Open.** Fix shape is the owner's call: reassign-on-remove (narrow) or give `Class` a `schoolId` (structural, touches the ops blindness gate's relation paths) | `tests/battery/findings/staff-removal.spec.ts` — asserts the intended secure behaviour and **fails on purpose** until fixed |
-| F60 | Medium | Trust / transparency at signup | **A teacher signs up, and nothing on the way in says what happens to children's work or who can see it.** Step 1 of 5 asks for their name, school email and password; the next steps ask for their school and their class. The only nearby sentence is "Just you — pupils never need accounts or emails", which is about accounts, not about the work. Discovered 25 Aug 2026 by tightening one of F58's four cannot-fail checks: the old pattern was `/safeguard\|approv\|privacy\|data\|only you\|never/i` and it had been matching the word **"never"** in that unrelated sentence since the day it was written. Safeguarding is the product's whole pitch and `docs/brand-and-copy.md` governs what is claimed in StoryJar's name — the promise exists everywhere except the one screen where somebody is deciding whether to trust it. | **Open** | `personas/teacher-first-day.spec.ts:75`, now written against a promise being made rather than against the word "data" | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
+| F60 | Medium | Trust / transparency at signup | **A teacher signs up, and nothing on the way in says what happens to children's work or who can see it.** Step 1 of 5 asks for their name, school email and password; the next steps ask for their school and their class. The only nearby sentence is "Just you — pupils never need accounts or emails", which is about accounts, not about the work. Discovered 25 Aug 2026 by tightening one of F58's four cannot-fail checks: the old pattern was `/safeguard\|approv\|privacy\|data\|only you\|never/i` and it had been matching the word **"never"** in that unrelated sentence since the day it was written. Safeguarding is the product's whole pitch and `docs/brand-and-copy.md` governs what is claimed in StoryJar's name — the promise exists everywhere except the one screen where somebody is deciding whether to trust it. | **Open** | `personas/teacher-first-day.spec.ts:75`, now written against a promise being made rather than against the word "data" |
+| F61 | **High** | Authentication / account recovery | **There was no password reset anywhere in the product, and no way for an invited teacher to receive credentials.** `src/app/actions/auth.ts` signed a teacher in and that was all: a pilot teacher who mistyped their password had no route back except the owner opening `railway ssh`. Ten to fifteen pilot teachers arrive from 1 September. The second half was the same hole — `staffInviteEmail()` had been written, styled and left uncalled for months (`mailStatus.ts:48` recorded it), `resendInvite` was a documented no-op that refreshed the page, and `inviteStaff` created a Teacher row with an empty password hash and told nobody. | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 7-day invitation; neutral response; link never on screen in production; single-use; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (6 blocking properties) and `tests/e2e/password-reset.spec.ts`, which is the acceptance test: a teacher who does not know her password gets back in with nobody touching a terminal | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 72-hour invitation; neutral response; link never on screen in production; single-use enforced in the database; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (8 blocking properties incl. the concurrent double-spend), `tests/battery/security/staff-invite-isolation.spec.ts` (cross-tenant), and `tests/e2e/password-reset.spec.ts`, the acceptance test |
 
 ---
 
@@ -3478,3 +3479,247 @@ does not leave the UK or the EU. The wording is `docs/brand-and-copy.md`'s to
 approve, and the claims must match `SAFEGUARDING.md` rather than being written
 fresh — this file has already recorded, in F57's neighbours, what happens when a
 promise is restated in a second place and then drifts.
+
+## F61 · No password reset existed, and an invited teacher could not get in · High → Fixed
+
+Built 25 August 2026 to a brief (`docs/prompts/password-reset.md`). Two holes,
+one mechanism.
+
+**There was no reset.** `teacherLogin` signed a teacher in and nothing else
+existed. A pilot teacher who mistyped their password on a Monday had one route
+back: the owner opening `railway ssh` and writing a bcrypt hash by hand. Ten to
+fifteen pilot teachers arrive from 1 September.
+
+**And an invited teacher could not get in either.** `inviteStaff` created a
+`Teacher` row with `passwordHash: ""` and sent nothing; `staffInviteEmail()` had
+been written, styled, given "Set your password" copy and left uncalled for
+months, which `src/lib/mailStatus.ts:48` recorded in terms; `resendInvite` was a
+no-op that refreshed the page, so an admin pressing it for a colleague who never
+received anything got a spinner and no email, twice.
+
+Both are the same missing thing: a single-use token that lets an adult set a
+password. Built once, wired to both.
+
+### The decision the brief left open: hashed, not raw
+
+`MagicToken` stores its token in the clear. `TeacherPasswordToken.resetHash`
+stores a SHA-256 digest, and the raw token exists only in the recipient's email
+and in the request that spends it.
+
+A database **read** must not be replayable into an account takeover. Raw storage
+means anyone who can read the table for the token's lifetime owns every account
+with an outstanding reset: a leaked backup, a copied `dev.db`, exceptional
+access under `docs/exceptional-access.md`. **F20 and F35 are what make that live
+rather than theoretical** — backups exist as of 17 August and their residency is
+still unconfirmed.
+
+SHA-256 rather than bcrypt, deliberately. The input is 24 bytes from
+`randomBytes` — 192 bits, not guessable — so there is nothing for a slow KDF to
+defend against, while bcrypt would add cost to every lookup and silently
+truncate at 72 bytes. A fast digest of a high-entropy secret is the right
+construction; a slow one of a low-entropy secret is the other case, and
+`src/lib/mailHmac.ts` is that other case in this codebase, keyed because its
+input is an email address.
+
+**`MagicToken` should follow, and not here.** Its raw storage is a weakness
+rather than a house style, and the answer the brief asked for is yes. It is not
+in this change because it touches the parent flow, which carries F6 and F19, and
+a second security-relevant change riding along inside a freeze week is how a
+narrow exception stops being narrow. It wants its own safeguarding-reviewed
+commit.
+
+### Two lifetimes, which is a departure from the brief
+
+The brief said 30 minutes and invited an argument. The argument is that 30
+minutes is right for one of these and wrong for the other, and the difference is
+**who started the flow**.
+
+- **Reset: 30 minutes.** The teacher asked for it seconds ago and is watching
+  their inbox. Matches the parent flow. The window in which a stolen inbox is
+  also a stolen account is exactly this long, and there is no reason for it to
+  be longer.
+- **Invitation: 7 days.** Nobody asked for it — a colleague sent it, and the
+  recipient reads school email when they next read school email. A teacher
+  invited at 07:40 who opens their inbox at 08:15 must not find a dead link, an
+  invitation sent on a Friday has to survive the weekend, and the first week of
+  September has INSET days in it. Thirty minutes there does not make the product
+  safer; it makes every invitation a resend, and each resend is another email
+  carrying the same power. The exposure is bounded by what the token can do: set
+  a password on an account with no data in it yet, for somebody a colleague has
+  just named as staff.
+
+### The throttle key, which is a second departure and was nearly missed
+
+`requestMagicLink` throttles per IP. Copying that here would have been wrong in
+a way no test would have shown.
+
+`clientIp()` takes the **leftmost** `x-forwarded-for`, which is the true client
+address. Parents are on home broadband — one household, one address. **A school
+is behind one NAT**: every teacher in the building presents the same value. With
+`MAX_FAILS` at 5, the fifth teacher to ask for a reset on the first morning of
+term locks out every colleague in the school for fifteen minutes — and the first
+morning of term, with pilot teachers signing in for the first time, is the exact
+scenario this feature exists for.
+
+Keyed `pwreset:${email}:${ip}` instead, which is the pattern `teacherLogin`
+already uses. It still bounds the thing that matters — using StoryJar to flood
+one person's inbox, which is per-address by definition — and it costs nothing in
+enumeration defence, because the response is identical either way (F6), so a
+sweep of addresses from one source learns nothing.
+
+**How it was found is the part worth keeping.** A blocking spec kept tripping the
+limiter, and the first instinct was to work around it in the test. The test was
+awkward because the product was wrong. Reach for "this spec is hard to write" as
+a finding before reaching for a workaround.
+
+### What holds it up
+
+- **Neutral response.** Identical output for an address on file, one that is
+  not, an INVITED teacher who has never had a password, and a send that failed.
+  This form is public and school staff directories are published on school
+  websites; a form that distinguished them would confirm, address by address,
+  which of a named school's staff use StoryJar (F6).
+- **The link never renders in production**, decided by `signInLinkMayBeShown()`
+  rather than an inline `if`, which is F19's mechanism and F19's reason. F19's
+  own spec asserts the RULE — `signInLinkMayBeShown("production")` is false —
+  but nothing asserted that any action ASKS it, and the pure function can be
+  perfect while a new action returns a link without consulting it. That is the
+  shape F19 was in before it was found. `scripts/audit-static.mjs` now refuses
+  any server action that returns an `openUrl` without importing the policy.
+  Coarse on purpose: it proves the decision is consulted, not that it is obeyed,
+  which is a reviewer's job. Its first version checked for a *mention* of the
+  function and was satisfied by a comment saying "callers must put it through
+  `signInLinkMayBeShown()`" — found by deleting the guard and watching the gate
+  stay green, which is the only way to know a gate works.
+- **Single use**, marked spent in the same transaction as the password write.
+- **Sessions destroyed** in that same transaction, before the person is signed
+  in again. A reset that leaves the old session alive does not evict whoever
+  prompted it, and a teacher resets *because* somebody else may be in there.
+- **One refusal message** for unknown, expired and spent. Distinguishing them
+  tells somebody holding a link they found whether it was ever real.
+- **Audited on completion, not on request.** A completed password change is a
+  safeguarding-relevant account event; a request is unauthenticated, so
+  auditing it would hand a stranger a way to flood the school's audit log.
+
+### Two throttles, and why neither is keyed the obvious way
+
+**The request side is keyed on address+source, with a coarse ceiling on the
+source.** Address+source alone bounds what one inbox receives and not what one
+source sends, so a walk down a school's published staff list could send five
+each to as many addresses as it liked. The harm is not takeover — the response
+is neutral and the link goes to the real inbox — it is **sender reputation**,
+which every parent magic-link in the product rides on and which cannot be
+repaired quickly once a domain is throttled by the large mailbox providers.
+
+The ceiling is 200 outbound per source per hour, trickled to one per ten
+seconds rather than blocked. The number is stated from an assumption so it can
+be argued with: a large three-form-entry primary, ~630 pupils, 60–70 adults with
+school email; the worst honest hour is the first morning of the autumn term with
+every one of them signing in and a third asking twice — about 90 — doubled and
+rounded. A real school cannot reach it without the whole staff asking three
+times inside an hour. An hour rather than fifteen minutes so a genuine rush
+concentrated into one break does not trip a ceiling meant for a bot, and a
+trickle rather than a block so the pathological case slows instead of the
+staffroom closing. It counts only sends that actually happen, or an attacker
+could exhaust a school's budget with addresses that do not exist.
+
+**The spend side is keyed on the token.** It was `pwset:${ip}` — the same NAT
+bug as the request side, still live on the side the pilot teachers actually
+use. Ten of them setting invitation passwords from behind one school firewall,
+and five refused links from any of them (a stale email, a link opened twice)
+hard-blocks every colleague on that address for fifteen minutes, including one
+holding a good token. A token is single-use and belongs to one person, so
+keying on its digest gives a budget that is small by nature and cannot reach
+anybody else **by construction rather than by tuning**. The digest, never the
+raw token: a limiter key is the kind of string that ends up in a log. Asserted
+by burning one link past its budget and then spending a valid one from the same
+browser, which is the same address.
+
+### Three things a review caught that the tests did not
+
+Two reviewers were asked; the first went idle four times without a verdict, the
+second returned APPROVE WITH CHANGES and found all three of these. Worth
+recording that a green suite is not a review, because all three were green.
+
+**Single use was not enforced under concurrency.** `passwordTokenIsUsable`
+runs outside any transaction, and the spend was an unconditional
+`update({ where: { id } })`. Two submissions interleaving between the read and
+the write both passed: two password writes, two sessions. Sequentially the
+second is refused, which is what the spec covered and why it stayed green. A
+link reaches a shared mailbox, is forwarded, or is prefetched by a school's
+security gateway, and somebody races the teacher into a session they should
+have been refused. Now an `updateMany` with `usedAt: null` in the WHERE, inside
+the transaction, so the database is the arbiter and the loser is refused like
+anybody holding a spent link. A spec fires two submissions without awaiting the
+first and asserts exactly one lands.
+
+**The argument for a 7-day invitation was false, so the window is 72 hours.**
+The comment justified the longer life by saying the exposure was bounded to "an
+account that has no data in it yet". `assignClassToStaff` scopes by
+`{ id, schoolId }` with **no status filter**, so an admin can give a class to
+somebody who has not accepted — which is the ordinary onboarding order. A live
+invitation can therefore be a key to a class of children's names, photographs,
+drawings and its approval queue, and the invitation email names the school, so
+an address an admin mistyped would put that in a stranger's inbox for a week.
+72 hours keeps the strongest real need — Friday afternoon to Monday morning —
+and drops the weakest. Rule 1's "take the more protective option when unclear"
+did not decide it; the bound turning out not to hold did.
+
+**`resendInvite` had no cross-tenant test.** It has taken a caller-supplied
+`staffId` since it was written, but it was a no-op that refreshed the page, so
+there was nothing to isolate and `grep -rn resendInvite tests/` returned
+nothing. As of this change it emits a live password-setting credential to
+somebody's inbox — a different action wearing the same name. The code was
+correct (school-scoped `findFirst`, silent no-op on a miss); what was missing
+was AGENTS.md's own convention, that a new action taking an id gets an
+isolation test before it ships.
+
+### One thing that was nearly shipped as a hole
+
+`mintPasswordToken` was first written in `src/app/actions/password.ts`, which
+carries `"use server"`. Every export from such a file becomes a callable server
+action with its own id — and that function takes a `teacherId` and **returns the
+path containing the raw token**. As an export it was a network-reachable way to
+mint a working set-password link for any teacher whose id you could supply: no
+session, no authentication, no throttle, because it is the helper the guarded
+callers use rather than a guarded caller itself.
+
+Whether the action id is practically obtainable is not the argument worth
+having. The two guards that matter — you can receive that teacher's email, or
+you are already an admin of their school — live in `requestPasswordReset` and
+`sendStaffInvite`, and an export that steps around both should not exist. It now
+lives in `src/lib/passwordTokens.ts` behind `server-only`, and the action module
+exports exactly the two actions it should.
+
+Found by asking the reviewer whether it was a hole and then not waiting for the
+answer, which was the right order: the fix was cheaper than the argument.
+
+### Named `resetHash`, not `tokenHash`
+
+The model was first written with `tokenHash` and renamed the same morning.
+`ApiToken.keyHash` carries a schema comment saying why that name was already
+spoken for: *"OperatorSession already owns `tokenHash`, and the ops blindness
+gate's denylist is keyed on the column NAME"* — denying it would break the
+operator's own sign-in, and not denying it would leave the new column protected
+by its model classification alone, where every other teacher credential has two
+controls. The convention was written down and simply not read.
+
+Corrected two stale references found while doing it: the gate's own exemption
+comment and a schema comment both cited `ApiToken.tokenHash`, a column that does
+not exist. The exemption was right; its stated reason named nothing.
+
+### The acceptance test
+
+Not "the suite is green". `tests/e2e/password-reset.spec.ts` walks it as a
+locked-out teacher does: fail at sign-in, find the way out **there** rather than
+on a help page, ask with the address she knows, open the link, choose a
+password, land in her own account — then sign in again with the new password to
+prove it was not a one-off session. Nobody touches a terminal.
+
+### Still open, and small
+
+`TeacherPasswordToken` has no purge job. Spent rows persist as a digest with no
+live meaning until the teacher is deleted, when the cascade takes them —
+measured on a populated database, not assumed. That is the same open item as the
+audit-log purge at the foot of `RETENTION.md`, which is where this table's row
+now sits.

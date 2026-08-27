@@ -212,7 +212,16 @@ test("a parent is found only by their whole address, and comes back masked", asy
   // typed "demo-parent" would prove the browser works rather than the server.
   await submitLookup(page, "PARENT", "demo-parent@storyjar.co", GOOD_REASON);
   await expect(page.getByRole("heading", { name: /^result$/i })).toBeVisible();
-  await expect(page.locator("main")).toContainText("No account has that address");
+  // The refusal NAMES THE TABLE it searched, and this is stronger than the
+  // sentence it replaced. "No account has that address" was a claim about every
+  // account in StoryJar, made by a screen that had looked in one table — false
+  // in the commonest way this form is used wrong, since it defaults to staff and
+  // the commonest support call is about a parent (F61).
+  await expect(page.locator("main")).toContainText("No parent or carer has that address");
+  await expect(
+    page.locator("main"),
+    "the refusal must not claim more than the search it performed",
+  ).not.toContainText("No account has that address");
 
   // Positive control on the same record: the whole address finds it.
   await submitLookup(page, "PARENT", PARENT_A, GOOD_REASON);
@@ -335,7 +344,7 @@ test("a completed lookup is audited with the search term and the reason, word fo
   // something about that address.
   const missReason = `Checking an address the office read out, ${Date.now()}`;
   await submitLookup(page, "PARENT", NO_SUCH_ADULT, missReason);
-  await expect(page.locator("main")).toContainText("No account has that address");
+  await expect(page.locator("main")).toContainText("No parent or carer has that address");
   const miss = await db.opsAuditLog.findFirst({ where: { reason: missReason } });
   expect(miss).not.toBeNull();
   expect(miss!.detail).toContain("no record");

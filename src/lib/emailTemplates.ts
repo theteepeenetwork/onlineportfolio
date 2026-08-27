@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// The emails StoryJar sends. Two of them.
+// The emails StoryJar sends. Three of them.
 //
 // **This module deliberately does NOT import `server-only`.** Its predecessor,
 // `src/lib/emails.ts`, did, and the cost of that guard was that nothing outside
@@ -155,6 +155,58 @@ ${button(url, "Sign in to StoryJar")}
 <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>
 <p style="margin:0 0 18px;font-size:13px;line-height:1.6;color:${MUTED};word-break:break-all;">${url}</p>
 <p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};">Didn't ask for this? You can ignore this email. Nothing will happen, and nobody has been given access to anything.</p>`,
+  );
+
+  return { subject, text, html };
+}
+
+/**
+ * A teacher's password reset link.
+ *
+ * Named nowhere in it: the school, the class, any child, and the teacher
+ * themselves. Anyone may type an address into the reset form, so this message
+ * has to be safe to arrive at an address that was mistyped or that belongs to
+ * somebody else entirely — a stranger who opens it learns that somebody asked
+ * to reset a password on a service for primary schools, and nothing more.
+ *
+ * The reassurance at the bottom is not politeness. An unexpected password reset
+ * email is alarming, the honest answer is that ignoring it changes nothing, and
+ * a recipient who is told that is a recipient who does not click the link to
+ * "check".
+ */
+export function passwordResetEmail(url: string): { subject: string; text: string; html: string } {
+  const subject = "Reset your StoryJar password";
+  const preheader = "Set a new password. The link works once and lasts 30 minutes.";
+
+  const text = [
+    "Reset your password",
+    "",
+    "Someone asked to reset the password for this StoryJar account. Use the link",
+    "below to choose a new one.",
+    "",
+    url,
+    "",
+    "The link works once and lasts 30 minutes. If it runs out, ask for a new one",
+    "from the sign-in page and we'll send another straight away.",
+    "",
+    "Didn't ask for this? You can ignore this email. Nothing will happen, your",
+    "password stays as it is, and nobody has been given access to anything.",
+    "",
+    "---",
+    FOOTER_TEXT,
+    REPLY_TEXT,
+  ].join("\n");
+
+  const html = shell(
+    preheader,
+    `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">Reset your password</h1>
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">Someone asked to reset the password for this StoryJar account. Use the button below to choose a new one.</p>
+${button(url, "Choose a new password")}
+<p style="margin:0;font-size:15px;line-height:1.6;color:${BODY};">The link works once and lasts 30 minutes. If it runs out, ask for a new one from the sign-in page and we'll send another straight away.</p>
+<div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
+<p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>
+<p style="margin:0 0 18px;font-size:13px;line-height:1.6;color:${MUTED};word-break:break-all;">${url}</p>
+<p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};">Didn't ask for this? You can ignore this email. Nothing will happen, your password stays as it is, and nobody has been given access to anything.</p>`,
   );
 
   return { subject, text, html };

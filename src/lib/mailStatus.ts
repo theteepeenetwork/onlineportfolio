@@ -44,19 +44,27 @@
 // ---------------------------------------------------------------------------
 // Templates
 // ---------------------------------------------------------------------------
-// One entry, because one template is sent. src/lib/emailTemplates.ts also
-// exports staffInviteEmail(), and nothing calls sendMail with it: the only
-// sendMail call site in the application is requestMagicLink in
-// src/app/actions/family.ts. A second entry here today would put a permanently
-// empty row on the operator screen, which reads as "no sign-in mail has gone
-// out" rather than "this kind of mail does not exist yet". Add it in the same
-// commit as its send path.
-export const MAIL_TEMPLATE_KEYS = ["magic-link"] as const;
+// Three entries, because three templates are sent. The rule this list is kept
+// by: a key is added in the SAME COMMIT as the code that sends that mail, never
+// before. An entry with no send path behind it puts a permanently empty row on
+// the operator screen, and an empty row reads as "no mail of this kind has gone
+// out" — an operator chasing a teacher who never got their invitation would be
+// looking at a screen telling them the send is broken, when in fact the feature
+// did not exist. "staff-invite" waited here for exactly that reason:
+// staffInviteEmail() was written months before anything called it.
+//
+// The labels name the RECIPIENT as well as the mail, because the operator
+// screen lists them together and "Password reset" alone would leave an operator
+// wondering whether it covers their own door. It does not: an operator's
+// recovery is docs/ops-recovery.md and sends no mail.
+export const MAIL_TEMPLATE_KEYS = ["magic-link", "password-reset", "staff-invite"] as const;
 
 export type MailTemplateKey = (typeof MAIL_TEMPLATE_KEYS)[number];
 
 export const MAIL_TEMPLATE_LABEL: Record<MailTemplateKey, string> = {
   "magic-link": "Parent sign-in link",
+  "password-reset": "Teacher password reset",
+  "staff-invite": "Staff invitation",
 };
 
 // ---------------------------------------------------------------------------

@@ -379,6 +379,25 @@ const CREDENTIAL_NEVER = [
   "ApiToken",
   "OAuthClient",
   "OAuthGrant",
+  // The teacher password token (F61). One row is a live, single-use credential
+  // for setting a named teacher's password, so it belongs in the strictest
+  // class in this gate for the same reason MagicToken does — and the fact that
+  // the column stores a SHA-256 digest rather than the token does not soften
+  // that: what an operator would learn from a read here is not the secret, it
+  // is that a particular teacher is mid-reset or has an unopened invitation,
+  // which is an account event about a named adult and rule 5's "admins are not
+  // all-seeing" applies to it.
+  //
+  // A TIGHTENING, not a widening (ruling R2), landing in the same commit as the
+  // model: the drift check refused it as OPS-MODEL-UNKNOWN until it was
+  // classified here, and the class it landed in permits nothing at all — no
+  // read, no count, no confirmation that a row exists.
+  //
+  // Support does not need it. A teacher who did not receive their invitation
+  // asks a colleague to send another, and the operator's view of whether mail
+  // is leaving at all is MailCounter, which counts messages and knows nothing
+  // about who they were for.
+  "TeacherPasswordToken",
 ];
 
 // The operator's own records.
@@ -539,6 +558,11 @@ const DENY_FIELDS = [
   "keyHash",
   "codeHash",
   "refreshHash",
+  // The password-reset / staff-invite token (F61). Stronger than the three
+  // above: those grant a teacher's activity library, this sets their password.
+  // Denied by name as well as by the model's CREDENTIAL_NEVER class, which is
+  // why it is called resetHash and not tokenHash — see the note on the model.
+  "resetHash",
   "redirectUrisJson",
   // Child work and per-child state
   "caption",
@@ -2199,10 +2223,19 @@ for (const [field, owners] of fieldOwners) {
   // those models cannot be read by ops in any case — the model ban is absolute
   // and comes first — so demanding a denylist entry for the NAME adds nothing,
   // and for a name the operator's own tables also use it would take something
-  // away. `tokenHash` is exactly that: it is `ApiToken.tokenHash`, which ops may
-  // never touch, and it is `OperatorSession.tokenHash`, which is how the
-  // operator's own session is looked up (`src/lib/ops/session.ts`) and which
-  // this gate's own note under "token" points at as the right column to use.
+  // away. `tokenHash` is exactly that: it is `OperatorSession.tokenHash`, which
+  // is how the operator's own session is looked up (`src/lib/ops/session.ts`)
+  // and which this gate's own note under "token" points at as the right column
+  // to use.
+  //
+  // This paragraph used to say `tokenHash` was also `ApiToken.tokenHash`. It
+  // never was — that column is `keyHash`, and the schema comment beside it says
+  // it was named that way precisely to avoid this collision. So the stated
+  // reason for the exemption named a column that does not exist, while the
+  // exemption itself was right. Corrected 25 August 2026, alongside F61's
+  // `resetHash`, which was briefly written as `tokenHash` and renamed for the
+  // same reason `keyHash` was: a name the denylist can never hold is a name
+  // protected by one control instead of two.
   // Banning the name outright would fail the door's own code; leaving the drift
   // check to demand it would be asking for a ban that must not be granted.
   //
