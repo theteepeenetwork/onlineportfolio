@@ -116,7 +116,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F62 | Medium | Test harness / assertions that cannot fail | **F58's gate covers persona regexes and not `expect(...)` assertions, and two unfailable assertions were written by F58's own author on the days after it.** `check-persona-patterns.mjs` refuses a short bare alternation or a failure word in a persona success pattern. It cannot see an `expect()` that is true whatever the product does. Two instances, both green, both found by reading output rather than by any gate: a persona check asserting the ABSENCE of a sentence that no longer existed anywhere in the product, and a cross-tenant test posting forged FormData that Next refused outright (`Failed to find Server Action`), so "no token was minted" held against a request that could never mint one. | **Open**, deliberately not fixed this week — a new static gate during a freeze is how a narrow exception stops being narrow (owner decision, 27 Aug 2026). After launch | none, and that is the finding. Both instances are now fixed at their sites; nothing stops a third |
 | F63 | Medium | Fleet reliability / review coverage | **A safeguarding reviewer produced nothing across four idle cycles while a second reviewer, given the same brief, returned three must-fix findings that a green suite could not have found.** `pw-review` was asked for a verdict on F61, went idle four times, and never answered — while the change sat committed-ready. `pw-review2`, same tree, same four questions, found: single-use unenforced under concurrency, a false justification for the 7-day invitation window (an invited teacher can already hold a class), and a missing cross-tenant test on an action that had just started emitting live credentials. All three were green at the time. | **Open.** Standing rule agreed 27 Aug 2026: replace a reviewer that goes idle twice without answering, rather than chasing it | n/a — this is about how the fleet is run, not about the product |
 | F64 | Low | Accessibility (operator) | **The operator lookup's result is announced by a live region that is created at the same instant as its text, so several screen readers will not read it.** `src/app/ops/lookup/forms.tsx:150` puts `role="status"` on a div inside `Result`, which returns null until a lookup has run — so assistive technology meets a node that has just appeared rather than a region it was already watching. The same file guards against exactly this for the error region six lines up (`:113-115`, "Always in the DOM, so assistive technology is already watching"), so the principle is understood and applied unevenly. The refusal is the case where **nothing else on the screen changes**, which makes it the one most worth hearing. Found by `lookup-review` while reviewing an unrelated copy change; pre-existing, not caused by it. | **Open.** Deferred past the freeze — a render-structure change on a Rule 1 screen wants its own commit and its own run, not a ride-along | axe will not catch it: this is an announcement-timing property, not a static violation. Needs the always-mounted pattern the error region already uses |
-| F65 | Medium | Correctness surfacing as copy | **A sentence that claims more than the code behind it checked. Three instances in one day, on three unrelated screens.** The school mail badge would have read "All 3 sign-in emails StoryJar tried to send were accepted" for a school whose only mail was staff invitations, because its filter widened while its words did not. The operator lookup said "No account has that address" — a claim about every account in StoryJar, from a screen that had read one table. And "No parent or carer has that address" gets relayed down a phone as "we have no record of that parent", when rule 6a means many parents deliberately gave no address at all. | **Open as a standing risk.** All three instances fixed; the class is not. Every screen reporting a NEGATIVE result is a candidate | none possible — no gate can read a sentence and know what the query behind it asked. The remedy is a standing review question, below |
+| F65 | Medium | Correctness surfacing as copy | **A sentence that claims more than the code behind it checked. Four instances, three on unrelated screens and one in this file's own diagnostics.** The school mail badge would have read "All 3 sign-in emails StoryJar tried to send were accepted" for a school whose only mail was staff invitations, because its filter widened while its words did not. The operator lookup said "No account has that address" — a claim about every account in StoryJar, from a screen that had read one table. And "No parent or carer has that address" gets relayed down a phone as "we have no record of that parent", when rule 6a means many parents deliberately gave no address at all. | **Open as a standing risk.** All three instances fixed; the class is not. Every screen reporting a NEGATIVE result is a candidate | none possible — no gate can read a sentence and know what the query behind it asked. The remedy is a standing review question, below |
 
 ---
 
@@ -3403,11 +3403,28 @@ member of staff cannot reach the children's work — and therefore **fails on
 purpose** until the fix lands. When it is fixed it moves into the blocking
 security suite, and this entry is deleted rather than reworded.
 
-### One thing to check before the fix
+### Checked on production, 27 August 2026: nobody is in the broken state
 
-Whether any teacher has already been removed on production. `schoolId: null`
-with `status: ACTIVE` is the signature, and those accounts still hold their
-classes today.
+**No `STAFF_REMOVED` audit row exists in production.** Nobody has ever been
+removed from a school, so no account is sitting detached and still holding
+classes. F59 is a defect and not an incident, which is what decides that it can
+be fixed on its merits rather than as a live remediation.
+
+**AND THE SIGNATURE THIS ENTRY FIRST GAVE WAS WRONG, which cost two queries.**
+It said `schoolId: null` with `status: ACTIVE` identifies a removed teacher. It
+does not. That is *equally* the permanent and correct state of every free-plan
+teacher who never belonged to a school at all — which is most of the table. The
+first query returned twelve ACTIVE accounts holding classes and answered
+nothing, because the column cannot tell "removed" from "never joined".
+
+The discriminator is the **audit row**: `STAFF_REMOVED` is written when, and
+only when, somebody is removed. That is what made the second query decisive.
+
+This is F65's pattern inside this file rather than on a screen — a stated
+signature claiming more than the columns behind it can answer for — and it is
+recorded there as the fourth instance for exactly that reason. The uncomfortable
+half is that the class shows up in our own diagnostics too, where the cost is a
+wrong answer about production rather than a wrong sentence to a teacher.
 
 ## F60 · Nothing at signup says what happens to children's work · Medium → Open
 
@@ -3852,8 +3869,10 @@ criticism of the battery. It is what a battery is for and what it is not.
 
 ## F65 · A sentence that claims more than the code checked · Medium → Open as a standing risk
 
-Three instances on 25–27 August 2026, on three unrelated screens, found by
-three different people. That is what makes it a class rather than three bugs.
+Four instances on 25–27 August 2026, found by four different people. Three were
+on unrelated screens; the fourth was in this file, in F59's own stated signature
+for diagnosing production. That is what makes it a class rather than a run of
+bugs — and the fourth is why the class is not only about user-facing copy.
 
 **The school mail badge.** `readSchoolMailHealth` filtered by
 `MAIL_TEMPLATE_KEYS` and its copy said "sign-in emails" in four places. While
@@ -3871,6 +3890,21 @@ staff and the commonest support call is about a parent.
 is true of the table — and gets relayed down a phone as "we have no record of
 that parent", when SAFEGUARDING rule 6a means many parents deliberately gave no
 address at all. Now "No parent or carer **in StoryJar** has that address".
+
+**F59's own signature, 27 August 2026 — the first instance found in a finding
+rather than on a screen.** F59 stated that `schoolId: null` with
+`status: ACTIVE` is the signature of a teacher already removed from a school.
+It is not: it is equally the permanent, correct state of every free-plan teacher
+who never joined one, which is most of the table. A production query on that
+signature returned twelve accounts and answered nothing. The column cannot
+distinguish "removed" from "never joined"; only the `STAFF_REMOVED` audit row
+can, because it is written when and only when a removal happens.
+
+Same defect as the three above — a claim scoped wider than the thing behind it
+can answer — and the most uncomfortable of the four, because a wrong sentence on
+a screen misleads a teacher while a wrong signature in a finding misleads *us*,
+about production, while deciding whether something is an incident. Two queries
+to find out, and the first looked like an answer.
 
 ### Why this is not a copy problem
 
