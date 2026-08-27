@@ -193,7 +193,7 @@ test("a school rings up: a family code has gone to the wrong house", async ({ pa
     // written by the person who wrote F58, on the same day. A check that the
     // refusal NAMES the table can fail, and fails if the copy regresses.
     t.expects(
-      await t.seesText(/No (parent or carer|member of school staff) has that address/i, 800),
+      await t.seesText(/No (parent or carer|member of school staff) in StoryJar has that address/i, 800),
       "major",
       "confusing",
       "The screen told me no account has that address without saying which kind of adult it searched, so I nearly told a school we had no record of a parent we do have.",

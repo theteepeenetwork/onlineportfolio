@@ -33,8 +33,22 @@ export type OpsLookupState = {
   error?: string;
   /** Which field the error belongs to, so focus can be moved to it. */
   field?: "email" | "reason";
-  /** Present once a lookup has actually run. Null means nothing matched. */
+  /**
+   * Present once a lookup has actually run. Null means nothing matched.
+   *
+   * `record` and `kind` travel TOGETHER and are set on one line (below), never
+   * separately. The refusal sentence on the screen names the table from `kind`,
+   * so a `record` that arrived without one would fall to the "member of school
+   * staff" branch and could tell an operator mid-call that no member of staff
+   * has an address they searched for as a parent — the exact false sentence
+   * this copy was changed to remove.
+   *
+   * Nothing today can reach that: there is one success return and it sets both.
+   * They are described as a pair here so that the next person to add a return
+   * has to notice.
+   */
   record?: AdultRecordDto | null;
+  /** The table that was actually searched. Only ever set beside `record`. */
   kind?: LookupKind;
   /** Echoed back so a rejected submission does not empty the form. */
   values?: { kind: string; email: string; reason: string };

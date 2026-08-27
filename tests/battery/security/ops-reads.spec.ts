@@ -216,8 +216,8 @@ test("a parent is found only by their whole address, and comes back masked", asy
   // sentence it replaced. "No account has that address" was a claim about every
   // account in StoryJar, made by a screen that had looked in one table — false
   // in the commonest way this form is used wrong, since it defaults to staff and
-  // the commonest support call is about a parent (F61).
-  await expect(page.locator("main")).toContainText("No parent or carer has that address");
+  // the commonest support call is about a parent (F58, whose persona investigation found it; NOT F61, which is the password reset).
+  await expect(page.locator("main")).toContainText("No parent or carer in StoryJar has that address");
   await expect(
     page.locator("main"),
     "the refusal must not claim more than the search it performed",
@@ -344,7 +344,7 @@ test("a completed lookup is audited with the search term and the reason, word fo
   // something about that address.
   const missReason = `Checking an address the office read out, ${Date.now()}`;
   await submitLookup(page, "PARENT", NO_SUCH_ADULT, missReason);
-  await expect(page.locator("main")).toContainText("No parent or carer has that address");
+  await expect(page.locator("main")).toContainText("No parent or carer in StoryJar has that address");
   const miss = await db.opsAuditLog.findFirst({ where: { reason: missReason } });
   expect(miss).not.toBeNull();
   expect(miss!.detail).toContain("no record");

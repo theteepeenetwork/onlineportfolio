@@ -158,13 +158,19 @@ function Result({ state }: { state: OpsLookupState }) {
           // control for not being there — it had rendered for nobody, because
           // no parent had been found (F58).
           //
+          // "in StoryJar" is not padding. Rule 6a means many parents
+          // deliberately gave no address at all, so a bare "no parent or carer
+          // has that address" gets relayed down a phone as "we have no record
+          // of that parent" — which is a claim about the family, not about the
+          // table. The screen can only answer for what it read.
+          //
           // The narrower sentence also DISCLOSES LESS, which is why it is the
           // right one twice over: "no account has that address" is a claim about
           // every account in StoryJar, and this screen is only ever entitled to
           // answer for the one table it looked in.
           <p style={{ color: "var(--ink)" }}>
-            No {state.kind === "PARENT" ? "parent or carer" : "member of school staff"} has that
-            address. Nothing else was searched, and the search was recorded
+            No {state.kind === "PARENT" ? "parent or carer" : "member of school staff"} in
+            StoryJar has that address. Nothing else was searched, and the search was recorded
             {state.kind === "PARENT"
               ? " — if they are staff, search again for a member of school staff."
               : " — if they are a parent or carer, search again for a parent or carer."}
