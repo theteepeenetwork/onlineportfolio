@@ -117,6 +117,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F63 | Medium | Fleet reliability / review coverage | **A safeguarding reviewer produced nothing across four idle cycles while a second reviewer, given the same brief, returned three must-fix findings that a green suite could not have found.** `pw-review` was asked for a verdict on F61, went idle four times, and never answered — while the change sat committed-ready. `pw-review2`, same tree, same four questions, found: single-use unenforced under concurrency, a false justification for the 7-day invitation window (an invited teacher can already hold a class), and a missing cross-tenant test on an action that had just started emitting live credentials. All three were green at the time. | **Open.** Standing rule agreed 27 Aug 2026: replace a reviewer that goes idle twice without answering, rather than chasing it | n/a — this is about how the fleet is run, not about the product |
 | F64 | Low | Accessibility (operator) | **The operator lookup's result is announced by a live region that is created at the same instant as its text, so several screen readers will not read it.** `src/app/ops/lookup/forms.tsx:150` puts `role="status"` on a div inside `Result`, which returns null until a lookup has run — so assistive technology meets a node that has just appeared rather than a region it was already watching. The same file guards against exactly this for the error region six lines up (`:113-115`, "Always in the DOM, so assistive technology is already watching"), so the principle is understood and applied unevenly. The refusal is the case where **nothing else on the screen changes**, which makes it the one most worth hearing. Found by `lookup-review` while reviewing an unrelated copy change; pre-existing, not caused by it. | **Open.** Deferred past the freeze — a render-structure change on a Rule 1 screen wants its own commit and its own run, not a ride-along | axe will not catch it: this is an announcement-timing property, not a static violation. Needs the always-mounted pattern the error region already uses |
 | F65 | Medium | Correctness surfacing as copy | **A sentence that claims more than the code behind it checked. Four instances, three on unrelated screens and one in this file's own diagnostics.** The school mail badge would have read "All 3 sign-in emails StoryJar tried to send were accepted" for a school whose only mail was staff invitations, because its filter widened while its words did not. The operator lookup said "No account has that address" — a claim about every account in StoryJar, from a screen that had read one table. And "No parent or carer has that address" gets relayed down a phone as "we have no record of that parent", when rule 6a means many parents deliberately gave no address at all. | **Open as a standing risk.** All three instances fixed; the class is not. Every screen reporting a NEGATIVE result is a candidate | none possible — no gate can read a sentence and know what the query behind it asked. The remedy is a standing review question, below |
+| F66 | **High** | Access control / class handover (Rule 1) | **When a class moves between staff, nothing revokes what the previous teacher holds.** Live today via `assignClassToStaff` — the ordinary September handover, with nobody removed from anything. Two limbs, one root. **(a) The class code is a bearer credential and does not rotate.** `classCodeLookup.ts:41` is `db.class.findUnique({ where: { classCode } })` with no teacher in the path: the previous teacher signs in **as any pupil** in a class they no longer hold, with no session and no token, and the work they then create is indistinguishable from that child's. **(b) Template authorship outlives class ownership.** `updateTemplate` (`activities.ts:201-212`) writes title, instructions, pages and quiz into LIVE runs filtered on `templateId` alone — a write into what those children see this minute — and `activities/[id]/page.tsx:28-40` renders the new teacher's full pupil roster, first names and per-child status. Seven sites share the shape. | **Open.** Found 27 Aug 2026 while designing F59's fix; NOT caused by it and not fixed by it | none — `removeStaff` and `assignClassToStaff` have never been exercised by any test (F59) |
 
 ---
 
@@ -3936,3 +3937,81 @@ Applied to the three above it would have caught all three, in each case before
 the code shipped rather than after. Every screen that reports an absence is a
 candidate, and there is no reason to think the three found so far are all of
 them: the ones found were on screens somebody happened to be reading.
+
+## F66 · A class moves; what its old teacher holds does not · High → Open
+
+Found 27 August 2026 while designing F59's fix, by two reviewers reading the
+access map before a line was written. **It is not caused by that fix and would
+not have been fixed by it.** It is live in the product now.
+
+The trigger is not removal. It is `assignClassToStaff` — **the ordinary
+September handover**, which every school does, with nobody removed from
+anything. `Class.teacherId` moves; nothing else does.
+
+### (a) The class code, which is the worse limb
+
+`src/lib/classCodeLookup.ts:41` is `db.class.findUnique({ where: { classCode } })`.
+There is no teacher anywhere in that path, because there cannot be: a child
+typing a code has no session yet. The code is a **bearer credential**.
+
+`assignClassToStaff` does not rotate it — verified, `classCode` appears nowhere
+in `src/app/actions/admin.ts`. `regenerateClassCode` is scoped to the class's
+current owner, so only the *new* teacher can rotate it, and they have no reason
+to think they should.
+
+So the previous teacher signs in **as any pupil in that class**, with no
+session, no token and no password, and reaches that child's journal and drafts.
+Work they create is indistinguishable from the child's own. Sign-out does not
+help; session revocation does not help; changing their password does not help.
+Only rotating the code helps.
+
+### (b) Template authorship outliving class ownership
+
+Assigning requires owning the class *at assign time* (`activities.ts:246`). The
+template stays with its author forever. So after the class moves:
+
+- **`updateTemplate` writes into live runs** — `activities.ts:201-212`,
+  `where: { templateId, status: "LIVE" }`, no class filter. Title, instructions,
+  `templateSnapshotJson`, `previewSnapshotJson`, `quizSnapshotJson` and
+  `objectsSnapshotJson`, pushed into what those children have open now.
+- **`setRunStatus`** — `:373` — closes or reopens a run in the moved class.
+- **The activity detail page reads the roster** — `activities/[id]/page.tsx:28-40`
+  joins assignments → class → students with no class filter, and `:185-203`
+  renders every pupil's first name, avatar and status. The per-child links
+  dead-end, because `students/[studentId]/page.tsx:21` is class-scoped — so the
+  names and progress are on screen and the work is not.
+- Also `activities/[id]/edit/page.tsx:31-42` (class names + hand-in counts),
+  `calendar/page.tsx:18-26` (class names and completion counts), `teacher/page.tsx:82`
+  (a count), and `uploads/[...path]/route.ts:215` (teacher-authored material only —
+  leftover rather than leak, but worth the same conjunction so it stops being an
+  argument).
+
+The read half is worse than the write half in reach and the write half is worse
+in consequence.
+
+### The rule underneath, worth stating in SAFEGUARDING
+
+**A run belongs to a class, and authorship of a template is not authority over
+the children doing it.**
+
+The fix everywhere is the same: where a template reaches an assignment, require
+the class as a second scope. `{ templateId: X, status: "LIVE" }` becomes
+`AND: [{ templateId: X }, { class: { teacherId: user.teacher.id } }]`.
+
+Accept the side effect knowingly: an author whose class was legitimately
+reassigned loses the ability to hotfix a typo in a live run on their old class.
+That is correct. They are not that class's teacher.
+
+### What it is not
+
+No journal item, photograph, drawing, voice note, caption or quiz answer is
+reachable through limb (b) — which is why it is High and not Critical. Limb (a)
+reaches all of them, and is High only because it needs the previous teacher to
+have kept the code, which is not an attack but is not unlikely either: it is
+printed on the letter they sent home.
+
+### Not fixed here
+
+Recorded before building so the fix is designed against the whole shape rather
+than the half F59 exposed. `removeStaff` and `assignClassToStaff` have never
+been exercised by any test, which is how both limbs survived this long.
