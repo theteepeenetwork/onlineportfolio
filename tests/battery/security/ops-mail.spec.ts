@@ -140,11 +140,17 @@ test(`${ROUTE} is never indexed, and is declared uncacheable`, () => {
 test("no public route advertises the mail screen (ruling R18)", async ({ page }) => {
   await page.context().clearCookies();
 
-  // There is deliberately no robots.txt in this project, and the reason is in
-  // next.config.ts: naming /ops in one would publish the path it is meant to
-  // keep quiet. Asserted so that adding one becomes a decision rather than an
-  // accident.
-  expect((await page.goto("/robots.txt"))?.status()).toBe(404);
+  // robots.txt is the one file written to be fetched by strangers, so naming
+  // /ops in it would publish the path it is meant to keep quiet. This used to
+  // assert the file did not exist at all; src/app/robots.ts added one on
+  // 29 Aug 2026 to keep the staging deployment out of the search index, and
+  // this assertion is what made that a decision rather than an accident. The
+  // decision, recorded in ops-auth.spec.ts and in next.config.ts, is that the
+  // file names no path: the disallow is a bare "/" and the operator area is
+  // kept out of the index by an X-Robots-Tag header instead.
+  const robots = await page.goto("/robots.txt");
+  expect(robots?.status(), "robots.txt should be served").toBe(200);
+  expect(await robots!.text(), "robots.txt must not name the operator area").not.toContain("/ops");
 
   // And the public landing page links nowhere near it.
   const landing = await page.goto("/");
