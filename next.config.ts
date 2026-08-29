@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { isPublicSite } from "./src/lib/indexability";
 
 // Content-Security-Policy. Kept as tight as the app allows:
 //  - 'unsafe-inline' is needed for scripts/styles because the UI uses inline
@@ -24,6 +25,22 @@ const csp = [
   "connect-src 'self'",
   "worker-src 'self' blob:",
 ].join("; ");
+
+// Keep a non-public deployment out of the search index.
+//
+// This is the half of the job robots.txt cannot do: robots.txt asks a crawler
+// not to FETCH a URL, but a URL linked from somewhere else can still be indexed
+// unfetched, and staging carries fixture children's work, an open operator door
+// and a password published in this repository. X-Robots-Tag is the instruction
+// that actually removes it.
+//
+// Evaluated at build time, and isPublicSite() answers "yes, public" whenever
+// APP_URL is absent or unparseable — so the failure mode of a build that cannot
+// see the variable is that storyjar.co.uk behaves exactly as it does today.
+// Getting this backwards would de-index the live site.
+const noindexHeaders = isPublicSite()
+  ? []
+  : [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }];
 
 // Security headers applied to every response.
 const securityHeaders = [
@@ -100,16 +117,17 @@ const nextConfig: NextConfig = {
 
   async headers() {
     return [
-      { source: "/:path*", headers: securityHeaders },
+      { source: "/:path*", headers: [...securityHeaders, ...noindexHeaders] },
       // The operator area, on top of the site-wide set above. There is no
       // middleware file in this project and one is not being invented for this:
       // these two headers are static, so they belong in the same place as every
       // other static header.
       //
       //   X-Robots-Tag  the area must not be indexed, followed or archived. It
-      //                 is deliberately NOT named in robots.txt (there is no
-      //                 robots.txt, and adding one to name this path would
-      //                 publish it).
+      //                 is deliberately NOT named in robots.txt. src/app/robots.ts
+      //                 serves one now, and it names no path at all for exactly
+      //                 this reason: writing "/ops" into a file the world can
+      //                 fetch would publish the path it is meant to protect.
       //   Cache-Control an edge- or browser-cached authenticated operator page
       //                 is a cross-user disclosure. Every ops route is also
       //                 force-dynamic for the same reason.
