@@ -198,9 +198,30 @@ export async function updateTemplate(
     },
   });
 
-  // Push the edit onto any LIVE runs so already-assigned classes see it now.
+  // Push the edit onto any LIVE runs so already-assigned classes see it now —
+  // BUT ONLY IN CLASSES THIS TEACHER STILL TEACHES.
+  //
+  // FINDINGS F66. This was filtered on `templateId` alone, and a template stays
+  // with its author forever while a class can be reassigned to somebody else in
+  // September. So an author whose class had moved on could still write title,
+  // instructions, pages and quiz into a live run in a class they no longer
+  // teach — changing what those children see this minute, from their own
+  // library, with no session in that school.
+  //
+  // The rule this now enforces, worth stating plainly because it is the same
+  // rule at all seven sites F66 lists: A RUN BELONGS TO A CLASS, AND AUTHORSHIP
+  // OF THE TEMPLATE IS NOT AUTHORITY OVER THE CHILDREN DOING IT.
+  //
+  // Accept the side effect rather than working around it: an author whose class
+  // was legitimately reassigned can no longer hotfix a typo in a live run on
+  // their old class. That is correct. They are not that class's teacher.
   await db.assignment.updateMany({
-    where: { templateId: existing.id, status: "LIVE" },
+    where: {
+      AND: [
+        { templateId: existing.id, status: "LIVE" },
+        { class: { teacherId: user.teacher.id } },
+      ],
+    },
     data: {
       title,
       instructions,
@@ -371,7 +392,14 @@ export async function setRunStatus(formData: FormData) {
   const assignmentId = String(formData.get("assignmentId") ?? "");
   const status = String(formData.get("status") ?? "CLOSED") === "LIVE" ? "LIVE" : "CLOSED";
   const a = await db.assignment.findFirst({
-    where: { id: assignmentId, template: { teacherId: user.teacher.id } },
+    // The class as well as the template (F66): closing or reopening a run is an
+    // act on a class, and template authorship is not authority over it.
+    where: {
+      AND: [
+        { id: assignmentId, template: { teacherId: user.teacher.id } },
+        { class: { teacherId: user.teacher.id } },
+      ],
+    },
     include: { template: { select: { id: true } } },
   });
   if (!a) redirect("/teacher/activities");

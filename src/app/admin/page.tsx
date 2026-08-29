@@ -49,9 +49,44 @@ export default async function AdminPage() {
     classes: s.classes.map((c) => c.name),
   }));
 
+  // WHICH CLASSES ARRIVED HERE BECAUSE SOMEBODY WAS REMOVED.
+  //
+  // This flag is load-bearing rather than decorative, and that is why it ships
+  // in the same change as the thing it describes. Removing a member of staff
+  // moves their classes to the admin who pressed the button, which hands a
+  // non-teaching adult a class of children's journals and approval queues — a
+  // widening of SAFEGUARDING rule 5, accepted as an owner decision on 29 August
+  // 2026 (docs/dpo-decisions.md) on the condition that the holding is visibly
+  // TEMPORARY. A silent dump of thirty classes is a permanent widening that
+  // nobody ever looks at; a flagged one is a to-do list.
+  //
+  // Read from the AUDIT LOG rather than a new column, because the audit is
+  // already the authoritative custody history: removal writes one CLASS_ASSIGNED
+  // row per moved class, and so does ordinary reassignment. No migration, and
+  // the flag cannot drift from the record a school would be shown if it asked.
+  const custody = await db.auditLog.findMany({
+    where: { schoolId: school.id, action: "CLASS_ASSIGNED", subjectType: "CLASS" },
+    orderBy: { at: "desc" },
+    select: { subjectId: true, detail: true, at: true },
+  });
+  const inheritedOnRemoval = new Map<string, string>();
+  for (const row of custody) {
+    if (!row.subjectId || inheritedOnRemoval.has(row.subjectId)) continue; // newest wins
+    if (row.detail?.includes("was removed from the school")) {
+      inheritedOnRemoval.set(row.subjectId, row.detail);
+    }
+  }
+
   // School-wide classes (for the Classes tab and the "assign classes" picker).
   const classes: SchoolClass[] = school.staff.flatMap((s) =>
-    s.classes.map((c) => ({ id: c.id, name: c.name, teacherId: s.id, teacherName: s.name, children: c._count.students })),
+    s.classes.map((c) => ({
+      id: c.id,
+      name: c.name,
+      teacherId: s.id,
+      teacherName: s.name,
+      children: c._count.students,
+      inherited: inheritedOnRemoval.get(c.id) ?? null,
+    })),
   );
 
   const childrenCount = classes.reduce((a, c) => a + c.children, 0);

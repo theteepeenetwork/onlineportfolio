@@ -29,6 +29,15 @@ export default async function TemplateDetail({
     where: { id, teacherId: user.teacher.id },
     include: {
       assignments: {
+        // ONLY RUNS IN CLASSES THIS TEACHER STILL TEACHES (F66). Without the
+        // class filter this join walked assignments → class → students on the
+        // strength of template authorship alone, so an author whose class had
+        // been reassigned in September still read the new teacher's full
+        // roster — every pupil's first name, avatar and per-child status. The
+        // work itself was already out of reach (the pupil page is class-scoped),
+        // which is what kept this a leak of names and progress rather than of
+        // children's work.
+        where: { class: { teacherId: user.teacher.id } },
         include: {
           class: {
             select: { id: true, name: true, students: { select: { id: true, name: true, avatarColor: true }, orderBy: { name: "asc" } } },

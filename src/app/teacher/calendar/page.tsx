@@ -15,7 +15,10 @@ export default async function CalendarPage() {
     db.assignment.findMany({
       // Reached via the template's owner; do NOT filter template.archived — a
       // run that happened still belongs on the calendar.
-      where: { template: { teacherId } },
+      // The class as well as the template (F66): a calendar built from template
+      // authorship showed the class names and completion counts of classes this
+      // teacher no longer teaches.
+      where: { AND: [{ template: { teacherId } }, { class: { teacherId } }] },
       orderBy: { createdAt: "desc" },
       include: {
         class: { select: { id: true, name: true, _count: { select: { students: true } } } },

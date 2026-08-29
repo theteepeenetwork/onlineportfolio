@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { logout, teacherLogin } from "./helpers";
+import { logout, teacherLogin, demoClassCode } from "./helpers";
 
 // The pages strip: adding, copying and deleting the pages of a template.
 //
@@ -77,7 +77,7 @@ test("a pupil answering an activity is not offered the page controls", async ({ 
   await page.waitForURL((url) => url.searchParams.has("run"));
 
   await logout(page);
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   await page.getByRole("button", { name: "Ella", exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/student");
   await page.goto("/student/activities");

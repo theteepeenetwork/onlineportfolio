@@ -10,9 +10,37 @@ export async function teacherLogin(page: Page) {
   await page.waitForURL((url) => url.pathname === "/teacher");
 }
 
+/**
+ * The demo class's CURRENT code, read rather than assumed.
+ *
+ * This used to be the literal "SUN234". It stopped being safe on 2026-08-29,
+ * when handing a class to another member of staff started reissuing its code
+ * (FINDINGS F66: the code is a bearer credential, so the previous teacher keeps
+ * a way in as any pupil unless it rotates). `admin.spec.ts` hands the demo
+ * teacher's first class over and straight back — deliberately, and it says so —
+ * which is now two genuine rotations, and every later file that typed the old
+ * code sat waiting sixty seconds for a name that would never appear.
+ *
+ * The fixture was wrong rather than the product: a test suite must not assume a
+ * class code outlives a handover, because a real class's does not.
+ */
+export async function demoClassCode(): Promise<string> {
+  const { PrismaClient } = await import("@prisma/client");
+  const db = new PrismaClient();
+  try {
+    const klass = await db.class.findFirstOrThrow({
+      where: { name: "Sunflower Class" },
+      select: { classCode: true },
+    });
+    return klass.classCode;
+  } finally {
+    await db.$disconnect();
+  }
+}
+
 // Sign in as a student by class code + tapping their name.
 export async function studentLogin(page: Page, name: string) {
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   // Exact match so e.g. "Dev" doesn't also hit the "Dev Tools" button.
   await page.getByRole("button", { name, exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/student");

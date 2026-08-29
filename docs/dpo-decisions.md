@@ -103,3 +103,59 @@ reach their own work without it. Parking it is the more protective choice.
   (still listed open in RETENTION.md) must happen *before* any PIN reaches a child.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-07-18.
+
+---
+
+## An admin holds a removed colleague's classes, temporarily
+
+**The question.** SAFEGUARDING rule 5 says admins are not all-seeing: an admin
+must not see a child's work unless they personally teach that class, and the
+enforcement is the same `teacherId` scoping every teacher gets. Fixing FINDINGS
+F59 means a removed teacher's classes have to go *somewhere*, and the only
+somewhere available is a person — so the admin who performs the removal
+acquires those children's journals, approval queues, photographs and voice
+notes. That is a widening of rule 5, and an agent should not decide it.
+
+**The decision: accept it, with three conditions, and set it to expire.**
+
+**Why there is no better option.** `Class` has no `schoolId`. A class belongs to
+a school only through its teacher, so there is no institutional custodian to
+hand a class to — only another individual. Every alternative is worse:
+
+- *Leave them with the removed teacher.* That is F59, measured: a suspended
+  teacher signing back in to fourteen pupils and two items in their approval
+  queue.
+- *Orphan them.* Children lose their jar mid-term, and nobody can approve work.
+- *Make the admin pick a recipient first.* The scenario that makes F59 critical
+  is a **suspension**, and a head teacher cannot be made to complete a
+  reassignment wizard before revoking access. Friction on that path is the one
+  cost that is not payable.
+
+And in a suspension the head is already the accountable adult for those pupils.
+The widening tracks a responsibility they already hold.
+
+**The three conditions, all shipped in the same change rather than promised.**
+
+1. **The holding is visibly temporary.** The admin console flags every class
+   that arrived this way, in words on the row — *"Came to you when a colleague
+   was removed — hand it on to whoever teaches it now."* Without the flag the
+   widening is permanent in practice, because nobody looks. The flag reads the
+   audit log, so it cannot drift from the record a school would be shown.
+2. **The admin is told before they press.** The confirm step names the classes,
+   the number of pupils, and that the class codes will be reissued. One press,
+   not a wizard — the urgent path stays one press.
+3. **Every move is audited per class.** One `CLASS_ASSIGNED` row per class, so a
+   school asking "who held this class and when did that change" can filter by
+   the class and read the custody history in order.
+
+**Expiry.** This decision is superseded the day `Class.schoolId` lands with the
+school-identity work (`docs/school-identity.md`, late September 2026). At that
+point a class belongs to the school, a removal needs no custodian, and this
+widening should be removed rather than left in place because it works.
+
+**Related.** The same change rotates the class code on every handover, because
+the code is a bearer credential that no session or password handling can reach
+(F66). That is a safeguarding fix rather than a rule 5 decision, and it is
+recorded in FINDINGS.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-08-29.

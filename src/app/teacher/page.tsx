@@ -79,7 +79,7 @@ export default async function TeacherDashboard({
         },
       },
     }),
-    db.assignment.count({ where: { status: "LIVE", template: { teacherId } } }),
+    db.assignment.count({ where: { AND: [{ status: "LIVE", template: { teacherId } }, { class: { teacherId } }] } }),
     db.journalItem.findMany({
       where: { status: "APPROVED", class: { teacherId } },
       orderBy: [{ approvedAt: "desc" }, { createdAt: "desc" }],

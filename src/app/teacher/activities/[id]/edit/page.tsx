@@ -29,7 +29,16 @@ export default async function EditTemplatePage({
   // and which one it is depends entirely on this query. The banner below states
   // whichever is true rather than hedging.
   const liveRuns = await db.assignment.findMany({
-    where: { templateId: template.id, status: "LIVE" },
+    // Scoped on the class too (F66). The banner exists to warn an author that
+    // an edit will land on classes working right now — and it was listing
+    // classes they no longer teach, which is both a leak and a warning about
+    // something the edit can no longer do.
+    where: {
+      AND: [
+        { templateId: template.id, status: "LIVE" },
+        { class: { teacherId: user.teacher.id } },
+      ],
+    },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,

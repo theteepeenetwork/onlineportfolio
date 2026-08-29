@@ -26,7 +26,24 @@ export type StaffRow = {
   classes: string[];
 };
 
-export type SchoolClass = { id: string; name: string; teacherId: string; teacherName: string; children: number };
+export type SchoolClass = {
+  id: string;
+  name: string;
+  teacherId: string;
+  teacherName: string;
+  children: number;
+  /**
+   * Set when this class arrived with its current holder because somebody was
+   * REMOVED from the school, carrying the audit row's own words. Null for a
+   * class that has always been theirs or that arrived by ordinary reassignment.
+   *
+   * The point of surfacing it is that the holding is meant to be temporary: an
+   * admin who removed a colleague now holds that colleague's children's work,
+   * and rule 5 says admins are not all-seeing. A flag makes that a thing they
+   * can see and act on rather than a silent dump.
+   */
+  inherited: string | null;
+};
 
 export type AuditEntry = {
   id: string;
@@ -262,7 +279,29 @@ export function AdminConsole({
             )}
             {classes.map((c) => (
               <div key={c.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 12, alignItems: "center", padding: "14px 22px", borderBottom: "1px solid #F5F0E6" }}>
-                <span style={{ font: "700 16px var(--font-atkinson)" }}>{c.name}</span>
+                <span style={{ font: "700 16px var(--font-atkinson)" }}>
+                  {c.name}
+                  {/* Inherited because somebody was removed. Said in words on
+                      the row rather than as a colour or a dot, so it survives
+                      forced-colours mode and reads the same to a screen reader
+                      (handbook: convey no status by colour alone). It is here
+                      to be acted on — the admin holding it is not this class's
+                      teacher, and the next thing they should do is hand it to
+                      whoever is. */}
+                  {c.inherited && (
+                    <span
+                      style={{
+                        display: "block",
+                        font: "400 12px/1.45 var(--font-atkinson)",
+                        color: "#8A5A00",
+                        marginTop: 2,
+                      }}
+                    >
+                      Came to you when a colleague was removed — hand it on to whoever teaches it
+                      now.
+                    </span>
+                  )}
+                </span>
                 {/* Handing a class over is the single most common thing an admin
                     needs in September, and it used to be buried three levels deep
                     in a staff row's ⋯ menu. It IS the access control (whoever
@@ -505,7 +544,7 @@ function StaffTable({
                       <MenuButton icon="edit" label="Edit role" onClick={() => onSubmenu("role")} />
                       <MenuButton icon="class" label="Assign classes" onClick={() => onSubmenu("classes")} />
                       {invited && <MenuForm action={resendInvite} staffId={p.id} icon="share" label="Resend invite" />}
-                      {!p.isYou && <MenuForm action={removeStaff} staffId={p.id} icon="delete" label="Remove from school" danger />}
+                      {!p.isYou && <RemoveStaffItem staff={p} />}
                     </>
                   )}
                 </div>
@@ -539,6 +578,77 @@ function MenuButton({ icon, label, onClick }: { icon: IconName; label: string; o
       <Icon name={icon} size={18} decorative />
       {label}
     </button>
+  );
+}
+
+// Removing somebody says what it will do BEFORE it does it.
+//
+// There was no confirmation of any kind (FINDINGS F59), and removal is not an
+// "undo" job: it ends a colleague's access and, as of the same change, moves
+// their classes and their pupils' work to whoever pressed the button and
+// reissues every one of those class codes.
+//
+// ONE PRESS TO CONFIRM, NOT A WIZARD, and that distinction is the whole design.
+// The scenario this exists for is a SUSPENSION, where a head teacher must be
+// able to revoke access immediately — so nothing here asks them to choose a
+// recipient, pick classes, or type a reason. It tells them what is about to
+// happen and takes one more press. A mandatory picker at this moment would be
+// friction on the one path that must never have any.
+function RemoveStaffItem({ staff }: { staff: StaffRow }) {
+  const [confirming, setConfirming] = useState(false);
+  const count = staff.classes.length;
+
+  if (!confirming) {
+    return (
+      <button
+        role="menuitem"
+        type="button"
+        onClick={() => setConfirming(true)}
+        style={{ ...MENU_ITEM, color: "#C2476B" }}
+      >
+        <Icon name="delete" size={18} decorative />
+        Remove from school
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ padding: "8px 12px" }}>
+      <p style={{ margin: "0 0 8px", font: "400 12px/1.45 var(--font-atkinson)", color: "#43506B" }}>
+        {count > 0 ? (
+          <>
+            <strong>{staff.name}</strong> loses access to StoryJar. Their {count}{" "}
+            {count === 1 ? "class" : "classes"} ({staff.classes.join(", ")}) and the children&rsquo;s
+            work in {count === 1 ? "it" : "them"} move to <strong>you</strong>, and{" "}
+            {count === 1 ? "its class code is" : "their class codes are"} reissued — so the children
+            will need telling the new {count === 1 ? "code" : "codes"}.
+          </>
+        ) : (
+          <>
+            <strong>{staff.name}</strong> loses access to StoryJar. They hold no classes.
+          </>
+        )}
+      </p>
+      <form action={removeStaff}>
+        <input type="hidden" name="staffId" value={staff.id} />
+        <button
+          role="menuitem"
+          type="submit"
+          style={{ ...MENU_ITEM, color: "#C2476B", font: "700 13px var(--font-atkinson)" }}
+        >
+          <Icon name="delete" size={18} decorative />
+          Yes, remove {staff.name}
+        </button>
+      </form>
+      <button
+        role="menuitem"
+        type="button"
+        onClick={() => setConfirming(false)}
+        style={{ ...MENU_ITEM, color: "#43506B" }}
+      >
+        Cancel
+      </button>
+    </div>
   );
 }
 

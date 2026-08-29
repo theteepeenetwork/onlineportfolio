@@ -212,6 +212,13 @@ async function canAccess(urlPath: string): Promise<boolean> {
     if (owned) return true;
     const assigned = await db.assignment.findFirst({
       where: {
+        // The class as well as the template (F66). This branch serves the
+        // teacher's OWN authored backgrounds and quiz images out of a run's
+        // snapshot, so it was never a route to a child's work — the seventh and
+        // mildest site on F66's list, included so the rule has no exceptions to
+        // argue about later. It costs an author nothing: the branch above
+        // already serves the same images out of the template they still own.
+        class: { teacherId: user.teacher.id },
         template: { teacherId: user.teacher.id },
         OR: [
           { templateSnapshotJson: { contains: urlPath } },
