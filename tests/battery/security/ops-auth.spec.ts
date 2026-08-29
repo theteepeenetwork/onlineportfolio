@@ -7,6 +7,7 @@ import { OPERATOR, SCHOOL_A, loginTeacher, operatorCode, ownThrottleKey, signInO
 import { opsEnabled } from "@/lib/ops/enabled";
 import { cookieContractProblem, opsCookieContract, opsCookieName } from "@/lib/ops/cookie";
 import { OPS_GENERIC_FAILURE } from "@/lib/ops/messages";
+import { isPublicSite } from "@/lib/indexability";
 
 // ===========================================================================
 // A21 — Operator identity, TOTP and sessions (PR1)
@@ -609,10 +610,28 @@ test("nothing anywhere links to the operator area", async ({ page }) => {
     expect(hrefs.filter((h) => h.startsWith("/ops")), `${url} links to ops`).toEqual([]);
   }
 
-  // There is no robots.txt and no sitemap in this project, so there is nothing
-  // naming the path either. If one is ever added, this fails and whoever adds
-  // it has to decide deliberately what it says.
-  expect((await page.goto("/robots.txt"))?.status()).toBe(404);
+  // Nor does the one file whose whole job is to be fetched by strangers.
+  //
+  // This assertion used to read `status()).toBe(404)`, because there was no
+  // robots.txt at all. src/app/robots.ts added one on 29 Aug 2026 to keep the
+  // staging deployment out of the search index, and the 404 assertion fired —
+  // which is what it was for: the comment here asked whoever added a robots.txt
+  // to decide deliberately what it says. The decision is that it names NO path.
+  //
+  // A robots.txt is the worst possible place to write "/ops". It is world-
+  // readable by design, so a disallow entry naming the operator area would
+  // publish the path to precisely the people the entry is meant to deter. The
+  // area is kept out of the index by the X-Robots-Tag header in next.config.ts
+  // instead, and the disallow that protects staging is a bare "/".
+  //
+  // So the property is unchanged and the gate is not weakened: nothing that a
+  // stranger can fetch names the operator area.
+  const robots = await page.goto("/robots.txt");
+  expect(robots?.status(), "robots.txt should be served").toBe(200);
+  expect(await robots!.text(), "robots.txt must not name the operator area").not.toContain("/ops");
+
+  // Still nothing here. A sitemap enumerates paths by definition, so if one is
+  // ever added this fails and the same decision has to be taken again.
   expect((await page.goto("/sitemap.xml"))?.status()).toBe(404);
 });
 
@@ -634,10 +653,20 @@ test("operator responses are never indexed and never cached", async ({ page }) =
   expect(config).toContain('value: "private, no-store"');
   expect(config).toContain('value: "noindex, nofollow, noarchive"');
 
-  // Control: the header is scoped to this area rather than being on everything,
-  // which is what would make the assertion above vacuous.
+  // Control: on the public site the header is scoped to this area rather than
+  // sitting on everything, which is what would make the assertion above vacuous.
+  //
+  // A non-public deployment is the one case where it IS on everything, because
+  // next.config.ts noindexes staging wholesale (see src/lib/indexability.ts).
+  // The control is therefore branched rather than deleted: on staging the header
+  // assertion above genuinely proves nothing, and what carries the weight there
+  // is the next.config.ts source assertions above, which hold either way.
   const landing = await page.goto("/");
-  expect(landing?.headers()["x-robots-tag"]).toBeUndefined();
+  if (isPublicSite(process.env.APP_URL)) {
+    expect(landing?.headers()["x-robots-tag"]).toBeUndefined();
+  } else {
+    expect(landing?.headers()["x-robots-tag"]).toBe("noindex, nofollow, noarchive");
+  }
 });
 
 // ---------------------------------------------------------------------------
