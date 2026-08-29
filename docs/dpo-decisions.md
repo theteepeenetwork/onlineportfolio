@@ -159,3 +159,96 @@ the code is a bearer credential that no session or password handling can reach
 recorded in FINDINGS.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-08-29.
+
+---
+
+## 2026-08-29 — Child PIN stays parked; the impersonation problem gets a non-credential answer
+
+**Context: the trigger fired, and it was checked.** The 2026-07-18 entry parked
+the optional KS2 PIN and named the condition for revisiting it: *a concrete
+safeguarding request from a school to stop name-borrowing between classmates.*
+That condition is now partly met. The founder, a serving primary teacher, reports
+a first-hand classroom incident on another service: a child signed in as a
+classmate and wrote bad language under that child's name. This is observed
+practice, not anticipation, and it is the kind of thing a teacher would feed back
+to a supplier. It is one report from the product owner rather than a request from
+a customer school, which is why this entry revisits the question rather than
+treating the trigger as fully discharged.
+
+**Decision:** the PIN **remains parked and unbuilt.** The impersonation problem is
+answered first with classroom-management features that ask a child for no secret.
+The rule 1 amendment and the `RETENTION.md` PIN row stand unchanged, so the
+ground stays prepared if this answer proves insufficient.
+
+**Why (the reasoning, including the part that argues the other way).**
+
+1. **The promise is not one marketing line.** "Children never have logins, emails
+   or passwords" is asserted as unconditional fact in four places a school or a
+   parent relies on: the privacy notice (`src/app/legal/privacy/page.tsx`), the
+   family privacy page (`.../privacy-for-families/page.tsx`), the safeguarding
+   page (`.../safeguarding/page.tsx`), and the **data processing agreement**
+   (`.../data-processing/page.tsx`), which is contractual. The landing-page FAQ
+   carries the only flat "No" left in the marketing copy. A caveat of the form
+   *"no, never, unless you want to"* was considered and **rejected**: it
+   contradicts itself inside one sentence, and it is addressed to parents who do
+   not hold the toggle. If the PIN is ever built, those pages get rewritten
+   honestly rather than caveated.
+2. **Optionality does not shrink the disclosed surface.** The promise is about
+   capability, not usage. Once a `pinHash` column and a PIN sign-in stage exist,
+   the privacy notice must disclose that StoryJar can hold a child credential
+   whether or not any class switches it on. "Off by default" keeps the field
+   unused; it does not keep it off the page. This is why DPIA **R13** counts
+   *deliberately not built* as the mitigation rather than *off by default*.
+3. **A PIN would reduce these incidents without closing the door.** The
+   impersonating child usually sits beside the child impersonated, and four
+   digits on a shared iPad are shoulder-surfable. SAFEGUARDING rule 1 already
+   says this in terms: it raises the effort of casual name-borrowing, and that is
+   its entire claim. Casual is most of it, so the reduction is real. It is not
+   protection, and it does not tell a teacher who actually did it.
+4. **In StoryJar, the queue already contains the harm in the reported incident.**
+   Rule 3 means nothing a child makes reaches any jar before a teacher approves
+   it, so inappropriate content cannot land silently in the impersonated child's
+   evidence base. What remains is teacher time, awkwardness, misattribution, and
+   uncertainty about who was responsible. Those are the things to fix, and a PIN
+   fixes none of them directly.
+
+**What gets built instead (autumn term 2026).** Each of these leaves rule 1, rule
+2, the four legal pages and the DPIA risk table untouched.
+
+- **Attendance gate.** The teacher marks who is present; the name list shows only
+  those children. Fewer names to tap for a laugh, and a register the teacher
+  already keeps.
+- **Device assignment for the lesson, off by default.** iPad 7 is Amelia's until
+  released. This is the item that supplies **attribution**, which the PIN does
+  not: it tells a teacher which device a moment came from. **Opt-in per class and
+  never nudged in the UI.** Most teachers will not bother, and a class that
+  ignores it works exactly as it does today. It is there so that a teacher who
+  raises impersonation can be pointed at a documented answer, which is why it
+  needs a support FAQ explaining how to use it rather than a prompt in the
+  product.
+- **Persistent identity banner** on every child screen, so borrowing is visible
+  to any adult walking past.
+- **One-tap reassign of a misfiled moment**, turning a mis-tap from a permanent
+  assessment problem into a thirty-second correction.
+
+**Consequences / what this keeps true.**
+
+- No PIN schema, no `pinHash`, no PIN sign-in stage. Nothing new to review,
+  secure, disclose or retain.
+- DPIA R13 keeps its current mitigation wording and stays **Low**.
+- The open item in `RETENTION.md` (line 121, the data-protection review of the
+  child PIN) remains open and unstarted, which is correct: it must complete
+  *before* any PIN reaches a child, and no PIN is being built.
+- **Sales answer.** When a school raises impersonation, the answer is now the
+  four features above rather than "we do not do that."
+- **Support FAQ required** before device assignment counts as shipped: a page
+  explaining how a teacher assigns devices for a lesson and when it is worth
+  doing. The feature stays quiet in the product and the FAQ is where a teacher
+  who asks the question gets sent.
+
+**Next trigger to revisit.** A customer school reporting impersonation *after*
+the four features above are live. At that point the argument that a credential is
+necessary has evidence behind it that a non-credential answer failed, which is
+the only basis on which those four legal pages should be rewritten.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-08-29.

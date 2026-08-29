@@ -253,6 +253,15 @@ function RosterView({
           >
             <Icon name="print" size={18} decorative /> Printable code
           </Link>
+          {/* Family letters for the whole class in one go. Sits beside the
+              classroom code sheet because they are the same job at two ends of
+              the room: one goes on the wall, one goes in thirty book bags. */}
+          <Link
+            href={`/teacher/class/${klass.id}/letters`}
+            style={{ ...OUTLINE_BTN, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}
+          >
+            <Icon name="print" size={18} decorative /> Family letters
+          </Link>
           {/* Code rotation — always visible so a teacher mid-emergency can reach
               it without opening settings (surfacing fix Item 4). */}
           <RotateCodeZone klass={klass} />

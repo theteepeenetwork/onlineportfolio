@@ -119,11 +119,11 @@ const CLASSROOM_JOBS: Item[] = [
     linkLabel: "Open my classes",
   },
   {
-    title: "Send a family their code",
+    title: "Send families their codes",
     what: "A parent gets read-only access to their own child's approved work, and nothing else.",
-    how: "Open a child from Journals, then Family access. Print the letter and send the code home on paper — StoryJar never asks you for a parent's email or phone number.",
-    href: "/teacher",
-    linkLabel: "Open journals",
+    how: "For a whole class at once: My classes → open the class → Family letters. That makes a code for anyone without one and prints every letter, one per sheet. For a single child: open them from Journals, then Family access. Either way the code goes home on paper — StoryJar never asks you for a parent's email or phone number.",
+    href: "/teacher/class",
+    linkLabel: "Open my classes",
   },
   {
     title: "Take a copy of a class",
