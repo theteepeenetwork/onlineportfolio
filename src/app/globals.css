@@ -752,6 +752,23 @@ h4 {
   .letter-main { display: block !important; padding: 0 !important; }
   .letter-sheet { max-width: 100% !important; }
   .letter-sheet > * { break-inside: avoid; }
+
+  /* The whole-class pile (/teacher/class/[classId]/letters). Same letter, many
+     of them, and the ONE thing that must not happen is two families' codes
+     sharing a sheet: a book bag gets one letter, so a page break between them
+     is the feature rather than a nicety. The last letter takes `break-after:
+     auto` so a class of thirty prints thirty sheets and not thirty-one. */
+  .letters-stack { display: block !important; gap: 0 !important; }
+  .letter-page {
+    max-width: 100% !important;
+    break-after: page;
+    page-break-after: always; /* older print engines still read the alias */
+    break-inside: avoid;
+  }
+  .letter-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
 }
 .legal-prose h2 {
   margin: 32px 0 10px;

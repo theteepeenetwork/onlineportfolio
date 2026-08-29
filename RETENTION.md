@@ -123,6 +123,12 @@ The school remains the data controller regardless of who pays. Consequences:
       name. Needed **before** PINs reach real children, not before the code is
       written. *(2026-07-18: the retention treatment of the PIN row is confirmed;
       the full feature sign-off is still required before any PIN reaches a child.)*
+      *(2026-08-29: revisited after a first-hand classroom impersonation report.
+      The PIN stays parked and unbuilt; the problem is answered with the
+      attendance gate, device assignment, identity banner and one-tap reassign,
+      none of which asks a child for a secret. This review stays open and
+      unstarted, which is correct while no PIN is being built. See
+      `docs/dpo-decisions.md`, 2026-08-29.)*
 - [ ] **Confirm in writing with Mailjet how long message-level data is held**
       (added 2026-08-16 with the provider change): specifically (a) the retention
       period for individual delivery and event records, as distinct from the 90-day

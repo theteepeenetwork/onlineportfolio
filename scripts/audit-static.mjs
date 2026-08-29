@@ -37,8 +37,8 @@ const DSIH_ALLOWLIST = [
     why: "Renders a QR SVG produced by the `qrcode` library from the class-code sign-in URL — machine-generated vector shapes, not user HTML (finding F9, reviewed).",
   },
   {
-    file: "src/app/teacher/students/[studentId]/letter/page.tsx",
-    why: "Same pattern, reviewed: a QR SVG from the `qrcode` library for the /family sign-in URL. The URL is built from the request host and a fixed path, carries no family code and no user text, so nothing user-supplied reaches the markup.",
+    file: "src/components/storyjar/FamilyLetter.tsx",
+    why: "Same pattern, reviewed: a QR SVG from the `qrcode` library for the /family sign-in URL, built in `src/lib/familyLetterQr.ts` from the request host and a fixed path. It carries no family code and no user text, so nothing user-supplied reaches the markup. This use MOVED here from src/app/teacher/students/[studentId]/letter/page.tsx when the letter was extracted for the whole-class sheet; the markup is byte-identical and both the single letter and /teacher/class/[classId]/letters now render through this one component, so there is one reviewed use rather than two.",
   },
 ];
 

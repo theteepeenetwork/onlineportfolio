@@ -45,6 +45,7 @@ async function ownPupil(studentId: string, teacherId: string) {
 
 const NO_PUPIL = "That pupil isn’t available.";
 const NO_FAMILY = "That family code isn’t available.";
+const NO_CLASS = "That class isn’t available.";
 
 // Give a child's family a way in: a fresh code, and a family place holding
 // nothing but the link to that one child.
@@ -185,4 +186,86 @@ export async function removeFamilyAccess(
 
   revalidatePath(`/teacher/students/${student.id}`);
   return { removed: true };
+}
+
+// Give every child in ONE class who has no family place a code, in one action.
+//
+// Why this exists: before it, a teacher starting a class of thirty in September
+// opened thirty pupil pages, pressed create thirty times, and printed thirty
+// letters one at a time. That is not a feature gap, it is the reason family
+// access went unused: the work landed entirely in the first week of term, which
+// is the week a teacher has least of it. The whole-class sheet at
+// `/teacher/class/[classId]/letters` is the print half; this is the mint half.
+//
+// What it deliberately does NOT do:
+//  - It never touches an existing family place. A child who already has one
+//    keeps their code, so pressing this twice is safe and a letter already sent
+//    home does not stop working. Rotation stays a per-child, deliberate act.
+//  - It never mints a SECOND place for a child who has one. A separated
+//    household's extra code is a decision a teacher makes knowingly on the
+//    pupil's page, not a side effect of a bulk button.
+//  - It writes no code to the audit log, exactly like `createFamilyCode`. One
+//    FAMILY_ACCESS_CREATED row per child, naming the child and never the code.
+//
+// Write-gated for the same reason `createFamilyCode` is: handing out new routes
+// into the data is a write, and a frozen account is read-only. Scoped through
+// the class, so another teacher's classId finds nothing rather than erroring in
+// a way that confirms it exists (SAFEGUARDING rules 4 and 8).
+export async function createMissingFamilyCodes(
+  _prev: { error?: string; created?: number } | undefined,
+  formData: FormData,
+): Promise<{ error?: string; created?: number }> {
+  const user = await getCurrentUser();
+  if (user?.role !== "TEACHER") redirect("/");
+
+  const gate = await requireWritableAccount();
+  if (!gate.ok) return { error: FROZEN_TEACHER_MESSAGE };
+
+  const classId = String(formData.get("classId") ?? "");
+
+  const klass = await db.class.findFirst({
+    where: { id: classId, teacherId: user.teacher.id },
+    select: { id: true, name: true },
+  });
+  if (!klass) return { error: NO_CLASS };
+
+  // Children in this class with no family place at all. `none: {}` is the whole
+  // filter: a child with one household already has a route home.
+  const withoutFamily = await db.student.findMany({
+    where: { classId: klass.id, parents: { none: {} } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+  if (withoutFamily.length === 0) return { created: 0 };
+
+  // Serial, not Promise.all. `uniqueFamilyCode` mints and then asks the database
+  // whether that code is already taken; running thirty of those concurrently
+  // means thirty checks racing against writes none of them can see yet, and the
+  // unique constraint would surface as a failed action rather than a retry. A
+  // class of thirty is small enough that doing it in order costs nothing worth
+  // having.
+  let created = 0;
+  for (const child of withoutFamily) {
+    const code = await uniqueFamilyCode();
+    await db.parent.create({
+      // No name, no email. Both stay NULL until the parent fills them in.
+      data: { familyCode: code, children: { connect: { id: child.id } } },
+      select: { id: true },
+    });
+    created += 1;
+
+    await recordAudit({
+      action: "FAMILY_ACCESS_CREATED",
+      actorType: "TEACHER",
+      actorId: user.teacher.id,
+      actorName: user.teacher.displayName,
+      schoolId: user.teacher.schoolId,
+      subjectType: "STUDENT",
+      subjectId: child.id,
+      detail: `Created family access for ${child.name} in "${klass.name}" (whole-class)`, // never the code itself
+    });
+  }
+
+  revalidatePath(`/teacher/class/${klass.id}/letters`);
+  return { created };
 }
