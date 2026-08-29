@@ -66,24 +66,27 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Hero jar idle jiggle (±2° around −6°), and FAQ accordion chrome. */
-@keyframes sj-jar-jiggle {
+/* Hero jar idle jiggle (±1.5° around −5°), and FAQ accordion chrome. The
+   amplitude came down one degree in the homepage redesign: the headline beside
+   it grew to 72px, and at that scale the old ±2° swing read as a wobble rather
+   than as something sitting on a shelf. */
+@keyframes v2-jiggle {
   0%,
   100% {
-    transform: rotate(-6deg);
+    transform: rotate(-5deg);
   }
   30% {
-    transform: rotate(-3.5deg);
+    transform: rotate(-2.5deg);
   }
   55% {
-    transform: rotate(-7.5deg);
+    transform: rotate(-6.5deg);
   }
   75% {
-    transform: rotate(-5deg);
+    transform: rotate(-4deg);
   }
 }
 [data-jar-jiggle="on"] {
-  animation: sj-jar-jiggle 4.5s ease-in-out infinite;
+  animation: v2-jiggle 4.5s ease-in-out infinite;
 }
 
 /* "Popped in!" celebration — the lid lifts off, a coloured square drops in, the
@@ -272,14 +275,79 @@ html {
   mix-blend-mode: screen;
   animation: sj-holo-sheen 3.4s ease-in-out infinite;
 }
-/* Landing-page responsiveness (design: "Homepage responsiveness update").
-   Below 860px the two-column rows stack; below 760px the scroll-fill hero
-   becomes a static, scaled-down jar; below 640px the anchor nav links hide
-   (the sign-in button stays). */
-@media (max-width: 860px) {
-  .feat-row { grid-template-columns: 1fr !important; gap: 32px !important; }
+/* ── Homepage redesign ("StoryJar marketing homepage redesign") ────────────
+   The ambient loops and one-shot reveals the marketing page adds on top of the
+   shared .sj-* system. All of them are covered by the single reduced-motion
+   guard further down: each rests on an acceptable FINAL frame, and the guard's
+   `animation-iteration-count: 1` is what stops the infinite ones flickering. */
+@keyframes v2-twinkle {
+  0%, 100% { transform: scale(0.82); opacity: 0.5; }
+  50% { transform: scale(1.18); opacity: 1; }
+}
+@keyframes v2-pencil {
+  0%, 100% { transform: translate(0, 0) rotate(-8deg); }
+  25% { transform: translate(10px, -4px) rotate(-2deg); }
+  50% { transform: translate(20px, 2px) rotate(-10deg); }
+  75% { transform: translate(8px, -2px) rotate(-4deg); }
+}
+@keyframes v2-underline {
+  0% { stroke-dashoffset: 340; }
+  100% { stroke-dashoffset: 0; }
+}
+@keyframes v2-tick {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+@keyframes v2-row {
+  0% { transform: translateX(0); opacity: 1; }
+  55% { transform: translateX(12px); opacity: 0.35; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+/* Twinkles in the hero jar and the families jar. Staggered by hand rather than
+   by nth-child so the two jars can share one class. */
+.v2-tw { animation: v2-twinkle 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.v2-tw-b { animation-delay: 0.5s; }
+.v2-tw-c { animation-delay: 1.1s; }
+
+/* One pencil wanders across the canvas artboard. */
+.v2-pencil { animation: v2-pencil 3.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+/* The jam stroke under "collected." draws itself once, on load. */
+.v2-underline { stroke-dasharray: 340; animation: v2-underline 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.3s both; }
+
+/* The approval-queue card settles its three rows and pops the tick when it
+   scrolls into view. The attribute is set once by the Reveal island; with no
+   JS (or with reduced motion) the card simply renders in its settled state. */
+[data-queue-run] .v2-q-tick { animation: v2-tick 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+[data-queue-run] .v2-q-row-1 { animation: v2-row 1.1s ease-in-out 0.1s both; }
+[data-queue-run] .v2-q-row-2 { animation: v2-row 1.1s ease-in-out 0.5s both; }
+[data-queue-run] .v2-q-row-3 { animation: v2-row 1.1s ease-in-out 0.9s both; }
+
+/* Hover lifts that belong to the redesign's own elements. The three cards in
+   "How it works", the activity rows, the polaroids (which straighten as they
+   lift), and the two pricing CTAs. Removed outright under reduced motion by
+   the single guard's :hover list. */
+.v2-lift { transition: transform 120ms ease; }
+.v2-lift:hover { transform: translateY(-4px); }
+.v2-lift-sm { transition: transform 120ms ease; }
+.v2-lift-sm:hover { transform: translateY(-3px); }
+.v2-polaroid { transition: transform 160ms ease; }
+.v2-polaroid-l:hover { transform: rotate(-1deg) translateY(-6px); }
+.v2-polaroid-r:hover { transform: rotate(0deg) translateY(-6px); }
+
+/* Landing-page responsiveness (design: "Homepage responsiveness update", then
+   the homepage redesign).
+
+   Below 900px the two-column rows stack (860px in the first design; the
+   redesign's larger type needs the extra 40px); below 760px the scroll-fill
+   hero becomes a static, scaled-down jar; below 640px the anchor nav links hide
+   (the sign-in buttons stay). */
+@media (max-width: 900px) {
+  .feat-row { grid-template-columns: 1fr !important; gap: 34px !important; }
   .feat-row > * { order: 0 !important; }
-  .hero-grid { grid-template-columns: 1fr !important; row-gap: 8px !important; }
+  .hero-grid { grid-template-columns: 1fr !important; row-gap: 12px !important; }
   .parents-grid { grid-template-columns: 1fr !important; padding: 36px 28px !important; gap: 26px !important; }
 }
 @media (max-width: 760px) {
@@ -289,13 +357,35 @@ html {
      transform doesn't shrink the LAYOUT box — the fixed 380px art would
      force the single hero column wider than a phone screen and clip the
      headline text. zoom scales identically AND shrinks the layout box. */
-  .hero-jar-wrap { zoom: 0.85; }
+  .hero-jar-wrap { zoom: 0.82; }
 }
 @media (max-width: 640px) {
   .nav-links { display: none !important; }
 }
 @media (max-width: 440px) {
-  .hero-jar-wrap { zoom: 0.62; }
+  .hero-jar-wrap { zoom: 0.6; }
+}
+
+/* The height guard, and it is load-bearing rather than polish.
+
+   The hero stage is a sticky 100vh box with `overflow: hidden`, so anything
+   taller than the viewport is clipped permanently — there is no scroll that
+   brings it back. With the redesign's larger type a windowed browser around
+   600–700px tall loses the primary CTA that way. Same reasoning, and the same
+   shape, as the `@media (max-height: 720px)` rule above that drops the decorative
+   jar from the pupil code screen: when height is tight the artwork goes first,
+   and past a point the hero stops sticking altogether and simply flows.
+
+   ScrollFill carries the matching JS bail-out. Without it the effect would hide
+   the nine tiles inside a hero that no longer scrolls, leaving the jar
+   permanently empty. */
+@media (max-height: 820px) {
+  .hero-jar-wrap { zoom: 0.78; }
+}
+@media (max-height: 760px) {
+  .hero-track { height: auto !important; }
+  .hero-sticky { position: static !important; height: auto !important; overflow: visible !important; }
+  .hero-jar-wrap { zoom: 0.7; }
 }
 
 /* Teacher login redesign ("Teacher Login — 1b"): work tiles drift gently
@@ -604,8 +694,19 @@ h4 {
   .sj-btn-outline:hover,
   .sj-btn-door:hover,
   .sj-namecard:hover,
-  .sj-addtile:hover {
+  .sj-addtile:hover,
+  .v2-lift:hover,
+  .v2-lift-sm:hover {
     transform: none;
+  }
+
+  /* The polaroids rest at a tilt, so "no hover movement" is their own angle,
+     not `none` — flattening them on hover is the same jump by another name. */
+  .v2-polaroid-l:hover {
+    transform: rotate(-4deg);
+  }
+  .v2-polaroid-r:hover {
+    transform: rotate(3deg);
   }
 }
 

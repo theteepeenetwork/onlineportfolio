@@ -2,6 +2,11 @@
 // tag, glass shine, honey twinkles, and nine work tiles that drop in on scroll.
 // Tiles carry data-scroll-tile so the ScrollFill client island can reveal them;
 // they're visible by default so the page works with no JS / reduced motion.
+//
+// The homepage redesign changed five things and nothing else: the idle tilt came
+// in a degree (see v2-jiggle), three twinkles now pulse on a stagger, every tile
+// carries the 4px ink keyline the outlined ones always had, their corners went
+// 5 to 6, and the honey fill-glow below rises in the base as the jar fills.
 export function HeroJar() {
   return (
     <div
@@ -9,7 +14,7 @@ export function HeroJar() {
       style={{
         position: "relative",
         width: 380,
-        transform: "rotate(-6deg)",
+        transform: "rotate(-5deg)",
         transformOrigin: "50% 85%",
       }}
     >
@@ -40,6 +45,10 @@ export function HeroJar() {
         </g>
         {/* jar body */}
         <path d="M118,92 C114,104 112,112 114,120 C94,136 78,158 74,192 C69,228 72,262 71,300 C70,338 70,372 74,404 C78,436 100,452 138,455 C172,458 212,458 244,454 C282,450 302,434 306,402 C310,368 309,334 308,298 C307,260 310,226 304,192 C298,156 284,134 264,120 C266,111 264,102 260,93 C260,93 216,86 188,86 C158,86 118,92 118,92 Z" fill="#EAF4F1" stroke="#22304A" strokeWidth="7" strokeLinejoin="round" strokeLinecap="round" />
+        {/* Honey rising in the base as the jar fills. ScrollFill sets the
+            opacity from scroll progress; with no JS it stays at 0, which is the
+            correct picture for a jar nobody has scrolled past yet. */}
+        <path data-fill-glow="true" d="M74,392 C78,436 100,452 138,455 C172,458 212,458 244,454 C282,450 302,434 306,392 Z" fill="#F0B441" opacity="0" />
         {/* twine */}
         <path d="M112,118 C150,128 232,128 266,117" fill="none" stroke="#A8854F" strokeWidth="5" strokeLinecap="round" />
         <path d="M112,124 C150,134 232,134 266,123" fill="none" stroke="#A8854F" strokeWidth="3.5" strokeLinecap="round" />
@@ -50,7 +59,7 @@ export function HeroJar() {
         {/* tiles — visible by default; ScrollFill hides + reveals on scroll */}
         <g data-scroll-tile="1">
           <g transform="translate(92,352) rotate(-7)">
-            <rect x="0" y="0" width="64" height="64" rx="5" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
+            <rect x="0" y="0" width="64" height="64" rx="6" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
             <path d="M18,34 L46,33 L47,52 L19,53 Z" fill="#C2476B" />
             <path d="M14,35 L32,18 L50,34" fill="none" stroke="#22304A" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
             <rect x="28" y="42" width="9" height="11" fill="#22304A" opacity="0.7" />
@@ -58,19 +67,19 @@ export function HeroJar() {
         </g>
         <g data-scroll-tile="2">
           <g transform="translate(164,364) rotate(5)">
-            <rect x="0" y="0" width="62" height="62" rx="5" fill="#F0B441" />
+            <rect x="0" y="0" width="62" height="62" rx="6" fill="#F0B441" stroke="#22304A" strokeWidth="4" />
             <text x="31" y="47" fontFamily="var(--font-fredoka)" fontWeight="600" fontSize="42" fill="#7A4E10" textAnchor="middle">a</text>
           </g>
         </g>
         <g data-scroll-tile="3">
           <g transform="translate(234,350) rotate(-4)">
-            <rect x="0" y="0" width="62" height="62" rx="5" fill="#37796f" />
+            <rect x="0" y="0" width="62" height="62" rx="6" fill="#37796f" stroke="#22304A" strokeWidth="4" />
             <path d="M12,42 C18,26 24,26 28,38 C32,50 38,50 42,34 C45,24 50,24 52,32" fill="none" stroke="#EAF4F1" strokeWidth="5" strokeLinecap="round" />
           </g>
         </g>
         <g data-scroll-tile="4">
           <g transform="translate(122,286) rotate(6)">
-            <rect x="0" y="0" width="60" height="60" rx="5" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
+            <rect x="0" y="0" width="60" height="60" rx="6" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
             <path d="M30,48 C30,40 30,36 30,32" stroke="#5E9C4E" strokeWidth="4" strokeLinecap="round" />
             <circle cx="30" cy="24" r="6" fill="#F0B441" />
             <g fill="#E08A9B">
@@ -82,19 +91,19 @@ export function HeroJar() {
         </g>
         <g data-scroll-tile="5">
           <g transform="translate(196,292) rotate(-6)">
-            <rect x="0" y="0" width="60" height="60" rx="5" fill="#E08A9B" />
+            <rect x="0" y="0" width="60" height="60" rx="6" fill="#E08A9B" stroke="#22304A" strokeWidth="4" />
             <path d="M30,44 C14,32 16,18 24,17 C28,16.5 30,20 30,23 C30,20 32,16.5 36,17 C44,18 46,32 30,44 Z" fill="#FFFDF7" />
           </g>
         </g>
         <g data-scroll-tile="6">
           <g transform="translate(252,282) rotate(4)">
-            <rect x="0" y="0" width="56" height="56" rx="5" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
+            <rect x="0" y="0" width="56" height="56" rx="6" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
             <text x="28" y="37" fontFamily="var(--font-fredoka)" fontWeight="600" fontSize="22" fill="#37796f" textAnchor="middle">3+4</text>
           </g>
         </g>
         <g data-scroll-tile="7">
           <g transform="translate(158,226) rotate(3)">
-            <rect x="0" y="0" width="58" height="58" rx="5" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
+            <rect x="0" y="0" width="58" height="58" rx="6" fill="#FFFDF7" stroke="#22304A" strokeWidth="4" />
             <path d="M12,44 C12,26 46,26 46,44" fill="none" stroke="#C2476B" strokeWidth="5" strokeLinecap="round" />
             <path d="M20,44 C20,32 38,32 38,44" fill="none" stroke="#F0B441" strokeWidth="5" strokeLinecap="round" />
             <path d="M27,44 C27,39 31,39 31,44" fill="none" stroke="#37796f" strokeWidth="5" strokeLinecap="round" />
@@ -102,22 +111,24 @@ export function HeroJar() {
         </g>
         <g data-scroll-tile="8">
           <g transform="translate(100,222) rotate(-5)">
-            <rect x="0" y="0" width="54" height="54" rx="5" fill="#8AB9D6" />
+            <rect x="0" y="0" width="54" height="54" rx="6" fill="#8AB9D6" stroke="#22304A" strokeWidth="4" />
             <text x="27" y="38" fontFamily="var(--font-fredoka)" fontWeight="600" fontSize="24" fill="#FFFDF7" textAnchor="middle">cat</text>
           </g>
         </g>
         <g data-scroll-tile="9">
           <g transform="translate(222,222) rotate(6)">
-            <rect x="0" y="0" width="54" height="54" rx="5" fill="#A6C979" />
+            <rect x="0" y="0" width="54" height="54" rx="6" fill="#A6C979" stroke="#22304A" strokeWidth="4" />
             <circle cx="27" cy="27" r="13" fill="#FFFDF7" />
             <circle cx="32" cy="24" r="10" fill="#A6C979" />
           </g>
         </g>
         {/* twinkles */}
         <g fill="#F0B441">
-          <path transform="translate(58,126) scale(1.15)" d="M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z" />
-          <path transform="translate(322,214) scale(0.9) rotate(15)" d="M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z" />
-          <path transform="translate(48,318) scale(0.65) rotate(-10)" d="M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z" />
+          {/* The three largest stars pulse, on a stagger so they never blink in
+              unison; the small dots stay still, or the corner reads as noise. */}
+          <path className="v2-tw" transform="translate(58,126) scale(1.15)" d="M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z" />
+          <path className="v2-tw v2-tw-b" transform="translate(322,214) scale(0.9) rotate(15)" d="M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z" />
+          <path className="v2-tw v2-tw-c" transform="translate(48,318) scale(0.65) rotate(-10)" d="M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z" />
           <path transform="translate(330,116) scale(0.55) rotate(20)" d="M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z" />
           <path transform="translate(86,58) scale(0.5)" d="M0,-12 C2,-4 4,-2 12,0 C4,2 2,4 0,12 C-2,4 -4,2 -12,0 C-4,-2 -2,-4 0,-12 Z" />
           <circle cx="76" cy="88" r="3" />
