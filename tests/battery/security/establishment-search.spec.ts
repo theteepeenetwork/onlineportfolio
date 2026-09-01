@@ -45,7 +45,7 @@ import {
 // lands, the right move is to drive the real action through it and let this file
 // keep the pure matching rules.
 //
-// Fixtures: prisma/seed-test.ts seeds 32 INVENTED schools, including 25 sharing
+// Fixtures: prisma/seed-test.ts seeds 33 INVENTED schools, including 25 sharing
 // one name prefix so the bound can be shown to bite. No real school's name or
 // postcode is in the test database, ever (docs/TEST_LOGINS.md).
 // ===========================================================================

@@ -43,14 +43,34 @@ model Teacher {
   // NOT A RELATION, AND NOT INDEXED. A Prisma relation to Establishment would
   // pull that model into the ops blindness gate's relation-path logic for no
   // gain, and nothing joins on this column yet. It is a RECORDED IDENTIFIER
-  // rather than a live pointer. THERE IS NO `School.urn` — an earlier version of
-  // this comment cited one as precedent and no such column exists, in this
-  // schema or in any migration. It is planned for step 4 (docs/school-identity.md
-  // §3, late September), where it will be `@unique` because that is where
-  // uniqueness belongs; a comment citing it today was written ahead of itself.
-  // The reason stands on its own without a precedent: the register is replaced
-  // wholesale on every import, so a row it names can disappear, and no part of a
-  // person's account may depend on a row a refresh can delete.
+  // rather than a live pointer: the register is replaced wholesale on every
+  // import, so a row it names can disappear, and no part of a person's account
+  // may depend on a row a refresh can delete.
+  //
+  // `School.urn` NOW EXISTS, AND THIS IS NOT IT. An earlier version of this
+  // comment said there was no such column and pointed forward to the step that
+  // would add it; that step is
+  // prisma/migrations/20260902090000_school_claim. The two columns are
+  // different kinds of fact and must be read as such:
+  //
+  //   `Teacher.urn` is a RECORDED IDENTIFIER — what this teacher said their
+  //   school was at signup. Nobody checked that they work there
+  //   (docs/school-identity.md §5: matching a name is not evidence of
+  //   employment), and `updateProfile` lets a teacher change `schoolName`
+  //   without ever touching this, so it also goes stale when somebody moves
+  //   schools.
+  //
+  //   `School.urn` is a CLAIM KEY — the register entry somebody paid for. It is
+  //   `@unique`, because uniqueness belongs where the claim is, and it is what
+  //   lets the product say "St Bede's is already on StoryJar, ask Mrs Lindqvist
+  //   to add you" instead of quietly creating a second St Bede's.
+  //
+  // NEITHER IS DERIVED FROM THE OTHER AND THEY ARE NOT KEPT IN STEP. A teacher
+  // whose `urn` equals some claimed `School.urn` is NOT a member of that school
+  // and must never be treated as one — that is the auto-join
+  // docs/school-identity.md §4 forbids by name. And a teacher who IS a member of
+  // a claimed school, whose own `urn` is null or names somewhere else entirely,
+  // is an ordinary person who moved jobs rather than a data fault to reconcile.
   //
   // It is checked against the register before it is stored (see
   // src/app/actions/auth.ts): a URN that is not in the register is worse than no
@@ -118,6 +138,105 @@ model School {
   // control that writes it, which is what keeps "only StoryJar publishes" true
   // while letting it be done on the real canvas, in a real teacher account.
   canPublishToLibrary Boolean @default(false)
+
+  // ---------------------------------------------------------------------------
+  // THE CLAIM. Three columns saying which register entry this school was bought
+  // as, whether the money arrived, and who paid. docs/paid-tier-plan.md item 0,
+  // docs/school-identity.md §3. Written only by src/lib/schoolClaim.ts.
+  // ---------------------------------------------------------------------------
+
+  // The DfE URN this school was CLAIMED as. Distinct from `Teacher.urn`, which
+  // is only what a teacher said at signup — read the long comment there before
+  // assuming either follows from the other.
+  //
+  // NULLABLE AND @unique TOGETHER, AND THAT PAIRING IS THE DESIGN, not an
+  // accident to tighten later. SQLite treats every NULL as distinct, so the
+  // index constrains nothing at all about the nulls: unlimited free-text schools
+  // coexist happily, and the constraint bites on exactly one thing — two schools
+  // claiming the same register entry. That is what lets the product refuse a
+  // second claim with a sentence naming the school and its admin, instead of
+  // quietly creating a duplicate school with a second admin standing over the
+  // same children's teachers.
+  //
+  // TWO PRECEDENTS, AND BOTH OF THEM ARE REAL. `Parent.email` is where the
+  // SQLite null semantics were reasoned out first — its comment sits above
+  // `model Parent` rather than inline beside the field, and it says the same
+  // thing in the same words. `ActivityTemplate.librarySlug` is the one that
+  // shows the SQL: Prisma emitted it as a plain CREATE UNIQUE INDEX in
+  // 20260901090000_library_publishing, which is exactly the statement this
+  // column's migration writes by hand.
+  //
+  // docs/paid-tier-plan.md cites `Parent.email`, AND IT IS RIGHT TO. A note in
+  // the item-0 work plan says that column carries no comment and that this one
+  // should cite `librarySlug` instead — checked on 1 Sep 2026, the comment is
+  // there. Do not "correct" the citation in paid-tier-plan.md; it is correct.
+  //
+  // A SCALAR, WITH NO RELATION TO Establishment, deliberately. The register is
+  // deleted and rebuilt wholesale on every import (scripts/gias-import.ts), so a
+  // foreign key would let a closure or a merge take a paying customer's identity
+  // with it, and it would pull Establishment into the ops gate's relation-path
+  // logic for nothing. THE CLAIM SNAPSHOTS RATHER THAN JOINING: `School.name` is
+  // copied at claim time and never follows a GIAS rename, so a customer's
+  // invoice does not change because of a data refresh.
+  //
+  // THE NAME IS ALL THAT IS SNAPSHOTTED — not postcode, local authority or town
+  // (owner decision, 1 Sep 2026, partially reversing decision (a) of 24 Aug,
+  // where the full reasoning now lives in scripts/gias-import.ts). `School.name`
+  // alone serves that decision's stated reason, and `postcode` is a field name
+  // scripts/check-ops-blindness.mjs deliberately DENIES to the operator area
+  // rather than exempting, so `School.postcode` would widen that gate's surface
+  // for a column no screen reads.
+  //
+  // Not personal data: it identifies an institution, and every character of it
+  // is published by the DfE under the Open Government Licence.
+  urn                 String?   @unique
+
+  // When payment for this school was CONFIRMED. Null means arranged but not yet
+  // paid for — a real state, not a missing value.
+  //
+  // ONLY THE INVOICE / PO ROUTE CAN PRODUCE IT. `requestSchoolInvoice` creates
+  // the school ACTIVE and unverified, because a 30-day invoice is unpaid by
+  // definition and finance holding it must not freeze a school; `verifiedAt` is
+  // stamped on `invoice.paid`. A card purchase creates AND verifies inside one
+  // transaction and never passes through this state at all
+  // (docs/pricing-decisions.md, 1 Sep 2026: no trial on new purchases, a 42-day
+  // full refund instead).
+  //
+  // WHAT NULL COSTS A SCHOOL, exactly: no `assignClassToStaff`, no `removeStaff`
+  // on a colleague who has already joined, and no promotion to ADMIN — the three
+  // powers that hand one adult oversight of another adult's pupils
+  // (docs/dpo-decisions.md, 30 Aug + 1 Sep 2026). `removeStaff` on an INVITED
+  // row stays allowed, and so does inviting staff, the audit log, billing and
+  // all of teaching.
+  //
+  // A MISSING SCHOOL ROW READS AS UNVERIFIED, never as "assume fine": that is
+  // rule 8, deny by default, and `schoolIsVerified` in src/lib/schoolClaim.ts is
+  // where it is implemented.
+  verifiedAt          DateTime?
+
+  // Which teacher account paid for this school. A bare id, WITH NO FOREIGN KEY,
+  // and that is a decision rather than an oversight to tidy up.
+  //
+  // A relation would have to be `onDelete: SetNull` (the only safe option —
+  // Cascade would delete a whole school because one member of staff closed their
+  // account), and SetNull would erase the one fact a disputed claim asks about:
+  // who claimed this school, at the time, under whose name the money moved. A
+  // claim record that deletes itself when the claimant leaves is not a record.
+  //
+  // IT IS LOAD-BEARING, NOT ARCHAEOLOGICAL. docs/pricing-decisions.md (1 Sep
+  // 2026) requires a refund to detach THE BUYER back to their own free plan
+  // rather than freezing them alongside the school, and nothing else in this
+  // schema can say which member of staff that was:
+  // `customer.subscription.deleted` resolves a Subscription and gets a
+  // `schoolId`, and a school has many staff. `detachBuyer` in
+  // src/lib/schoolClaim.ts is the consumer.
+  //
+  // Because there is no FK, EVERY READER MUST TREAT IT AS POSSIBLY DANGLING: the
+  // teacher may have deleted their account, or may have been removed and moved
+  // on. `detachBuyer` re-reads the teacher and checks they still point at THIS
+  // school before touching anything.
+  claimedByTeacherId  String?
+
   staff        Teacher[]
   // The school's billing subscription (school plan). Null until one is created;
   // the plan label shown in the admin console is derived from this, not stored.

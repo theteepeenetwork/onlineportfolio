@@ -1,6 +1,6 @@
 ---
 name: feedback-measure-the-artifact
-description: Before implementing a filter or parser from a plan's description, download the real artifact and count — plan numbers in this repo have been right about totals and wrong about rules
+description: Before implementing from a plan's description of an artifact — an external file, or an existing comment — go and read the real thing; plan claims in this repo are often right about totals and wrong about specifics
 metadata:
   type: feedback
 ---
@@ -24,6 +24,16 @@ The same session, two other plan claims were wrong in the same direction:
 `postcode` does trip `SENSITIVE_NAME_PATTERNS` (on `/code$/i`) where the plan said
 no new field did, and the GIAS Downloads page is a CSRF-token form posting to
 `/Downloads/Collate`, not a page with a link to resolve.
+
+**A plan's claim that a comment is MISSING is the same kind of claim, and it is
+cheap to check.** On 2026-09-01 the item-0 plan instructed "do not cite
+`Parent.email`, which the plan document wrongly says has an explanatory comment —
+it has none". `Parent.email` does have exactly that comment; it sits on the
+`model Parent` block above the field rather than inline beside it, which is
+presumably how a grep around the field line missed it. Acting on the instruction
+would have written a false comment into `schema.prisma` and "corrected" a correct
+citation in `docs/paid-tier-plan.md` — a plan that removes a right answer is
+worse than one that omits it. Read the whole model block, not the field line.
 
 **How to apply:** for any import, filter or parser specified in prose, spend the
 ten minutes to fetch and count. Quote counted numbers in comments, never

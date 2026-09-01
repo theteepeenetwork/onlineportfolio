@@ -33,7 +33,7 @@ import { clickHydrated } from "./helpers";
 // file, for that behaviour.
 //
 // FIXTURES, AND WHY THIS FILE SEEDS ITS OWN. The battery's two-tenant seed
-// carries 32 invented schools, but this file runs under playwright.config.ts,
+// carries 33 invented schools, but this file runs under playwright.config.ts,
 // whose global setup runs the one-school DEMO seed — and that one has no
 // register at all. Rather than reach into somebody else's seed script, the one
 // row this file needs is created here and deleted afterwards. The register
