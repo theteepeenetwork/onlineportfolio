@@ -252,3 +252,138 @@ necessary has evidence behind it that a non-credential answer failed, which is
 the only basis on which those four legal pages should be rewritten.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-08-29.
+
+---
+
+## 2026-08-30 — A school is unverified until payment lands, and cannot reassign classes until it is
+
+**Decision:** when a teacher buys the school plan, the `School` row is created at
+**trial start** and marked unverified. `verifiedAt` is stamped on the first
+successful payment. Until it is stamped, `assignClassToStaff` is **refused**.
+
+> **Amended 1 September 2026.** The trial was removed from new purchases
+> (`pricing-decisions.md`, 1 Sep 2026), so the trigger in this entry is stale:
+> a card purchase is now created and verified in the same transaction and never
+> passes through the unverified state at all, and the state is entered only by
+> the invoice route, at the point the invoice is raised. The reasoning below is
+> unchanged and still governs; the gates were widened beyond
+> `assignClassToStaff` in the entry of 1 September 2026 below.
+
+**Why the question exists.** `docs/school-identity.md` establishes that payment
+is what verifies a claim to a school, because becoming a school's admin is a
+privilege-escalation path rather than a filing convenience:
+`assignClassToStaff` lets an admin move any class in their school to any member
+of staff including themselves, and assigning yourself a class is precisely how
+you come to see its children's work under SAFEGUARDING rule 5. The commercial
+decision of 30 Aug 2026 (`docs/pricing-decisions.md`) removes the founder from
+the purchase path entirely, which makes this the only remaining check.
+
+**The conflict it resolves.** The school plan opens on TRIAL before money moves,
+deliberately, so that a school evaluating before its finance office raises a PO
+has something to evaluate and every teacher stays writable in the gap. If
+payment verifies a claim, a trialling school is by definition unverified. Three
+options were set out in `school-identity.md` §3: create at trial and gate the
+dangerous power; create only on payment; or treat starting a trial as
+verification. The second gives an evaluating school nothing to evaluate, which
+defeats the reason the trial exists. The third is verification in name only.
+
+**Assessment.** The unverified state grants an admin console, staff invitations
+and billing. None of those reveal a child's work: rule 5 already holds that an
+admin sees nothing unless they teach the class, and an invitation does nothing
+until the invited teacher accepts (§5, invited never migrated). The one action
+that *would* widen access to children's work is the one held back. So an
+unverified claim, even a false one, reaches no child's data.
+
+**Not a new widening.** This narrows rather than widens: `assignClassToStaff` is
+available to any school admin today. The 29 August entry above, on an admin
+temporarily holding a removed colleague's classes, is unaffected and its
+visibility condition still applies.
+
+**Worth an outside check:** no. No new data category, no new processing, no new
+sub-processor.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-08-30.
+
+
+---
+
+## 2026-09-01 — What an unverified school admin may not do, and why an invitation is required to join one
+
+**Context.** Self-serve purchase (`pricing-decisions.md`, 30 Aug and 1 Sep 2026)
+makes buying the act that creates a `School` and makes the buyer its `ADMIN`.
+`docs/school-identity.md` names that as a privilege-escalation path rather than a
+filing convenience, so the question is what an admin can reach before payment has
+confirmed who they are. The 30 August entry above gated one action. Working the
+threat through properly, it is not enough.
+
+**The threat, stated plainly.** `createTeacherAccount`
+(`src/app/actions/auth.ts:22`) has no email verification and no domain check.
+Anyone — a parent, a former employee, anyone at all — can sign up as a teacher
+today with any school name and any URN. What self-serve purchase adds is that
+they can then claim that URN as a `School` and become its admin. On day one that
+school is empty and there is nothing to reach. The damage is on day thirty: a
+real teacher at that school signs up, is told "St Bede's Primary is already on
+StoryJar, ask <admin> to add you", joins, and the squatter can then remove them
+and inherit their classes and their pupils' journals through
+`removeStaff` → `handOverClasses`.
+
+The card route prices this out — several hundred pounds, a traceable payment, and
+under the 1 September decision the school is verified the instant it exists. **The
+invoice route does not.** Raising a PO costs the person raising it nothing up
+front and leaves the school unverified for the length of the payment terms. So on
+the PO path these gates are not belt-and-braces; they are the whole defence.
+
+**Decision. Until `verifiedAt` is stamped, a school admin may not:**
+
+1. `assignClassToStaff` — as decided 30 August 2026.
+2. `removeStaff` **where the staff member's status is ACTIVE**. That is the
+   branch that calls `handOverClasses` (`src/lib/classHandover.ts:69`) and moves
+   a colleague's classes, and their pupils' work, onto the admin. It is the same
+   escalation as (1) wearing a different hat, and the 29 August entry that
+   permits it — a head teacher suspending a colleague must meet no friction —
+   assumes a school that has been paid for.
+3. Set any staff member's role to `ADMIN` via `setStaffRole`. Otherwise an
+   unverified admin manufactures a second admin who looks no different from a
+   verified one.
+
+**What an unverified admin keeps:** the console, billing, the school name,
+inviting staff, the audit log, and their own classes. `removeStaff` where the
+staff member is `INVITED` is also kept — that deletes an invitation the admin
+sent minutes earlier, they need it to correct a mistyped address, and it moves no
+data. None of the retained powers reveal a child's work: SAFEGUARDING rule 5
+already holds that an admin sees nothing unless they teach the class.
+
+**Disclosure, because the gates only protect people who are already inside.** An
+unverified school's staff invitation emails must say that the school plan is not
+yet paid for and name the person who set it up, so a head teacher receiving one
+can tell whether it is legitimate. This is the only control that reaches somebody
+who has not signed up yet.
+
+**`joinSchoolPlan` requires an invitation.** `src/app/actions/billing.ts:286`
+attaches any signed-in schoolless teacher to any school by posted `schoolId`,
+with no check that the school asked for them. It has no caller in `src`, `tests`
+or `docs`, but a Next.js server action with no caller is still a live endpoint
+with a stable id, and today it is harmless only because no real `School` row
+exists — which is exactly what this work changes. It is not deleted, because it
+fills a real gap: `inviteStaff` refuses an email that already belongs to a
+teacher, so a teacher who signed up free in September cannot be brought into
+their school when it buys in January. **It must succeed only against an unspent
+invitation for that teacher and that school, which it consumes** — the same shape
+as the existing password-token flow. Until that invitation exists in the schema,
+the action returns an error unconditionally.
+
+**And it is a controller change, so it must say so.** A teacher joining a school
+moves their pupils from their own responsibility to the school's — `RETENTION.md`
+"Individual vs school". The acceptance screen has to state that in plain words,
+not just offer a Join button. The reverse move is the refund detach
+(`pricing-decisions.md`, 1 Sep 2026), which returns the buyer to a free plan.
+
+**Logged, not fixed here:** teacher signup has no email verification of any kind.
+It undercuts more than this feature and belongs in `FINDINGS.md` as its own item.
+These gates are correct whether or not it is fixed; fixing it would raise the cost
+of the squat but not remove the need for them.
+
+**Worth an outside check:** no. No new data category, no new processing, no new
+sub-processor. This narrows existing admin powers rather than widening any.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-01.
