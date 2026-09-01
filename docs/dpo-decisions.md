@@ -362,9 +362,15 @@ who has not signed up yet.
 **`joinSchoolPlan` requires an invitation.** `src/app/actions/billing.ts:286`
 attaches any signed-in schoolless teacher to any school by posted `schoolId`,
 with no check that the school asked for them. It has no caller in `src`, `tests`
-or `docs`, but a Next.js server action with no caller is still a live endpoint
-with a stable id, and today it is harmless only because no real `School` row
-exists — which is exactly what this work changes. It is not deleted, because it
+or `docs`. **Corrected 2 September 2026:** this entry originally said that a
+caller-less server action is still a live endpoint with a stable id. It is not.
+Next gives an unimported export no action id at all — verified in both
+directions, by finding `startCheckout`, `requestSchoolInvoice` and
+`openCustomerPortal` in `server-reference-manifest.json` while `joinSchoolPlan`
+is absent, and by watching it appear the moment it is imported into a screen.
+So it is unreachable today rather than merely harmless. That does not change the
+decision, only its urgency: the action becomes dispatchable the moment the
+acceptance screen imports it, which is precisely when it must already be safe. It is not deleted, because it
 fills a real gap: `inviteStaff` refuses an email that already belongs to a
 teacher, so a teacher who signed up free in September cannot be brought into
 their school when it buys in January. **It must succeed only against an unspent

@@ -86,7 +86,9 @@ paid doors are shut to every real account.
    model are in `docs/dpo-decisions.md` (1 Sep 2026).
 6. **Shut `joinSchoolPlan`.** `src/app/actions/billing.ts:286` attaches any
    signed-in schoolless teacher to any school by posted `schoolId` with no
-   invitation. No UI calls it; it is still a live server action, and item 0 is
+   invitation. No UI calls it, so Next gives it no action id and it cannot be
+   dispatched today — but the acceptance screen in the follow-up imports it, and
+   that is the moment it becomes reachable. Item 0 is
    what makes real `School` rows exist. Make it return an error unconditionally
    in this change. The invitation it needs — `inviteStaff` currently refuses an
    email that already belongs to a teacher, so an existing free teacher cannot
