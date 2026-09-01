@@ -73,8 +73,14 @@ async function main() {
 
   // The demo teacher is also the admin of their school, so the /admin space is
   // reachable from the seeded login.
+  // `verifiedAt` is set explicitly, and every seed has to do it. Seeds run under
+  // `prisma db push`, which builds the schema directly and NEVER applies
+  // migrations, so 20260902090000_school_claim's backfill does not reach a
+  // seeded database. A fixture school with a null `verifiedAt` would silently
+  // lose class reassignment, staff removal and admin promotion, and the failure
+  // would surface three suites away from the seed that caused it.
   const school = await db.school.create({
-    data: { name: "St Bede’s Primary" },
+    data: { name: "St Bede’s Primary", verifiedAt: new Date() },
   });
 
   // The demo school is evaluating the school plan on its 42-day trial, so the

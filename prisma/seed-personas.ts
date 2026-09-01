@@ -94,7 +94,13 @@ async function main() {
 
   console.log("[seed-personas] Appending Bramblewood Primary (the tester team's school) …");
 
-  const school = await db.school.create({ data: { name: "Bramblewood Primary" } });
+  // `verifiedAt` is set explicitly, and every seed has to do it. Seeds run under
+  // `prisma db push`, which builds the schema directly and NEVER applies
+  // migrations, so 20260902090000_school_claim's backfill does not reach a
+  // seeded database. A fixture school with a null `verifiedAt` would silently
+  // lose class reassignment, staff removal and admin promotion, and the failure
+  // would surface three suites away from the seed that caused it.
+  const school = await db.school.create({ data: { name: "Bramblewood Primary", verifiedAt: new Date() } });
 
   // A live, paid, whole-school subscription. The personas need an account where
   // nothing is blocked by billing, because "frozen" already has a fixture of its

@@ -1,0 +1,95 @@
+-- The claim: three nullable columns on School, saying which register entry a
+-- school was bought as, whether the money has arrived, and who paid.
+--
+-- docs/paid-tier-plan.md item 0 — a school buys the school plan self-serve, on a
+-- Tuesday evening, without the founder in the loop. Until now `db.school.create`
+-- appeared only in seeds, so both paid doors were shut to every real account.
+--
+-- THE SHAPE
+--
+--   urn                TEXT      UNIQUE. The DfE URN this school was claimed as.
+--                                SQLite treats every NULL as distinct, so the
+--                                index constrains nothing about the nulls:
+--                                unlimited free-text schools coexist, and the
+--                                constraint bites on exactly one thing — two
+--                                schools claiming the same register entry. Same
+--                                shape as ActivityTemplate_librarySlug_key from
+--                                20260901090000_library_publishing, and the same
+--                                reasoning as Parent.email, where these null
+--                                semantics were first written down.
+--   verifiedAt         DATETIME  When payment was CONFIRMED. Null is a real
+--                                state: arranged but unpaid, reachable only by
+--                                the invoice/PO route, where an invoice with
+--                                30-day terms is unpaid by definition. A card
+--                                purchase creates and verifies in one
+--                                transaction and never passes through it
+--                                (docs/pricing-decisions.md, 1 Sep 2026).
+--   claimedByTeacherId TEXT      The account that paid. NO FOREIGN KEY, on
+--                                purpose: SetNull on teacher deletion would
+--                                erase the one fact a disputed claim asks
+--                                about, and the refund path needs this column
+--                                to detach the BUYER rather than the school.
+--
+-- WHO EACH IS NULL FOR. `urn`, for every school whose name was typed as free
+-- text rather than picked from the register — permanently, and that is the
+-- product working rather than a backfill somebody forgot to finish.
+-- `verifiedAt`, only for a school sitting on an unpaid invoice; see the backfill
+-- below for why that is not every existing row. `claimedByTeacherId`, for every
+-- school that existed before self-serve purchase, because nobody bought them.
+--
+-- REJECTED ALTERNATIVES, both of them deliberate:
+--
+--   A FOREIGN KEY from School.urn to Establishment.urn. The register is deleted
+--   and recreated wholesale by scripts/gias-import.ts, so a school that closes
+--   or merges would take a paying customer's identity with it, and the relation
+--   would pull Establishment into the ops gate's relation-path logic for no
+--   gain. The claim SNAPSHOTS School.name instead, and never follows a GIAS
+--   rename, so a customer's invoice does not change under a data refresh.
+--
+--   SNAPSHOTTING POSTCODE, LOCAL AUTHORITY AND TOWN alongside the name, which is
+--   what decision (a) of 24 August 2026 said to do. Partially reversed by owner
+--   decision on 1 September 2026, and the reasoning now lives at
+--   scripts/gias-import.ts. School.name alone serves that decision's stated
+--   reason in full — no screen renders a school's postcode, LA or town, so
+--   nothing about them can change under a customer — and `postcode` is a field
+--   name scripts/check-ops-blindness.mjs deliberately DENIES to the operator
+--   area rather than exempting, so School.postcode would widen that gate's
+--   surface for a column nothing reads.
+--
+-- HAND-WRITTEN ALTER TABLE, NOT PRISMA'S GENERATED SQL, for the reason set out
+-- at length in 20260818160000_storyjar_academy/migration.sql:1-27. It applies to
+-- this migration word for word, and more sharply, because this one adds three
+-- columns to the same table.
+--
+-- Prisma's SQLite strategy for adding a column is "RedefineTables": create a new
+-- table, copy every row across, DROP the old one, rename. School is the table
+-- every Teacher row points at by foreign key, on a live database that FINDINGS
+-- F20 records as having no backup and no point-in-time recovery. SQLite's ALTER
+-- TABLE ADD COLUMN rewrites no rows, drops nothing, and cannot lose data if it
+-- fails halfway: the column either exists or it does not. The resulting schema
+-- is identical, which tests/battery/security/migrations-match-schema.spec.ts
+-- checks by replaying these migrations and diffing against schema.prisma.
+ALTER TABLE "School" ADD COLUMN "urn" TEXT;
+ALTER TABLE "School" ADD COLUMN "verifiedAt" DATETIME;
+ALTER TABLE "School" ADD COLUMN "claimedByTeacherId" TEXT;
+
+CREATE UNIQUE INDEX "School_urn_key" ON "School"("urn");
+
+-- THE BACKFILL, WHICH IS NOT COSMETIC. Read this before deleting it as tidying.
+--
+-- Every School row that exists when this migration runs was put there by a
+-- StoryJar seed or by hand — StoryJar Academy in production, and St Bede's,
+-- Oakfield, Larchwood, Bramblewood and StoryJar Studio in the fixtures. There is
+-- no stronger evidence of a genuine claim than that.
+--
+-- Without this line the deploy that adds the column takes class reassignment,
+-- staff removal and promotion to ADMIN away from every one of them at once,
+-- because `schoolIsVerified` reads a null `verifiedAt` as unverified — which is
+-- rule 8, deny by default, and exactly right for a school nobody has paid for
+-- and exactly wrong for these. That is a live regression wearing a new feature's
+-- clothes, and it would land on the operator's own school first.
+--
+-- `createdAt` rather than the time of the deploy, so a school's verification is
+-- dated from when it actually arrived. Guarded on IS NULL so a re-run cannot
+-- move a date that a later payment has already stamped.
+UPDATE "School" SET "verifiedAt" = "createdAt" WHERE "verifiedAt" IS NULL;

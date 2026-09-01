@@ -178,16 +178,37 @@ async function replaceRegister(
       // question.
       //
       //   (a) THE CLAIM SNAPSHOTS. IT DOES NOT JOIN. At claim time, copy the
-      //       name, postcode, local authority and town onto the `School` row.
-      //       `School.urn` stays as a reference for reconciliation and is never
-      //       a live pointer to this table.
+      //       register NAME onto the `School` row. `School.urn` stays as a
+      //       reference for reconciliation and is never a live pointer to this
+      //       table: it is a `@unique` SCALAR with no foreign key, so nothing
+      //       this import deletes can take a paying customer's identity with it.
       //
       //       Deletion is the obvious reason and it is the lesser one. The
       //       better reason is that GIAS RENAMES SCHOOLS — routinely, on
       //       academisation — and a paying customer's name changing on their
       //       invoice and in their admin console because of a data refresh is
-      //       its own small betrayal. The name and address they bought under
-      //       are theirs.
+      //       its own small betrayal. The name they bought under is theirs.
+      //
+      //       THE NAME ONLY. AMENDED 1 SEPTEMBER 2026, owner decision, partially
+      //       reversing the 24 August wording above, which also copied postcode,
+      //       local authority and town. Two reasons, and the first is on its own
+      //       sufficient:
+      //
+      //         • `School.name` alone serves the reason this decision gives.
+      //           Nothing in the product renders a school's postcode, local
+      //           authority or town anywhere, so there is nothing about them
+      //           that could change under a customer. A snapshot exists to stop
+      //           a rename being felt; three columns nobody reads cannot be
+      //           felt either way.
+      //         • `postcode` is a field name scripts/check-ops-blindness.mjs
+      //           deliberately DENIES to the operator area rather than
+      //           exempting, and the comment there explains at length why an
+      //           exemption keyed on a field NAME would be global. Putting a
+      //           postcode on `School` would widen that gate's surface for a
+      //           column no screen reads.
+      //
+      //       What was built is in prisma/schema.prisma under `model School`:
+      //       `urn`, `verifiedAt`, `claimedByTeacherId`, and nothing else.
       //
       //   (b) THE IMPORT COUNTS VANISHED REFERENCED URNs AND NEVER BLOCKS ON
       //       THEM. When a `School` references a URN this import did not find,
@@ -198,9 +219,19 @@ async function replaceRegister(
       //       is a conversation somebody needs to be able to have, which is a
       //       different thing from an error.
       //
-      // Neither is built here, because there is no `School.urn` yet. Nothing in
-      // steps 1 to 2 treats the register as a live pointer, and nothing built
-      // on it should start.
+      // (a) IS NOW BUILT. `School.urn`, `School.verifiedAt` and
+      // `School.claimedByTeacherId` landed in
+      // prisma/migrations/20260902090000_school_claim, and the claim itself is
+      // src/lib/schoolClaim.ts.
+      //
+      // (b) IS NOT, and it became buildable for the first time on the same day:
+      // counting `School` rows whose `urn` this import did not find is now a
+      // query somebody can write. It is held as a deliberate follow-up rather
+      // than forgotten, and the decision above stands unchanged for whoever
+      // takes it.
+      //
+      // Nothing in this import treats the register as a live pointer, and
+      // nothing built on it should start.
       await tx.establishment.deleteMany();
       for (let i = 0; i < rows.length; i += CHUNK) {
         await tx.establishment.createMany({ data: rows.slice(i, i + CHUNK) });
