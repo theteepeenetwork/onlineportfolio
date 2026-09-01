@@ -6,3 +6,4 @@
 - [Shared tree, several agents](project-shared-tree-git.md) — no git internals, no editing another lead's file; report the fix instead
 - [Comments are the record](feedback-comments-are-the-record.md) — check a comment's facts before endorsing it; justify a guard by the honest case, not the tamper case
 - [Report via SendMessage](feedback-report-via-sendmessage.md) — text output is invisible to the lead; idle twice unanswered = replaced (F63)
+- [Caller-less server actions aren't live](project-callerless-server-actions.md) — Next 16 mints no action id without a client import; 3 repo docs say otherwise
