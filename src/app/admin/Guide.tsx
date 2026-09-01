@@ -59,8 +59,23 @@ const ADMIN_JOBS: Item[] = [
   },
   {
     title: "Remove someone who has left",
-    what: "Ends their access to the school straight away.",
-    how: "Staff → the ⋯ menu → Remove from school. Assign their classes to someone else first: a class follows the teacher who holds it, so hand it over before you remove them.",
+    // "The class they hold, and the work in it" — NOT "anything they held",
+    // which this said for an afternoon and which is false. `handOverClasses`
+    // deliberately does not move `ActivityTemplate.teacherId` (see its "WHAT
+    // THIS MODULE DELIBERATELY DOES NOT DO" block): a template is the
+    // author's own work. So a departing teacher's activity library leaves with
+    // them, and an admin who removes a colleague on the last Friday of the
+    // summer term finds next year's planning gone. Promising more than the
+    // handover delivers is how an admin stops reading these sentences.
+    what: "Ends their access to the school straight away. The class they hold, and the children's work in it, stays with the school.",
+    // This used to say "assign their classes to someone else first: a class
+    // follows the teacher who holds it". That stopped being true when the
+    // automatic handover landed with F59, and by F68 it was advice that walked
+    // an admin straight into deleting a class: it invited them to believe the
+    // handover was their job, and doing nothing looked like the risky option.
+    // It is the opposite — the safe thing is to press the button and read what
+    // it says.
+    how: "Staff → the ⋯ menu → Remove from school. You do not need to move their classes first: any class they hold comes to you automatically, with the children's work in it, and gets a new class code — the confirmation says exactly what will move before you press it.",
     goTo: "staff",
   },
   {
