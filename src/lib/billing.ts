@@ -22,9 +22,11 @@ import { recordAudit } from "@/lib/audit";
 // StoryJar has two plans (docs/pricing-decisions.md): a permanently free teacher
 // plan covering all of that teacher's own classes, and a flat £299/yr school
 // plan. A FREE plan is ACTIVE from signup and has NOTHING TO LAPSE — no trial
-// clock, no payment, so no route to FROZEN. Only a SCHOOL plan can be evaluated
-// on trial and only a SCHOOL plan can freeze. That means children's work in a
-// free teacher account is never on a billing deletion clock (RETENTION.md).
+// clock, no payment, so no route to FROZEN. Only a SCHOOL plan can freeze, which
+// is the load-bearing half; being evaluated on trial is no longer how a SCHOOL
+// plan starts (docs/pricing-decisions.md, 1 September 2026). That means
+// children's work in a free teacher account is never on a billing deletion clock
+// (RETENTION.md).
 // ---------------------------------------------------------------------------
 
 export type AccountStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "FROZEN";
@@ -39,13 +41,37 @@ export function planKindOf(kind: string): PlanKind {
   return kind === "SCHOOL" ? "SCHOOL" : "FREE";
 }
 
-// The free "half term" a SCHOOL gets to evaluate StoryJar before raising a PO.
-// Tracked locally — we do NOT use Stripe trials (the Stripe subscription is
+// How long a row that is ALREADY on TRIAL has left to run. It is not how a new
+// purchase starts: since 1 September 2026 no purchase produces a TRIAL row and no
+// school is evaluated on a countdown (docs/pricing-decisions.md). The purchase
+// completes ACTIVE either way — the card route's webhook creates the row ACTIVE
+// outright, and the invoice route writes ACTIVE immediately so finance sitting on
+// a PO cannot freeze a school.
+//
+// `ensureSchoolSubscription` DOES still open a TRIAL row, on purpose, and that is
+// not a contradiction: it is not the purchase. It is the pre-payment holding row
+// for a school that exists with no subscription, and TRIAL is the only status
+// that keeps every teacher writable in the gap while still leaving a route to
+// FROZEN if the money never arrives — `settleStatus` can only freeze a TRIAL row
+// with a null `stripeSubscriptionId`, so opening it ACTIVE would mint a
+// free-forever school. That line is load-bearing. Do not tidy it.
+//
+// What is otherwise left for this constant to govern is the rows that already
+// carry the status — `prisma/seed.ts`, `seed-test.ts`, the frozen-school persona
+// — and the `scripts/freeze-expired.mjs` backstop that settles one of them once
+// it lapses. Tracked locally, never as a Stripe trial (the Stripe subscription is
 // created only at first payment). See RETENTION.md.
 //
-// This is deliberately NOT applied to a teacher's free plan: a teacher account is
-// never on a countdown, because a trial expiring mid-October is the single most
-// avoidable way to lose a September adopter (docs/pricing-decisions.md).
+// It was never applied to a teacher's free plan: a teacher account is never on a
+// countdown, because a trial expiring mid-October is the single most avoidable
+// way to lose a September adopter (docs/pricing-decisions.md).
+//
+// 42 is ALSO the refund window — a school may ask for a full refund within 42
+// days of the start of the paid year. They are two different numbers that happen
+// to coincide, not one number used twice. Changing this constant must NOT
+// silently move the refund window, and moving the refund window must not be done
+// by editing this line: the refund promise lives in customer-facing copy
+// (src/app/legal/terms/page.tsx, src/app/page.tsx) and is a pricing decision.
 export const TRIAL_DAYS = 42;
 
 export function trialEndFromNow(now: number = Date.now()): Date {
@@ -183,7 +209,7 @@ export async function requireWritableAccount(): Promise<
 export type AccountState = {
   status: AccountStatus | "NONE";
   kind: PlanKind | null;
-  trialDaysLeft: number | null; // whole days remaining while a SCHOOL evaluates
+  trialDaysLeft: number | null; // whole days remaining on a SCHOOL plan still on TRIAL
   frozenAt: Date | null;
   currentPeriodEnd: Date | null;
   writable: boolean;
