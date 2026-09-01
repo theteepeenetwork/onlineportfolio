@@ -9,3 +9,5 @@
 - [Tightening a scanner fails open](feedback-tightening-a-scanner-fails-open.md) — a lost capture disables the rule that consumes it; measure the candidate across the tree first
 - [Ask before new scope](feedback-ask-before-new-scope.md) — in a freeze, ask first; if forced, announce precisely enough to be refused. A documented gap is fine; a false claim is not
 - [No formatters in a shared tree](feedback-no-formatters-in-a-shared-tree.md) — `prisma format` churns other people's uncommitted work; prove it clean with `git diff -w --stat`
+- [Shared dev.db](project-shared-dev-db.md) — no migration history, and another agent may reseed it mid-task; verify migrations on a copy
+- [Address the agent who briefed you](feedback-address-the-agent-who-briefed-you.md) — the sender, not whoever the brief talks about; a wrong guess interrupts two sessions
