@@ -68,7 +68,7 @@ landing page were both true when written and are both false the moment this
 ships. Changed in the same shipment.
 
 **Not removed:** the `TRIAL` status itself. `prisma/seed.ts`, `seed-test.ts`,
-the frozen-school persona and `scripts/ops/freeze-expired.mjs` all depend on it,
+the frozen-school persona and `scripts/freeze-expired.mjs` all depend on it,
 and the admin billing pane still renders a trial countdown for a row that has
 one. New purchases simply never enter that state. Removing the status is a
 separate cleanup, not a condition of this decision.

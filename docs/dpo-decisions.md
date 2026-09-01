@@ -387,3 +387,91 @@ of the squat but not remove the need for them.
 sub-processor. This narrows existing admin powers rather than widening any.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-01.
+
+---
+
+## 2026-09-01 — Removing a colleague hands their classes over first, and never deletes a child's work
+
+**Decision:** `removeStaff` moves every class a member of staff holds to the
+admin performing the removal **before** anything else happens, on both branches,
+in one transaction. The acceptance criterion is stated as a fact to be proved
+rather than an intention: **no work is deleted in the process.** It is asserted
+by counting classes, pupils and journal items either side of a removal driven
+through the real console, not by a comment.
+
+**What was wrong.** The `INVITED` branch was a bare `db.teacher.delete`, on the
+stated grounds that "an invited teacher never set a password and holds nothing".
+Every clause of that was true except the one carrying the weight. Four things,
+each individually reasonable:
+
+1. `Class.teacher` is `onDelete: Cascade`, and `Student` and `JournalItem`
+   cascade from the class.
+2. `assignClassToStaff` resolves its target by id and school with **no status
+   filter**, so an invited teacher is a valid one.
+3. The console offers invited staff in the class-owner dropdown and in the staff
+   row's "Assign classes", labelled `(invited)` — deliberately, because an admin
+   setting up in September wants next term's classes placed before everybody has
+   accepted.
+4. So removing an invited colleague who had been given a class deleted that
+   class, its pupils and every piece of work in it. Silently, with no audit row,
+   nothing recoverable — **while the confirmation on screen said the classes
+   were moving to the admin.**
+
+Measured on the fixtures before the fix: one removal took classes 12 → 11,
+pupils 37 → 35 and journal items 31 → 29, in two clicks through the supported
+UI. That is the shape the regression test now catches, and it was verified to
+fail before it was made to pass.
+
+**The two rejected options, so they are not re-proposed.** *Refuse the
+assignment at source* — `assignClassToStaff` rejects an `INVITED` target — is
+the more protective option in the abstract and was rejected because it costs the
+September workflow that point 3 exists to serve. *Null `schoolId` instead of
+deleting* was rejected because it leaves an account nobody can ever sign into,
+an invited teacher having no password.
+
+**Not a widening.** This is the 29 August 2026 entry's condition finally holding
+on both branches: the per-class `CLASS_ASSIGNED` audit row, which is what makes
+an admin's inherited holding *visibly temporary*, is now written for an invited
+colleague's classes as well. Before this change that branch wrote nothing,
+because there was nothing left to write about.
+
+**A known edge, not reachable today, recorded because the thing that makes it
+reachable is already planned.** `Teacher` also cascades to `ActivityTemplate` →
+`Assignment` → `AssignmentStudent` and `Draft`, and a `Draft` is a child's
+private unfinished work by the schema's own words. `JournalItem.assignmentId`
+is `SET NULL`, so a journal item survives that chain and a count of journal
+items would not notice it. It cannot fire today: `inviteStaff` refuses an email
+that already belongs to a teacher, an `INVITED` row is always freshly created,
+and every template-creation path writes to the acting teacher — so an invited
+teacher cannot own a template. **It would fire the moment an established account
+could carry `status = "INVITED"`**, which is one wrong turn away from the
+invitation work in the entry above. That work is designed to keep such a teacher
+`ACTIVE` and carry the invitation in its own row precisely so this cannot
+happen. The counts in the regression test now include drafts and assignment
+records so that a future shortcut is caught rather than reasoned about.
+
+**A change to what a suspension means, and it is deliberate.** Separately and in
+the same shipment, a teacher detached from a school is now put back on their own
+free plan. Before, they were left with no governing subscription at all: the
+write gate denied by default — correctly, rule 8 — while the account screen
+reported no plan and no banner explained it, so every save failed silently. That
+was an accident, but the effect was real, and the consequence of fixing it is
+that **a suspended member of staff now walks away with a fully writable StoryJar
+account** in which they can create their own classes and enrol children.
+
+Assessed and accepted. Their password already worked, and anyone may sign up for
+a free teacher account without asking, so the marginal risk is close to nil; the
+school's own children, classes and work are gone from that account, having been
+handed to the admin by the same transaction; and the removal confirmation now
+says so in plain words rather than leaving it to be discovered. A designated
+safeguarding lead reading "removed from the school" might otherwise assume the
+account itself was closed, which is why it is written down here and said on the
+screen. **Suspension has never meant, and does not now mean, that StoryJar
+closes an adult's personal account.** Only a school can end its own
+relationship with a member of staff.
+
+**Worth an outside check:** no. No new data category, no new processing, no new
+sub-processor. This stops a deletion and restores a plan; it grants no access to
+any child's data that did not exist before.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-01.

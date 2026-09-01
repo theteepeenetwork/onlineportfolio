@@ -42,7 +42,7 @@ him has not been built.
 
 **What is true in the code today.** `db.school.create` appears only in
 `prisma/seed.ts`, `prisma/seed-test.ts`, `prisma/seed-personas.ts` and
-`scripts/ops/seed-academy.mjs`. `createTeacherAndClass` stores `school` as free
+`scripts/ops/seed-academy.mjs`. `createTeacherAccount` stores `school` as free
 text plus the `urn` and never sets `schoolId`, which is §2 working as designed.
 So `/admin` does `if (!school) redirect("/teacher")`, and
 `ensureSchoolSubscription` opens with `if (!actor.schoolId) return null`. Both
@@ -106,7 +106,7 @@ invoice route, where an invoice with 30-day terms is unpaid by definition. What
 holds the line there is step 5 above, not a shorter clock.
 
 The `TRIAL` status itself stays in the schema and the seeds — `prisma/seed.ts`,
-`seed-test.ts`, the frozen-school persona and `scripts/ops/freeze-expired.mjs`
+`seed-test.ts`, the frozen-school persona and `scripts/freeze-expired.mjs`
 all depend on it, and `BillingPane` still renders a countdown for a row that has
 one. New purchases simply never enter it. Removing the status is a separate
 cleanup.
