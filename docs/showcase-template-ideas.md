@@ -8,9 +8,15 @@ head teacher or a prospective pilot teacher. Every one of them is also a real
 activity a teacher could assign, because a demo that a teacher can picture
 using on Monday is the one that converts.
 
-Draft for review, 19 August 2026. Nothing here is built yet. Once you pick, each
-becomes an entry in `content/shared-activities/index.json` and publishes through
-`scripts/ops/publish-shared-activities.mjs`.
+Draft for review, 19 August 2026. Nothing here is built yet.
+
+**How one of these actually gets published, updated 1 September 2026.** Sign in
+to a StoryJar Academy teacher account (the addresses are at `/ops/academy`),
+build it on the real canvas, and publish it from the activity's ⋯ menu — see
+[`library-publishing.md`](./library-publishing.md). The original route still
+works and is still how a fresh environment is seeded: an entry in
+`content/shared-activities/index.json`, published through
+`scripts/ops/publish-shared-activities.mjs`. Both upsert on the same slug.
 
 ---
 

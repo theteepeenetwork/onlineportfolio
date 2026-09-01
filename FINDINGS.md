@@ -4035,3 +4035,58 @@ they carry measurements — the 5→1 classes, the 17→3 pupils, the seven site
 that `docs/dpo-decisions.md` and `docs/school-identity.md` both now cite, and
 because option B is still outstanding. Deleting them would leave those citations
 pointing at nothing. Flagged rather than done silently.
+
+---
+
+## F67 · Teacher signup verifies no email address · Medium → Open
+
+Discovered 1 September 2026, while working the threat model for self-serve
+school purchase (`docs/paid-tier-plan.md` item 0).
+
+`createTeacherAccount` (`src/app/actions/auth.ts:22`) validates that the address
+is shaped like an email and that nobody else holds it. That is all. There is no
+confirmation link, no domain check, and no state on the `Teacher` row recording
+whether the address was ever proved — `grep -rn "emailVerified" src/` returns
+nothing. A signup is complete and signed in before the address has been shown to
+work.
+
+### What it costs today
+
+Very little, because a fabricated account reaches only its own empty class.
+Nothing in it touches another school's data, and the free tier is deliberately
+uncapped, so there is no quota to steal.
+
+### What it will cost after item 0
+
+Self-serve purchase makes buying the act that creates a `School` and makes the
+buyer its `ADMIN`. Anyone can therefore sign up with any school name and any
+URN and claim that school. The empty school is not the damage; the second
+teacher is. `School.urn` is unique precisely so a real teacher arriving later is
+told *"St Bede's Primary is already on StoryJar, ask <admin> to add you"* — and
+if the admin is a squatter, that teacher joins, and `removeStaff` →
+`handOverClasses` moves their classes and their pupils' journals to the
+squatter.
+
+The card route mostly prices this out: several hundred pounds and a traceable
+payment, and under the decision of 1 September 2026 a card school is verified
+the instant it exists. **The invoice route does not.** Raising a PO costs
+nothing up front.
+
+### What is being done instead, and why this stays open
+
+`docs/dpo-decisions.md` (1 Sep 2026) gates the escalation paths on an unverified
+school rather than fixing signup: `assignClassToStaff`, `removeStaff` on an
+ACTIVE colleague, and promotion to `ADMIN` are all refused until `verifiedAt` is
+stamped, and an unverified school's invitation emails say so and name the person
+who set the school up.
+
+Those gates are correct whether or not this finding is fixed, and fixing it
+would raise the cost of a squat without removing the need for them — which is
+why it is logged here rather than folded into item 0. It is nonetheless a real
+gap in its own right, and it undercuts more than this one feature: every
+password reset, every staff invitation and every parent-facing email assumes an
+address someone once proved.
+
+No repro test yet. When one is written it belongs in
+`tests/battery/security/`, asserting that a teacher with an unconfirmed address
+cannot complete a school purchase.

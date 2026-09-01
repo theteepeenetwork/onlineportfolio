@@ -156,3 +156,24 @@ Every invocation is reviewed after the fact, even when the reviewer is the same
 person who invoked it, and the review is written next to the record. If a year
 passes with no invocation, that is recorded too, so that silence is a finding
 rather than an absence of paperwork.
+
+---
+
+## Removing a file from the shared library directory (added 2026-09-01)
+
+`SHARED_MEDIA_DIR` (`/data/media-shared` on Railway) holds StoryJar's own
+published teaching art. **Withdrawing a library activity sets `published: false`
+and stops the file being served — it does not delete it**, and there is no screen
+anywhere that deletes one.
+
+That is fine while nothing personal is in there, which is enforced rather than
+assumed: `publishRefusal()` in `src/lib/libraryPermission.ts` refuses to publish a
+template that references any pupil's work, any pupil's draft, or another
+teacher's template, and it refuses *before* a byte is copied.
+
+**If a file ever does need erasing from that directory** — a mistake, or a gap in
+that check — withdrawing the activity is the immediate containment step and takes
+seconds: the `/uploads` route answers a shared path only where a published row
+references it, so the bytes stop being served the moment the flag flips. Erasing
+them then needs volume access, which is this document's subject and is logged
+accordingly. Do the withdrawal first; it is the part that stops disclosure.

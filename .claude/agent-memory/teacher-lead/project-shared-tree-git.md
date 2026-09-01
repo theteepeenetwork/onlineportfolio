@@ -29,6 +29,11 @@ Three rules that follow, each of which came up for real:
   exact fix and line numbers instead. A transient red tree while somebody is
   mid-item is normal, not an incident — the signal that matters is red *after*
   someone reports an item done.
+- **Re-run `npm run check` immediately before reporting a red tree**, and quote
+  the timestamp. In a shared tree the owner may fix it in the minutes between
+  the idle hook firing and the report being written, so the lead checks, finds
+  green, and concludes the report was wrong. A false red costs somebody a
+  diagnosis; a stale-but-true red costs your next report its credibility.
 
 **Why:** an additive edit to a file another agent has open can be clobbered or
 can clobber, and git-internal state is shared by sessions this one cannot see.

@@ -422,6 +422,29 @@ export function isLookupKind(value: string): value is LookupKind {
   return value === "TEACHER" || value === "PARENT";
 }
 
+/**
+ * One activity in StoryJar's own shared library, as an operator may see it.
+ *
+ * Five plain facts and a number. There is no thumbnail, no instructions and no
+ * payload of any kind, because the payload columns are exactly what a teacher
+ * authored and can quote a child — they are denied identifiers under the
+ * blindness gate and this DTO is shaped so nothing here is ever tempted to
+ * carry one.
+ *
+ * `copyCount` is a COUNT of the relation, never a read of it. The difference is
+ * the whole point: "eleven schools took this one" is a fact about the library,
+ * and the list of which eleven, with their templates, is a route out of the
+ * operator area into every teacher's activities.
+ */
+export type SharedLibraryRowDto = {
+  id: string;
+  slug: string;
+  title: string;
+  published: boolean;
+  sortOrder: number;
+  copyCount: number;
+};
+
 // ---------------------------------------------------------------------------
 // Dates
 // ---------------------------------------------------------------------------

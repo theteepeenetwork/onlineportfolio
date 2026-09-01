@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { SCHOOL_A, SCHOOL_B, loginTeacher, loginStudent, loginParent } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, loginTeacher, loginStudent, loginParent, SCHOOL_D } from "../helpers";
 
 // ===========================================================================
 // B1 — Accessibility (axe-core), gated at WCAG 2.2 AA
@@ -168,6 +168,17 @@ test("a11y (AA): the StoryJar shared library", async ({ page }) => {
   await page.goto("/teacher/activities/shared");
   await expect(page.getByRole("heading", { name: "StoryJar library" })).toBeVisible();
   assertNoSeriousViolations(await scan(page), "shared activity library");
+});
+
+test("a11y (AA): the publishing desk", async ({ page }) => {
+  // StoryJar staff only, so no child ever sees it — but it is a teacher screen
+  // with a form, a select and two kinds of button, which is where a missing
+  // label shows up first. Signed in as School D, the one fixture school that
+  // can publish; every other teacher gets a 404 here by design.
+  await loginTeacher(page, SCHOOL_D.teacher);
+  await page.goto("/teacher/activities/library");
+  await expect(page.getByRole("heading", { name: "Publishing" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "publishing desk");
 });
 
 test("a11y (AA): admin console", async ({ page }) => {

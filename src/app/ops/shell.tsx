@@ -38,6 +38,11 @@ export const OPS_LINKS = [
   { href: "/ops/mail", label: "Mail" },
   { href: "/ops/lookup", label: "Find an adult" },
   { href: "/ops/health", label: "Health" },
+  { href: "/ops/library", label: "Library" },
+  // Next to the library, because the two are one job: the library screen is
+  // where you notice something is missing and the Academy screen is how you go
+  // and add it. Neither reads anything a school owns.
+  { href: "/ops/academy", label: "Academy" },
   // Last in the bar on purpose: it is the screen you read on your first day and
   // then rarely, and the operational screens should not move to make room for
   // it. It reads nothing, so it is also the only link here that cannot be a

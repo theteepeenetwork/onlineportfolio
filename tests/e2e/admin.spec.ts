@@ -184,15 +184,34 @@ test.describe("Admin billing", () => {
   });
 
   test("an admin can hand a class to a different teacher from the Classes tab", async ({ page }) => {
+    // A THROWAWAY CLASS, never a seeded one, and this is not tidiness.
+    //
+    // Handing a class over ROTATES ITS CODE — deliberately, because the
+    // previous teacher would otherwise sign in as any pupil in a class they no
+    // longer hold (src/lib/classHandover.ts, owner decision 29 August 2026).
+    // Handing it back rotates it again. So a test that hands a SEEDED class
+    // over and back restores its owner and destroys its code, and every later
+    // spec that signs a child in with SUN234 then fails at the name wall with
+    // "We couldn't find that class code" — which reads as a timeout in that
+    // spec rather than as pollution from this one. It cost an afternoon to
+    // find. `class-code-rotation.spec.ts` learned the same lesson first and
+    // says so at the top of the file.
     await teacherLogin(page);
+    const className = `Handover ${Date.now()}`;
+    await page.goto("/teacher/class");
+    await page.getByRole("button", { name: /New class/ }).click();
+    await page.locator("#className").fill(className);
+    await page.getByRole("button", { name: /^Create class/ }).click();
+    await expect(page.getByRole("button", { name: new RegExp(className) })).toBeVisible();
+
     await page.goto("/admin");
     await page.getByRole("button", { name: "Classes", exact: true }).click();
 
-    const picker = page.locator('select[name="staffId"]').first();
+    const picker = page.getByLabel(className);
     await expect(picker).toBeVisible();
     // Hold on to WHICH class this is: handing it over re-sorts the list, so the
     // row is found by its own label afterwards rather than by position.
-    const label = (await picker.getAttribute("aria-label")) ?? "";
+    const label = className;
     const before = await picker.inputValue();
     const other = await picker.locator(`option:not([value="${before}"])`).first().getAttribute("value");
     await picker.selectOption(other ?? "");
@@ -203,11 +222,9 @@ test.describe("Admin billing", () => {
     await page.getByRole("button", { name: "Audit log" }).click();
     await expect(page.getByText("Assigned a class")).toBeVisible();
 
-    // …and then hand it straight back. This is the ONE test that permanently
-    // moves a seeded class out of the demo teacher's hands, and the demo
-    // teacher's first class is the fixture half the suite is built on: leaving
-    // it with a colleague empties their queue, their register and their
-    // dashboard for every file that runs after this one.
+    // …and then hand it straight back, so the class this test made ends where
+    // it started. Nothing seeded was touched either way — see the note at the
+    // top of this test for why that matters more than the ownership does.
     await page.getByRole("button", { name: "Classes", exact: true }).click();
     const back = page.getByLabel(label);
     await expect(back).toBeVisible();

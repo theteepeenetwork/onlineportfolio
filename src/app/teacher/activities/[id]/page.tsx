@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/icons/Icon";
 import { jsonArray, templateThumb, type RunSummary } from "@/lib/activities";
 import { ClearMarkedDraft } from "@/components/ClearMarkedDraft";
+import { canPublish } from "@/lib/libraryPublishing";
 import { TemplateActions } from "./TemplateActions";
 
 function fmtDate(d: Date) {
@@ -55,6 +56,11 @@ export default async function TemplateDetail({
     orderBy: { createdAt: "asc" },
     include: { students: { orderBy: { name: "asc" }, select: { id: true, name: true, avatarColor: true } } },
   });
+
+  // False at every real school, so the publish control is not drawn there at
+  // all. The action re-asks the same question server-side; this only decides
+  // what is rendered.
+  const mayPublish = await canPublish(user.teacher.id);
 
   // LIVE runs first, then by newest.
   const runs = [...template.assignments].sort((a, b) => {
@@ -124,9 +130,15 @@ export default async function TemplateDetail({
             </div>
           </div>
           <TemplateActions
-            template={{ id: template.id, title: template.title, thumb: templateThumb(template) }}
+            template={{
+              id: template.id,
+              title: template.title,
+              thumb: templateThumb(template),
+              librarySlug: template.librarySlug,
+            }}
             classes={classes}
             pastRuns={pastRuns}
+            canPublish={mayPublish}
           />
         </div>
 

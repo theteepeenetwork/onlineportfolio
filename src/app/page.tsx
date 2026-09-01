@@ -756,7 +756,7 @@ export default async function Home() {
               Start with your school
             </Link>
             <p style={{ margin: "16px 0 0", font: "400 14px var(--font-atkinson)", color: "#A9B4C9" }}>
-              42-day trial for schools evaluating before a purchase order is raised.
+              Pay by card or purchase order. Full refund within 42 days if it isn’t right for your school.
             </p>
           </div>
         </div>

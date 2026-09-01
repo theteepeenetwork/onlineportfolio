@@ -591,6 +591,53 @@ async function main() {
   });
 
   // -------------------------------------------------------------------------
+  // School D = StoryJar Studio, the ONE fixture school that may publish.
+  //
+  // It stands in for StoryJar Academy, which is seeded separately by
+  // scripts/ops/seed-academy.mjs against a real environment and is far too big
+  // to belong in a test fixture. What matters here is the single bit the
+  // publishing gate reads: School.canPublishToLibrary. Every other fixture
+  // school leaves it at its default of false, which is what makes the
+  // cross-tenant refusals in shared-activities.spec.ts a real test rather than
+  // a test of an empty table.
+  //
+  // The template below carries its OWN background file, never a child's
+  // response media, for the same reason Oakfield's does: publishing copies the
+  // bytes of whatever the template references into the shared directory, and a
+  // fixture that pointed at a child's work would be a fixture that published
+  // one.
+  console.log("[seed-test] Appending School D (StoryJar Studio, may publish) …");
+  const studio = await db.school.create({
+    data: { name: "StoryJar Studio", kind: "DEMO", canPublishToLibrary: true },
+  });
+  await db.subscription.create({
+    data: { kind: "SCHOOL", status: "TRIAL", trialEndsAt: new Date(Date.now() + 42 * DAY), schoolId: studio.id },
+  });
+  const studioTeacher = await db.teacher.create({
+    data: {
+      name: "Nell Hartley",
+      title: "Ms",
+      displayStyle: "formal",
+      displayName: "Ms Hartley",
+      email: "publisher@studio.storyjar.co.uk",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "TEACHER",
+      status: "ACTIVE",
+      schoolId: studio.id,
+    },
+  });
+  const studioTmplBg = writeSvg("seed-studio-tmpl-bg.svg", OAK_SVG);
+  await db.activityTemplate.create({
+    data: {
+      title: "Studio worksheet",
+      instructions: "Draw what you noticed.",
+      templatePathsJson: JSON.stringify([studioTmplBg]),
+      tagsJson: JSON.stringify(["Studio"]),
+      teacherId: studioTeacher.id,
+    },
+  });
+
+  // -------------------------------------------------------------------------
   // StoryJar's shared activity library.
   //
   // Two rows, and the second one is the point: an UNPUBLISHED activity must be

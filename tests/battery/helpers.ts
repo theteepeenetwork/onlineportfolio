@@ -34,6 +34,18 @@ export const SCHOOL_B = {
   teacherDraftMedia: "/uploads/seed-oak-tmpl-draft.svg", // Okafor's template draft — Okafor ONLY
 } as const;
 
+// The one fixture school allowed to publish to StoryJar's library. It stands in
+// for StoryJar Academy, which is seeded against a real environment by
+// scripts/ops/seed-academy.mjs and is far too large to be a fixture. Every other
+// school here leaves School.canPublishToLibrary at its default of false, which
+// is what makes a cross-tenant publish attempt a real refusal to test.
+export const SCHOOL_D = {
+  name: "StoryJar Studio",
+  teacher: { email: "publisher@studio.storyjar.co.uk", password: "password" },
+  templateTitle: "Studio worksheet",
+  templateMedia: "/uploads/seed-studio-tmpl-bg.svg",
+} as const;
+
 // POST a same-origin JSON body from within the page (so the session cookie
 // rides along) and return the HTTP status. The page must already be on our
 // origin. Used to exercise POST endpoints (e.g. /api/drafts) in isolation specs.

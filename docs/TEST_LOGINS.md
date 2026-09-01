@@ -158,6 +158,12 @@ so restarting does not clear it.
 **Storyjar library fixtures**: `seed-autumn-walk` (published) and
 `seed-not-published-yet` (unpublished, must be invisible to every teacher).
 
+**School D, StoryJar Studio** (`publisher@studio.storyjar.co.uk` / `password`):
+the only fixture school with `canPublishToLibrary`. It stands in for the Academy,
+which is far too large to be a fixture, and it exists so the cross-tenant publish
+refusals in `shared-activities.spec.ts` are a real test rather than a test of an
+empty table.
+
 ---
 
 ## 3. Storyjar Academy (the production sandbox)
@@ -176,6 +182,18 @@ rolls, price bands and revenue lines. It is the only school with
 Class codes are `ACD` + two-digit year index + form number, so Nursery Oak is
 `ACD011`, Nursery Elm `ACD012`, Year 1 Oak `ACD031`, and so on down the list in
 the script.
+
+**These accounts can publish to the shared library, and no other account can.**
+`School.canPublishToLibrary` is true here alone. Sign in as any class teacher,
+build on the real canvas, and publish from the activity's ⋯ menu; the Publishing
+screen at `/teacher/activities/library` is where it is made visible or
+withdrawn. See [`library-publishing.md`](./library-publishing.md).
+
+**The addresses and codes above are also in the product**, at `/ops/academy` in
+the operator console, derived from the same scheme rather than read from the
+database. This document stays the source of truth for the wording, and
+`tests/battery/security/ops-academy.spec.ts` fails the build if the screen and
+the seed script drift apart.
 
 **The password is not in this document and not in the repository.** It is set
 once when the script is run and lives in the password manager:

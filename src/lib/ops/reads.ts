@@ -24,6 +24,7 @@ import {
   type MailWindowDto,
   type RegisterStatusDto,
   type SchoolRowDto,
+  type SharedLibraryRowDto,
 } from "@/lib/ops/dto";
 import {
   MAIL_STATUS_CLASS_LABEL,
@@ -753,4 +754,61 @@ export async function readRegisterStatus(): Promise<RegisterStatusDto> {
     sourceFileDate: formatIsoDay(parseImportDetail(run?.outcomeDetail ?? null)),
     statement,
   };
+}
+
+// ---------------------------------------------------------------------------
+// StoryJar's own activity library
+// ---------------------------------------------------------------------------
+//
+// The one table in the schema that holds StoryJar's content rather than a
+// school's, which is why the blindness gate classifies it PLATFORM_CONTENT and
+// permits reads of it at all. It is still read-only there, and this function
+// changes nothing about that: publishing and withdrawing happen in the Academy,
+// in an ordinary teacher account, on the real canvas.
+//
+// WHY AN OPERATOR IS SHOWN THIS AT ALL
+//
+// Because "is the library actually being used" is a platform question and
+// there is nowhere else to ask it. The uptake figure is a COUNT of the copies
+// relation, which is the single place a child-reaching relation name may
+// appear under these roots: it answers which activities teachers are taking
+// without opening one template. Selecting `copies` itself is refused
+// (OPS-CHILD-RELATION) and must stay refused — the fixture proving it is
+// tests/fixtures/ops-blindness/bad-ops-reads-template-through-shared.txt.
+//
+// The projection below is explicit for a second reason as well as the gate's:
+// a bare read returns templatePathsJson, quizJson and objectsJson, and those
+// are teacher-authored content that can quote a child.
+
+/**
+ * Every activity in the shared library, in the order teachers see it, with how
+ * many schools have taken a copy.
+ *
+ * Unpublished rows are included on purpose. This screen is the one place an
+ * operator can tell that something was promoted and never made visible, which
+ * is a state a teacher's library cannot show and a support call can turn on.
+ */
+export async function listLibrary(): Promise<SharedLibraryRowDto[]> {
+  await requireOperator();
+
+  const rows = await db.sharedActivity.findMany({
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      published: true,
+      sortOrder: true,
+      _count: { select: { copies: true } },
+    },
+    orderBy: [{ sortOrder: "asc" }, { slug: "asc" }],
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    published: row.published,
+    sortOrder: row.sortOrder,
+    copyCount: row._count.copies,
+  }));
 }
