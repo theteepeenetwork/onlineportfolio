@@ -8,6 +8,7 @@ import { deriveTeacherName } from "@/lib/teacherName";
 import { recordAudit } from "@/lib/audit";
 import { sendStaffInvite } from "@/lib/staffInvite";
 import { handOverClasses } from "@/lib/classHandover";
+import { restoreFreePlan } from "@/lib/billing";
 import { makeClassCode } from "@/lib/classCode";
 
 // Resolve the current user as a school admin, or bounce them out. Every admin
@@ -211,15 +212,87 @@ export async function removeStaff(formData: FormData) {
   const staff = await db.teacher.findFirst({ where: { id: staffId, schoolId } });
   if (!staff) redirect("/admin");
 
-  // An invited teacher never set a password and holds nothing; deleting the row
-  // cascades their tokens. An ACTIVE one is the case F59 is about.
+  // THE CLASSES MOVE FIRST, WHICHEVER BRANCH THIS TAKES. That is F68, and it is
+  // the only thing either branch shares.
+  //
+  // This used to read "an invited teacher never set a password and holds
+  // nothing; deleting the row cascades their tokens", and every clause of that
+  // was true except the one carrying the weight. An INVITED teacher CAN hold
+  // classes: `assignClassToStaff` above resolves its target by id and school
+  // with no status filter, and the console offers invited staff in both the
+  // class-owner dropdown and the staff row's "Assign classes" — deliberately,
+  // because an admin setting up in September wants next term's classes placed
+  // before everybody has accepted. `Class.teacher` is `onDelete: Cascade`, and
+  // `Student` and `JournalItem` cascade from the class. So the bare delete took
+  // the class, its pupils and every piece of work in it, silently, with no audit
+  // row and nothing recoverable — while the confirmation said the classes were
+  // moving to the admin.
+  //
+  // The owner's decision (1 September 2026) was hand over first, then delete,
+  // with the condition stated as an acceptance criterion rather than an
+  // intention: NO WORK IS DELETED IN THE PROCESS. That is asserted by counting
+  // classes, pupils, journal items, drafts and assignment records either side of
+  // a removal in tests/battery/security/class-handover.spec.ts, not by this
+  // comment.
+  //
+  // THE LINE THAT KEEPS THIS SAFE IS NOT THE HANDOVER — IT IS THAT AN INVITED
+  // ROW IS ALWAYS A BRAND-NEW ONE. Read this before changing anything about what
+  // `status` means. `Teacher` cascades to `ActivityTemplate`, and from there to
+  // `Assignment` and `AssignmentStudent`; it also cascades directly to `Draft`,
+  // which the schema itself calls a child's private unfinished work
+  // (prisma/schema.prisma:522). None of those pass through `Class`, so
+  // `handOverClasses` does not save them and nothing here would.
+  //
+  // They are unreachable today only because `inviteStaff` above refuses an email
+  // that already belongs to a teacher, so an INVITED row is always freshly
+  // created with `passwordHash: ""` and can never have authored anything. IF AN
+  // ESTABLISHED ACCOUNT CAN EVER CARRY `status = "INVITED"`, THIS BRANCH STARTS
+  // DELETING CHILDREN'S DRAFTS AND THE RECORD OF WHICH CHILDREN AN ACTIVITY WAS
+  // SET TO. Phase 2 of docs/paid-tier-plan.md's runway brings established
+  // accounts into schools and is designed to keep them ACTIVE precisely so this
+  // cannot fire; flipping `status` instead would be the shortcut that reopens
+  // it. The two extra counts in the spec are what would catch it — and note that
+  // `JournalItem.assignmentId` is SET NULL rather than CASCADE, so the work
+  // itself would survive while its provenance vanished, which is exactly the
+  // kind of loss a journal-item count cannot see.
+  //
+  // Refusing the assignment at source was considered and rejected: it costs the
+  // September workflow the dropdown exists to serve. Nulling `schoolId` instead
+  // of deleting was also rejected — it leaves an account nobody can ever sign
+  // into, because an invited teacher has no password.
+  //
+  // IN A TRANSACTION for the reason `handOverClasses` gives: a handover that
+  // committed without the delete, or a delete that committed without the
+  // handover, is worse than either not happening. The delete still cascades
+  // their unspent invitation token, which is the part of the old comment that
+  // was right.
   let moved: { id: string; name: string }[] = [];
-  if (staff.status === "INVITED") {
-    await db.teacher.delete({ where: { id: staffId } });
+  const invited = staff.status === "INVITED";
+  if (invited) {
+    await db.$transaction(async (tx) => {
+      moved = await handOverClasses(tx, staffId, teacherId);
+      await tx.teacher.delete({ where: { id: staffId } });
+    });
   } else {
     await db.$transaction(async (tx) => {
       moved = await handOverClasses(tx, staffId, teacherId);
       await tx.teacher.update({ where: { id: staffId }, data: { schoolId: null } });
+      // Their own account, on the free plan, from this moment.
+      //
+      // Detaching used to leave them with NO governing subscription: the school's
+      // no longer applies and they may never have had one of their own — invited
+      // staff are created by `inviteStaff` above, which writes no subscription,
+      // and `joinSchoolPlan` deletes the free row on the way in. The write gate
+      // then denies by default (rule 8, right) while `accountStateForTeacher`
+      // reports "NONE", so no banner renders and nothing on screen says why every
+      // save fails. Worse than frozen. See `restoreFreePlan`.
+      //
+      // INSIDE THE TRANSACTION, with the detach, for the same reason the class
+      // handover is: half of this is worse than none of it.
+      //
+      // Not in the INVITED branch above — that row is deleted outright, and it
+      // never had a subscription to restore.
+      await restoreFreePlan(tx, staffId);
       // The open tab. Sessions last 30 days, so without this a suspended
       // teacher stays authenticated for a month after the click. Same shape as
       // the reset in src/app/actions/password.ts.
@@ -238,6 +311,13 @@ export async function removeStaff(formData: FormData) {
   // and subjectId, and reads the custody history in order — including ordinary
   // reassignments, which already write this shape. A summary row naming only
   // the person would not appear in that query at all.
+  //
+  // This loop now runs for the INVITED branch too, which is most of the point of
+  // F68: the classes moved and nothing said so. The sentence was checked against
+  // the case where the person never accepted and needs no branch — "moved from
+  // Chris Vale to Mrs Hartley when Chris Vale was removed from the school" is
+  // exactly what happened, and it is neutral about why. A wording like "when X
+  // was suspended" would not be.
   for (const klass of moved) {
     await recordAudit({
       action: "CLASS_ASSIGNED", actorType: "ADMIN", actorId: teacherId, actorName, schoolId,
@@ -250,10 +330,25 @@ export async function removeStaff(formData: FormData) {
     subjectType: "TEACHER", subjectId: staffId,
     // Says the consequence, because F59's specific complaint was that this
     // sentence was false in the direction that mattered.
+    //
+    // It now names what became of the account too. That is the question this row
+    // is read to answer — a head teacher a term later, or the DPO asked "does
+    // that person still hold anything of ours" — and "removed from the school"
+    // alone leaves it unstated.
+    //
+    // TWO CLAUSES, BUILT SEPARATELY, because the two branches end differently
+    // and one sentence covering both would be false for one of them. An ACTIVE
+    // colleague is detached and keeps their own free plan; an INVITED one never
+    // set a password, so the row goes with the removal.
     detail:
-      moved.length > 0
+      (moved.length > 0
         ? `Removed ${staff.name} from the school; ${moved.length} ${moved.length === 1 ? "class" : "classes"} moved to ${actorName} and reissued their class codes`
-        : `Removed ${staff.name} from the school; they held no classes`,
+        : `Removed ${staff.name} from the school; they held no classes`) +
+      (invited
+        ? ". They had not accepted their invitation, so their account was deleted with it"
+        : moved.length > 0
+          ? ". Their own StoryJar account stays open on the free plan, with no classes"
+          : ". Their own StoryJar account stays open on the free plan"),
   });
   revalidatePath("/admin");
 }

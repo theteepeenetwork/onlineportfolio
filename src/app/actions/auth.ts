@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { createSession, destroySession } from "@/lib/auth";
-import { isFoundingSignup } from "@/lib/billing";
+import { isFoundingSignup, restoreFreePlanFor } from "@/lib/billing";
 import { uniqueClassCode } from "@/lib/classCode";
 import { AVATAR_PALETTE } from "@/lib/avatar";
 import { deriveTeacherName, type DisplayStyle } from "@/lib/teacherName";
@@ -145,9 +145,13 @@ export async function createTeacherAccount(input: {
   // "nothing to lapse" — there is no route from here to FROZEN. Without this row
   // the write gate would (correctly) deny by default, so it must exist from
   // signup.
-  await db.subscription.create({
-    data: { kind: "FREE", status: "ACTIVE", trialEndsAt: null, teacherId: teacher.id },
-  });
+  //
+  // Written through `restoreFreePlan`'s definition rather than inline. Signup
+  // used to be the ONLY place a free row was ever created, which is how
+  // `removeStaff` came to detach a teacher into having no subscription at all.
+  // There is now one definition of the row and every path uses it, so the two
+  // cannot drift apart again.
+  await restoreFreePlanFor(teacher.id);
 
   const code = await uniqueClassCode();
   const klass = await db.class.create({

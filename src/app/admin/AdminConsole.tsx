@@ -588,6 +588,15 @@ function MenuButton({ icon, label, onClick }: { icon: IconName; label: string; o
 // their classes and their pupils' work to whoever pressed the button and
 // reissues every one of those class codes.
 //
+// IT SAYS "YOUR SCHOOL'S StoryJar", NOT "StoryJar". Removal ends the person's
+// access to this school and nothing else: their own account stays open on the
+// free plan, holding none of the school's classes, because those moved above.
+// The old sentence — "loses access to StoryJar" — read as though the account
+// were closed. It was already misleading and, now that removal restores a free
+// plan (`restoreFreePlan`), it would be plainly false. An admin who thinks a
+// removal deletes an account is an admin who will not do the thing that
+// actually deletes one.
+//
 // ONE PRESS TO CONFIRM, NOT A WIZARD, and that distinction is the whole design.
 // The scenario this exists for is a SUSPENSION, where a head teacher must be
 // able to revoke access immediately — so nothing here asks them to choose a
@@ -597,6 +606,20 @@ function MenuButton({ icon, label, onClick }: { icon: IconName; label: string; o
 function RemoveStaffItem({ staff }: { staff: StaffRow }) {
   const [confirming, setConfirming] = useState(false);
   const count = staff.classes.length;
+  // ONE SENTENCE ABOUT THE WORK, TWO ABOUT THE ACCOUNT, and the split is the
+  // design. Since F68 the classes, the children and their work have the SAME
+  // fate on both branches — they move to the admin pressing the button, and the
+  // clause saying so is shared rather than duplicated, so the two can never
+  // drift into implying different things about children's data.
+  //
+  // What genuinely differs is the person's account. An ACTIVE colleague is
+  // DETACHED — `removeStaff` nulls their `schoolId` and gives them their own
+  // free plan back, so the account survives. An INVITED one never set a password
+  // and the row is deleted with the removal. Saying "their own account stays
+  // open" over a row about to be deleted, or "there is no account left" over one
+  // that carries on, would each be the class of falsehood this sentence was
+  // rewritten to remove.
+  const invited = staff.status === "INVITED";
 
   if (!confirming) {
     return (
@@ -617,15 +640,29 @@ function RemoveStaffItem({ staff }: { staff: StaffRow }) {
       <p style={{ margin: "0 0 8px", font: "400 12px/1.45 var(--font-atkinson)", color: "#43506B" }}>
         {count > 0 ? (
           <>
-            <strong>{staff.name}</strong> loses access to StoryJar. Their {count}{" "}
-            {count === 1 ? "class" : "classes"} ({staff.classes.join(", ")}) and the children&rsquo;s
-            work in {count === 1 ? "it" : "them"} move to <strong>you</strong>, and{" "}
-            {count === 1 ? "its class code is" : "their class codes are"} reissued — so the children
-            will need telling the new {count === 1 ? "code" : "codes"}.
+            <strong>{staff.name}</strong> loses access to your school&rsquo;s StoryJar. Their{" "}
+            {count} {count === 1 ? "class" : "classes"} ({staff.classes.join(", ")}) and the
+            children&rsquo;s work in {count === 1 ? "it" : "them"} move to <strong>you</strong>,
+            and {count === 1 ? "its class code is" : "their class codes are"} reissued — so the
+            children will need telling the new {count === 1 ? "code" : "codes"}.{" "}
+            {invited ? (
+              <>
+                They never accepted their invitation, so their account goes too &mdash; but the
+                work stays here, with you.
+              </>
+            ) : (
+              <>Their own account stays open on the free plan, with no classes.</>
+            )}
           </>
         ) : (
           <>
-            <strong>{staff.name}</strong> loses access to StoryJar. They hold no classes.
+            <strong>{staff.name}</strong> loses access to your school&rsquo;s StoryJar. They hold
+            no classes
+            {invited ? (
+              <>, and they never accepted their invitation, so their account goes too.</>
+            ) : (
+              <>, and their own account stays open on the free plan.</>
+            )}
           </>
         )}
       </p>
