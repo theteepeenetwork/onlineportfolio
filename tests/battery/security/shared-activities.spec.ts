@@ -2,7 +2,8 @@ import { test, expect } from "@playwright/test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { db } from "@/lib/db";
-import { SCHOOL_A, SCHOOL_B, loginTeacher } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, SCHOOL_D, loginTeacher } from "../helpers";
+import { canPublish, publishRefusal } from "@/lib/libraryPermission";
 
 // ===========================================================================
 // The StoryJar shared activity library.
@@ -10,9 +11,14 @@ import { SCHOOL_A, SCHOOL_B, loginTeacher } from "../helpers";
 // The owner's three constraints, each turned into an assertion rather than a
 // convention:
 //
-//   1. Curated, not community. Only StoryJar publishes, and publishing is the
-//      repository's job. No teacher-authenticated code path may write to the
-//      shared table, in this version or by accident.
+//   1. Curated, not community. Only StoryJar publishes. That used to mean
+//      publishing lived entirely in the repository and NO code under src/ could
+//      write the table. It now means something narrower and this file says so
+//      in both halves of the test below: exactly one named module may write it,
+//      and it publishes only for a school whose canPublishToLibrary is set —
+//      StoryJar Academy, where StoryJar's own staff work. No teacher at any
+//      real school can reach it, and that is now proved at runtime as well as
+//      by a scan.
 //   2. Separate from a teacher's own folders.
 //   3. Never in "All activities" until added.
 //
@@ -225,10 +231,14 @@ test.describe("adding is a copy, and the copy is the teacher's own", () => {
   });
 
 test.describe("only StoryJar publishes", () => {
-  // The assertion that will still matter in a year. Publishing lives in the
-  // repository, so the enforceable version of "no teacher may publish" is that
-  // no code a teacher's session can reach writes to the table at all.
-  test("no teacher-reachable code path writes to the shared table", () => {
+  // The one module under src/ allowed to write the shared table. A literal
+  // list, the same shape as EXPECTED_IDS in ops-operations.spec.ts, so this
+  // goes red in BOTH directions: a second file gaining a write fails, and so
+  // does this one losing it.
+  const PUBLISHER = "src/lib/libraryPublishing.ts";
+  const GATE = "src/lib/libraryPermission.ts";
+
+  const writersUnderSrc = (): string[] => {
     const offenders: string[] = [];
     const WRITE = /\bsharedActivity\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\b/;
 
@@ -238,16 +248,313 @@ test.describe("only StoryJar publishes", () => {
         if (statSync(full).isDirectory()) {
           walk(full);
         } else if (/\.(ts|tsx)$/.test(entry) && WRITE.test(readFileSync(full, "utf8"))) {
-          offenders.push(full);
+          offenders.push(path.relative(process.cwd(), full));
         }
       }
     };
     walk(path.join(process.cwd(), "src"));
+    return offenders.sort();
+  };
+
+  // WHAT THIS ASSERTION USED TO SAY, AND WHY IT SAYS LESS NOW.
+  //
+  // It used to demand zero writes anywhere under src/: publishing was a script
+  // run against the repository, so "no teacher may publish" was enforced by
+  // there being no such code at all. Publishing now exists in the application,
+  // for StoryJar's own staff, so the honest version of the guarantee is
+  // narrower — one named module, gated on a flag no screen can write.
+  //
+  // Be plain about the trade: this is weaker than an absence. What replaces the
+  // missing strength is not this scan but the two runtime tests below, which
+  // the old assertion could never have written, because there was no action to
+  // point them at.
+  test("exactly one module under src/ writes the shared table", () => {
+    expect(
+      writersUnderSrc(),
+      `publishing belongs to ${PUBLISHER} and to scripts/ops/publish-shared-activities.mjs. A write anywhere else under src/ is reachable from an ordinary teacher's session and is how a curated library becomes user-generated content.`,
+    ).toEqual([PUBLISHER]);
+  });
+
+  // The second half, and the one that stops the first being a formality. A
+  // module named in an allowlist that had lost its permission check would pass
+  // the scan above and publish for anybody.
+  test("the writer is gated: every write goes through canPublish", () => {
+    const source = readFileSync(path.join(process.cwd(), PUBLISHER), "utf8");
+
+    // The gate is DEFINED in the permission module (which carries no
+    // `server-only`, so the tests above can call it for real) and IMPORTED
+    // here. Assert both halves: a writer that stopped importing it, or a
+    // permission module that stopped exporting it, must fail.
+    expect(
+      readFileSync(path.join(process.cwd(), GATE), "utf8"),
+      `${GATE} must define the permission check. It lives there rather than in the writer so a blocking spec can call it; see that file's header for the mutation test that forced the split.`,
+    ).toContain("export async function canPublish(");
+    expect(
+      source,
+      `${PUBLISHER} must import the permission check. Without canPublish() the allowlist entry above says only that the writes are in one place, not that anybody is stopped.`,
+    ).toContain("canPublish");
+
+    // Every exported function in the module that reaches a write must ask —
+    // DERIVED from the source, not a list somebody keeps up to date. The first
+    // version of this test hard-coded two names while the module had three
+    // writers, so the third was asserted by nobody.
+    const WRITE_IN_FN = /export async function (\w+)\(([\s\S]*?)(?=\nexport |$)/g;
+    const writers: string[] = [];
+    for (const [, name, body] of source.matchAll(WRITE_IN_FN)) {
+      if (/\bsharedActivity\s*\.\s*(create|createMany|update|updateMany|upsert|delete|deleteMany)\b/.test(body)) {
+        writers.push(name);
+      }
+    }
+    expect(writers.length, "the module should still contain writing functions to check").toBeGreaterThan(0);
+
+    for (const fn of writers) {
+      const body = source.slice(source.indexOf(`export async function ${fn}(`));
+      const upToNextExport = body.slice(0, body.indexOf("\nexport ", 1) + 1 || undefined);
+      expect(
+        upToNextExport,
+        `${fn}() writes the shared table and must call canPublish() before it does.`,
+      ).toContain("canPublish(");
+    }
+  });
+
+  // The state that matters, not the row count. The count is what the first
+  // version of these tests asserted, and it would have stayed green through the
+  // most damaging thing an ordinary teacher could actually do here: flipping an
+  // already-withdrawn activity back to visible, which re-opens its media on the
+  // /uploads route. Nothing is created, so nothing is counted.
+  const libraryState = async () =>
+    JSON.stringify(
+      await db.sharedActivity.findMany({
+        select: { slug: true, published: true },
+        orderBy: { slug: "asc" },
+      }),
+    );
+
+  test("a teacher at an ordinary school cannot publish, however the form is forged", async ({
+    page,
+  }) => {
+    const before = await libraryState();
+
+    // School A's own template, School A's own session. Nothing borrowed, no id
+    // guessed: the most favourable possible case for the attacker, and it is
+    // still refused, because the refusal is about the SCHOOL and not about
+    // whether they own the row.
+    const mine = await db.activityTemplate.findFirst({
+      where: { teacher: { email: SCHOOL_A.admin.email } },
+      select: { id: true },
+    });
+    expect(mine, "School A needs at least one template for this to be a real attempt").toBeTruthy();
+
+    await loginTeacher(page, SCHOOL_A.admin);
+    await page.goto(`/teacher/activities/${mine!.id}`);
+
+    // The control first: the button is not drawn for them at all.
+    await page.getByRole("button", { name: "More actions" }).click();
+    await expect(page.getByRole("menuitem", { name: /Publish to library/i })).toHaveCount(0);
+
+    // BE HONEST ABOUT WHAT THIS TEST CAN AND CANNOT DO. A Server Action is not
+    // an ordinary POST endpoint: it is reached by an id Next mints at build
+    // time and embeds in the form it rendered, so a spec cannot craft the
+    // request without first being served the control. Which is the point — for
+    // this teacher there is no control to be served, on any screen. So the
+    // reachability proof is three facts together: the button is not drawn (just
+    // asserted), the screen behind it does not exist for them (below), and the
+    // module that would do the work asks canPublish() first (asserted in its
+    // own test above, over the source).
+    await page.goto("/teacher/activities/library");
+    await expect(
+      page.getByRole("heading", { name: "Publishing" }),
+      "the publishing screen must 404 for an ordinary school, not merely render empty",
+    ).toHaveCount(0);
 
     expect(
-      offenders,
-      "publishing belongs to scripts/ops/publish-shared-activities.mjs alone. A write under src/ is reachable from a teacher's session and is how a curated library becomes user-generated content.",
-    ).toEqual([]);
+      await libraryState(),
+      "a school without canPublishToLibrary changed the library — either a new row, or the visibility of an existing one",
+    ).toBe(before);
+
+    // The flag itself is what all of that rests on, so assert it rather than
+    // assuming the fixture: if St Bede's ever gained it, every assertion in
+    // this test would pass for the wrong reason.
+    const theirSchool = await db.teacher.findUnique({
+      where: { email: SCHOOL_A.admin.email },
+      select: { school: { select: { canPublishToLibrary: true } } },
+    });
+    expect(theirSchool!.school!.canPublishToLibrary).toBe(false);
+  });
+
+  test("School B cannot publish either, and the flagged school can", async ({ page }) => {
+    const before = await libraryState();
+
+    await loginTeacher(page, SCHOOL_B.teacher);
+    await page.goto("/teacher/activities/library");
+    await expect(page.getByRole("heading", { name: "Publishing" })).toHaveCount(0);
+    expect(await libraryState()).toBe(before);
+
+    // THE POSITIVE CONTROL, and it is the half that makes the two refusals
+    // above mean something. Written second on purpose: a refusal that is only
+    // ever seen passing cannot tell you whether the feature works at all.
+    await page.context().clearCookies();
+    await loginTeacher(page, SCHOOL_D.teacher);
+
+    const theirs = await db.activityTemplate.findFirst({
+      where: { teacher: { email: SCHOOL_D.teacher.email } },
+      select: { id: true },
+    });
+    await page.goto(`/teacher/activities/${theirs!.id}`);
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: /Publish to library/i }).click();
+    await page.waitForURL(/\/teacher\/activities\/library/);
+
+    const published = await db.activityTemplate.findUnique({
+      where: { id: theirs!.id },
+      select: { librarySlug: true },
+    });
+    expect(published!.librarySlug, "the template should now name the activity it published as").toBeTruthy();
+
+    const row = await db.sharedActivity.findUnique({ where: { slug: published!.librarySlug! } });
+    expect(row, "the library row should exist").toBeTruthy();
+    expect(row!.origin).toBe("STORYJAR");
+    expect(
+      row!.published,
+      "publishing must NOT make it visible: that is a second, separate act",
+    ).toBe(false);
+
+    // The bytes were copied, not the strings. If they were the same file, a
+    // future fix to F27 that finally gives template media an erasure path would
+    // blank the library activity and every classroom that had added it.
+    expect(row!.templatePathsJson).toContain("/uploads/shared/");
+    expect(row!.templatePathsJson).not.toContain(SCHOOL_D.templateMedia);
+
+    const sharedPath = (JSON.parse(row!.templatePathsJson!) as string[])[0];
+
+    // Still invisible to a teacher elsewhere, because it is not published — and
+    // its media is unreadable for the same reason. The /uploads route answers a
+    // shared path only where a PUBLISHED row references it, so "not visible
+    // yet" is a fact about the bytes and not only about the browse screen.
+    await page.context().clearCookies();
+    await loginTeacher(page, SCHOOL_B.teacher);
+    await page.goto("/teacher/activities/shared");
+    await expect(page.getByText(SCHOOL_D.templateTitle, { exact: false })).toHaveCount(0);
+    expect(
+      (await page.request.get(sharedPath)).status(),
+      "an unpublished activity's media must not be served to anybody",
+    ).toBe(404);
+
+    // The second act: making it visible. Now the same teacher, in another
+    // school, sees it and can load its background.
+    await page.context().clearCookies();
+    await loginTeacher(page, SCHOOL_D.teacher);
+    await page.goto("/teacher/activities/library");
+    await page.getByRole("button", { name: "Make visible" }).first().click();
+    await page.waitForURL(/visible=1/);
+
+    await page.context().clearCookies();
+    await loginTeacher(page, SCHOOL_B.teacher);
+    await page.goto("/teacher/activities/shared");
+    await expect(page.getByText(SCHOOL_D.templateTitle, { exact: false })).toHaveCount(1);
+    expect((await page.request.get(sharedPath)).status()).toBe(200);
+
+    // Clean up so the idempotence test below still counts what it expects to.
+    await db.activityTemplate.update({
+      where: { id: theirs!.id },
+      data: { librarySlug: null },
+    });
+    await db.sharedActivity.delete({ where: { slug: published!.librarySlug! } });
+  });
+
+  // THE TESTS THAT ACTUALLY HOLD THE GATE UP.
+  //
+  // Written after a mutation test embarrassed the first version of this file.
+  // With all three `canPublish` calls disabled, every runtime test here still
+  // passed — because a spec cannot craft a Server Action request (Next rejects
+  // the payload before any of our code runs), so nothing was ever reaching the
+  // gate to be stopped. They were green for a reason unrelated to security.
+  //
+  // So the gates were moved into @/lib/libraryPermission, which carries no
+  // `server-only`, exactly as src/lib/ops/enabled.ts and dto.ts do and for the
+  // same stated reason. These call them with real fixture ids. Disable either
+  // gate and these go red, which is the property the file needed and did not
+  // have.
+  test("canPublish answers per school, and denies by default", async () => {
+    const teacherFor = async (email: string) =>
+      (await db.teacher.findUniqueOrThrow({ where: { email }, select: { id: true } })).id;
+
+    expect(
+      await canPublish(await teacherFor(SCHOOL_D.teacher.email)),
+      "the flagged school must be able to publish, or the refusals below prove nothing",
+    ).toBe(true);
+
+    for (const email of [SCHOOL_A.admin.email, SCHOOL_A.otherTeacher.email, SCHOOL_B.teacher.email]) {
+      expect(await canPublish(await teacherFor(email)), `${email} must not be able to publish`).toBe(
+        false,
+      );
+    }
+
+    // A teacher id that names nobody denies rather than throwing: a crafted
+    // request is the case this is for.
+    expect(await canPublish("no-such-teacher-id")).toBe(false);
+  });
+
+  test("a template pointing at a pupil's work is refused before any byte moves", async () => {
+    const publisher = await db.teacher.findUniqueOrThrow({
+      where: { email: SCHOOL_D.teacher.email },
+      select: { id: true },
+    });
+
+    // A real child's media path out of the fixtures — the exact string a
+    // teacher would read off an <img src> in their own approval queue.
+    const childWork = await db.journalItem.findFirstOrThrow({
+      where: { mediaPath: { not: null } },
+      select: { mediaPath: true, status: true },
+    });
+
+    const refusal = await publishRefusal(publisher.id, {
+      templatePathsJson: JSON.stringify([childWork.mediaPath]),
+      quizJson: null,
+      objectsJson: null,
+    });
+    expect(
+      refusal,
+      `a template referencing a pupil's ${childWork.status} work must be refused, not published`,
+    ).toContain("pupil");
+
+    // A child's unfinished drawing, which no adult has even seen.
+    const childDraft = await db.draft.findFirst({
+      where: { studentId: { not: null }, pagesJson: { not: null } },
+      select: { pagesJson: true },
+    });
+    if (childDraft?.pagesJson) {
+      const path = (JSON.parse(childDraft.pagesJson) as string[])[0];
+      expect(
+        await publishRefusal(publisher.id, {
+          templatePathsJson: JSON.stringify([path]),
+          quizJson: null,
+          objectsJson: null,
+        }),
+      ).toContain("pupil");
+    }
+
+    // Another teacher's template background. Not child data, still not ours.
+    expect(
+      await publishRefusal(publisher.id, {
+        templatePathsJson: null,
+        quizJson: null,
+        objectsJson: JSON.stringify([{ src: SCHOOL_B.templateMedia }]),
+      }),
+      "somebody else's template picture must be refused too",
+    ).toBeTruthy();
+
+    // THE CONTROL. The Academy's own template must still publish, or the three
+    // refusals above are indistinguishable from a function that refuses
+    // everything.
+    expect(
+      await publishRefusal(publisher.id, {
+        templatePathsJson: JSON.stringify([SCHOOL_D.templateMedia]),
+        quizJson: null,
+        objectsJson: null,
+      }),
+      "the publisher's own media must not be refused",
+    ).toBeNull();
   });
 
   test("the publish script is idempotent: running it twice leaves one row", async () => {

@@ -233,6 +233,7 @@ lives only in a chat session.
 | [`docs/AGE_MODE_COPY.md`](./docs/AGE_MODE_COPY.md) | The child-facing copy for each register, approved |
 | [`docs/canvas-toolbox.md`](./docs/canvas-toolbox.md) | The parameterised shape kits: decisions, constraints, phasing |
 | [`docs/showcase-template-ideas.md`](./docs/showcase-template-ideas.md) + [`docs/template-design-sheet.html`](./docs/template-design-sheet.html) | The shared activity library and the house style, including where the line sits with schools |
+| [`docs/library-publishing.md`](./docs/library-publishing.md) | How StoryJar staff publish to the shared library from the Academy, why it is not an operator screen, and the security assertion that changed to allow it |
 | [`docs/claude-connector.md`](./docs/claude-connector.md) | What the MCP connector can and cannot touch, and what to tell a school |
 
 **Decisions, dated**

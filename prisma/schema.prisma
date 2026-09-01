@@ -398,6 +398,22 @@ model ActivityTemplate {
   // than files is the trap this avoids).
   sourceShared           SharedActivity? @relation(fields: [sourceSharedActivityId], references: [id], onDelete: SetNull)
   sourceSharedActivityId String?
+  // The slug of the library activity this template was published AS, when it
+  // was published by StoryJar staff from the Academy. Null for every template
+  // at every real school, forever.
+  //
+  // A plain string and deliberately NOT a relation. SharedActivity's own
+  // comment says it has no teacherId and no folderId and that nothing should
+  // ever give it one; a foreign key from it back to a template would be a
+  // teacherId by proxy, and the whole point of that table is that it belongs to
+  // StoryJar rather than to a school. Holding the pointer on this side keeps
+  // the library row independent of the template that seeded it, so deleting the
+  // template leaves the published activity — and every teacher's copy of it —
+  // untouched.
+  //
+  // Unique because the slug is the library's identity: publishing the same
+  // template twice must update one row rather than mint a second.
+  librarySlug            String?         @unique
   createdAt              DateTime        @default(now())
   assignments            Assignment[]
 }

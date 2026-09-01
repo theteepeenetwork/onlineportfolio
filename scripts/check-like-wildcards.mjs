@@ -91,6 +91,22 @@ const ALLOWLIST = [
       "then 404s identically. Scoping is the control; the pattern is the belt.",
   },
   {
+    file: "src/lib/libraryPermission.ts",
+    expression: "p",
+    why:
+      "The provenance check that refuses to publish a template pointing at a file it does not own. `p` is not a " +
+      "user string: it comes from `ownMediaPathsIn()`, whose token is `/\\/uploads\\/(?!shared\\/)[A-Za-z0-9._-]+/g`, " +
+      "so `%` and `\\` are impossible by construction. It CAN carry `_`, for the same reason the uploads route can — " +
+      "real filenames have one — and `likeSafe()` is not merely unhelpful here, it is DANGEROUS: it STRIPS `_` rather " +
+      "than escaping it, so `/uploads/my_photo.png` would be searched for as `/uploads/myphoto.png`, match nothing, " +
+      "and the check would report the file as unowned. That is a FALSE NEGATIVE on a safeguarding gate — a child's " +
+      "photograph published to every school because its filename had an underscore. " +
+      "The residual runs the safe way. `_` matching any single character can only BROADEN these queries, and every " +
+      "one of them is a refusal test whose only output is a verdict string: a broadened match refuses a publish that " +
+      "might have been allowed, and can never allow one that should have been refused. They select `{ id: true }` " +
+      "and disclose nothing. Fail-safe by construction, which is why the belt is left off rather than fitted backwards.",
+  },
+  {
     file: "src/lib/api/activities.ts",
     expression: "search",
     why:

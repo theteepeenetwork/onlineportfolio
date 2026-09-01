@@ -59,3 +59,23 @@ export function sharedMediaPathsIn(...payloads: (string | null | undefined)[]): 
   }
   return [...found];
 }
+
+// Every ordinary /uploads/<file> path mentioned anywhere in a template's
+// payload columns — the mirror of sharedMediaPathsIn, used when a template goes
+// the other way and becomes a library activity.
+//
+// The negative lookahead is what makes the two functions disjoint. Without it
+// this pattern would also match `/uploads/shared/x.svg` (as `/uploads/shared`,
+// stopping at the slash), and a republish of an activity that had already been
+// through here would start copying files out of the shared directory and back
+// into it under new names, growing an orphan a run.
+const OWN_PATH_TOKEN = /\/uploads\/(?!shared\/)[A-Za-z0-9._-]+/g;
+
+export function ownMediaPathsIn(...payloads: (string | null | undefined)[]): string[] {
+  const found = new Set<string>();
+  for (const payload of payloads) {
+    if (!payload) continue;
+    for (const match of payload.matchAll(OWN_PATH_TOKEN)) found.add(match[0]);
+  }
+  return [...found];
+}
