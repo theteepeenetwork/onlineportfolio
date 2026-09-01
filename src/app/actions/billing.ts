@@ -273,41 +273,52 @@ export async function openCustomerPortal(
   redirect(url);
 }
 
-// A free teacher joins their school's plan: attach the teacher to the school (so
-// the school subscription governs their writes) and retire their own free row so
-// exactly one plan governs. The school must already run a school plan, and the
-// teacher asserts the school's authority to process its pupils' data
-// (RETENTION.md "Individual vs school").
+// DELIBERATELY EMPTY. Not dead code, and not a stub to fill in casually.
 //
-// No money moves and nothing is cancelled or refunded — the teacher was on the
-// free plan, so there is no Stripe subscription to pro-rate. This is the whole
-// simplification that flat, seatless school pricing buys us: joining a school is
-// an attachment, not a billing event (docs/pricing-decisions.md).
+// What it used to do: take a `schoolId` from the posted form and attach any
+// signed-in schoolless teacher to that school — set `Teacher.schoolId`, delete
+// their own FREE `Subscription` row, and audit BILLING_JOINED_SCHOOL.
+//
+// Why that was unsafe: the only thing it checked was that the named school ran
+// a school plan. It never asked whether that school had asked for this teacher.
+// So any teacher could post any school's id and, from that moment, their
+// classes and their pupils' work would be governed by — and appear in the audit
+// log of — a school they have no connection to.
+//
+// How reachable it actually was, measured rather than assumed: it had no caller
+// in `src`, `tests` or `docs`, and on Next 16 an exported Server Action that no
+// client component imports is given no action id at all, so there was nothing
+// for `Next-Action` to name and no way to dispatch it. That is asserted, with a
+// positive control, in
+// tests/battery/security/join-school-plan-needs-an-invitation.spec.ts. It is
+// NOT a permanent property: the day a screen imports this function it becomes a
+// live POST endpoint, and phase 2's acceptance screen imports it. So the body
+// is emptied now, while there is nothing to get wrong, rather than left to be
+// noticed later.
+//
+// Why it is kept rather than removed: it fills a real gap that is still open —
+// `inviteStaff` refuses an email that already belongs to a teacher, so a
+// teacher who signed up free in September cannot be brought into their school
+// when it buys in January. This is the shell that flow will fill, and
+// `docs/dpo-decisions.md` (1 September 2026) says so explicitly.
+//
+// What it needs before it may do anything, and does not have yet: an
+// invitation model. There is none in the schema today. Per
+// `docs/dpo-decisions.md` (1 September 2026), when it returns it must succeed
+// only against an unspent invitation for THAT teacher and THAT school, which it
+// consumes — the school derived from the invitation row, never from a posted
+// id. Joining a school also moves a teacher's pupils from their own
+// responsibility to the school's (RETENTION.md, "Individual vs school"), so the
+// screen that calls it has to say so in plain words before anything is pressed.
+//
+// Until then it reads nothing, writes nothing and refuses everything. The
+// signature is retained so the shape of the action does not change.
 export async function joinSchoolPlan(
   _prev: { error?: string; ok?: boolean } | undefined,
   formData: FormData,
 ): Promise<{ error?: string; ok?: boolean }> {
-  const actor = await requireTeacher();
-  const schoolId = String(formData.get("schoolId") ?? "").trim();
-  if (!schoolId) return { error: "Choose the school to join." };
-
-  // The teacher must currently be on their own plan, not already in a school.
-  const own = await db.subscription.findUnique({ where: { teacherId: actor.teacherId } });
-  if (!own || actor.schoolId) {
-    return { error: "This account is already part of a school." };
-  }
-  const schoolSub = await db.subscription.findUnique({ where: { schoolId } });
-  if (!schoolSub || schoolSub.kind !== "SCHOOL") {
-    return { error: "That school isn’t running a school plan yet." };
-  }
-
-  await db.teacher.update({ where: { id: actor.teacherId }, data: { schoolId } });
-  await db.subscription.delete({ where: { id: own.id } });
-
-  await recordAudit({
-    action: "BILLING_JOINED_SCHOOL", actorType: "TEACHER", actorId: actor.teacherId, actorName: actor.name,
-    schoolId, subjectType: "SUBSCRIPTION", subjectId: schoolSub.id,
-    detail: "Free teacher plan superseded by the school plan",
-  });
-  return { ok: true };
+  void formData; // read deliberately not done — see above. Present only to keep lint quiet.
+  return {
+    error: "Joining a school needs an invitation from that school. Ask your school’s StoryJar admin to invite you.",
+  };
 }
