@@ -17,7 +17,7 @@ breaking changes vs your training data.
 - £3.99/month or £40/year (GBP, VAT-inclusive pricing).
 - The teacher pays personally, but the school remains the data controller:
   journals belong to the school context, never to the teacher's personal
-  account (see "Individual vs school subscriptions" in `RETENTION.md`).
+  account (see "Free teacher plan vs school plan" in `RETENTION.md`).
 
 **School plan**
 - £40 per teacher per year, seat-based (`School.seatLimit` is the seat count).

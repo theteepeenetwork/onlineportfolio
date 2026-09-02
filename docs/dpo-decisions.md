@@ -380,7 +380,8 @@ the action returns an error unconditionally.
 
 **And it is a controller change, so it must say so.** A teacher joining a school
 moves their pupils from their own responsibility to the school's — `RETENTION.md`
-"Individual vs school". The acceptance screen has to state that in plain words,
+"Free teacher plan vs school plan" (the section was renamed; an earlier
+name is cited in places). The acceptance screen has to state that in plain words,
 not just offer a Join button. The reverse move is the refund detach
 (`pricing-decisions.md`, 1 Sep 2026), which returns the buyer to a free plan.
 
