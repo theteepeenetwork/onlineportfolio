@@ -526,3 +526,69 @@ new sub-processor.
 **Worth an outside check:** no.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-02.
+
+---
+
+## 2026-09-02 — A URN is released when an unpaid school freezes, and buying requires a proved address
+
+Two decisions taken together, because they close the same gap from opposite
+ends: the PO route lets somebody claim a school they have nothing to do with.
+
+### The URN is released on an unpaid freeze
+
+**Decision:** when a school that has never been verified reaches FROZEN, its
+`School.urn` is set to null. The school row, its staff and its data are
+untouched — only the register claim is given up.
+
+**The gap.** A PO costs the person raising it nothing up front, and until now
+nothing ever released a URN afterwards. An unpaid school lapsed to FROZEN and
+kept its claim on that register entry **forever**, with no operator action to
+clear one. Repeatable across every URN in the register, at no cost, and only the
+founder could clean it up. Found in the Rule 1 review of item 0 and recorded
+here rather than fixed in that change.
+
+**Why release rather than an operator screen.** An ops action would work and was
+rejected: it needs a screen built, and it puts a human back into a path that
+`docs/pricing-decisions.md` (30 Aug) exists to keep them out of. Releasing on
+freeze is automatic, needs no judgement, and a school that genuinely lapsed
+reclaims its own URN by buying again — the same act that claimed it originally.
+
+**Why only an unverified school.** A school that paid and later lapsed has a
+real claim on its register entry and keeps it; `verifiedAt` is exactly the
+line between the two, which is what that column is for. Nothing is deleted on
+either path.
+
+### Buying requires a proved email address
+
+**Decision:** reaching checkout or raising a purchase order requires a confirmed
+email address. **Free teacher signup is unchanged** and requires nothing.
+
+**Why not verify every signup.** It would close F67 outright rather than contain
+it, and it was rejected on cost: it puts a mail-delivery dependency in front of
+every new teacher in the busiest week of the school year, and the people it
+fails are the ones who never say so — a teacher whose school filter eats the
+link simply does not come back. A teacher blocked at *checkout* is by definition
+trying to give StoryJar money and will say so.
+
+**Why this is the right place for it.** The squat costs money and a real mailbox
+at the point where it now costs something, and nowhere else. It also makes the
+four unverified-school gates defence in depth rather than, as the 1 September
+entry had to admit, the whole defence on the PO route.
+
+**Mechanism, so nobody builds a second one.** `TeacherPasswordToken` already
+does this job for two purposes: a SHA-256 digest and never the token, a
+`purpose` column, a per-purpose TTL in `passwordTokenPolicy.ts`, and spending in
+the same transaction as the thing it authorises. Confirmation is a third
+`purpose`, one nullable `Teacher.emailConfirmedAt`, a route that consumes the
+token, and one template built from the existing helpers. **No new sub-processor
+and no new data category** — Mailjet already carries every magic link, reset and
+staff invitation.
+
+**F67 stays open** until the confirmation lands, and the gates stay whether or
+not it does. They were designed on the assumption it is unfixed and that
+assumption should not quietly expire.
+
+**Worth an outside check:** no. No new data category, no new processing, no new
+sub-processor. Both decisions narrow what an unproved account can do.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-02.
