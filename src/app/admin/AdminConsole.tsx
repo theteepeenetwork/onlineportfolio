@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
   assignClassToStaff,
+  cancelSchoolInvitation,
   inviteStaff,
   removeStaff,
   resendInvite,
@@ -24,6 +25,28 @@ export type StaffRow = {
   status: string; // ACTIVE | INVITED
   isYou: boolean;
   classes: string[];
+  /**
+   * Set when this row is a PENDING `SchoolInvitation` rather than a `Teacher`
+   * in this school — an offer made to somebody who already had a StoryJar
+   * account, which they answer in their own area (docs/dpo-decisions.md, 2
+   * September 2026).
+   *
+   * IT CHANGES NOTHING ABOUT HOW THE ROW LOOKS, and that is the point. Same
+   * "Invited" word, same amber dot, same avatar, same place in the list. A
+   * fresh INVITED `Teacher` row and a pending invitation must be
+   * indistinguishable here, or the staff table becomes the account-existence
+   * oracle that `inviteStaff`'s four-case branch exists to close. Do not add a
+   * badge, a section, a sort order or a tooltip that tells them apart.
+   *
+   * What it DOES change is the ⋯ menu (there is no Teacher row in this school
+   * to assign a class to or to change a role on) and whether the row appears in
+   * the class-owner pickers (it must not).
+   *
+   * Nullable and required rather than optional, so a new caller has to say
+   * which kind of row it is building instead of getting the quiet answer by
+   * leaving it out.
+   */
+  invitationId: string | null;
 };
 
 export type SchoolClass = {
@@ -85,6 +108,12 @@ const ACTION_LABEL: Record<string, string> = {
   SCHOOL_VERIFIED: "Payment confirmed",
   SCHOOL_CLAIM_REFUSED: "Couldn’t set the school up",
   BILLING_DETACHED_ON_REFUND: "Refunded and left the school",
+  // Cancelling an offer made to a teacher who already has an account. There is
+  // deliberately NO label for a "school invitation sent" action, because there
+  // is no such action: inviting an existing account writes `STAFF_INVITED` with
+  // the same detail as inviting a new one, so that the audit tab does not tell
+  // an admin which of the two happened. See src/app/actions/admin.ts.
+  SCHOOL_INVITATION_CANCELLED: "Cancelled an invitation",
 };
 
 const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#37796f", "#E8A06A", "#C2476B"];
@@ -162,7 +191,22 @@ export function AdminConsole({
   const [inviting, setInviting] = useState(false);
   const [importing, setImporting] = useState(false);
 
+  // Counts every row the table shows, invitations included, for the reason the
+  // `invitationId` doc gives: a stats card or a to-do line that moved for a
+  // fresh INVITED teacher and not for a pending invitation would tell an admin
+  // which kind of address they had just typed.
   const invited = staff.filter((s) => s.status === "INVITED").length;
+
+  // WHO A CLASS MAY BE HANDED TO: real `Teacher` rows in this school, and never
+  // a pending invitation. A class belongs to a school through its teacher, so
+  // there is nothing behind an invitation row to hold one — `assignClassToStaff`
+  // resolves its target with `{ id, schoolId }` and would find nothing, which
+  // is a picker entry that silently does nothing when pressed.
+  //
+  // This is the one place the two kinds of row are treated differently in a way
+  // an admin could notice without opening a menu, and it is unavoidable: the
+  // alternative is a name in a dropdown that cannot be given a class.
+  const assignable = staff.filter((s) => s.invitationId === null);
   const closeMenus = () => { setMenuId(null); setSubmenu(null); };
 
   // Keyed by `id`, not by `label`: two of these read "Staff" once a school has
@@ -285,7 +329,7 @@ export function AdminConsole({
           {importing && (
             <div style={{ marginTop: 18 }}>
               <ImportClassForm
-                staff={staff.map((s) => ({ id: s.id, name: s.isYou ? `${s.name} (you)` : s.name }))}
+                staff={assignable.map((s) => ({ id: s.id, name: s.isYou ? `${s.name} (you)` : s.name }))}
                 defaultOwnerId={meId}
                 onDone={() => setImporting(false)}
               />
@@ -330,7 +374,7 @@ export function AdminConsole({
                     in a staff row's ⋯ menu. It IS the access control (whoever
                     holds the class is the only one who sees its children's work),
                     so it belongs on the class, in the open, and it is audited. */}
-                <ClassTeacherPicker klass={c} staff={staff} verified={billing.verified} />
+                <ClassTeacherPicker klass={c} staff={assignable} verified={billing.verified} />
                 <span style={{ font: "700 15px var(--font-atkinson)" }}>{c.children === 0 ? <span style={{ color: "var(--sj-muted)", fontWeight: 400 }}>none yet</span> : c.children}</span>
               </div>
             ))}
@@ -482,7 +526,13 @@ function ThingsToDo({
     jobs.push({ key: "noclasses", tab: "classes", text: <>No classes yet. Paste a register and the first one is ready in a minute.</> });
   }
   if (invited > 0) {
-    jobs.push({ key: "invites", tab: "staff", text: <>{invited} {invited === 1 ? "colleague has not" : "colleagues have not"} accepted their invite yet. You can resend it from their row.</> });
+    // NO "you can resend it from their row" ANY MORE. Half these rows are
+    // invitations to teachers who already have an account, whose menu has no
+    // resend — re-typing the address is the resend — so the old sentence was
+    // false for them. It is not replaced with two sentences chosen by kind: a
+    // to-do line that differed would tell the admin which of the two an address
+    // had been, which is the oracle the staff table is careful not to be.
+    jobs.push({ key: "invites", tab: "staff", text: <>{invited} {invited === 1 ? "colleague has not" : "colleagues have not"} accepted their invite yet. Their {invited === 1 ? "row is" : "rows are"} on the Staff tab.</> });
   }
   if (emptyClasses.length > 0) {
     jobs.push({ key: "empty", tab: "classes", text: <>{emptyClasses.length} {emptyClasses.length === 1 ? "class has" : "classes have"} no children in yet — a pasted register fills one in one go.</> });
@@ -548,7 +598,14 @@ function StaffTable({
         const open = menuId === p.id;
         const invited = p.status === "INVITED";
         return (
-          <div key={p.id} style={{ position: "relative", zIndex: open ? 20 : 1, display: "grid", gridTemplateColumns: cols, gap: 12, alignItems: "center", padding: "14px 22px", borderBottom: "1px solid #F5F0E6" }}>
+          /* `data-staff-row` MARKS THE ROW AND SAYS NOTHING ELSE — no id, no
+             kind, no value at all. It exists so a spec can pick up one whole
+             row and compare it with another, which is how
+             tests/battery/security/school-invitation-console.spec.ts proves
+             that a fresh INVITED teacher and a pending invitation render
+             identically. Giving it a value would defeat the thing it is used
+             to check. Inert. */
+          <div key={p.id} data-staff-row="" style={{ position: "relative", zIndex: open ? 20 : 1, display: "grid", gridTemplateColumns: cols, gap: 12, alignItems: "center", padding: "14px 22px", borderBottom: "1px solid #F5F0E6" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
               <span style={{ width: 40, height: 40, borderRadius: "50%", background: avatarColor(p.id), display: "flex", alignItems: "center", justifyContent: "center", font: "600 16px var(--font-fredoka)", color: "#FFFDF7", flexShrink: 0 }}>{initials(p.name)}</span>
               <div style={{ minWidth: 0 }}>
@@ -591,6 +648,18 @@ function StaffTable({
                     <RoleSubmenu staff={p} verified={verified} onBack={() => onSubmenu(null)} />
                   ) : submenu === "classes" ? (
                     <ClassesSubmenu staff={p} classes={classes} verified={verified} onBack={() => onSubmenu(null)} />
+                  ) : p.invitationId ? (
+                    /* A PENDING INVITATION, so the menu is one item.
+
+                       NO "ASSIGN CLASSES": there is no `Teacher` row in this
+                       school to assign a class to. NO "EDIT ROLE": the role IS
+                       the offer, and changing it means making a new one. NO
+                       "RESEND": re-typing the address in the invite form
+                       upserts the row and sends the notification again, which
+                       is one path with one behaviour rather than two that
+                       drift — the lesson `resendInvite` was written to record,
+                       applied before the second path exists. */
+                    <CancelInvitationItem staff={p} invitationId={p.invitationId} />
                   ) : (
                     <>
                       <MenuButton icon="edit" label="Edit role" onClick={() => onSubmenu("role")} />
@@ -771,6 +840,70 @@ function RemoveStaffItem({ staff, verified }: { staff: StaffRow; verified: boole
         style={{ ...MENU_ITEM, color: "#43506B" }}
       >
         Cancel
+      </button>
+    </div>
+  );
+}
+
+// Taking back an offer made to a teacher who already has a StoryJar account.
+//
+// IT SAYS WHAT IT DOES *NOT* DO, which is nearly all of it. Removing a
+// colleague moves their classes and their pupils' work; this moves nothing,
+// because nothing ever moved in the first place — the invitee is not in this
+// school, holds none of its classes and has not been told anything except that
+// an offer was waiting. Nor is anything deleted: the row goes to REVOKED so
+// that "did she turn us down or did we withdraw it?" stays answerable from the
+// record (src/lib/schoolInvitationPolicy.ts).
+//
+// A CONFIRMATION STEP, like `RemoveStaffItem`, and for a smaller reason: this
+// is a one-press item in a menu opened by a 32px button next to rows that all
+// look alike, and the sentence is the only place an admin is told that
+// cancelling costs nothing. It is not the suspension path, so there is no case
+// for firing it on the first press.
+function CancelInvitationItem({ staff, invitationId }: { staff: StaffRow; invitationId: string }) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <button
+        role="menuitem"
+        type="button"
+        onClick={() => setConfirming(true)}
+        style={{ ...MENU_ITEM, color: "#C2476B" }}
+      >
+        <Icon name="delete" size={18} decorative />
+        Cancel invitation
+      </button>
+    );
+  }
+
+  return (
+    // A group, for the reason `RoleSubmenu` gives: a menu may own menu items and
+    // groups, and this is a paragraph plus two items.
+    <div role="group" style={{ padding: "8px 12px" }}>
+      <p style={{ margin: "0 0 8px", font: "400 12px/1.45 var(--font-atkinson)", color: "#43506B" }}>
+        The invitation to <strong>{staff.name}</strong> is withdrawn. Nothing has moved and nothing
+        is deleted &mdash; they were never added to your school, so they hold none of its classes
+        and none of its pupils&rsquo; work. You can invite the same address again whenever you like.
+      </p>
+      <form action={cancelSchoolInvitation}>
+        <input type="hidden" name="invitationId" value={invitationId} />
+        <button
+          role="menuitem"
+          type="submit"
+          style={{ ...MENU_ITEM, color: "#C2476B", font: "700 13px var(--font-atkinson)" }}
+        >
+          <Icon name="delete" size={18} decorative />
+          Yes, cancel it
+        </button>
+      </form>
+      <button
+        role="menuitem"
+        type="button"
+        onClick={() => setConfirming(false)}
+        style={{ ...MENU_ITEM, color: "#43506B" }}
+      >
+        Keep it
       </button>
     </div>
   );

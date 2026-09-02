@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { magicLinkEmail, staffInviteEmail } from "@/lib/emailTemplates";
+import { magicLinkEmail, schoolInvitationEmail, staffInviteEmail } from "@/lib/emailTemplates";
 
 // ===========================================================================
 // Email templates carry no tracking pixel, and no external reference of any
@@ -40,6 +40,10 @@ const SCHOOL = "St Bede's Primary";
 // The admin who arranged an unpaid school. A second piece of caller-supplied
 // text reaching an email body, which is why it is in this file at all.
 const ARRANGER = "Mrs Okonkwo";
+// The admin who sent a school invitation. A THIRD piece of caller-supplied text
+// reaching an email body, and the reason the count in `escapeHtml`'s comment
+// moved again on 2 September 2026.
+const INVITER = "Mrs Lindqvist";
 
 // Every absolute URL in a string, however it is written.
 function urlsIn(html: string): string[] {
@@ -58,6 +62,17 @@ const templates = [
   {
     name: "staffInviteEmail (unpaid school)",
     mail: staffInviteEmail(SCHOOL, LINK, { arrangedBy: ARRANGER }),
+  },
+  // THE SCHOOL INVITATION IS IN THE LOOP FOR ONE ASSERTION ABOVE ALL: "no URL
+  // other than the one it was given". This is the template that MINTS NOTHING
+  // — its URL is the recipient's own /teacher page and carries no token — so a
+  // second absolute URL appearing in it is the shape of somebody quietly
+  // adding a one-click accept link, which is precisely what the 2 September
+  // 2026 decision refuses. The generic assertion catches it without anybody
+  // having to think of it again.
+  {
+    name: "schoolInvitationEmail",
+    mail: schoolInvitationEmail(SCHOOL, INVITER, LINK),
   },
 ];
 
@@ -108,6 +123,16 @@ test("the subjects are fixed copy, not built from anything", () => {
   expect(staffInviteEmail(SCHOOL, LINK, null).subject).toBe("You've been invited to StoryJar");
   expect(staffInviteEmail("Oakfield Junior", LINK, null).subject).toBe(
     "You've been invited to StoryJar",
+  );
+  // The school invitation names neither the school nor the inviter in its
+  // subject, for the same reason: a lock screen is read by whoever is holding
+  // the phone, and this message goes to a teacher who has not agreed to
+  // anything and may never answer it.
+  expect(schoolInvitationEmail(SCHOOL, INVITER, LINK).subject).toBe(
+    "There's an invitation waiting for you on StoryJar",
+  );
+  expect(schoolInvitationEmail("Oakfield Junior", "Mr Someone Else", LINK).subject).toBe(
+    "There's an invitation waiting for you on StoryJar",
   );
   // Including the unpaid one. The disclosure belongs in the body: a subject line
   // reading "unpaid" is visible on a lock screen to anybody holding the phone,
@@ -238,4 +263,78 @@ test("staffInviteEmail escapes the school name", () => {
   const quoted = staffInviteEmail(`" onmouseover="steal()`, LINK, null);
   expect(quoted.html).not.toContain(`onmouseover="steal()`);
   expect(quoted.html).toContain("&quot;");
+});
+
+// ---------------------------------------------------------------------------
+// The school invitation: it mints nothing, it says so, and it carries two
+// untrusted strings
+// ---------------------------------------------------------------------------
+
+test("schoolInvitationEmail interpolates the school and the inviter, and nothing else", () => {
+  // The same two-render technique as the tests above. Blank the three
+  // interpolated values and the renders must be identical, so nothing about the
+  // invitee's own account — her name, her classes, her pupils, her current
+  // school — can have crept into a message sent to an address an admin typed
+  // and nobody checked.
+  const a = schoolInvitationEmail("Alpha School", "Mr Alpha", "https://a.example/teacher");
+  const b = schoolInvitationEmail("Beta Academy", "Ms Beta", "https://b.example/teacher");
+  const blank = (s: string, school: string, who: string, url: string) =>
+    s.split(url).join("{{URL}}").split(school).join("{{SCHOOL}}").split(who).join("{{WHO}}");
+
+  expect(
+    blank(a.html, "Alpha School", "Mr Alpha", "https://a.example/teacher"),
+  ).toBe(blank(b.html, "Beta Academy", "Ms Beta", "https://b.example/teacher"));
+  expect(
+    blank(a.text, "Alpha School", "Mr Alpha", "https://a.example/teacher"),
+  ).toBe(blank(b.text, "Beta Academy", "Ms Beta", "https://b.example/teacher"));
+});
+
+test("schoolInvitationEmail names the inviter and says ignoring it is safe, in both parts", () => {
+  // BOTH FACTS ARE THE CONTROL, and both have to survive a gateway that strips
+  // HTML. The inviter's name is the only thing in the message that lets a
+  // recipient judge whether it is legitimate — the same reasoning as the
+  // unpaid-school disclosure one template up. And "ignoring it is safe" is true
+  // here in a way it is not of the confirm-your-address mail: this offer lapses
+  // on its own and changes nothing meanwhile, so a teacher who does not
+  // recognise the school has somewhere to stop.
+  // A school name with NO APOSTROPHE in it, and that is a note about the test
+  // rather than about the template. "St Bede's Primary" is correctly escaped to
+  // "St Bede&#39;s Primary" in the HTML part, so a plain `toContain` would fail
+  // on the escaping working. The escaping itself is asserted below, where it
+  // belongs; here the question is only whether both facts are present in both
+  // parts.
+  const PLAIN_SCHOOL = "Oakfield Junior";
+  const mail = schoolInvitationEmail(PLAIN_SCHOOL, INVITER, LINK);
+  for (const part of [mail.text, mail.html]) {
+    expect(part, "it must name who invited them").toContain(INVITER);
+    expect(part, "and name the school").toContain(PLAIN_SCHOOL);
+    expect(part, "and say that ignoring it is safe").toContain("ignoring it is safe");
+    expect(part, "and say that nothing in the email accepts anything").toContain(
+      "nothing to accept in this email",
+    );
+  }
+});
+
+test("schoolInvitationEmail escapes both of its caller-supplied strings", () => {
+  // Two of them, and this is the test the count in `escapeHtml`'s comment
+  // exists to keep honest. The inviter's name is a display name authored by
+  // whoever runs the inviting school — including, on the invoice route, a
+  // school nobody has verified.
+  const nasty = `<script>alert(1)</script>`;
+
+  const bySchool = schoolInvitationEmail(nasty, INVITER, LINK);
+  expect(bySchool.html, "raw markup from a school name must never reach the body").not.toContain(
+    nasty,
+  );
+  expect(bySchool.html).not.toMatch(/<script\b/i);
+  expect(bySchool.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+
+  const byInviter = schoolInvitationEmail(SCHOOL, nasty, LINK);
+  expect(byInviter.html, "nor from an inviter's name").not.toContain(nasty);
+  expect(byInviter.html).not.toMatch(/<script\b/i);
+  expect(byInviter.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+
+  // Quotes too, so that moving either value into an attribute one day is safe.
+  expect(schoolInvitationEmail(`" onmouseover="steal()`, INVITER, LINK).html).toContain("&quot;");
+  expect(schoolInvitationEmail(SCHOOL, `" onmouseover="steal()`, LINK).html).toContain("&quot;");
 });

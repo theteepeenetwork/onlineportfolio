@@ -47,15 +47,84 @@ export default async function AdminPage({
   // data is stored here or anywhere — only Stripe ids.
   const sub = await governingSubscription(teacherCtx);
 
-  const staff: StaffRow[] = school.staff.map((s) => ({
-    id: s.id,
-    name: s.name,
-    email: s.email,
-    role: s.role,
-    status: s.status,
-    isYou: s.id === user.teacher.id,
-    classes: s.classes.map((c) => c.name),
-  }));
+  // PENDING, UNEXPIRED INVITATIONS TO TEACHERS WHO ALREADY HAVE AN ACCOUNT.
+  //
+  // ============ THE DISCLOSURE DECISION OF THIS SCREEN ============
+  //
+  // `teacher.email` IS THE ONLY THING SELECTED FROM THE INVITEE'S ACCOUNT.
+  // Not her name, not her display name, not her school name, not her class
+  // count, not her id — nothing else about that adult crosses to the browser.
+  // The address is here for two reasons and no others: it is what this admin
+  // typed, and it is where a re-invitation would go. Everything else on the row
+  // comes from the invitation itself, which holds only what this school wrote.
+  //
+  // The name shown is `invitedName` — WHAT THE ADMIN TYPED, never the account's
+  // own. Rendering `teacher.name` would tell an admin what a stranger is
+  // called, in exchange for an email address they guessed; see the column's
+  // comment in prisma/schema.prisma.
+  //
+  // EXPIRY IS READ HERE AS A DATE, not looked up as a state. There is no
+  // EXPIRED value in the vocabulary on purpose — a state would have to be
+  // written by a sweep, and a sweep that stops running leaves lapsed offers
+  // looking open (src/lib/schoolInvitationPolicy.ts).
+  const invitations = await db.schoolInvitation.findMany({
+    where: { schoolId: school.id, state: "PENDING", expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      role: true,
+      invitedName: true,
+      createdAt: true,
+      teacher: { select: { email: true } },
+    },
+  });
+
+  // ONE LIST, MERGED AND SORTED BY WHEN EACH WAS CREATED — NOT TWO SECTIONS.
+  //
+  // A separate "waiting to accept" list would be exactly the signal the
+  // four-case branch in src/app/actions/admin.ts just removed: it would tell an
+  // admin which of the addresses they typed already had a StoryJar account.
+  // Sorted together for the same reason — an invitation always appearing last
+  // would be a positional tell even with an identical label.
+  //
+  // A pending invitation is NOT a `Teacher` row in this school, and everything
+  // that follows from that is handled by `invitationId` being non-null:
+  // AdminConsole filters these rows out of the class-owner pickers (there is
+  // nothing here to assign a class to) and gives them a menu of their own.
+  // THE LABEL AND THE COLOUR ARE THE SAME AS A FRESH INVITED ROW ON PURPOSE.
+  const staff: StaffRow[] = [
+    ...school.staff.map((s) => ({
+      id: s.id,
+      name: s.name,
+      email: s.email,
+      role: s.role,
+      status: s.status,
+      isYou: s.id === user.teacher.id,
+      classes: s.classes.map((c) => c.name),
+      invitationId: null,
+      sortAt: s.createdAt.getTime(),
+    })),
+    ...invitations.map((inv) => ({
+      id: inv.id,
+      name: inv.invitedName,
+      email: inv.teacher.email,
+      role: inv.role,
+      // The same word the table turns into the same badge. An invitation that
+      // said anything else here would be the separate section by another means.
+      status: "INVITED",
+      isYou: false,
+      // No classes: a class belongs to a school through its teacher, and this
+      // teacher is not in this school yet.
+      classes: [] as string[],
+      invitationId: inv.id,
+      sortAt: inv.createdAt.getTime(),
+    })),
+  ]
+    .sort((a, b) => a.sortAt - b.sortAt)
+    // `sortAt` is dropped here rather than sent: the ordering is the server's
+    // decision, and a creation timestamp per staff row is data the browser has
+    // no use for.
+    .map(({ sortAt: _sortAt, ...row }) => row);
 
   // WHICH CLASSES ARRIVED HERE BECAUSE SOMEBODY WAS REMOVED.
   //
