@@ -405,4 +405,419 @@ test.describe("A10 · Stripe webhook", () => {
       await db.school.delete({ where: { id: school.id } });
     }
   });
+
+  // =========================================================================
+  // THE CARD ROUTE'S OTHER HALF — checkout.session.completed as a SCHOOL CLAIM
+  //
+  // `startClaimCheckout` writes NOTHING locally, so `resolveLocalSub` finds no
+  // subscription and the whole purchase intent arrives in Stripe metadata.
+  // Until 2 September 2026 that was a silent 200: money reached Stripe and no
+  // school appeared. These tests are what stops it going quiet again.
+  //
+  // EVERY FIXTURE HERE IS BUILT IN THE TEST AND TORN DOWN IN A `finally`, as
+  // `staff-invite-isolation.spec.ts` does, rather than by widening a seeded
+  // one. This file has already sprung that trap once — it borrowed Oakfield's
+  // seeded subscription and left it FROZEN, and `uploads.spec.ts` failed two
+  // tests in the same shard for a reason that had nothing to do with uploads.
+  // A claim test creates a School, a Subscription and an ADMIN, which is a much
+  // bigger footprint than a status flag, so none of it touches a shared row.
+  //
+  // The claim ALSO needs each event to carry an id nothing else has used, and
+  // every one below starts `evt_test_` so the describe's afterAll sweeps it.
+  // =========================================================================
+
+  // A `checkout.session.completed` payload in the shape `startClaimCheckout`
+  // actually produces: `mode: "subscription"`, the six metadata keys from
+  // `claimMetadata`, and — load-bearing — NO `client_reference_id`, which is
+  // what makes `resolveLocalSub` fall through to the claim branch.
+  function claimSession(over: {
+    id: string;
+    subscription: string | null;
+    customer: string;
+    teacherId: string;
+    schoolName: string;
+    urn?: string;
+    plan?: string;
+    payment_status?: string;
+    metadata?: Record<string, string> | null;
+  }) {
+    const metadata =
+      over.metadata !== undefined
+        ? over.metadata
+        : {
+            storyjar_purchase: "school_claim",
+            storyjar_teacher_id: over.teacherId,
+            storyjar_plan: over.plan ?? "school_1fe",
+            storyjar_band: "Up to 210 pupils",
+            storyjar_school_name: over.schoolName,
+            // Stripe metadata is strings only, so a null URN travels as "".
+            storyjar_urn: over.urn ?? "",
+          };
+    return {
+      id: over.id,
+      object: "checkout.session",
+      mode: "subscription",
+      payment_status: over.payment_status ?? "paid",
+      customer: over.customer,
+      subscription: over.subscription,
+      metadata,
+    };
+  }
+
+  // A teacher who has bought nothing yet: no school, and the FREE plan row
+  // every signed-up teacher already has. That row's SURVIVAL is one of the
+  // assertions below (docs/school-identity.md §5).
+  async function makeBuyer(stamp: number, tag: string) {
+    const teacher = await db.teacher.create({
+      data: {
+        name: `Claim ${tag}`,
+        displayName: `Claim ${tag}`,
+        email: `claim.${tag}.${stamp}@example.test`,
+        passwordHash: "",
+        role: "TEACHER",
+        status: "ACTIVE",
+      },
+    });
+    const free = await db.subscription.create({
+      data: { kind: "FREE", status: "ACTIVE", teacherId: teacher.id },
+    });
+    return { teacher, free };
+  }
+
+  // Remove everything a claim can have created, in an order the FKs allow.
+  // `Teacher.school` is `onDelete: SetNull`, so schools go first and the
+  // teachers they promoted are detached rather than blocking the delete.
+  async function tearDownClaim(teacherIds: string[], schoolIds: string[]) {
+    for (const id of schoolIds) {
+      await db.auditLog.deleteMany({ where: { schoolId: id } });
+      await db.school.deleteMany({ where: { id } }); // cascades its Subscription
+    }
+    await db.auditLog.deleteMany({ where: { subjectId: { in: teacherIds } } });
+    await db.auditLog.deleteMany({ where: { actorId: { in: teacherIds } } });
+    await db.subscription.deleteMany({ where: { teacherId: { in: teacherIds } } });
+    await db.teacher.deleteMany({ where: { id: { in: teacherIds } } });
+  }
+
+  async function post(request: import("@playwright/test").APIRequestContext, payload: object) {
+    const { body, sig } = signed(payload);
+    return request.post("/api/stripe/webhook", {
+      headers: { "stripe-signature": sig, "content-type": "application/json" },
+      data: body,
+    });
+  }
+
+  test("a paid claim creates the school, the subscription and exactly one admin", async ({ request }) => {
+    const stamp = Date.now();
+    const SUB = `sub_test_claim_${stamp}`;
+    const CUS = `cus_test_claim_${stamp}`;
+    const NAME = `Claimed Primary ${stamp}`;
+    const { teacher, free } = await makeBuyer(stamp, "buyer");
+    let schoolId: string | null = null;
+
+    try {
+      const res = await post(
+        request,
+        event(
+          "checkout.session.completed",
+          claimSession({ id: `cs_test_${stamp}`, subscription: SUB, customer: CUS, teacherId: teacher.id, schoolName: NAME }),
+          `evt_test_claim_${stamp}`,
+        ),
+      );
+      expect(res.status(), WARM_SERVER_HINT).toBe(200);
+
+      const schools = await db.school.findMany({ where: { name: NAME } });
+      expect(schools, "one payment, one school").toHaveLength(1);
+      const school = schools[0];
+      schoolId = school.id;
+      expect(school.verifiedAt, "a card purchase never passes through the unverified state").not.toBeNull();
+      expect(school.claimedByTeacherId, "the buyer is recorded, so a refund can find them").toBe(teacher.id);
+
+      const schoolSub = await db.subscription.findFirstOrThrow({ where: { schoolId: school.id } });
+      expect(schoolSub.kind).toBe("SCHOOL");
+      expect(schoolSub.status, "ACTIVE, never TRIAL — 1 Sep 2026 replaced the trial with a 42-day refund").toBe("ACTIVE");
+      expect(schoolSub.trialEndsAt, "explicitly null, so settleStatus's lapse branch is unreachable").toBeNull();
+      expect(schoolSub.stripeSubscriptionId, "the idempotency key is persisted").toBe(SUB);
+      expect(schoolSub.stripeCustomerId).toBe(CUS);
+
+      const buyerAfter = await db.teacher.findUniqueOrThrow({ where: { id: teacher.id } });
+      expect(buyerAfter.schoolId).toBe(school.id);
+      expect(buyerAfter.role, "paying for a school that does not exist is one of exactly two routes to ADMIN").toBe("ADMIN");
+      expect(
+        await db.teacher.count({ where: { schoolId: school.id, role: "ADMIN" } }),
+        "exactly one admin, and it is the person who paid",
+      ).toBe(1);
+
+      // THE BUYER'S OWN FREE ROW SURVIVES (docs/school-identity.md §5). This is
+      // the assertion that stops the claim being "tidied" into copying
+      // `joinSchoolPlan`, which DELETES it — and it is what makes a refund a
+      // detach rather than a resurrection.
+      const freeAfter = await db.subscription.findUnique({ where: { id: free.id } });
+      expect(freeAfter, "the buyer's own free plan is left alone, so a refund has somewhere to put them").not.toBeNull();
+      expect(freeAfter?.teacherId).toBe(teacher.id);
+
+      expect(
+        await db.auditLog.count({ where: { action: "SCHOOL_CLAIMED", subjectId: school.id } }),
+        "a privilege grant with no record is the state rule 16 forbids",
+      ).toBe(1);
+      expect(await db.auditLog.count({ where: { action: "BILLING_ACTIVATED", schoolId: school.id } })).toBe(1);
+    } finally {
+      await tearDownClaim([teacher.id], schoolId ? [schoolId] : []);
+      await db.school.deleteMany({ where: { name: NAME } });
+    }
+  });
+
+  test("redelivery cannot make a second school, by either event id", async ({ request }) => {
+    const stamp = Date.now();
+    const SUB = `sub_test_claim2_${stamp}`;
+    const CUS = `cus_test_claim2_${stamp}`;
+    const NAME = `Redelivered Primary ${stamp}`;
+    const { teacher } = await makeBuyer(stamp, "redeliver");
+    let schoolId: string | null = null;
+
+    try {
+      const session = claimSession({ id: `cs_test_r_${stamp}`, subscription: SUB, customer: CUS, teacherId: teacher.id, schoolName: NAME });
+      const first = await post(request, event("checkout.session.completed", session, `evt_test_claim_r1_${stamp}`));
+      expect(first.status(), WARM_SERVER_HINT).toBe(200);
+      const school = await db.school.findFirstOrThrow({ where: { name: NAME } });
+      schoolId = school.id;
+      const stampedAt = school.verifiedAt;
+
+      // SAME event id — the `BillingEvent` unique gate in POST answers before
+      // `handleEvent` is reached at all. The outer layer.
+      const same = await post(request, event("checkout.session.completed", session, `evt_test_claim_r1_${stamp}`));
+      expect(same.status()).toBe(200);
+      expect(await same.text()).toBe("Already processed");
+
+      // DIFFERENT event id, SAME `session.subscription`. THIS IS THE ONE A
+      // REVIEWER WILL LOOK FOR: it is the shape Stripe delivers after a handler
+      // committed and then threw, taking its own `BillingEvent` row with it, so
+      // it is the only delivery that reaches the handler against a school that
+      // already exists. It resolves the subscription the claim created, so it
+      // now takes the EXISTING-subscription arm and calls `stampVerified` on an
+      // already-stamped school — harmless because of that function's
+      // `verifiedAt: null` guard, not because of any ordering here.
+      const again = await post(request, event("checkout.session.completed", session, `evt_test_claim_r2_${stamp}`));
+      expect(again.status()).toBe(200);
+
+      expect(await db.school.count({ where: { name: NAME } }), "still exactly one school").toBe(1);
+      expect(
+        await db.auditLog.count({ where: { action: "SCHOOL_CLAIMED", subjectId: school.id } }),
+        "still exactly one SCHOOL_CLAIMED",
+      ).toBe(1);
+      expect(
+        await db.subscription.count({ where: { schoolId: school.id } }),
+        "and one subscription — stripeSubscriptionId is @unique as the backstop",
+      ).toBe(1);
+      const after = await db.school.findUniqueOrThrow({ where: { id: school.id } });
+      expect(after.verifiedAt?.getTime(), "a redelivery must not move the verification date").toBe(stampedAt?.getTime());
+      expect(
+        await db.auditLog.count({ where: { action: "SCHOOL_VERIFIED", subjectId: school.id } }),
+        "and must not write a SCHOOL_VERIFIED row on top of the claim's own stamp",
+      ).toBe(0);
+    } finally {
+      await tearDownClaim([teacher.id], schoolId ? [schoolId] : []);
+      await db.school.deleteMany({ where: { name: NAME } });
+    }
+  });
+
+  test("an unpaid session creates nothing — only money creates a school on this route", async ({ request }) => {
+    const stamp = Date.now();
+    const SUB = `sub_test_unpaid_${stamp}`;
+    const NAME = `Unpaid Primary ${stamp}`;
+    const { teacher } = await makeBuyer(stamp, "unpaid");
+
+    try {
+      // `checkout.session.completed` fires when the CHECKOUT completes, which
+      // for an asynchronous method is not when the money arrives. Without the
+      // guard the card route would create a VERIFIED school on a payment that
+      // has not cleared — the unverified window it exists to avoid, with the
+      // admin gates already open.
+      const res = await post(
+        request,
+        event(
+          "checkout.session.completed",
+          claimSession({
+            id: `cs_test_u_${stamp}`,
+            subscription: SUB,
+            customer: `cus_test_unpaid_${stamp}`,
+            teacherId: teacher.id,
+            schoolName: NAME,
+            payment_status: "unpaid",
+          }),
+          `evt_test_claim_unpaid_${stamp}`,
+        ),
+      );
+      expect(res.status(), "an unpaid session is acked, not retried").toBe(200);
+
+      expect(await db.school.count({ where: { name: NAME } }), "no school on an unpaid session").toBe(0);
+      expect(await db.subscription.count({ where: { stripeSubscriptionId: SUB } })).toBe(0);
+      const after = await db.teacher.findUniqueOrThrow({ where: { id: teacher.id } });
+      expect(after.schoolId, "and nobody is promoted").toBeNull();
+      expect(after.role).toBe("TEACHER");
+    } finally {
+      await tearDownClaim([teacher.id], []);
+      await db.school.deleteMany({ where: { name: NAME } });
+    }
+  });
+
+  test("a session with no claim metadata creates nothing and still returns 200", async ({ request }) => {
+    const stamp = Date.now();
+    const SUB = `sub_test_nometa_${stamp}`;
+    const before = await db.school.count();
+
+    // Resolves no local subscription AND carries no claim metadata: a genuine
+    // anomaly. It is logged with the session id only — never the metadata,
+    // which carries a school name — and acked, because a retry cannot supply a
+    // key that was never written.
+    const res = await post(
+      request,
+      event(
+        "checkout.session.completed",
+        { id: `cs_test_nm_${stamp}`, object: "checkout.session", mode: "subscription", payment_status: "paid", customer: `cus_test_nometa_${stamp}`, subscription: SUB },
+        `evt_test_claim_nometa_${stamp}`,
+      ),
+    );
+    expect(res.status(), "an unrecognised session is acked, never retried in a loop").toBe(200);
+    expect(await db.school.count(), "no school appears out of a session we did not send").toBe(before);
+    expect(await db.subscription.count({ where: { stripeSubscriptionId: SUB } })).toBe(0);
+  });
+
+  test("a URN taken since checkout degrades to no URN and never attaches the buyer", async ({ request }) => {
+    const stamp = Date.now();
+    // Six digits, outside the seeded 9000xx block, and unique to this run.
+    const URN = `95${String(stamp).slice(-4)}`;
+    const SUB = `sub_test_urn_${stamp}`;
+    const INCUMBENT = `Incumbent Primary ${stamp}`;
+    const CLAIMED = `Latecomer Primary ${stamp}`;
+    const { teacher } = await makeBuyer(stamp, "urn");
+    // The school that already holds the register entry. The refusal a human
+    // reads lives at checkout time; by the time the webhook lands the money has
+    // moved and there is nobody to return an error to, so this is the TOCTOU
+    // race and it DEGRADES rather than refusing.
+    const incumbent = await db.school.create({ data: { name: INCUMBENT, urn: URN, verifiedAt: new Date() } });
+    let schoolId: string | null = null;
+
+    try {
+      const res = await post(
+        request,
+        event(
+          "checkout.session.completed",
+          claimSession({ id: `cs_test_urn_${stamp}`, subscription: SUB, customer: `cus_test_urn_${stamp}`, teacherId: teacher.id, schoolName: CLAIMED, urn: URN }),
+          `evt_test_claim_urn_${stamp}`,
+        ),
+      );
+      expect(res.status()).toBe(200);
+
+      const created = await db.school.findFirstOrThrow({ where: { name: CLAIMED } });
+      schoolId = created.id;
+      expect(created.urn, "the URN is dropped; a free-text school is a first-class thing").toBeNull();
+
+      // ATTACHING THE BUYER TO THE INCUMBENT IS AUTO-JOIN, WHICH
+      // docs/school-identity.md §4 FORBIDS BY NAME. Matching a URN is not
+      // evidence of employment, and doing it would drop a stranger into a real
+      // school's console with real children behind it.
+      const after = await db.teacher.findUniqueOrThrow({ where: { id: teacher.id } });
+      expect(after.schoolId, "the buyer joins the school they paid for, never the one holding the URN").toBe(created.id);
+      expect(
+        await db.teacher.count({ where: { schoolId: incumbent.id } }),
+        "nobody is added to the incumbent school",
+      ).toBe(0);
+
+      const claimed = await db.auditLog.findFirstOrThrow({ where: { action: "SCHOOL_CLAIMED", subjectId: created.id } });
+      expect(claimed.detail, "the audit row is the operator's cue that a URN was dropped").toContain(URN);
+    } finally {
+      await tearDownClaim([teacher.id], schoolId ? [schoolId] : []);
+      await db.school.deleteMany({ where: { name: { in: [CLAIMED, INCUMBENT] } } });
+    }
+  });
+
+  test("a paid session whose purchase details are unusable is refused, not retried forever", async ({ request }) => {
+    const stamp = Date.now();
+    const SUB = `sub_test_badplan_${stamp}`;
+    const NAME = `Bad Plan Primary ${stamp}`;
+    const { teacher } = await makeBuyer(stamp, "badplan");
+
+    try {
+      // `claimMetadata` is the only writer of these keys and emits a real
+      // `PlanKey`, so this session is one nothing in this application sent. It
+      // matters anyway because of HOW it would fail unguarded: `bandFor` throws
+      // on an unknown plan, INSIDE the claim transaction, which becomes a 500,
+      // which becomes a Stripe redelivery loop against metadata no retry can
+      // improve. That is the exact shape the refusal path exists to avoid, so
+      // the plan key is narrowed against the catalogue before the claim opens.
+      const res = await post(
+        request,
+        event(
+          "checkout.session.completed",
+          claimSession({
+            id: `cs_test_bp_${stamp}`,
+            subscription: SUB,
+            customer: `cus_test_badplan_${stamp}`,
+            teacherId: teacher.id,
+            schoolName: NAME,
+            plan: "school_enormous",
+          }),
+          `evt_test_claim_badplan_${stamp}`,
+        ),
+      );
+      expect(res.status(), "acked, so Stripe stops; the audit row is what a person acts on").toBe(200);
+
+      expect(await db.school.count({ where: { name: NAME } })).toBe(0);
+      expect(await db.subscription.count({ where: { stripeSubscriptionId: SUB } })).toBe(0);
+      expect((await db.teacher.findUniqueOrThrow({ where: { id: teacher.id } })).role).toBe("TEACHER");
+
+      const refusals = await db.auditLog.findMany({ where: { action: "SCHOOL_CLAIM_REFUSED", subjectId: SUB } });
+      expect(refusals, "money was taken, so the refusal has to be findable").toHaveLength(1);
+      expect(refusals[0].detail).toContain("unrecognised plan");
+      expect(refusals[0].detail, "and it must not repeat the school's name into a row nobody scoped").not.toContain(NAME);
+    } finally {
+      await db.auditLog.deleteMany({ where: { subjectId: SUB } });
+      await tearDownClaim([teacher.id], []);
+      await db.school.deleteMany({ where: { name: NAME } });
+    }
+  });
+
+  test("a buyer who joined a school in the gap is refused, audited, and answered 200", async ({ request }) => {
+    const stamp = Date.now();
+    const SUB = `sub_test_hasschool_${stamp}`;
+    const HOST = `Host Primary ${stamp}`;
+    const WANTED = `Never Made Primary ${stamp}`;
+    const { teacher } = await makeBuyer(stamp, "hasschool");
+    // They accepted an invitation between pressing the button and the webhook
+    // landing. `claimSchool` refuses rather than moving them: moving them would
+    // take their classes, and the children's work in them, out from under one
+    // school's admins on the strength of a payment neither school made.
+    const host = await db.school.create({ data: { name: HOST, verifiedAt: new Date() } });
+    await db.teacher.update({ where: { id: teacher.id }, data: { schoolId: host.id } });
+
+    try {
+      const res = await post(
+        request,
+        event(
+          "checkout.session.completed",
+          claimSession({ id: `cs_test_hs_${stamp}`, subscription: SUB, customer: `cus_test_hasschool_${stamp}`, teacherId: teacher.id, schoolName: WANTED }),
+          `evt_test_claim_hs_${stamp}`,
+        ),
+      );
+      // ASSERT THE STATUS, NOT JUST THE ROWS. A 500 here would be invisible in
+      // the database and would put Stripe into a redelivery loop against a
+      // state no delivery can change.
+      expect(res.status(), "a refusal is acked; a retry cannot make this untrue").toBe(200);
+
+      expect(await db.school.count({ where: { name: WANTED } }), "no school is created for a refused claim").toBe(0);
+      expect(await db.subscription.count({ where: { stripeSubscriptionId: SUB } })).toBe(0);
+      const after = await db.teacher.findUniqueOrThrow({ where: { id: teacher.id } });
+      expect(after.schoolId, "and the buyer is NOT moved").toBe(host.id);
+      expect(after.role, "nor promoted").toBe("TEACHER");
+
+      const refusals = await db.auditLog.findMany({ where: { action: "SCHOOL_CLAIM_REFUSED", subjectId: teacher.id } });
+      expect(refusals, "the audit row is the founder's cue to refund by hand").toHaveLength(1);
+      expect(refusals[0].schoolId, "a stranger's failed purchase does not belong in the host school's log").toBeNull();
+      expect(refusals[0].detail).toContain("refunded by hand");
+    } finally {
+      await tearDownClaim([teacher.id], [host.id]);
+      await db.school.deleteMany({ where: { name: { in: [HOST, WANTED] } } });
+    }
+  });
 });
+

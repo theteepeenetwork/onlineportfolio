@@ -15,3 +15,4 @@
 - [Forge by tampering, not by posting](feedback-forge-by-tampering-not-by-posting.md) — a hand-built POST cannot reach a server action; rewrite a rendered form's hidden id, and aim the control forgery somewhere allowed
 - [Agent worktrees can be stale](project-agent-worktrees-can-be-stale.md) — verify HEAD against the brief before working; three sources can disagree
 - [A green run is not a run](feedback-a-green-run-is-not-a-run.md) — count what RAN; an env-guarded skip reports green while proving nothing
+- [Worktree with no node_modules](project-worktree-node-modules-trap.md) — npx resolves up to the parent, so only Turbopack notices, 120s later
