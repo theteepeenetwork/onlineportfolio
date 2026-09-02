@@ -13,3 +13,4 @@
 - [Address the agent who briefed you](feedback-address-the-agent-who-briefed-you.md) — the sender, not whoever the brief talks about; a wrong guess interrupts two sessions
 - [No spec depends on an earlier test](feedback-no-spec-depends-on-an-earlier-test.md) — a failed test discards the worker and re-runs beforeAll; invariant sweeps bring their own canary
 - [Forge by tampering, not by posting](feedback-forge-by-tampering-not-by-posting.md) — a hand-built POST cannot reach a server action; rewrite a rendered form's hidden id, and aim the control forgery somewhere allowed
+- [Agent worktrees can be stale](project-agent-worktrees-can-be-stale.md) — verify HEAD against the brief before working; three sources can disagree
