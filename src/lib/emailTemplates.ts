@@ -27,12 +27,20 @@
 //
 // ---------------------------------------------------------------------------
 //
-// **Every word here is fixed copy.** Nothing a child wrote, nothing a teacher
-// typed, and no child's name is ever interpolated into an email. A school holds
-// the parent's address, not us, and schools mistype addresses, so a message that
-// lands with the wrong person must give away nothing about a child. Read each
-// template below as if a stranger opened it: they learn only that someone asked
-// to sign in to a service for primary schools, and nothing about any child.
+// **Nothing a child wrote, and no child's name, is ever interpolated into an
+// email.** A school holds the parent's address, not us, and schools mistype
+// addresses, so a message that lands with the wrong person must give away
+// nothing about a child. Read each template below as if a stranger opened it:
+// they learn only that someone asked to sign in to a service for primary
+// schools, and nothing about any child.
+//
+// Two ADULT-typed strings do reach a body, both in the staff invitation: the
+// school's name, and — when that school's plan has not been paid for — the name
+// of the admin who arranged it. Both are escaped (`escapeHtml`, at the foot of
+// this file). This paragraph used to say that every word here was fixed copy
+// and that nothing a teacher typed was interpolated; the school name was
+// already an exception when it said so, and an undercount of what is untrusted
+// is how the next one arrives unescaped.
 //
 // **There are no images. Not one, not even a logo.** Three reasons, in order of
 // importance:
@@ -215,19 +223,52 @@ ${button(url, "Choose a new password")}
 /**
  * A staff invitation. Adults only, and it names the school (which the recipient
  * works at) but never a class roster or any child.
+ *
+ * `unpaid` IS THE ONLY CONTROL IN THIS WHOLE FEATURE THAT REACHES SOMEBODY WHO
+ * HAS NOT SIGNED UP YET, and that is why it is here rather than on a screen
+ * (docs/dpo-decisions.md, 1 September 2026). Anyone can create a teacher account
+ * with any school name — signup verifies no email address (F67) — and then buy
+ * that school on a purchase order, which costs nothing up front and leaves the
+ * school unverified for the length of the payment terms. The three admin gates
+ * protect the people already inside. A real head teacher who receives one of
+ * these is outside, and all they have to go on is what this message says: that
+ * the plan has not been paid for, and the name of the person who arranged it.
+ * If that name means nothing to them, that is the signal.
+ *
+ * Pass `null` when the school's payment has been confirmed. It is a required
+ * argument rather than an optional one so that a new caller has to decide,
+ * instead of getting the quiet half of the choice by leaving it out.
  */
 export function staffInviteEmail(
   schoolName: string,
   url: string,
+  unpaid: { arrangedBy: string } | null,
 ): { subject: string; text: string; html: string } {
   const subject = "You've been invited to StoryJar";
   const preheader = "Set your password and you're in. Takes about a minute.";
+
+  // Ahead of the link in both parts, because it is the thing the recipient
+  // needs in order to decide whether to press it at all.
+  const unpaidText = unpaid
+    ? [
+        "Before you do:",
+        "",
+        `${schoolName}'s StoryJar plan hasn't been paid for yet — it was bought on a`,
+        "purchase order, and the invoice has 30 days to run. This invitation was sent",
+        `by ${unpaid.arrangedBy}.`,
+        "",
+        "If that name means nothing to you, please don't set a password. Reply to this",
+        "email instead and we'll check who set the account up before anybody joins.",
+        "",
+      ]
+    : [];
 
   const text = [
     "You've been invited to StoryJar",
     "",
     `A colleague has added you to ${schoolName}'s StoryJar account.`,
     "",
+    ...unpaidText,
     "Set your password here and you're in:",
     url,
     "",
@@ -239,10 +280,18 @@ export function staffInviteEmail(
     REPLY_TEXT,
   ].join("\n");
 
+  // No colour, no icon and no border: a bordered "warning" box is the shape a
+  // phishing message imitates, and half of mail clients would render it wrong
+  // anyway. It is ordinary body text, above the button, saying the two facts.
+  const unpaidHtml = unpaid
+    ? `<p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:${BODY};"><strong style="color:${INK};">Before you do:</strong> ${escapeHtml(schoolName)}'s StoryJar plan hasn't been paid for yet — it was bought on a purchase order, and the invoice has 30 days to run. This invitation was sent by <strong style="color:${INK};">${escapeHtml(unpaid.arrangedBy)}</strong>. If that name means nothing to you, please don't set a password. Reply to this email instead and we'll check who set the account up before anybody joins.</p>`
+    : "";
+
   const html = shell(
     preheader,
     `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">You've been invited to StoryJar</h1>
 <p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">A colleague has added you to <strong style="color:${INK};">${escapeHtml(schoolName)}</strong>'s StoryJar account.</p>
+${unpaidHtml}
 ${button(url, "Set your password")}
 <div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
 <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>
@@ -253,8 +302,16 @@ ${button(url, "Set your password")}
   return { subject, text, html };
 }
 
-// The school name is the one piece of caller-supplied text that reaches an
-// email body, so it is escaped rather than trusted.
+// TWO pieces of caller-supplied text reach an email body, and both go through
+// here rather than being trusted: the school's name, and — on an unpaid school's
+// staff invitation — the name of the admin who arranged it. Both are typed by an
+// adult at signup and neither is checked against anything (SAFEGUARDING rule
+// 15), and a mail client is not React: nothing escapes for us.
+//
+// This comment used to say the school name was the only such text. That stopped
+// being true when the unpaid disclosure landed, and it is recorded rather than
+// quietly reworded because the count is the point: a comment that undercounts
+// what is untrusted is how the third one arrives unescaped.
 function escapeHtml(s: string): string {
   return s.replace(
     /[&<>"']/g,

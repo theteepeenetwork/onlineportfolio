@@ -9,6 +9,7 @@ import { recordAudit } from "@/lib/audit";
 import { sendStaffInvite } from "@/lib/staffInvite";
 import { handOverClasses } from "@/lib/classHandover";
 import { restoreFreePlan } from "@/lib/billing";
+import { schoolIsVerified } from "@/lib/schoolClaim";
 import { makeClassCode } from "@/lib/classCode";
 
 // Resolve the current user as a school admin, or bounce them out. Every admin
@@ -37,13 +38,53 @@ export async function inviteStaff(
   if (!name) return { error: "Add their name." };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: "That email doesn’t look quite right." };
 
-  const existing = await db.teacher.findUnique({ where: { email } });
-  if (existing) return { error: "Someone with that email is already on StoryJar." };
-
   // The school's own name, for the email. Read here rather than threaded
   // through requireAdmin, which is an access check and should stay one.
-  const school = await db.school.findUnique({ where: { id: schoolId }, select: { name: true } });
+  //
+  // And `verifiedAt`, for two things: the gate immediately below, and the
+  // disclosure the invitation carries. It is read BEFORE the address is looked
+  // up, created or emailed, because the refusal has to happen before any of
+  // those — an invitation refused after the row exists is not a refusal.
+  //
+  // A MISSING ROW COUNTS AS UNPAID — the same default as `schoolIsVerified` and
+  // for the same reason (rule 8). On the disclosure that is also the safe side
+  // of the choice: sending it when it was not needed embarrasses nobody, and
+  // withholding it when it was is the whole hazard.
+  const school = await db.school.findUnique({
+    where: { id: schoolId },
+    select: { name: true, verifiedAt: true },
+  });
   const schoolName = school?.name ?? "your school";
+
+  // THE FOURTH GATE, AND IT CLOSES THE ROUTE THE OTHER THREE LEFT OPEN.
+  //
+  // `setStaffRole` may not promote anybody to ADMIN while the school is unpaid.
+  // An invitation reaches the same end with one extra step: invite an address
+  // you control as ADMIN, accept it, and the unverified school now has a second
+  // admin who looks no different from the first. The 1 September decision lists
+  // "inviting staff" among the powers an unverified school keeps, and that stays
+  // true — it keeps inviting TEACHER and TA, which is what a school setting
+  // itself up on a purchase order actually needs.
+  //
+  // WHY THE MITIGATIONS ARE NOT ENOUGH. While the school stays unverified the
+  // second admin is gated exactly as the first is, and accepting needs control
+  // of the invited mailbox. Both run out at the worst moment: the instant the
+  // invoice is paid, BOTH admins are fully powered — and `detachBuyer` only
+  // detaches the buyer, so a refund leaves the second one standing. Owner
+  // decision, 2 September 2026.
+  //
+  // A SENTENCE RATHER THAN A REDIRECT, unlike the other three. This action has
+  // an error channel — it returns `{ error }` to a form that renders it — so it
+  // can say what is wrong where the admin is looking, and it should.
+  if (role === "ADMIN" && !school?.verifiedAt) {
+    return {
+      error:
+        "While the school plan is unpaid you can invite a teacher or a teaching assistant, but not another admin. That opens the moment the payment reaches us.",
+    };
+  }
+
+  const existing = await db.teacher.findUnique({ where: { email } });
+  if (existing) return { error: "Someone with that email is already on StoryJar." };
 
   const { displayName } = deriveTeacherName({ title: "", fullName: name, displayStyle: "first" });
   const created = await db.teacher.create({
@@ -72,7 +113,10 @@ export async function inviteStaff(
   // knows perfectly well whether they typed it. The neutral response belongs to
   // the PUBLIC reset form, where the person asking may not be the person who
   // owns the address.
-  await sendStaffInvite(created.id, schoolName, email);
+  await sendStaffInvite(created.id, schoolName, email, {
+    paid: Boolean(school?.verifiedAt),
+    arrangedBy: actorName,
+  });
   revalidatePath("/admin");
   return {};
 }
@@ -82,6 +126,18 @@ export async function setStaffRole(formData: FormData) {
   const { schoolId, teacherId, actorName } = await requireAdmin();
   const staffId = String(formData.get("staffId") ?? "");
   const role = ROLES.includes(String(formData.get("role"))) ? String(formData.get("role")) : "TEACHER";
+
+  // ONLY THE PROMOTION IS GATED. See the long note above `assignClassToStaff`.
+  //
+  // TEACHER and TA stay live while the school is unpaid, because neither
+  // changes what StoryJar permits — the role submenu says so in as many words
+  // (F47): what a colleague can see comes from the classes they hold. A school
+  // setting itself up on a purchase order needs its staff list to be right.
+  // ADMIN is the exception: an unverified admin who can mint a second admin has
+  // manufactured somebody who looks no different from a verified one, and that
+  // second account outlives any decision taken about the first.
+  if (role === "ADMIN" && !(await schoolIsVerified(schoolId))) redirect("/admin?blocked=verify");
+
   const staff = await db.teacher.findFirst({ where: { id: staffId, schoolId }, select: { name: true } });
   const { count } = await db.teacher.updateMany({ where: { id: staffId, schoolId }, data: { role } });
   if (count > 0) {
@@ -98,6 +154,35 @@ export async function setStaffRole(formData: FormData) {
 // sees its children's work.
 export async function assignClassToStaff(formData: FormData) {
   const { schoolId, teacherId, actorName } = await requireAdmin();
+
+  // =========================================================================
+  // THE VERIFICATION GATE. Until the school has been paid for, this action is
+  // refused (docs/dpo-decisions.md, 30 August and 1 September 2026).
+  //
+  // It is the first of three, and the one the other two are reasoned from:
+  // moving a class is how an adult comes to see a class of children's work at
+  // all (SAFEGUARDING rule 5), so "who may do this" is the same question as
+  // "who has proved they are this school". Self-serve purchase makes buying the
+  // act that creates a School and makes the buyer its ADMIN, and on the invoice
+  // route the money has not arrived yet — an invoice on 30-day terms is unpaid
+  // by definition, and `createTeacherAccount` verifies no email address (F67).
+  // On that route these three gates are not a belt beside a brace; they are the
+  // whole defence.
+  //
+  // NOT INSIDE `requireAdmin`, deliberately. That is an access check and stays
+  // one; returning a School row from it would make every admin action carry a
+  // fact most of them do not need.
+  //
+  // A REDIRECT WITH A REASON, because this action returns void and there is no
+  // error channel to give it. `redirect("/admin")` is already how it refuses an
+  // id it does not like, so nothing new is invented here except the query
+  // parameter — and that turns a silent bounce into one that lands on a page
+  // saying why. The console withholds the control long before this line, so an
+  // admin using the screen never arrives; what arrives is a tampered form or a
+  // stale tab, and both deserve the sentence rather than a shrug.
+  // =========================================================================
+  if (!(await schoolIsVerified(schoolId))) redirect("/admin?blocked=verify");
+
   const staffId = String(formData.get("staffId") ?? "");
   const classId = String(formData.get("classId") ?? "");
 
@@ -156,13 +241,27 @@ export async function resendInvite(formData: FormData) {
   const staffId = String(formData.get("staffId") ?? "");
   const staff = await db.teacher.findFirst({
     where: { id: staffId, schoolId, status: "INVITED" },
-    select: { id: true, name: true, email: true, school: { select: { name: true } } },
+    // `verifiedAt` for the same reason as `inviteStaff` above: the disclosure
+    // belongs on both paths, and a resend reaching a head teacher who never
+    // opened the first one is precisely the case it exists for.
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      school: { select: { name: true, verifiedAt: true } },
+    },
   });
   // Silently back to the console for anything that is not an invited member of
   // this admin's own school: a different answer would let an admin probe ids
   // outside their school.
   if (staff) {
-    await sendStaffInvite(staff.id, staff.school?.name ?? "your school", staff.email);
+    await sendStaffInvite(staff.id, staff.school?.name ?? "your school", staff.email, {
+      paid: Boolean(staff.school?.verifiedAt),
+      // The admin pressing RESEND, who may not be the one who typed the address
+      // — so the copy says "this invitation was sent by", which is true of both,
+      // rather than "the account was set up by", which would be a guess.
+      arrangedBy: actorName,
+    });
     await recordAudit({
       action: "STAFF_INVITE_RESENT", actorType: "ADMIN", actorId: teacherId, actorName, schoolId,
       subjectType: "TEACHER", subjectId: staff.id, detail: `Resent the invitation to ${staff.name}`,
@@ -211,6 +310,29 @@ export async function removeStaff(formData: FormData) {
 
   const staff = await db.teacher.findFirst({ where: { id: staffId, schoolId } });
   if (!staff) redirect("/admin");
+
+  // THE VERIFICATION GATE, AND IT SITS HERE — AFTER `staff` IS READ — BECAUSE
+  // IT DEPENDS ON WHICH BRANCH THE REMOVAL WILL TAKE.
+  //
+  // Removing an ACTIVE colleague is `assignClassToStaff` wearing a different
+  // hat: `handOverClasses` below moves their classes, and their pupils' work,
+  // onto whoever pressed the button. The 29 August decision that lets an admin
+  // do that with no picker and no friction is about a head teacher suspending
+  // somebody, and it assumes a school that has been paid for.
+  //
+  // AN INVITED ROW STAYS REMOVABLE while unpaid, deliberately: it is an
+  // invitation the admin sent minutes ago, they need it to correct a mistyped
+  // address, and no colleague loses anything. The decision's reason for keeping
+  // it — that it moves nobody's data — is true here only BECAUSE the gate above
+  // holds. An invited teacher cannot sign in, so the only way one comes to hold
+  // a class is `assignClassToStaff`, which an unverified school cannot reach;
+  // if that gate is ever relaxed, this one stops being safe on its own.
+  //
+  // Written as "not INVITED" rather than "is ACTIVE" so that any status added
+  // later is gated by default (SAFEGUARDING rule 8).
+  if (staff.status !== "INVITED" && !(await schoolIsVerified(schoolId))) {
+    redirect("/admin?blocked=verify");
+  }
 
   // THE CLASSES MOVE FIRST, WHICHEVER BRANCH THIS TAKES. That is F68, and it is
   // the only thing either branch shares.
@@ -276,7 +398,19 @@ export async function removeStaff(formData: FormData) {
   } else {
     await db.$transaction(async (tx) => {
       moved = await handOverClasses(tx, staffId, teacherId);
-      await tx.teacher.update({ where: { id: staffId }, data: { schoolId: null } });
+      // `role` GOES BACK TO TEACHER WITH THE DETACH, and that is not tidying.
+      //
+      // Nulling `schoolId` alone leaves a schoolless account still carrying
+      // `role: "ADMIN"`. It is inert today only because `requireAdmin` needs
+      // both — but the invitation work that follows this gives a teacher a
+      // route to a NEW `schoolId`, and a removed admin who walked back in as
+      // somebody else's admin would hold a privilege nobody granted them,
+      // arriving through a door nobody was watching. Rank is not something a
+      // person carries between schools.
+      //
+      // `detachBuyer` (src/lib/schoolClaim.ts) already writes exactly this on
+      // the refund path, for the same reason. The two now agree.
+      await tx.teacher.update({ where: { id: staffId }, data: { schoolId: null, role: "TEACHER" } });
       // Their own account, on the free plan, from this moment.
       //
       // Detaching used to leave them with NO governing subscription: the school's
