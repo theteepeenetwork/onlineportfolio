@@ -24,9 +24,21 @@ the instant a screen imports it — but argue it as *do it while there is nothin
 to get wrong*, never as *there is a live hole today*. If a brief rests on
 endpoint reachability, check the manifest before agreeing. The assertion, with a
 positive control, lives in
-`tests/battery/security/join-school-plan-needs-an-invitation.spec.ts`; the same
-spec records the captured `useActionState` POST wire format (`0` =
-`[{},"$K1"]`, fields under a `_1_` prefix) for driving a real action POST.
+`tests/battery/security/join-school-plan-needs-an-invitation.spec.ts`.
+
+**To dispatch a real action POST in a test, send it FROM THE PAGE.** The wire
+format that spec records is right — field `0` = `[{},"$K1"]`, form fields under
+a `_1_` prefix — but Playwright's `page.request.post({multipart})` produces a
+body Next accepts, dispatches, and hands to the action with an **empty
+FormData**, in any part order, with or without the `$ACTION_*` parts. Verified
+2026-09-02. Every refusal then looks right for the wrong reason ("please choose
+a plan" instead of "only a school admin"). Use
+`page.evaluate(() => fetch(location.pathname, {method:"POST", headers:{"Next-Action":id}, body: fd}))`,
+which uses the browser's own encoder and cookies and is a truer model of a
+tampered client. That spec's `page.request.post` branch has never executed (the
+action it targets has no id), so it will post nothing the day phase 2 wires
+`joinSchoolPlan` to a screen. Working version:
+`tests/battery/security/school-purchase-guard.spec.ts`.
 
 See [[feedback-comments-are-the-record]] — the same lesson: check a claim's
 facts before repeating it in a comment.

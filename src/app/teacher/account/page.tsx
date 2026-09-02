@@ -17,17 +17,17 @@ import { originUrl } from "@/lib/appOrigin";
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; frozen?: string }>;
+  searchParams: Promise<{ checkout?: string; frozen?: string; purchase?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") return null;
-  const { checkout, frozen } = await searchParams;
+  const { checkout, frozen, purchase } = await searchParams;
 
   const teacher = { id: user.teacher.id, schoolId: user.teacher.schoolId };
   const [profile, account, sub, tokens, apps, origin] = await Promise.all([
     db.teacher.findUnique({
       where: { id: user.teacher.id },
-      select: { name: true, title: true, displayStyle: true, email: true, schoolName: true, country: true, foundingMember: true },
+      select: { name: true, title: true, displayStyle: true, email: true, schoolName: true, urn: true, country: true, foundingMember: true },
     }),
     accountStateForTeacher(teacher),
     governingSubscription(teacher),
@@ -47,6 +47,24 @@ export default async function AccountPage({
     originUrl(),
   ]);
   if (!profile) return null;
+
+  // The register row this teacher's stored URN names, for the purchase section.
+  //
+  // Read HERE and never posted, which is the point: the name and the URN come
+  // out of the same `Establishment` row in the same request, so a tampered
+  // client can choose only WHETHER to use its own teacher's URN, never which one
+  // (docs/school-identity.md §2). `findUnique` returning null covers both "no
+  // URN" and "a re-import dropped that row" — one branch, no special case.
+  //
+  // Only fetched for a teacher with no school: nobody else can see the section,
+  // and an admin's account page should not be querying the register at all.
+  const register =
+    !user.teacher.schoolId && profile.urn
+      ? await db.establishment.findUnique({
+          where: { urn: profile.urn },
+          select: { name: true, town: true, postcode: true },
+        })
+      : null;
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -92,7 +110,10 @@ export default async function AccountPage({
           hasLiveSubscription={Boolean(sub?.stripeSubscriptionId) && (account.status === "ACTIVE" || account.status === "PAST_DUE")}
           configured={stripeConfigured()}
           checkout={checkout === "success" ? "success" : checkout === "cancelled" ? "cancelled" : null}
+          purchase={purchase === "invoice" ? "invoice" : null}
           frozenNotice={frozen === "1"}
+          register={register}
+          schoolNameDefault={profile.schoolName ?? ""}
         />
       </div>
 
