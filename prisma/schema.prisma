@@ -134,6 +134,13 @@ model Teacher {
   // Outstanding password-reset and staff-invite tokens. Cascade on delete, the
   // same as sessions: deleting a teacher must not leave a live link behind.
   passwordTokens TeacherPasswordToken[]
+  // Offers of school membership made TO this teacher, and separately the ones
+  // they made as an admin. Two relations because both ends of a
+  // SchoolInvitation are a Teacher; the names are the disambiguator Prisma
+  // requires and carry no meaning beyond that. Both cascade on delete, the
+  // same as sessions and password tokens.
+  schoolInvitations     SchoolInvitation[] @relation("SchoolInvitationInvitee")
+  sentSchoolInvitations SchoolInvitation[] @relation("SchoolInvitationInviter")
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
@@ -281,6 +288,193 @@ model School {
   // The school's billing subscription (school plan). Null until one is created;
   // the plan label shown in the admin console is derived from this, not stored.
   subscription Subscription?
+  // Offers this school has made to teachers who already hold their own
+  // account. Not a second staff list: a row here is a question, and only
+  // `Teacher.schoolId` is an answer.
+  invitations  SchoolInvitation[]
+}
+
+// An OFFER of school membership, made to a teacher who ALREADY HAS a StoryJar
+// account of their own.
+//
+// It exists because `inviteStaff` (src/app/actions/admin.ts) refuses an email
+// that already belongs to a teacher, flatly. A teacher who signed up free in
+// September therefore cannot be brought into their school when it buys in
+// January — the ordinary case rather than an edge one, and the last thing
+// standing between a school paying and its staff using what it paid for.
+// docs/dpo-decisions.md (1 Sep 2026), docs/paid-tier-plan.md.
+//
+// THIS IS A MEMBERSHIP RECORD, NOT A CREDENTIAL. It is filed here, beside
+// School in the billing and adult-account half of this file, and deliberately
+// NOT beside TeacherPasswordToken, so that a reader arriving at it does not
+// begin by assuming it holds a secret. It does not.
+//
+// ---------------------------------------------------------------------------
+// THERE IS NO SECRET COLUMN, AND THAT IS THE DESIGN
+// ---------------------------------------------------------------------------
+// Nothing here is named `*Hash`, `*Token`, `*Code` or `*Secret`, so nothing
+// trips SENSITIVE_NAME_PATTERNS in scripts/check-ops-blindness.mjs and nothing
+// needs a DENY_FIELDS entry. That is a CONSEQUENCE, not the reason. The reason
+// is the owner decision of 1 September 2026: this invitation is answered IN THE
+// APP BY THE SIGNED-IN ACCOUNT HOLDER, so there is nobody for a bearer token to
+// be issued to. The invitee is already authenticated; a mailed secret would be
+// a second way in to an account that already has one.
+//
+// SO AN `inviteCode` "SO IT CAN BE FORWARDED" IS THE CHANGE TO REFUSE. It would
+// recreate — after MagicToken and TeacherPasswordToken — the third bearer
+// credential in this product, and it would do it on the highest-value action in
+// it: accepting hands a school authority over this teacher's classes and the
+// children in them. "Forwardable" means "works for whoever is holding it", and
+// what would be handed over is not this teacher's account, it is their pupils.
+// A notification email may say an invitation is waiting; it may not carry one.
+//
+// ---------------------------------------------------------------------------
+// WHY NOT COLUMNS ON TeacherPasswordToken
+// ---------------------------------------------------------------------------
+// Because `mintPasswordToken` (src/lib/passwordTokens.ts) SPENDS every unspent
+// token in the password-setting pool each time it mints another. An invitation
+// filed there as a fourth `purpose` would be cancelled silently the next time
+// the teacher asked for a password reset, and the banner offering it would
+// vanish with nothing on any screen explaining why.
+//
+// That is a live edge rather than a theory: it is exactly what CONFIRM hit in
+// prisma/migrations/20260902150000_teacher_email_confirmation, which is why
+// confirmation was given its own pool. A pool is the right answer THERE,
+// because a confirmation is still a mailed secret with a lifetime. It is the
+// wrong answer here. An invitation is not a secret at all, and a table whose
+// entire purpose is "single-use expiring credential, stored as a digest" is the
+// wrong cabinet for a record that a school and a teacher both have to be able
+// to look at and talk about.
+//
+// ---------------------------------------------------------------------------
+// ONE ROW PER (TEACHER, SCHOOL), MUTATED THROUGH STATES
+// ---------------------------------------------------------------------------
+// `@@unique([teacherId, schoolId])`. Re-inviting somebody is an UPSERT back to
+// PENDING with a fresh clock, never a second row, so "does this teacher have an
+// open offer from us?" is one lookup with one answer and there is no
+// newest-row tie for two readers to break differently.
+//
+// History is not lost; it is kept where this codebase already keeps history.
+// src/app/admin/page.tsx reconstructs which teacher held which class entirely
+// from CLASS_ASSIGNED audit rows rather than from a column, for exactly this
+// reason: the log is the record, and a column is the current state.
+//
+// THE LEADING COLUMN IS teacherId, AND THERE IS NO SECOND INDEX. The read that
+// happens constantly is the teacher's — the shell asks "do I have an open
+// offer?" on EVERY navigation — and a composite index is usable on its leading
+// column alone, so that read is covered. The school's read, an admin opening
+// one console page, scans a table holding one row per outstanding offer. That
+// is cheaper than an index maintained on every write, and if it ever stops
+// being cheaper the fix is one line here.
+//
+// NO GLOBAL UNIQUE ON teacherId. A supply teacher genuinely can be asked by two
+// schools at once, and a unique constraint there would make the second school's
+// invitation fail with a database error instead of arriving. What stops a
+// teacher belonging to two schools is ACCEPTANCE — `Teacher.schoolId` is a
+// single column, and accepting supersedes the other open offers — not a
+// constraint on being asked.
+//
+// ---------------------------------------------------------------------------
+// EXPIRY IS A PAST `expiresAt`, NOT A STATE
+// ---------------------------------------------------------------------------
+// There is no EXPIRED value in `state` and there is no job that would write
+// one. An offer is open when its state is PENDING and its clock has not run
+// out, and both halves are read together by `schoolInvitationIsOpen` in
+// src/lib/schoolInvitationPolicy.ts. A state would need a sweeper to be true; a
+// sweeper that stops running is a silent widening; and a sweeper's absence
+// looks exactly like an offer that is still open. Nothing to schedule, nothing
+// to drift.
+//
+// ---------------------------------------------------------------------------
+// WHAT IS IN IT, FOR THE DPIA
+// ---------------------------------------------------------------------------
+// Two adults and a school: the invitee, the inviter, the school, a role from a
+// three-word vocabulary, the name the ADMIN TYPED, and four timestamps. No
+// child, no address, no free text a child's name could reach, no credential and
+// no new sub-processor. Nothing the Teacher rows at either end do not already
+// hold. Deleted with either adult, and with the school, by the cascades below.
+model SchoolInvitation {
+  id                 String    @id @default(cuid())
+
+  // The school making the offer. Cascade: if the school row goes, an offer to
+  // join it is not a record of anything.
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId           String
+
+  // The teacher being asked. Cascade for the reason Session and
+  // TeacherPasswordToken cascade: closing an account must not leave something
+  // behind that still names the person who closed it.
+  teacher            Teacher   @relation("SchoolInvitationInvitee", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId          String
+
+  // ADMIN | TEACHER | TA — the SAME closed vocabulary as `Teacher.role`, in the
+  // same words rather than a parallel set, because this value is copied onto
+  // the teacher when they accept. Checked in src/lib/schoolInvitationPolicy.ts
+  // before a row is written; SQLite has no enum, which is why Teacher.role and
+  // Teacher.status are strings too.
+  //
+  // NO DEFAULT. The role is a choice an admin makes on a form, and a default
+  // here is a way to write the wrong one quietly. Whether ADMIN may be OFFERED
+  // is a separate rule about the school, not about this column: an unverified
+  // school may not (docs/dpo-decisions.md, 2 Sep 2026).
+  role               String
+
+  // THE NAME THE ADMIN TYPED, NEVER THE ACCOUNT'S OWN. This is a safeguarding
+  // decision wearing a display field's clothes, and it does two jobs.
+  //
+  // Rendering `Teacher.name` instead would disclose an adult's real name to
+  // somebody who supplied only an email address: an admin who typed a
+  // colleague's address would be told what that person is called, which they
+  // did not know a moment earlier.
+  //
+  // And it would make a pending invitation LOOK DIFFERENT in the staff list
+  // from a fresh INVITED row — which is exactly the difference the four-case
+  // `inviteStaff` branch exists to erase. "No account here" and "an account,
+  // now invited" must be indistinguishable to the admin, or the invite form is
+  // FINDINGS F6's account-existence oracle with better manners.
+  invitedName        String
+
+  // WHO ASKED: a nullable pointer, plus the name snapshotted as text.
+  //
+  // SetNull, because an inviter can leave the school or close their account and
+  // neither of those may delete an offer somebody is still holding. The
+  // snapshot is what makes SetNull safe — "Mrs Lindqvist asked you to join
+  // Oakfield" survives Mrs Lindqvist, and that sentence is what the acceptance
+  // screen has to be able to say before a teacher hands over their classes.
+  //
+  // Compare School.claimedByTeacherId, which answers the same problem the other
+  // way round: no foreign key at all, because there is no name column there to
+  // carry the fact once the pointer has gone.
+  invitedBy          Teacher?  @relation("SchoolInvitationInviter", fields: [invitedByTeacherId], references: [id], onDelete: SetNull)
+  invitedByTeacherId String?
+  invitedByName      String
+
+  // PENDING | ACCEPTED | DECLINED | REVOKED | SUPERSEDED. Closed vocabulary,
+  // enforced in src/lib/schoolInvitationPolicy.ts.
+  //
+  // The last three are three values rather than one "closed", because they are
+  // answers to different questions and a support call asks which: DECLINED is
+  // the teacher's answer, REVOKED is the school taking it back, and SUPERSEDED
+  // is what happens to every other open offer the moment a teacher accepts one
+  // — nobody did anything, and it must not read as though somebody did.
+  //
+  // NO `EXPIRED`. See the note above the model.
+  state              String    @default("PENDING")
+
+  // When the offer stops being answerable. 14 days; the number and the argument
+  // for it are in src/lib/schoolInvitationPolicy.ts, in one place so it can be
+  // overruled in one place.
+  expiresAt          DateTime
+
+  // When the teacher answered, whichever way. Null while PENDING. Not derivable
+  // from `updatedAt`, which also moves when a school revokes or when acceptance
+  // elsewhere supersedes this row.
+  respondedAt        DateTime?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([teacherId, schoolId])
 }
 
 // A billing subscription that governs WRITE access for an account. An account is

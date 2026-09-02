@@ -1,0 +1,29 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-MODEL-METHOD
+// The READ half of the SchoolInvitation classification (ruling R2). Its sibling
+// bad-ops-deletes-school-invitation.txt proves the writes are refused; this
+// proves the browse is, which is the reason the model is LOOKUP_ONLY rather
+// than ADULT_READABLE and not a detail of it.
+//
+// Deliberately placed in the declared READ chokepoint, with a `select:` and a
+// bounded `take`, so nothing else can be what refuses it: no
+// OPS-MUTATION-MODULE (findMany is not a write), no OPS-PRISMA-IMPORT (this
+// module may hold the client), no OPS-UNPROJECTED-READ (the columns are
+// named). The CLASSIFICATION is the only thing standing in the way, which is
+// exactly what this fixture is for.
+//
+// The near miss the model invites, and it looks helpful: a support screen
+// listing outstanding invitations. It is the same screen MailSuppression is
+// LOOKUP_ONLY to prevent, one model along — answering "does this one teacher
+// have an open offer" is support; listing every teacher currently being
+// courted by a school is a register, about adults' employment, that nobody
+// asked for.
+import { db } from "@/lib/db";
+
+export async function outstandingInvitations() {
+  return db.schoolInvitation.findMany({
+    where: { state: "PENDING" },
+    select: { id: true, invitedName: true, invitedByName: true, expiresAt: true },
+    take: 50,
+  });
+}
