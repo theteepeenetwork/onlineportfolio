@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { SCHOOL_A } from "../helpers";
+import { SCHOOL_A, SCHOOL_E, loginTeacher } from "../helpers";
 
 // ===========================================================================
 // B1 — Keyboard-only navigation for the core flows
@@ -24,6 +24,53 @@ test("teacher can sign in with the keyboard alone", async ({ page }) => {
   // Enter from within the form submits it.
   await page.keyboard.press("Enter");
   await page.waitForURL((url) => url.pathname === "/teacher" || url.pathname === "/admin");
+});
+
+// A DISABLED BUTTON IS NOT IN THE TAB ORDER, WHICH IS WHY THE REASON HAS TO BE
+// TEXT. When an unpaid school's admin cannot promote a colleague, the "Admin"
+// button is `disabled` — correct, because nothing should look pressable that is
+// not, but it means a keyboard-only or screen-reader user never lands on it and
+// never hears an explanation attached to it. The explanation is therefore a
+// visible line in the menu itself, read in the ordinary flow of the panel, and
+// the two roles that ARE allowed stay reachable. If somebody ever re-enables the
+// button to "fix" its announcement, this test fails and the server still
+// refuses (tests/battery/security/unverified-school-gates.spec.ts).
+test("an unpaid school's withheld role is skipped by the keyboard, and says why in text", async ({
+  page,
+}) => {
+  await loginTeacher(page, SCHOOL_E.admin);
+  await page.goto("/admin");
+  await page.getByRole("button", { name: /actions for Idris Vaughan/i }).click();
+  await page.getByRole("menuitem", { name: /edit role/i }).click();
+
+  const admin = page.getByRole("menuitem", { name: "Admin" });
+  await expect(admin).toBeDisabled();
+  await expect(
+    page.getByText(/making somebody an admin waits until the school plan is paid for/i),
+    "the reason must be readable text, because focus never reaches the disabled control",
+  ).toBeVisible();
+
+  // Walk the panel and record what focus can reach. Teaching assistant is the
+  // live role change an unpaid school keeps; Admin must never appear.
+  const reached: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press("Tab");
+    const label = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el || el === document.body) return null;
+      return (el.textContent ?? "").trim();
+    });
+    if (label) reached.push(label);
+  }
+
+  expect(
+    reached.some((l) => l.endsWith("Teaching assistant")),
+    "a role an unpaid school may still set must be reachable by keyboard",
+  ).toBe(true);
+  expect(
+    reached.some((l) => l.endsWith("Admin")),
+    "and the withheld one must not be focusable at all",
+  ).toBe(false);
 });
 
 test("a child can pick their name with the keyboard alone", async ({ page }) => {

@@ -35,6 +35,18 @@ Three rules that follow, each of which came up for real:
   green, and concludes the report was wrong. A false red costs somebody a
   diagnosis; a stale-but-true red costs your next report its credibility.
 
+- **An agent worktree can be BEHIND the branch your brief describes.** On
+  2026-09-02 mine was handed a brief that opened "your branch base already has
+  `src/lib/schoolClaim.ts`" and the file did not exist: the worktree sat on the
+  merge before it. Check for the files the brief names before assuming, then
+  `git merge --ff-only <the feature branch>` — verify with `git merge-base
+  --is-ancestor` first, so it is a fast-forward and destroys nothing. It also
+  arrives with no `node_modules` and no `.env`: `cp <main repo>/.env .env`,
+  `npm ci`, `npm run postinstall`, `npm run setup` (plain, not `db:reset` —
+  there is no pre-existing `dev.db` in a fresh worktree, and `--force-reset` is
+  blocked by the sandbox anyway). Use your own `PORT` and your own
+  `PW_BASE_PORT` block; a second battery was on 3401 the whole time mine ran.
+
 **Why:** an additive edit to a file another agent has open can be clobbered or
 can clobber, and git-internal state is shared by sessions this one cannot see.
 The cost of waiting is a minute; the cost of a collision is somebody's evening.

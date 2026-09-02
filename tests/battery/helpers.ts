@@ -88,6 +88,29 @@ export const SCHOOL_C = {
   stripeSubscriptionId: "sub_seedlarchwood0001",
 } as const;
 
+// School E = Pennyfields Primary — ACTIVE and UNVERIFIED. Bought on a purchase
+// order that has not been paid, which is the only way a school reaches this
+// state (docs/dpo-decisions.md, 1 September 2026). Its admin keeps the console,
+// billing, invitations and the audit log, and is refused the three actions that
+// move children's work between adults.
+//
+// ACTIVE + unverified is the combination that looks impossible and is not:
+// billing status and verification are different facts, read by different code,
+// and a school whose finance office is sitting on a 30-day invoice must teach
+// normally while it does. School C is the same point from the other side —
+// FROZEN but verified, because it paid once and lapsed.
+//
+// It has NO invited staff on purpose: `removeStaff` on an INVITED row stays
+// allowed while unverified, and a spec proving that creates its own invitation
+// so it can watch the invitation being made.
+export const SCHOOL_E = {
+  name: "Pennyfields Primary",
+  admin: { email: "admin@pennyfields.sch.uk", password: "password" }, // Mrs Okonkwo
+  teacher: { email: "teacher@pennyfields.sch.uk", password: "password" }, // Mr Vaughan, owns Kestrel
+  className: "Kestrel Class",
+  classCode: "PENN44",
+} as const;
+
 // Sign in as a teacher/admin by email + password, landing on their dashboard.
 export async function loginTeacher(page: Page, who: { email: string; password: string }) {
   await page.goto("/login/teacher");
