@@ -1,0 +1,27 @@
+// @path: src/lib/ops/operations.ts
+// @expect: OPS-MODEL-METHOD
+// The WRITE half of the SchoolInvitation classification (ruling R2). Its
+// sibling bad-ops-lists-school-invitations.txt proves the browse is refused.
+//
+// SchoolInvitation is LOOKUP_ONLY — findUnique, findUniqueOrThrow, count, and
+// nothing else — so this fixture is refused for the strictest available reason:
+// not "delete is missing from an otherwise generous list", but "no write of any
+// shape is permitted on this model at all". It would fire identically for
+// create, update, updateMany or upsert.
+//
+// Deliberately placed in the ONE module permitted to mutate anything, so that
+// OPS-MUTATION-MODULE cannot fire and the CLASSIFICATION is what refuses it.
+// Written at src/lib/ops/reads.ts this fixture would pass for the wrong reason
+// and prove nothing about the method list.
+//
+// The near miss the model invites: "tidying up" a stale offer from a support
+// call. Deleting the row is how the history of who asked whom disappears —
+// and this codebase keeps history in the audit log, not by leaving rows lying
+// about, so a support fix that removes the record removes the wrong thing. The
+// state vocabulary already has REVOKED for a school taking an offer back, and
+// that is a write an admin makes on their own console, not an operator.
+import { db } from "@/lib/db";
+
+export async function tidyStaleInvitation(invitationId) {
+  return db.schoolInvitation.delete({ where: { id: invitationId } });
+}

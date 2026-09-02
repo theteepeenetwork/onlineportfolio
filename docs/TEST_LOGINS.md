@@ -140,6 +140,26 @@ else, including inviting staff and removing an INVITED row, stays open.
   paid once and lapsed), Pennyfields is **unfrozen but unverified**. Billing
   status and verification are separate facts read by different code.
 
+**No school at all: a free teacher with her own class.** The account phase 2 is
+about. `inviteStaff` refuses an email that already belongs to a teacher, so a
+teacher who signed up free in September cannot be brought into their school when
+it buys in January; she is the person that refusal happens to.
+
+| Account | Email | Password | Role |
+| --- | --- | --- | --- |
+| Miss Brookfield | `free.teacher@example.test` | `password` | TEACHER, **no school** |
+
+- `schoolId` is null, and she has her **own FREE plan** — the row
+  `createTeacherAccount` writes for every free signup, and the row
+  `removed-staff-keep-a-free-plan.spec.ts` sweeps the whole table for.
+- Class **Bluebell**, code `BLUE33`, children Elsie, Kofi, Marnie. The pupils are
+  the point: accepting an invitation is what makes her classes *and the children
+  in them* a school's, so an empty class could not prove anything moved. No
+  journal items — children's work through a handover is `class-handover.spec.ts`.
+- `schoolName` reads "Thornbury Lane Primary", free text and unchecked, with no
+  `urn`. Thornbury Lane is deliberately not in the fictional establishment
+  register, so nothing about her looks like a register claim.
+
 **Platform operator fixture**
 
 | Field | Value |

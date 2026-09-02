@@ -275,6 +275,80 @@ const LOOKUP_ONLY = [
   // every adult currently locked out of their own child's work. Answering "is
   // this one address being refused" is support. Listing them is a register.
   "MailSuppression",
+  // The offer a school makes to a teacher who already has their own account
+  // (PR-phase-2). One row is: two named adults, a school, a role and four
+  // timestamps.
+  //
+  // WIDENING (ruling R2: a widening lands in the same commit as the model it
+  // permits, with a comment naming the rule and fixtures proving the true
+  // positive still fires — bad-ops-deletes-school-invitation.txt and
+  // bad-ops-lists-school-invitations.txt). The drift check refused
+  // SchoolInvitation as OPS-MODEL-UNKNOWN from the moment the model landed
+  // until this entry existed, which is the drift check working.
+  //
+  // OPS NEEDS NOTHING FROM THIS MODEL TODAY, AND THIS CLASS PERMITS EXACTLY
+  // THAT NOTHING. findUnique, findUniqueOrThrow and count: no write of any
+  // shape, and no way to page through the table. Nothing in src/app/ops,
+  // src/app/actions/ops or src/lib/ops reads an invitation, and no operation in
+  // the frozen registry (src/lib/ops/registry.ts) creates or answers one —
+  // inviting is an admin's act on their own console and accepting is the
+  // teacher's, and neither of them is an operator.
+  //
+  // WHY NOT ADULT_READABLE, WHICH IS WHAT THE TASK ASKED FOR. Two reasons, and
+  // the first is the one that decided it.
+  //
+  //   1. THE REGISTER. ADULT_READABLE permits an unrestricted findMany, and a
+  //      findMany here is a list of every teacher currently being courted by a
+  //      school. That is the same objection MailSuppression above earned its
+  //      own classification with, in the same words: answering "does this one
+  //      teacher have an open offer" is support, and listing them is a
+  //      register. Nobody has asked for that screen and nobody should be able
+  //      to page through it.
+  //   2. THE WRITES. ADULT_READABLE also permits create, update, updateMany and
+  //      upsert. OPS-MUTATION-MODULE confines those to
+  //      src/lib/ops/operations.ts, so it would not be a write from anywhere —
+  //      but it would still pre-authorise an operator operation that offers one
+  //      adult's account, and the pupils in their classes, to a school. That is
+  //      Establishment's objection below: a classification that silently
+  //      pre-authorises a thing nothing else in the design allows is the wrong
+  //      classification, however little data is at stake.
+  //
+  // WHAT IT WITHHOLDS, STATED PLAINLY, because the argument for reading it is
+  // not empty. It is an ACCOUNT EVENT ABOUT TWO NAMED ADULTS — that this
+  // teacher has been asked by this school, by this colleague, and has not yet
+  // answered. TeacherPasswordToken is in CREDENTIAL_NEVER partly for that exact
+  // sentence ("a particular teacher is mid-reset or has an unopened
+  // invitation"), and SAFEGUARDING rule 5's "admins are not all-seeing" applies
+  // to adults' employment as much as to children's work.
+  //
+  // WHY IT STOPS HERE AND DOES NOT GO TO CREDENTIAL_NEVER. Two things.
+  // There is no credential, so the class name would have to be read past — the
+  // objection that kept Establishment out of PLATFORM_CONTENT below. And the
+  // fresh-invite version of this fact is ALREADY fully readable: Teacher is
+  // ADULT_READABLE, so `status: "INVITED"` beside a `schoolId` says the same
+  // thing about a brand-new colleague. The genuinely new fact is narrower —
+  // that an ESTABLISHED teacher has a pending offer from a school they are not
+  // in — and it does not need to be browsable in order to be looked up if a
+  // support question ever needs it.
+  //
+  // THIS IS THE PARAGRAPH TO ARGUE WITH. If an ops invitation screen is ever
+  // proposed, the case has to be made here, against the register objection
+  // above, and it has to name the operation and put it in the registry. Do not
+  // move the model up a class to make a screen compile.
+  //
+  // What it does NOT do:
+  //   - no write of any shape. Not create, not update, not updateMany, not
+  //     upsert, not delete.
+  //   - no findMany, no findFirst, no aggregate, no groupBy.
+  //   - it is deliberately absent from `adultTargets` below, so the three
+  //     relation names that point at it — `invitations` on School,
+  //     `schoolInvitations` and `sentSchoolInvitations` on Teacher — are
+  //     treated as relations to a non-adult model and refused under the ops
+  //     roots. That is the same consequence PLATFORM_CONTENT and
+  //     PUBLIC_REFERENCE below both accept in so many words, and it is the
+  //     right one here: nothing may gain a path to an invitation by traversing
+  //     a Teacher or a School it is already allowed to read.
+  "SchoolInvitation",
 ];
 
 // StoryJar's OWN published teaching content, and the least sensitive model in
