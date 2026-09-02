@@ -92,9 +92,9 @@ export function BillingPanel(props: Props) {
               Your own classes stay free for as long as you want them. The school plan starts
               at {formatPrice(CHEAPEST_SCHOOL_PRICE)} a year ({priceNote().toLowerCase()}), priced by how many pupils
               are on roll — and it adds the things a school needs rather than a teacher:
-              oversight for leadership, work that stays with the school when staff move on,
-              year-end transfer, and a data agreement naming the school as the data
-              controller.
+              oversight for leadership, staff and classes managed in one place, an audit log
+              of who did what, work that stays with the school when staff move on, and a data
+              agreement naming the school as the data controller.
             </p>
           </section>
           <SchoolPlanPurchase
@@ -150,6 +150,12 @@ export function BillingPanel(props: Props) {
             <input type="hidden" name="plan" value={band} />
             <button className="sj-btn-outline" type="submit" disabled={invoicePending || !configured}>Request an invoice / PO instead</button>
           </form>
+          {/* The refund that replaced the trial (docs/pricing-decisions.md,
+              1 Sep 2026), in the same words as the landing page and the Terms.
+              Every button that takes money says it. */}
+          <p style={{ margin: "12px 0 0", font: "600 15px var(--font-atkinson)", color: "var(--ink)" }}>
+            Full refund within 42 days if it isn’t right for your school.
+          </p>
         </section>
       )}
 

@@ -232,9 +232,28 @@ async function resolveClaimTarget(
  * REACHABLE ONLY BY A TEACHER WHOSE OWN STORED URN NAMES THAT SCHOOL, because
  * the URN never comes off the wire — see `resolveClaimTarget`. It is not a
  * lookup anybody can point at an arbitrary school.
+ *
+ * AND IT READS `verifiedAt`, BECAUSE AN UNPAID SCHOOL MAY BE A SQUATTER'S.
+ * Signup verifies no email address (F67) and the PO route costs nothing up
+ * front, so anyone can set a school up under a URN that is not theirs and leave
+ * it unpaid for the length of the payment terms — the threat set out in
+ * `docs/dpo-decisions.md`, 1 September 2026. Without this clause StoryJar told
+ * a real teacher at the real school "Ask Mrs Whoever to add you to it", with no
+ * caveat: it sent them to a stranger and vouched for them on the way.
+ *
+ * That entry calls the unpaid staff-invitation email "the only control that
+ * reaches somebody who has not signed up yet". THIS IS A SECOND ONE, and it
+ * says the same two things in the same order and for the same reason: the plan
+ * is not paid for, and here is the name — if it means nothing to you, that is
+ * the signal. See `staffInviteEmail` in src/lib/emailTemplates.ts.
+ *
+ * IT STILL NEVER DISCLOSES AN EMAIL ADDRESS, on either branch.
  */
 async function urnAlreadyClaimed(urn: string): Promise<string | null> {
-  const school = await db.school.findUnique({ where: { urn }, select: { id: true, name: true } });
+  const school = await db.school.findUnique({
+    where: { urn },
+    select: { id: true, name: true, verifiedAt: true },
+  });
   if (!school) return null;
 
   const admin = await db.teacher.findFirst({
@@ -243,6 +262,16 @@ async function urnAlreadyClaimed(urn: string): Promise<string | null> {
     select: { name: true, displayName: true },
   });
   const who = admin ? admin.displayName || admin.name.split(" ")[0] : null;
+
+  // UNPAID: name the person, and do NOT send this teacher to them. "Ask X to
+  // add you to it" is an instruction, and an instruction is the one thing a
+  // school that has not been paid for has not earned.
+  if (!school.verifiedAt) {
+    return who
+      ? `${school.name} is already set up on StoryJar by ${who}, but the plan hasn’t been paid for yet. If that name means nothing to you, please don’t assume this is your school. Get in touch and we’ll check who set it up before anybody joins.`
+      : `${school.name} is already set up on StoryJar, but the plan hasn’t been paid for yet. If you weren’t expecting that, please get in touch and we’ll check who set it up before anybody joins.`;
+  }
+
   return who
     ? `${school.name} is already set up on StoryJar. Ask ${who} to add you to it.`
     : `${school.name} is already set up on StoryJar. Ask whoever set it up to add you to it.`;
@@ -446,7 +475,22 @@ async function startClaimCheckout(
       customer: customerId,
       // Quantity is always 1 — the band IS the price (docs/pricing-decisions.md).
       line_items: [{ price: priceIdFor(plan), quantity: 1 }],
-      allow_promotion_codes: true,
+      // NO `allow_promotion_codes` ON THIS ROUTE, AND ITS ABSENCE IS DELIBERATE.
+      // Promotion codes are wanted eventually, and the route that buys a plan
+      // for a school which ALREADY EXISTS (`startCheckout` above) keeps them —
+      // it predates this and works. What is unanswered is the one case only
+      // this route can meet: a FREE purchase.
+      //
+      // A discount of anything less than 100% still charges, so the session is
+      // `payment_status: "paid"` and the claim below works unchanged. Stripe
+      // sets `no_payment_required` only when the amount due is zero, and a
+      // £0 school raises design questions nobody has answered — whether a
+      // comped school is verified, what happens at renewal when the code
+      // lapses, how ops tells it apart, and whether it should exist at all.
+      // The webhook withholds that status rather than guessing, and switching
+      // these back on before the decision is taken would settle all of it
+      // silently, as a side effect. The decision goes in
+      // docs/pricing-decisions.md; this line comes back with it.
       billing_address_collection: "auto",
       success_url: `${base}/teacher/account?checkout=success`,
       cancel_url: `${base}/teacher/account?checkout=cancelled`,

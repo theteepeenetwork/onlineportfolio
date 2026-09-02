@@ -16,3 +16,4 @@
 - [Agent worktrees can be stale](project-agent-worktrees-can-be-stale.md) — verify HEAD against the brief before working; three sources can disagree
 - [A green run is not a run](feedback-a-green-run-is-not-a-run.md) — count what RAN; an env-guarded skip reports green while proving nothing
 - [Worktree with no node_modules](project-worktree-node-modules-trap.md) — npx resolves up to the parent, so only Turbopack notices, 120s later
+- [Close the door, don't decide behind it](feedback-close-the-door-dont-decide-behind-it.md) — a fix must not settle an undecided design question in a branch; make the state unreachable instead

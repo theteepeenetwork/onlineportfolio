@@ -235,7 +235,16 @@ export function SchoolPlanPurchase({ register, defaultSchoolName, configured }: 
           Request an invoice / PO instead
         </button>
       </form>
-      <p style={{ margin: "12px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+      {/* THE REFUND, AT THE MOMENT OF PRESSING. It replaced the trial on
+          1 September 2026 (docs/pricing-decisions.md) and is the reassurance a
+          business manager is looking for right here, but it lived only on the
+          landing page and in the Terms. Same sentence as the landing page,
+          deliberately: a promise worded two ways is a promise somebody has to
+          compare. */}
+      <p style={{ margin: "12px 0 0", font: "600 15px var(--font-atkinson)", color: "var(--ink)" }}>
+        Full refund within 42 days if it isn’t right for your school.
+      </p>
+      <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
         An invoice is emailed with 30 days to pay, and your school can start straight away. You
         become the school’s first admin either way, and can invite the rest of your staff.
       </p>
