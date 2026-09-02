@@ -21,6 +21,7 @@ import { mintPasswordToken } from "@/lib/passwordTokens";
 import {
   TOKEN_REFUSED_MESSAGE,
   hashPasswordToken,
+  isPasswordSettingPurpose,
   passwordProblem,
   passwordTokenIsUsable,
 } from "@/lib/passwordTokenPolicy";
@@ -187,11 +188,24 @@ export async function setPassword(
       })
     : null;
 
-  // Never minted, expired, or already spent — all three answered with ONE
-  // sentence. `passwordTokenIsUsable` knows which; the screen deliberately does
-  // not say, because a page that distinguished them would tell somebody holding
-  // a link they found whether it was ever real.
-  if (!row || !passwordTokenIsUsable(row)) {
+  // Never minted, expired, already spent, or NOT A PASSWORD LINK AT ALL — all
+  // four answered with ONE sentence. `passwordTokenIsUsable` knows which; the
+  // screen deliberately does not say, because a page that distinguished them
+  // would tell somebody holding a link they found whether it was ever real.
+  //
+  // THE PURPOSE CHECK IS NEW AND IT IS NOT COSMETIC. `TeacherPasswordToken` now
+  // carries a third purpose, CONFIRM, minted by `mintEmailConfirmToken` and
+  // emailed to an address NOBODY HAS PROVED YET — that is the entire reason it
+  // is being sent. Without this line that link would also set a password, so a
+  // teacher who mistyped their address at signup would have handed a complete
+  // account takeover to whichever stranger received the confirmation. Today
+  // that stranger gets an email telling them to reply to us instead.
+  //
+  // Stated as "is this one of the purposes that sets a password" rather than
+  // "is this not CONFIRM", so that a fourth purpose is refused here until
+  // somebody decides otherwise. Rule 8, and the same shape the confirm route
+  // uses in the other direction.
+  if (!row || !isPasswordSettingPurpose(row.purpose) || !passwordTokenIsUsable(row)) {
     if (key) recordFailure(key);
     return { error: TOKEN_REFUSED_MESSAGE };
   }

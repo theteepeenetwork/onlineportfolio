@@ -302,6 +302,68 @@ ${button(url, "Set your password")}
   return { subject, text, html };
 }
 
+/**
+ * Prove that this mailbox answers, before StoryJar takes any money.
+ *
+ * Sent only from the two CLAIM purchase routes — the ones that bring a `School`
+ * into existence and make the buyer its admin (docs/dpo-decisions.md, 2 Sep
+ * 2026). Free signup sends nothing and asks for nothing.
+ *
+ * THE LAST PARAGRAPH IS THE POINT OF THE WHOLE EMAIL, and it is written for a
+ * reader the rest of the product cannot reach. Signup verifies no address
+ * (F67), so the person holding this message may be a head teacher whose address
+ * a stranger typed in order to claim their school. For them, "didn't expect
+ * this?" is not a footnote: it is the first time anybody has told them it is
+ * happening, and the instruction has to be DO NOT OPEN THE LINK — opening it is
+ * what completes the squatter's proof. That is why this one says "reply and
+ * tell us" where the reset says "you can ignore this".
+ *
+ * NO CALLER-SUPPLIED TEXT REACHES THIS BODY, deliberately. Not the school name,
+ * not the buyer's name. Naming the school would tell whoever received a
+ * mistyped address which school somebody is claiming — a small disclosure, but
+ * an unnecessary one — and it would put a third untrusted string into an email
+ * body (see `escapeHtml` below, and the comment about counting them).
+ */
+export function emailConfirmationEmail(url: string): { subject: string; text: string; html: string } {
+  const subject = "Confirm your email address for StoryJar";
+  const preheader = "One link, so we know we can reach you. It lasts 24 hours.";
+
+  const text = [
+    "Confirm your email address",
+    "",
+    "Someone is setting up a school plan on StoryJar with this email address.",
+    "Before anything is bought or charged, we need to know we can reach you here.",
+    "",
+    url,
+    "",
+    "The link works once and lasts 24 hours. If it runs out, go back to StoryJar",
+    "and press the buy button again — we'll send a fresh one straight away.",
+    "",
+    "Didn't set up a StoryJar account? Then somebody has used your address, by",
+    "mistake or otherwise. Please do NOT open the link. Reply to this email",
+    "instead and a real person will sort it out. Nothing has been bought and",
+    "nothing has been charged.",
+    "",
+    "---",
+    FOOTER_TEXT,
+    REPLY_TEXT,
+  ].join("\n");
+
+  const html = shell(
+    preheader,
+    `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">Confirm your email address</h1>
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">Someone is setting up a school plan on StoryJar with this email address. Before anything is bought or charged, we need to know we can reach you here.</p>
+${button(url, "Confirm this address")}
+<p style="margin:0;font-size:15px;line-height:1.6;color:${BODY};">The link works once and lasts 24 hours. If it runs out, go back to StoryJar and press the buy button again — we'll send a fresh one straight away.</p>
+<div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
+<p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>
+<p style="margin:0 0 18px;font-size:13px;line-height:1.6;color:${MUTED};word-break:break-all;">${url}</p>
+<p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};"><strong>Didn't set up a StoryJar account?</strong> Then somebody has used your address, by mistake or otherwise. Please do not open the link. Reply to this email instead and a real person will sort it out. Nothing has been bought and nothing has been charged.</p>`,
+  );
+
+  return { subject, text, html };
+}
+
 // TWO pieces of caller-supplied text reach an email body, and both go through
 // here rather than being trusted: the school's name, and — on an unpaid school's
 // staff invitation — the name of the admin who arranged it. Both are typed by an

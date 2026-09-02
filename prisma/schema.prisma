@@ -91,6 +91,31 @@ model Teacher {
   // imported. See docs/pricing-decisions.md. Not child data; no retention
   // implications beyond the teacher row itself.
   foundingMember Boolean            @default(false)
+  // When this teacher PROVED they can receive mail at `email`, by opening a
+  // link sent to it. Null means unproved — the ordinary state of every account,
+  // because free signup asks for nothing (docs/dpo-decisions.md, 2 Sep 2026).
+  //
+  // NULL IS THE COMMON CASE AND NOT A BACKLOG. Signup deliberately does not
+  // verify: a mail-delivery dependency in front of every new teacher in the
+  // busiest week of the school year fails the people who never say so. What
+  // this column gates is BUYING — `startClaimCheckout` and `requestClaimInvoice`
+  // refuse without it — because a teacher blocked at checkout is by definition
+  // trying to give StoryJar money and will tell you. F67 stays open either way.
+  //
+  // WHAT IT IS NOT. It is not a sign-in condition, not a permission, and not a
+  // fact about the person: it says a mailbox answered, nothing more. Do not read
+  // it as "this teacher works at that school" — nothing in this product has ever
+  // checked that (docs/school-identity.md §5), and a column that looked like
+  // evidence of employment is exactly the fuzzy guess that document removes.
+  //
+  // STAMPED ONLY by src/app/confirm-email/route.ts, in the same transaction that
+  // spends the CONFIRM token which authorised it. Never set by an admin, an
+  // operator or a seed of real data; `prisma/seed*.ts` stamp fixtures because a
+  // fixture that could not buy would fail every purchase spec.
+  //
+  // Not a new data category: it is a timestamp about an adult's own address,
+  // which this row already holds. Deleted with the teacher by the same cascade.
+  emailConfirmedAt DateTime?
   school         School?            @relation(fields: [schoolId], references: [id], onDelete: SetNull)
   schoolId       String?
   createdAt      DateTime           @default(now())
@@ -142,7 +167,13 @@ model School {
   // ---------------------------------------------------------------------------
   // THE CLAIM. Three columns saying which register entry this school was bought
   // as, whether the money arrived, and who paid. docs/paid-tier-plan.md item 0,
-  // docs/school-identity.md §3. Written only by src/lib/schoolClaim.ts.
+  // docs/school-identity.md §3.
+  //
+  // TWO WRITERS, AND ONLY TWO. `src/lib/schoolClaim.ts` takes the claim;
+  // `src/lib/urnRelease.ts` gives it back when an unverified school freezes
+  // (docs/dpo-decisions.md, 2 Sep 2026). This comment read "written only by
+  // src/lib/schoolClaim.ts" until the release existed. A third writer belongs in
+  // this list before it belongs in the code.
   // ---------------------------------------------------------------------------
 
   // The DfE URN this school was CLAIMED as. Distinct from `Teacher.urn`, which
@@ -186,6 +217,15 @@ model School {
   // scripts/check-ops-blindness.mjs deliberately DENIES to the operator area
   // rather than exempting, so `School.postcode` would widen that gate's surface
   // for a column no screen reads.
+  //
+  // IT GOES BACK TO NULL WHEN AN UNVERIFIED SCHOOL FREEZES (owner decision,
+  // 2 Sep 2026). A purchase order costs the person raising it nothing, so
+  // without a release a squatter held a register entry for ever and only the
+  // founder could clear it. Releasing takes NOTHING ELSE: the school row, its
+  // staff, its classes and every child's work stay exactly where they are, and
+  // the school reclaims the URN by buying again — the same act that claimed it.
+  // A school that PAID and later lapsed keeps its claim; `verifiedAt` below is
+  // the line, and src/lib/urnRelease.ts denies the release if it cannot read it.
   //
   // Not personal data: it identifies an institution, and every character of it
   // is published by the DfE under the Open Government Licence.
@@ -444,7 +484,22 @@ model TeacherPasswordToken {
   resetHash String    @unique // SHA-256 hex of the raw token. The raw token is never stored.
   teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   teacherId String
-  purpose   String // RESET | INVITE
+  // RESET | INVITE | CONFIRM.
+  //
+  // The first two SET A PASSWORD and share one pool: `mintPasswordToken` spends
+  // every unspent RESET or INVITE the teacher holds when it mints another, so
+  // only one password-setting link is ever live. CONFIRM sets no password — it
+  // proves a mailbox answered — so it has its own pool and its own minting
+  // function, and the two must not spend each other. A reset that killed an
+  // outstanding confirmation would block a teacher at checkout with a dead link
+  // in their inbox.
+  //
+  // The vocabulary is closed and enforced in src/lib/passwordTokenPolicy.ts, and
+  // BOTH consumers check the purpose they expect. `setPassword` refuses a
+  // CONFIRM token: a confirmation link is sent to an address NOBODY HAS PROVED
+  // YET, so a token that could also set a password would hand a mistyped
+  // stranger the account.
+  purpose   String
   expiresAt DateTime
   usedAt    DateTime? // set in the same transaction as the password write, which is what makes it single-use
   createdAt DateTime  @default(now())

@@ -465,6 +465,15 @@ async function main() {
   await run(ducksQuiz, ducklings);
   await run(method, herons);
 
+  // Every persona teacher has a proved email address, for the reason given at
+  // length in prisma/seed-test.ts: `emailConfirmedAt` gates buying, and a
+  // business manager who cannot reach the purchase screen would file a blocker
+  // about a gate that is working exactly as decided.
+  await db.teacher.updateMany({
+    where: { emailConfirmedAt: null },
+    data: { emailConfirmedAt: new Date() },
+  });
+
   console.log("\n[seed-personas] ✅ Bramblewood Primary ready — the tester team's environment.");
   console.log("  Admin (business manager): head@bramblewood.test / password");
   console.log("  Teacher (Ducklings/Robins/Herons/Wrens): reeves@bramblewood.test / password");
