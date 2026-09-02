@@ -114,6 +114,14 @@ const ACTION_LABEL: Record<string, string> = {
   // the same detail as inviting a new one, so that the audit tab does not tell
   // an admin which of the two happened. See src/app/actions/admin.ts.
   SCHOOL_INVITATION_CANCELLED: "Cancelled an invitation",
+  // The three an ACCEPTANCE writes. Added with the teacher's side of
+  // invitations, and they belong here for the reason the claim rows do: an
+  // unlabelled action renders as raw SCREAMING_SNAKE_CASE in the tab a head
+  // teacher reads, which is the one place this school's own record of who
+  // joined it and what came with them is supposed to be legible.
+  SCHOOL_INVITATION_ACCEPTED: "Joined the school",
+  SCHOOL_INVITATION_DECLINED: "Declined an invitation",
+  CLASS_JOINED_SCHOOL: "Class came to the school",
 };
 
 const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#37796f", "#E8A06A", "#C2476B"];
