@@ -481,3 +481,48 @@ sub-processor. This stops a deletion and restores a plan; it grants no access to
 any child's data that did not exist before.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-01.
+
+---
+
+## 2026-09-02 — An unverified school may invite colleagues, but not as admins
+
+**Decision:** `inviteStaff` refuses `role = "ADMIN"` while `School.verifiedAt` is
+null. An unpaid school may still add colleagues as a teacher or a TA, and may
+make somebody an admin once the invoice is settled.
+
+**This narrows the entry of 1 September 2026**, which lists "inviting staff"
+among the powers an unverified school keeps. That list stands; only the admin
+role is withheld from it.
+
+**Why the retained power was too wide.** The 1 September entry refuses
+`setStaffRole` to ADMIN on the stated grounds that *"otherwise an unverified
+admin manufactures a second admin who looks no different from a verified one."*
+That reasoning is sound and the gate is correctly built — but `inviteStaff`
+accepts a role straight from the form, `ROLES` includes `ADMIN`, and the invite
+panel offers it. So the same end was reachable through the door the same entry
+holds open, with one extra step. Found by the agent implementing the gates,
+which flagged it rather than narrowing a recorded decision on its own authority.
+
+**Why the mitigations were not enough.** Two were real. A second admin at an
+unverified school is gated identically to the first, so nothing widens while the
+school stays unpaid; and a squatter needs control of the invited mailbox to get
+anyone to accept. Both run out at the same moment: **when the invoice is paid,
+both admins become fully powered at once**, and `detachBuyer` — the refund
+path — detaches only the buyer, so a school that pays, is refunded and freezes
+leaves the second admin in place. The window the gates exist to cover is
+precisely the window in which the second admin is created.
+
+**What is not done.** Admin stays available to a *verified* school's invite
+form. Removing it entirely, so that promotion through `setStaffRole` became the
+only route to ADMIN, was considered — one path is easier to reason about and to
+test than two — and rejected as a larger change to a working screen for a
+benefit this gate already delivers. If a later change makes that road worth
+taking, this is the paragraph to reverse.
+
+**Assessment.** This is a narrowing, not a widening: it removes a power an
+unverified school had this morning. No new data category, no new processing, no
+new sub-processor.
+
+**Worth an outside check:** no.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-02.

@@ -4090,3 +4090,55 @@ address someone once proved.
 No repro test yet. When one is written it belongs in
 `tests/battery/security/`, asserting that a teacher with an unconfirmed address
 cannot complete a school purchase.
+
+---
+
+## F69 · An open staff-row menu covers the next row's button · Serious (a11y) → Open
+
+Found 2 September 2026 by the axe scan added with the unverified-school gates,
+which was the first scan ever to open a staff-row menu. It is **pre-existing and
+reproducible on `main`** — nothing in that change caused it.
+
+### What axe reports
+
+`target-size`, serious: *"partially obscured, smallest space is 32px by 14px"*.
+An open menu in the staff table is an overlay, and it covers the "Actions for …"
+button of the row beneath it. Reproducible on any row except the last.
+
+The 44px floor this repo holds itself to is not about the button's own box; it
+is about how much of it a finger can actually hit. A control with 32×14px of
+unobscured space fails that for exactly the people the floor exists for.
+
+### Why it was invisible until now
+
+No spec had opened one. The console's a11y coverage scanned the page at rest,
+and every `role="menu"` in it was closed. The same scan immediately found a
+second, worse fault the moment it opened one — `aria-required-children`, a bare
+`<p>` and an unrolled back button sitting directly inside a `role="menu"`, which
+is critical rather than serious. That one is fixed in the same change; this one
+is not, for the reason below.
+
+### Why it is logged rather than fixed
+
+The fix is a design decision, not an edit. It turns on what those menus *are*:
+
+- a **modal dialog** — trap focus, dim the rest, close on Escape. Correct if the
+  menu is a decision the admin must finish. Heavier, and it makes a two-click
+  role change feel like a form.
+- a **popover** that closes on scroll and on outside click, positioned so it
+  cannot overlap another control. Lighter and probably right, but "cannot
+  overlap" is real layout work in a grid whose rows are 44px apart.
+- **reserve the space** — push the rows below down while a menu is open. Simplest
+  and ugliest, and it moves the thing under the user's finger.
+
+Choosing between those is a question for whoever owns the console's interaction
+design, and guessing at it inside a safeguarding change would have been the
+wrong place to decide it.
+
+### Not dodged
+
+The scan that found it opens the **last row's** menu, where nothing is beneath it
+to obscure, and the spec says in a comment exactly why that row was chosen. So
+the menus are scanned in both paid and unpaid states, this fault is recorded
+rather than silently unasserted, and the day it is fixed the scan can move to
+any row.
