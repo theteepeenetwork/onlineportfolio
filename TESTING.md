@@ -148,15 +148,25 @@ cookie before it touches the database and tolerates the write failing, so a
 stale connection cannot leave someone signed in on a shared device. Everything
 else on the page will still fail until you restart.
 
-The battery's config injects one more variable for the same reason:
-`STRIPE_SECRET_KEY`, set to the obviously fictional test key in
+The battery's config injects two more variables for the same reason.
+`STRIPE_SECRET_KEY` is set to the obviously fictional test key in
 `tests/battery/stripeFixtureKey.ts`. The operator billing screen offers a link
 into the Stripe dashboard only when a key is configured, and CI sets none, so
 without this the link-out would exist on your machine and not on the build that
 gates the merge. Nothing spends it: no code path under `/ops` calls Stripe at
-all, and the webhook spec that does use the Stripe SDK stays skipped because it
-also needs `STRIPE_WEBHOOK_SECRET`. On a warm server started without it, the
-billing link tests fail with a message naming this paragraph.
+all. On a warm server started without it, the billing link tests fail with a
+message naming this paragraph.
+
+`STRIPE_WEBHOOK_SECRET` is the fictional signing secret in
+`tests/battery/stripeWebhookFixtureKey.ts`, added on 2 September 2026. Until
+then `tests/battery/security/stripe-webhook.spec.ts` skipped itself entirely —
+its describe-level `test.skip` needs both variables and the battery set only the
+first — so no webhook behaviour was gated on a PR at all. It stays hermetic:
+signature verification is local HMAC over the raw request body and opens no
+socket, and the spec drives only events the route answers without calling
+Stripe. Note that it rewrites Oakfield's and Pennyfields' billing rows while it
+runs and puts them back afterwards, which is why `ops-billing.spec.ts` asserts
+their headcounts and never their billing status.
 
 Useful variants:
 

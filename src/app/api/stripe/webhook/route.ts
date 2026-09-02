@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { freezeSubscription, type AccountStatus } from "@/lib/billing";
+import { stampVerified, detachBuyer } from "@/lib/schoolClaim";
 import { recordAudit } from "@/lib/audit";
 import { errorLabel } from "@/lib/safeLog";
 
@@ -68,20 +69,40 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
         stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null,
       });
       if (!sub) return;
-      // Pull the created subscription for its period end. There is no seat
-      // count to read: the school plan is a flat price with quantity 1
-      // (docs/pricing-decisions.md).
-      let currentPeriodEnd: Date | null = null;
+
+      // THERE IS DELIBERATELY NO `stripe.subscriptions.retrieve` HERE. It was
+      // removed on 2 Sep 2026 and must not come back as a tidy-up. Three
+      // reasons, and the third is the one that matters:
+      //
+      // 1. What it fetched was cosmetic. It read `currentPeriodEnd` only; the
+      //    billing panes already fall back to "Your school plan is active."
+      //    when it is null, and `invoice.paid` and `customer.subscription.
+      //    updated` both carry the same figure seconds later and both already
+      //    write it. There is no seat count to read either: the school plan is
+      //    a flat price with quantity 1 (docs/pricing-decisions.md).
+      // 2. It was the only non-hermetic line in this handler, and therefore the
+      //    reason tests/battery/security/stripe-webhook.spec.ts avoided this
+      //    very event. Removing it is what lets the spec cover the branch.
+      // 3. A NETWORK CALL BETWEEN THE `BillingEvent` INSERT AND A TRANSACTION
+      //    THAT WILL SHORTLY GRANT ADMIN IS A PRIVILEGE-ESCALATION MECHANISM,
+      //    not a latency cost. The insert above is the idempotency record; the
+      //    catch in POST deletes it non-transactionally when the handler
+      //    throws. So anything that throws after a grant has committed rolls
+      //    back the record of the delivery while leaving the privilege in
+      //    place, and Stripe's retry then runs the branch again against a
+      //    school that already exists. Stripe timing out is exactly that throw.
+      //
+      // For whoever adds the school-claim branch above (`if (!sub)`):
+      // NOTHING THAT CAN THROW MAY RUN AFTER `claimSchool` IN THAT BRANCH.
       const stripeSubId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
-      if (stripeSubId) {
-        const stripeSub = await getStripe().subscriptions.retrieve(stripeSubId);
-        currentPeriodEnd = periodEndOf(stripeSub);
-      }
       await transition(sub.id, "ACTIVE", {
         stripeSubscriptionId: stripeSubId ?? undefined,
         stripeCustomerId: (typeof session.customer === "string" ? session.customer : session.customer?.id) ?? undefined,
-        currentPeriodEnd,
       });
+      // Money is confirmed, so the school's identity is confirmed. Guarded and
+      // idempotent; the argument for why this is one of exactly two call sites
+      // is in `stampVerified`'s docstring and stays there.
+      if (sub.schoolId) await stampVerified(sub.schoolId, "Stripe checkout completed");
       return;
     }
 
@@ -94,6 +115,11 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
       if (!sub) return;
       const end = invoicePeriodEnd(invoice);
       await transition(sub.id, "ACTIVE", { currentPeriodEnd: end });
+      // The money for an invoiced (PO) school has arrived, which is what closes
+      // its unverified window. Guarded and idempotent; why resolving purely by
+      // Stripe ids is sufficient here, and why there is no third call site, is
+      // in `stampVerified`'s docstring and stays there.
+      if (sub.schoolId) await stampVerified(sub.schoolId, "Stripe invoice paid");
       return;
     }
 
@@ -136,6 +162,14 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
       });
       if (!sub) return;
       await freezeSubscription(sub, "Stripe subscription cancelled");
+      // A refund on a school plan detaches the person who PAID and leaves
+      // everyone else frozen (owner decision, 1 Sep 2026,
+      // docs/pricing-decisions.md). The buyer usually had a free teacher
+      // account and their own classes before they bought, so freezing those
+      // would leave them worse off than never having bought — which is not a
+      // refund. THE SCHOOL AND EVERY REMAINING MEMBER OF STAFF STAY FROZEN:
+      // they did not pay, and `detachBuyer` unfreezes nothing.
+      if (sub.kind === "SCHOOL" && sub.schoolId) await detachBuyer(sub.schoolId);
       return;
     }
 

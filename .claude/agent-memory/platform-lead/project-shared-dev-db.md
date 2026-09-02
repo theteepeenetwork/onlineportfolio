@@ -25,3 +25,10 @@ schema, `npx prisma migrate diff --from-migrations prisma/migrations
 --script` and expect "This is an empty migration." Do not treat a row count read
 from `dev.db` as stable across steps. See
 [[feedback-no-formatters-in-a-shared-tree]].
+
+**The battery does not need `prisma/dev.db` at all.** `scripts/run-suites.mjs`
+gives each lane its own `prisma/dev-shard-N.db` and pushes + seeds it itself, so
+a worktree with no `dev.db` runs the whole blocking battery cleanly. Worth
+knowing because `npm run db:reset` and a bare `prisma db push` are both refused
+by the permission classifier as destructive, and that is not a blocker for
+testing — only for `npm run dev`.

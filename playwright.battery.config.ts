@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { BATTERY_STRIPE_KEY } from "./tests/battery/stripeFixtureKey";
+import { BATTERY_STRIPE_WEBHOOK_SECRET } from "./tests/battery/stripeWebhookFixtureKey";
 import { BATTERY_MAIL_HMAC_KEY } from "./tests/battery/mailHmacFixtureKey";
 
 // ---------------------------------------------------------------------------
@@ -113,8 +114,15 @@ export default defineConfig({
     // Without this, the link-out would render on a developer's machine and not
     // in CI, so the one new interactive element in PR3 would be untested on the
     // build that gates the merge. It is never sent anywhere: no code path in
-    // the operator area calls Stripe, and the webhook spec stays skipped
-    // because it also needs STRIPE_WEBHOOK_SECRET, which is still unset.
+    // the operator area calls Stripe.
+    //
+    // BATTERY_STRIPE_WEBHOOK_SECRET turns stripe-webhook.spec.ts ON. Until it
+    // was added, that spec's describe-level `test.skip` needed a webhook secret
+    // nothing set, so every one of its tests was skipped on every PR and every
+    // push to main — signature rejection, idempotent redelivery and the freeze
+    // on cancellation were all ungated. It stays hermetic: signature
+    // verification is local HMAC over the raw body and opens no socket, and the
+    // spec drives only events the handler answers without calling Stripe.
     //
     // MAIL_HMAC_KEY is here for the same reason as the Stripe key. With it
     // unset, the operator area records no address suppression at all and every
@@ -134,6 +142,7 @@ export default defineConfig({
     env: {
       OPS_ENABLED: "1",
       STRIPE_SECRET_KEY: BATTERY_STRIPE_KEY,
+      STRIPE_WEBHOOK_SECRET: BATTERY_STRIPE_WEBHOOK_SECRET,
       MAIL_HMAC_KEY: BATTERY_MAIL_HMAC_KEY,
       PW_HIDE_DEV_INDICATOR: "1",
     },
