@@ -448,10 +448,10 @@ export async function detachBuyer(schoolId: string): Promise<boolean> {
     // deliberate. `claimSchool` is what made this person an ADMIN, so undoing
     // the claim undoes the promotion; leaving it set would park a schoolless
     // account carrying ADMIN, which is inert only for as long as every future
-    // route into a school sets `role` explicitly. (`removeStaff` leaves a
-    // removed admin's `role` in place today. That is a separate question about
-    // a different action and is not this change's to answer, but it is the same
-    // latent shape and worth someone's attention.)
+    // route into a school sets `role` explicitly. (`removeStaff` clears `role`
+    // on detach too, as of the verification gates, so the two paths agree. When
+    // this comment was written it did not, and the divergence was flagged
+    // rather than assumed harmless — which is how it came to be fixed.)
     await tx.teacher.updateMany({
       where: { id: buyerId, schoolId },
       data: { schoolId: null, role: "TEACHER" },
