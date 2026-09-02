@@ -55,8 +55,20 @@ const SQUATTER = { email: "second.claim@oakfield.test", password: "password" };
 // sentence is the proof the guard admitted them, and it costs no Stripe call.
 const NAMELESS = { email: "no.school.name@independent.test", password: "password" };
 
+// A teacher whose stored URN names a school that is on StoryJar but has NOT
+// been paid for. Their refusal is a different sentence from the one above, and
+// the difference is the point: an unpaid school may be a squatter's, because
+// signup verifies no email address (F67) and a PO costs nothing up front
+// (docs/dpo-decisions.md, 1 Sep 2026). Fixtures for it are built here rather
+// than seeded — an unverified school with an ACTIVE admin is a shape no other
+// spec wants to find lying about.
+const UNPAID_ARRIVAL = { email: "real.teacher@marlbrook.test", password: "password" };
+const UNPAID_URN = "900301";
+const UNPAID_SCHOOL = "Marlbrook Primary";
+
 let squatterId = "";
 let namelessId = "";
+let unpaidSchoolId = "";
 
 test.beforeAll(async () => {
   await db.teacher.deleteMany({ where: { email: { in: [SQUATTER.email, NAMELESS.email] } } });
@@ -92,10 +104,60 @@ test.beforeAll(async () => {
   await db.subscription.create({
     data: { kind: "FREE", status: "ACTIVE", trialEndsAt: null, teacherId: nameless.id },
   });
+
+  // --- The UNPAID school, and the real teacher who arrives at it ----------
+  await db.teacher.deleteMany({ where: { email: { in: [UNPAID_ARRIVAL.email, "first.here@marlbrook.test"] } } });
+  await db.school.deleteMany({ where: { urn: UNPAID_URN } });
+  await db.establishment.deleteMany({ where: { urn: UNPAID_URN } });
+
+  // 900301 is outside every seeded run (900001–900007, 900100–900124, 900200)
+  // and is removed in afterAll, so nothing counting register rows can see it.
+  await db.establishment.create({
+    data: { urn: UNPAID_URN, name: UNPAID_SCHOOL, postcode: "ZZ9 8PL", localAuthority: "Nettleshire", phase: "Primary", town: "Marlbrook" },
+  });
+  // ACTIVE and UNVERIFIED is the real PO state: finance sitting on a 30-day
+  // invoice must not freeze a school, so the plan runs while `verifiedAt` stays
+  // null (docs/pricing-decisions.md, 1 Sep 2026).
+  const unpaid = await db.school.create({
+    data: { name: UNPAID_SCHOOL, urn: UNPAID_URN, verifiedAt: null },
+  });
+  unpaidSchoolId = unpaid.id;
+  await db.subscription.create({
+    data: { kind: "SCHOOL", status: "ACTIVE", trialEndsAt: null, schoolId: unpaid.id },
+  });
+  await db.teacher.create({
+    data: {
+      name: "Ivo Ashcombe",
+      title: "Mr",
+      displayName: "Mr Ashcombe",
+      email: "first.here@marlbrook.test",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "ADMIN",
+      status: "ACTIVE",
+      schoolId: unpaid.id,
+    },
+  });
+  const arrival = await db.teacher.create({
+    data: {
+      name: "Nadia Real",
+      displayName: "Miss Real",
+      email: UNPAID_ARRIVAL.email,
+      passwordHash: await bcrypt.hash(UNPAID_ARRIVAL.password, 10),
+      urn: UNPAID_URN,
+      schoolName: UNPAID_SCHOOL,
+    },
+  });
+  await db.subscription.create({
+    data: { kind: "FREE", status: "ACTIVE", trialEndsAt: null, teacherId: arrival.id },
+  });
 });
 
 test.afterAll(async () => {
-  await db.teacher.deleteMany({ where: { email: { in: [SQUATTER.email, NAMELESS.email] } } });
+  await db.teacher.deleteMany({
+    where: { email: { in: [SQUATTER.email, NAMELESS.email, UNPAID_ARRIVAL.email, "first.here@marlbrook.test"] } },
+  });
+  await db.school.deleteMany({ where: { urn: UNPAID_URN } });
+  await db.establishment.deleteMany({ where: { urn: UNPAID_URN } });
   await db.$disconnect();
 });
 
@@ -265,6 +327,50 @@ test("a school somebody has already set up is refused by name, with a colleague 
     await db.auditLog.count({ where: { actorId: squatterId } }),
     "a refused claim leaves no trace in anybody's audit log",
   ).toBe(0);
+});
+
+test("a school nobody has paid for is refused WITHOUT sending the teacher to whoever set it up", async ({ page }) => {
+  // THE ASYMMETRY THIS CLOSES. The unpaid staff-invitation email is described in
+  // docs/dpo-decisions.md (1 Sep 2026) as "the only control that reaches
+  // somebody who has not signed up yet". This screen is a second one, and until
+  // 2 Sep 2026 it did not know it: `urnAlreadyClaimed` never read `verifiedAt`,
+  // so a real teacher at the real school was told "Ask Mr Ashcombe to add you
+  // to it" about a school no money has ever been paid for — StoryJar directing
+  // somebody to a stranger, and vouching for them by doing it.
+  await warmAccountPage(page, UNPAID_ARRIVAL);
+
+  const section = page.getByRole("region", { name: "Set your school up" });
+  await section.getByRole("button", { name: "Request an invoice / PO instead" }).click();
+
+  const notice = page.getByRole("status").filter({ hasText: /already set up on StoryJar/ });
+  await expect(notice).toBeVisible();
+  const words = (await notice.textContent()) ?? "";
+
+  // Still the school by name, and still the person by DISPLAY name…
+  expect(words).toContain(`${UNPAID_SCHOOL} is already set up on StoryJar by Mr Ashcombe`);
+  // …plus the two facts the invitation email gives, in the same order: the plan
+  // is not paid for, and if the name means nothing to you, that is the signal.
+  expect(words, "an unpaid school must say so").toContain("hasn’t been paid for yet");
+  expect(words).toContain("please don’t assume this is your school");
+
+  // AND NO INSTRUCTION. "Ask X to add you to it" is what the paid refusal says
+  // and it is exactly what must not be said here: joining is the step that puts
+  // this teacher's classes, and their children's work, under a stranger's
+  // admin console.
+  expect(words, "an unpaid school has not earned an instruction to go and join it").not.toMatch(
+    /Ask .* to add you to it/,
+  );
+  // The rule that already held for the paid refusal still holds for this one.
+  expect(words, "the refusal must not disclose a staff email address").not.toContain("@");
+
+  // Nothing created, nobody moved, nobody joined.
+  const after = await db.teacher.findFirstOrThrow({ where: { email: UNPAID_ARRIVAL.email } });
+  expect(after.schoolId, "a refused claim must not attach the buyer to the school holding the URN").toBeNull();
+  expect(after.role).toBe("TEACHER");
+  expect(
+    await db.teacher.count({ where: { schoolId: unpaidSchoolId } }),
+    "and the unpaid school gains nobody",
+  ).toBe(1);
 });
 
 test("the URN is read from the teacher's own row and never off the wire", async ({ page }) => {

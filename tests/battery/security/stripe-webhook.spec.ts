@@ -654,8 +654,119 @@ test.describe("A10 · Stripe webhook", () => {
       const after = await db.teacher.findUniqueOrThrow({ where: { id: teacher.id } });
       expect(after.schoolId, "and nobody is promoted").toBeNull();
       expect(after.role).toBe("TEACHER");
+
+      // AND IT LEAVES A ROW, not only a `console.error`. Until 2 Sep 2026 this
+      // branch logged and returned, so the one person who had pressed Pay and
+      // had no school existed nowhere anybody looks: stdout goes to Railway's
+      // log store, which erasure cannot reach and which nobody reads on a
+      // Tuesday evening (src/lib/safeLog.ts). Every other refusal on this path
+      // writes one.
+      const withheld = await db.auditLog.findMany({ where: { action: "SCHOOL_CLAIM_WITHHELD", subjectId: SUB } });
+      expect(withheld, "a withheld claim has to be findable without log access").toHaveLength(1);
+      expect(withheld[0].actorId, "and findable by the buyer, who is the person waiting").toBe(teacher.id);
+      expect(withheld[0].detail).toContain("unpaid");
+      expect(withheld[0].detail, "and it must not repeat the school's name into a row nobody scoped").not.toContain(NAME);
+      expect(withheld[0].schoolId, "no school exists to attach it to").toBeNull();
     } finally {
+      await db.auditLog.deleteMany({ where: { subjectId: SUB } });
       await tearDownClaim([teacher.id], []);
+      await db.school.deleteMany({ where: { name: NAME } });
+    }
+  });
+
+  // =========================================================================
+  // THE DELAYED PAYMENT THAT LANDS LATER — the case that survived review
+  //
+  // The withholding above was proved; what happened NEXT was not, and what
+  // happened next was nothing. `checkout.session.async_payment_succeeded` was
+  // not a case in the switch, so it fell to `default:` and was acked and
+  // ignored, and the comment at the withholding said `invoice.paid` would pick
+  // the claim up instead. It could not: withholding writes no local row, so
+  // `resolveLocalSub` finds nothing there either. For BACS debit and the other
+  // delayed-settlement methods the buyer paid and got nothing, permanently.
+  //
+  // BOTH HALVES ARE ASSERTED BELOW, in order, because the second is what makes
+  // the first a bug rather than a curiosity.
+  // =========================================================================
+  test("a delayed payment that settles later still gets the school it paid for", async ({ request }) => {
+    const stamp = Date.now();
+    const SUB = `sub_test_async_${stamp}`;
+    const CUS = `cus_test_async_${stamp}`;
+    const NAME = `Late Settlement Primary ${stamp}`;
+    const { teacher } = await makeBuyer(stamp, "async");
+    let schoolId: string | null = null;
+
+    try {
+      const session = claimSession({
+        id: `cs_test_a_${stamp}`,
+        subscription: SUB,
+        customer: CUS,
+        teacherId: teacher.id,
+        schoolName: NAME,
+        payment_status: "unpaid",
+      });
+
+      // 1. The checkout completes before the money moves. Withheld, as it must be.
+      const completed = await post(request, event("checkout.session.completed", session, `evt_test_claim_async1_${stamp}`));
+      expect(completed.status(), WARM_SERVER_HINT).toBe(200);
+      expect(await db.school.count({ where: { name: NAME } }), "an uncleared payment creates no school").toBe(0);
+
+      // 2. THE RECOVERY THE COMMENT USED TO PROMISE, DRIVEN AND SHOWN TO FAIL.
+      // An `invoice.paid` carrying the same Stripe ids resolves no local
+      // subscription — the claim wrote none — so it returns and nothing is
+      // created. This assertion is the diagnosis, kept so the wrong recovery
+      // cannot be written back in.
+      const invoiced = await post(
+        request,
+        event(
+          "invoice.paid",
+          { id: `in_async_${stamp}`, subscription: SUB, customer: CUS, lines: { data: [] } },
+          `evt_test_claim_async_inv_${stamp}`,
+        ),
+      );
+      expect(invoiced.status()).toBe(200);
+      expect(
+        await db.school.count({ where: { name: NAME } }),
+        "invoice.paid cannot claim a school, because the withheld claim wrote no local row to resolve",
+      ).toBe(0);
+
+      // 3. Days later the payment settles. THIS is the delivery that claims it.
+      const settled = { ...session, payment_status: "paid" };
+      const settlement = await post(
+        request,
+        event("checkout.session.async_payment_succeeded", settled, `evt_test_claim_async2_${stamp}`),
+      );
+      expect(settlement.status(), "the settlement is acked").toBe(200);
+
+      const school = await db.school.findFirstOrThrow({ where: { name: NAME } });
+      schoolId = school.id;
+      expect(school.verifiedAt, "the money cleared, so the school is verified").not.toBeNull();
+      expect(school.claimedByTeacherId, "and the buyer is recorded, so a refund can find them").toBe(teacher.id);
+
+      const buyer = await db.teacher.findUniqueOrThrow({ where: { id: teacher.id } });
+      expect(buyer.schoolId).toBe(school.id);
+      expect(buyer.role, "the person who paid is the admin, on this route as on the other").toBe("ADMIN");
+      expect(
+        await db.teacher.count({ where: { schoolId: school.id, role: "ADMIN" } }),
+        "exactly one admin",
+      ).toBe(1);
+
+      const schoolSub = await db.subscription.findFirstOrThrow({ where: { schoolId: school.id } });
+      expect(schoolSub.status, "ACTIVE, never TRIAL").toBe("ACTIVE");
+      expect(schoolSub.stripeSubscriptionId).toBe(SUB);
+      expect(await db.subscription.count({ where: { stripeSubscriptionId: SUB } }), "one payment, one subscription").toBe(1);
+      expect(await db.school.count({ where: { name: NAME } }), "one payment, one school").toBe(1);
+      expect(
+        await db.auditLog.count({ where: { action: "SCHOOL_CLAIMED", subjectId: school.id } }),
+        "a privilege grant with no record is the state rule 16 forbids",
+      ).toBe(1);
+      expect(
+        await db.auditLog.count({ where: { action: "SCHOOL_CLAIM_WITHHELD", subjectId: SUB } }),
+        "and the withholding row is still there, as the trail of what happened",
+      ).toBe(1);
+    } finally {
+      await db.auditLog.deleteMany({ where: { subjectId: SUB } });
+      await tearDownClaim([teacher.id], schoolId ? [schoolId] : []);
       await db.school.deleteMany({ where: { name: NAME } });
     }
   });

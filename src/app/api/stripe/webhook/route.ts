@@ -61,7 +61,24 @@ export async function POST(req: Request): Promise<Response> {
 
 async function handleEvent(event: Stripe.Event): Promise<void> {
   switch (event.type) {
-    case "checkout.session.completed": {
+    // A DELAYED PAYMENT SETTLING IS THE SAME EVENT UNDER A DIFFERENT NAME, so
+    // it runs the same code. For an asynchronous method (BACS debit, some
+    // wallets) `checkout.session.completed` arrives `unpaid` and is withheld by
+    // step 2 of `handleSchoolClaim`; `checkout.session.async_payment_succeeded`
+    // is the delivery that says the money cleared, and it carries the same
+    // session with the same metadata and `payment_status: "paid"`.
+    //
+    // BEFORE 2 SEP 2026 IT FELL TO `default:` AND WAS ACKED AND IGNORED, and
+    // the comment at step 2 claimed `invoice.paid` would pick the claim up
+    // instead. It cannot: the withheld claim writes no local row, so
+    // `resolveLocalSub` finds nothing there and returns. The buyer paid and got
+    // nothing, permanently. Do not narrow this back to one case.
+    //
+    // On the OTHER arm below — a session that resolves an existing local
+    // subscription — this is equally right and already idempotent: the money
+    // landing is what should move that row to ACTIVE and stamp `verifiedAt`.
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
       const session = event.data.object as Stripe.Checkout.Session;
       const localId = session.client_reference_id ?? session.metadata?.storyjar_subscription_id ?? null;
       const sub = await resolveLocalSub({
@@ -204,8 +221,12 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
 // --- The school claim -------------------------------------------------------
 
 /**
- * THE CARD ROUTE'S OTHER HALF: a `checkout.session.completed` that resolves no
- * local subscription because the school it paid for does not exist yet.
+ * THE CARD ROUTE'S OTHER HALF: a checkout session that resolves no local
+ * subscription because the school it paid for does not exist yet.
+ *
+ * REACHED FROM TWO EVENTS, not one — `checkout.session.completed` and
+ * `checkout.session.async_payment_succeeded`. They are the same session at two
+ * moments, and which of them carries the money depends on how the buyer paid.
  *
  * `startClaimCheckout` writes NOTHING locally — no School, no Subscription, no
  * half-made claim squatting on a URN — so an abandoned checkout leaves no
@@ -233,6 +254,12 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
  */
 async function handleSchoolClaim(session: Stripe.Checkout.Session): Promise<void> {
   const meta = session.metadata ?? {};
+  // READ HERE RATHER THAN AT STEP 3 ONLY SO THE AUDIT ROWS BELOW CAN NAME IT.
+  // The GUARD on it stays at step 3, where the ordering of the refusals is
+  // part of what each one means: a session that is both unpaid and missing a
+  // subscription id is an unpaid session first.
+  const stripeSubscriptionId =
+    typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
 
   // ------------------------------------------------------------------------
   // 1. NOT OURS. The silent 200 becomes a noisy one.
@@ -264,12 +291,54 @@ async function handleSchoolClaim(session: Stripe.Checkout.Session): Promise<void
   // Unguarded, the card route would create a VERIFIED school on the strength of
   // a payment that has not cleared and may never — acquiring exactly the
   // unverified window the invoice route exists to contain, but with the gates
-  // already open. Returning here costs nothing: if the money does arrive,
-  // `invoice.paid` carries the same subscription and the school is claimed by
-  // the invoice route's own path.
+  // already open.
+  //
+  // WHAT PICKS THE CLAIM UP AFTERWARDS IS `checkout.session.
+  // async_payment_succeeded`, which is a case in the switch above. Until 2 Sep
+  // 2026 this comment said `invoice.paid` would carry the same subscription and
+  // claim the school by the invoice route's path. IT DID NOT AND COULD NOT:
+  // withholding the claim writes no local row, so `invoice.paid`'s
+  // `resolveLocalSub` finds nothing and returns — and the async event was not a
+  // case at all, so it was acked by `default:` and dropped. For a
+  // delayed-settlement method the buyer paid and got nothing, permanently, and
+  // this paragraph is why nobody looked. A comment describing a recovery that
+  // does not happen is worse than no comment.
+  //
+  // `payment_status: "no_payment_required"` — Stripe's status for an amount due
+  // of zero — is withheld by this same test and has NO BRANCH OF ITS OWN, ON
+  // PURPOSE. It never settles and never fires the async event, so it is
+  // withheld, audited, and waits for a person. Whether a free school exists at
+  // all, and whether it counts as verified, is a pending owner decision
+  // (docs/pricing-decisions.md); deciding it here, in a branch, as a side
+  // effect of fixing delayed settlement, is the wrong place. It is also not
+  // reachable from this route today: `startClaimCheckout` no longer sends
+  // `allow_promotion_codes`, and any discount short of 100% still charges and
+  // still arrives here as "paid".
   // ------------------------------------------------------------------------
   if (session.payment_status !== "paid") {
     console.error("[stripe] school claim withheld, session is not paid; session", session.id, session.payment_status);
+    // AND A DURABLE ROW, NOT ONLY THAT LINE. stdout goes to Railway's log store,
+    // which erasure cannot reach and which nobody reads on a Tuesday evening
+    // (src/lib/safeLog.ts) — so a withholding that is only logged is a person
+    // who pressed Pay, has no school, and appears nowhere anybody looks. Every
+    // other refusal on this path writes one; this is the same rule.
+    //
+    // ADULT IDS AND A STATUS ONLY, never `storyjar_school_name` from the
+    // metadata sitting beside it — same reasoning as step 1.
+    await recordAudit({
+      action: "SCHOOL_CLAIM_WITHHELD",
+      actorType: "SYSTEM",
+      actorName: "Stripe webhook",
+      actorId: meta.storyjar_teacher_id || null,
+      subjectType: stripeSubscriptionId ? "SUBSCRIPTION" : "CHECKOUT_SESSION",
+      subjectId: stripeSubscriptionId ?? session.id,
+      detail:
+        `A card checkout completed before its payment cleared, so no school was set up yet ` +
+        `(Stripe session ${session.id}, payment status ${session.payment_status}). No money has been ` +
+        `taken, so there is nothing to refund. If the payment settles, Stripe sends ` +
+        `checkout.session.async_payment_succeeded and the school is set up then, with no action needed. ` +
+        `A payment status of "no_payment_required" is the exception: it will never settle and needs a person.`,
+    });
     return;
   }
 
@@ -281,9 +350,9 @@ async function handleSchoolClaim(session: Stripe.Checkout.Session): Promise<void
   // without one has NEITHER, so a second delivery would create a second school
   // and promote the buyer into it. A `mode: "subscription"` session always
   // carries one; this is the guard for a session that is not the one we sent.
+  // The value is read at the top of this function so the withholding row at
+  // step 2 can name it; this is where it is REQUIRED.
   // ------------------------------------------------------------------------
-  const stripeSubscriptionId =
-    typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
   if (!stripeSubscriptionId) {
     console.error("[stripe] school claim withheld, session carries no subscription id; session", session.id);
     return;
