@@ -592,3 +592,90 @@ assumption should not quietly expire.
 sub-processor. Both decisions narrow what an unproved account can do.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-02.
+
+---
+
+## 2026-09-02 — Bringing an existing teacher into a school: in the app, with their consent, and not by an unpaid school
+
+The last gap in self-serve purchase. `inviteStaff` refuses an email that already
+belongs to a teacher, so **a teacher who signed up free in September cannot be
+brought into their school when it buys in January** — the common case, and the
+last thing standing between a school buying and its staff using what it bought.
+
+### The invitation is answered in the app, not by an emailed link
+
+**Decision:** the admin invites; the teacher sees a pending invitation in their
+own area next time they sign in, and accepts or declines there. An email tells
+them one is waiting and **carries no link that does anything**.
+
+**Why not the shape already used for staff invitations.** That one has to mail a
+credential, because the person receiving it has no account to sign in to. This
+person does. Mailing a bearer token whose payload is *"attach my pupils to this
+school"* would create a third forwardable credential for no gain: the account
+holder is authenticated by construction, the acceptance screen — which has to
+state a data-controller change in plain words — is naturally in-app, and a
+suppressed or filtered address stops being able to block the whole flow.
+
+### Accepting moves the classes, and the screen says so before anything is pressed
+
+**Decision:** every class the accepting teacher holds, and the children's work in
+it, becomes the school's. Stated in plain words on the acceptance screen, before
+any button.
+
+`RETENTION.md` "Free teacher plan vs school plan" already governs this: the
+school is the data controller regardless of who pays, and if the teacher leaves,
+the journals belong to the school context and do not travel with them. That is
+true today and is not created here — what is created is the **moment it becomes
+true for a particular teacher**, and that moment must be a thing they do rather
+than a thing done to them. `docs/school-identity.md` §5 puts it as a rule 5
+question rather than an onboarding preference, and it is right.
+
+It is also an **access change** and the PR must not claim otherwise: on
+acceptance that teacher's classes, pupil counts and audit trail appear in the
+school's admin console. Rule 5 still holds — no admin sees a child's *work*
+unless they teach the class — but "no new visibility" would be false.
+
+### An unverified school may not invite an existing teacher
+
+**Decision:** the four-case `inviteStaff` branch refuses an existing account
+while `School.verifiedAt` is null, and `verifiedAt` is **re-checked at accept**,
+because a school can lose verification between the two and acceptance is the
+moment children's data changes hands.
+
+**This narrows the entry of 1 September 2026**, which permits an unverified
+school to invite staff on the stated ground that *"an invitation does nothing
+until the invited teacher accepts."* That ground holds for a brand-new person,
+who brings nothing. **It fails here**, because this invitee brings classes,
+pupils and journals into a stranger's console. The squatter still could not
+*inherit* them — `removeStaff` on an ACTIVE colleague is gated — but the school's
+admins would see the class names, the pupil counts and that teacher's audit
+trail immediately, which the 1 September assessment did not weigh because this
+feature did not exist.
+
+### `joinSchoolPlan` takes an invitation, never a posted school id
+
+**Decision:** the action's input becomes the invitation's id. The school is
+derived from that row, which removes the trusted-posted-id problem at the root
+rather than validating around it. It succeeds only against an unspent,
+unexpired invitation for **that** teacher and **that** school, consumed in the
+same transaction as the attach.
+
+### A trap that is not reachable today, recorded because what makes it reachable is being built
+
+An established account must stay `ACTIVE` and carry its invitation in its own
+row. **The shortcut of flipping `status` to `INVITED` on an established account
+would delete children's work**: `Teacher` cascades to `ActivityTemplate` →
+`Assignment` → `AssignmentStudent` and `Draft`, a `Draft` is a child's private
+unfinished work by the schema's own words, and `removeStaff`'s INVITED branch
+deletes the teacher row outright. `JournalItem.assignmentId` is `SET NULL`, so a
+journal-item count would not notice. Verified at SQL level in
+`prisma/migrations/0_init/migration.sql`, guarded by draft and
+assignment-record counts in `tests/battery/security/class-handover.spec.ts`, and
+stated here because the separate-row design is what prevents it and a future
+implementer needs to know that is *why*.
+
+**Worth an outside check:** no. No new data category, no new sub-processor. The
+controller change it records is one `RETENTION.md` already describes; what is
+new is asking the teacher first.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-02.
