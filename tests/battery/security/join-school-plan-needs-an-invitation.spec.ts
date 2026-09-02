@@ -174,12 +174,29 @@ test("a schoolless teacher cannot post their way into any school", async ({ page
 
   for (const schoolId of inputs) {
     if (actionId) {
-      // The wire format a `useActionState` form really uses, captured from a
-      // live submission by this app rather than guessed: the arguments array
-      // goes in field `0` — arg 0 is the previous state, arg 1 is the FormData,
-      // referenced as `$K1` — and each form field is carried under the matching
-      // `_1_` prefix. To re-capture it after a React upgrade, listen for a POST
-      // carrying a `next-action` header and print `request.postData()`.
+      // DO NOT COPY THIS SHAPE. `page.request.post({ multipart })` does NOT
+      // deliver a server action's FormData: Next accepts the body, dispatches
+      // the action, and hands it an EMPTY FormData — with any part order, with
+      // or without the `$ACTION_*` parts. A refusal asserted through it
+      // therefore passes for entirely the wrong reason, because the action
+      // refuses an empty input rather than the input under test. Found
+      // 2 September 2026 while building the purchase specs.
+      //
+      // This branch has never executed — `joinSchoolPlan` has no action id
+      // while nothing imports it — so nothing here has ever passed hollowly.
+      // But the day phase 2's acceptance screen wires it up, this becomes live
+      // and starts lying. Replace it then, do not extend it.
+      //
+      // What works is dispatching with `fetch` from inside the page, which is
+      // also a truer model of a tampered client than a request made from the
+      // test process. `tests/battery/security/school-purchase-guard.spec.ts`
+      // has a working example. The wire format below was captured from a real
+      // submission by this app rather than guessed — the arguments array goes
+      // in field `0`, arg 0 being the previous state and arg 1 the FormData
+      // referenced as `$K1`, with each field under a matching `_1_` prefix —
+      // and that part is still accurate; it is the transport that is wrong.
+      // To re-capture it after a React upgrade, listen for a POST carrying a
+      // `next-action` header and print `request.postData()`.
       const res = await page.request.post("/teacher/account", {
         headers: { "Next-Action": actionId },
         multipart: { "_1_schoolId": schoolId, "0": '[{},"$K1"]' },
