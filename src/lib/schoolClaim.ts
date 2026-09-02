@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { bandFor, type PlanKey } from "@/lib/billing-plans";
+import { restoreFreePlan } from "@/lib/billing";
 import { recordAudit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
@@ -456,21 +457,20 @@ export async function detachBuyer(schoolId: string): Promise<boolean> {
       data: { schoolId: null, role: "TEACHER" },
     });
 
-    // TODO(onlineportfolio-c0): call `restoreFreePlan(tx, buyerId)` from
-    // src/lib/billing.ts. It lands with PHASE 0 and is not in this worktree yet,
-    // so the call is stubbed rather than duplicated — a second definition of
-    // "a new free teacher plan" is precisely the drift phase 0 exists to remove,
-    // and this file must not be where the two copies diverge.
-    //
-    // Signature it is being written against: `restoreFreePlan(tx, teacherId)`,
-    // idempotent via the unique index on `Subscription.teacherId` rather than a
-    // read-then-write, because this path is webhook-driven and redelivers.
+    // Phase 0's `restoreFreePlan`, which has now landed. It takes the
+    // transaction client and MUST commit with the `schoolId` write above: a
+    // teacher detached without a free plan has no governing subscription at
+    // all, which reads as "no plan yet" on screen while every save fails — a
+    // worse state than being frozen. It is idempotent via the unique index on
+    // `Subscription.teacherId` rather than a read-then-write, which is what
+    // this path needs, being webhook-driven and redelivered.
     //
     // For a school claimed through `claimSchool` this is normally a NO-OP,
     // because the claim deliberately left the buyer's own FREE row in place (see
     // the long comment at the end of `claimSchool`). It exists for a buyer who
     // arrived by some other route and has no row to come back to — and for the
     // day somebody "tidies" the claim into deleting one.
+    await restoreFreePlan(tx, buyerId);
   });
 
   await recordAudit({
