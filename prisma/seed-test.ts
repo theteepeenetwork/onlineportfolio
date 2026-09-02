@@ -847,6 +847,25 @@ async function main() {
     },
   });
 
+  // EVERY FIXTURE TEACHER HAS A PROVED EMAIL ADDRESS.
+  //
+  // `Teacher.emailConfirmedAt` gates the two CLAIM purchase routes
+  // (docs/dpo-decisions.md, 2 Sep 2026), and null is the honest default for a
+  // real signup — StoryJar has asked nobody to open a link. A fixture is not a
+  // real signup: a fixture that could not buy would fail every purchase spec
+  // for a reason that has nothing to do with what those specs are about.
+  //
+  // Done in ONE PASS at the end rather than field by field on each create, so
+  // that a teacher added later cannot be forgotten. A spec that needs an
+  // UNPROVED teacher builds its own — see
+  // tests/battery/security/email-confirmation-before-buying.spec.ts, which does
+  // exactly that, and would silently stop testing anything if it relied on a
+  // fixture this line could change under it.
+  await db.teacher.updateMany({
+    where: { emailConfirmedAt: null },
+    data: { emailConfirmedAt: new Date() },
+  });
+
   console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
   console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN234 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");

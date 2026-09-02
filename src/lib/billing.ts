@@ -3,6 +3,7 @@ import type { Prisma, Subscription } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
+import { releaseUrnIfUnverified } from "@/lib/urnRelease";
 
 // ---------------------------------------------------------------------------
 // Billing state + the single server-side write gate.
@@ -188,6 +189,21 @@ export async function restoreFreePlanFor(teacherId: string): Promise<void> {
 // Freeze a subscription (make the account read-only) exactly once, and audit it.
 // The guarded updateMany means a redelivered webhook or a second concurrent
 // request won't double-stamp frozenAt or double-log. Auditing never throws.
+//
+// AND IT RELEASES A SQUATTED REGISTER CLAIM. This is the shared freeze — the
+// lazy trial lapse in `settleStatus` and both of the Stripe webhook's freezing
+// events (`customer.subscription.updated` mapping to FROZEN, and
+// `customer.subscription.deleted`) all arrive here — so it is the one place
+// that sees every freeze the app itself performs. An unverified school gives up
+// its `School.urn` at that moment (docs/dpo-decisions.md, 2 Sep 2026); a school
+// that paid and later lapsed keeps it. See src/lib/urnRelease.ts for the guard,
+// and `scripts/freeze-expired.mjs` for the by-state sweep that catches any path
+// that does not come through this function.
+//
+// INSIDE THE `count > 0` BRANCH, so the release happens on the freeze rather
+// than on every redelivery of one. `releaseUrnIfUnverified` is idempotent
+// anyway, but a release that ran on every webhook retry would be one more thing
+// asserting itself against a paying school's row for no reason.
 export async function freezeSubscription(
   sub: Pick<Subscription, "id" | "schoolId">,
   reason: string,
@@ -208,6 +224,10 @@ export async function freezeSubscription(
       subjectId: sub.id,
       detail: `Account frozen (read-only): ${reason}`,
     });
+    // A FREE teacher plan has no `schoolId` and no claim to give up. It also has
+    // no route to FROZEN at all (see the module header) — this is belt and
+    // braces on a branch that should never be reached with a null.
+    if (sub.schoolId) await releaseUrnIfUnverified(db, sub.schoolId, reason);
   }
 }
 

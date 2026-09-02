@@ -76,7 +76,7 @@ The complete contents of `scripts/` at this commit, which is nine files:
 | `scripts/audit-motion.mjs` | yes | Reduced-motion gate for SAFEGUARDING rule 18. Exits 1 on violation |
 | `scripts/check-r2-tripwire.mjs` | yes | Fails the build if R2 code or config lands in `src/` while `tests/battery/security/r2-signed-urls.spec.ts` is still skipped. Scans `src/` only |
 | `scripts/error-string-audit.mjs` | yes | Jargon audit over user-facing strings in `src/`. Report-only by default, `--strict` makes it exit 1 |
-| `scripts/freeze-expired.mjs` | yes | Trial-expiry freeze job. Idempotent via a guarded `updateMany` with `status: { not: "FROZEN" }`, writes a SYSTEM audit row |
+| `scripts/freeze-expired.mjs` | yes | Trial-expiry freeze job. Idempotent via a guarded `updateMany` with `status: { not: "FROZEN" }`, writes a SYSTEM audit row. Also sweeps up register claims: any FROZEN, unverified school still holding a `School.urn` gives it back (docs/dpo-decisions.md, 2 Sep 2026). **Runs under `tsx`, not plain `node`** — it imports `src/lib/urnRelease.ts` so the release has one implementation shared with the app |
 | `scripts/mail-events.mjs` | yes | Prints what Mailjet recorded about recent sends |
 | `scripts/verify-mail.ts` | yes | Sends a real template with a fake token so the delivered raw source can be inspected |
 | `scripts/fix-demo-parent-address.mjs` | yes | One-off repair script, not named in any brief |
@@ -105,7 +105,7 @@ Verbatim from `package.json` at this commit.
 | 2.2c | `scripts/error-string-audit.mjs` is absent from `test:battery` | Handbook §0, Amendment E1, Brief 05 | CONFIRMED | The npm script `audit:errors` exists (`node scripts/error-string-audit.mjs`) but is not referenced by `test:battery` or by `test:security` |
 | 2.2d | `audit:prod` is a real npm script in the chain | Handbook §0 | CONFIRMED | `audit:prod` is `npm audit --omit=dev --audit-level=high` |
 | 2.2e | `typecheck` exists as an npm script | Brief 05, implied by PR #113 | CONFIRMED | `typecheck` is `tsc --noEmit` |
-| 2.2f | `billing:freeze` can be triggered as a named job | Handbook R13 | CONFIRMED | `billing:freeze` is `node scripts/freeze-expired.mjs`. R13's further claim that the underlying freeze is idempotent and uses a guarded `updateMany` is also true: `src/lib/billing.ts` line 92 filters `status: { not: "FROZEN" }` |
+| 2.2f | `billing:freeze` can be triggered as a named job | Handbook R13 | CONFIRMED | `billing:freeze` is `tsx scripts/freeze-expired.mjs` (it was `node …` until 2 Sep 2026; the script now imports a TypeScript module, and the npm script carries the runner so a scheduler wired to the script name is unaffected). R13's further claim that the underlying freeze is idempotent and uses a guarded `updateMany` is also true: `src/lib/billing.ts` line 92 filters `status: { not: "FROZEN" }` |
 | 2.2g | `test:e2e`, `test:a11y`, `test:ux`, `test:perf` exist | Handbook §"Commands" in AGENTS.md, briefs generally | CONFIRMED | All four present. `test:perf` is `lhci autorun \|\| true`, so it can never fail a chain |
 | 2.2h | Playwright battery project names are `security`, `security-findings`, `a11y`, `ux` | Implied throughout | CONFIRMED | Exactly those four in `playwright.battery.config.ts`. The original functional suite runs from `playwright.config.ts` via `test:e2e` |
 

@@ -75,6 +75,13 @@ test.beforeAll(async () => {
       name: "Jo Fennel",
       displayName: "Miss Fennel",
       email: BUYER.email,
+      // A PROVED ADDRESS, because buying requires one (docs/dpo-decisions.md,
+      // 2 Sep 2026) and this spec is not about that gate. Without it every
+      // assertion below would pass for the wrong reason: the confirmation
+      // refusal lands first, so the sentences this file names would never be
+      // reached. tests/battery/security/email-confirmation-before-buying.spec.ts
+      // is where the unproved case is tested, on a teacher it builds itself.
+      emailConfirmedAt: new Date(),
       passwordHash: await bcrypt.hash(BUYER.password, 10),
       urn: REGISTER_URN,
       // Deliberately NOT the register's name: the screen must show the register
@@ -109,6 +116,13 @@ test.beforeAll(async () => {
       name: "Sam Late",
       displayName: "Mr Late",
       email: LATECOMER.email,
+      // A PROVED ADDRESS, because buying requires one (docs/dpo-decisions.md,
+      // 2 Sep 2026) and this spec is not about that gate. Without it every
+      // assertion below would pass for the wrong reason: the confirmation
+      // refusal lands first, so the sentences this file names would never be
+      // reached. tests/battery/security/email-confirmation-before-buying.spec.ts
+      // is where the unproved case is tested, on a teacher it builds itself.
+      emailConfirmedAt: new Date(),
       passwordHash: await bcrypt.hash(LATECOMER.password, 10),
       urn: CLAIMED_URN,
       schoolName: CLAIMED_NAME,

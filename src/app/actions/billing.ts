@@ -9,6 +9,7 @@ import { getStripe, stripeConfigured } from "@/lib/stripe";
 import { governingSubscription, trialEndFromNow } from "@/lib/billing";
 import { priceIdFor, isPlanKey, bandFor, type PlanKey } from "@/lib/billing-plans";
 import { claimSchool, type ClaimRefusal } from "@/lib/schoolClaim";
+import { requireProvedEmailForPurchase } from "@/lib/emailConfirmation";
 import { recordAudit } from "@/lib/audit";
 // A Stripe error echoes back the parameter it objected to, and on customer
 // creation that parameter is the school admin's email address.
@@ -441,6 +442,20 @@ async function startClaimCheckout(
   plan: PlanKey,
   formData: FormData,
 ): Promise<{ error?: string }> {
+  // FIRST LINE, BEFORE THE TARGET IS EVEN RESOLVED. Buying requires a proved
+  // email address (docs/dpo-decisions.md, 2 Sep 2026), and what has to be true
+  // when it refuses is that nothing happened: no Stripe customer, no session,
+  // no `School`, no `Subscription`, no claim. Putting it after
+  // `resolveClaimTarget` would still satisfy that — that function writes
+  // nothing — but "first" is a property a reader can check at a glance and
+  // "first apart from one thing that happens not to write" is not.
+  //
+  // Only the CLAIM routes. `startCheckout`'s existing-school branch above is
+  // untouched: that school already exists, somebody already paid for it, and
+  // its admin is not claiming anything.
+  const unproved = await requireProvedEmailForPurchase(actor);
+  if (unproved) return { error: unproved };
+
   const target = await resolveClaimTarget(actor, formData);
   if ("error" in target) return { error: target.error };
 
@@ -612,6 +627,16 @@ async function requestClaimInvoice(
   plan: PlanKey,
   formData: FormData,
 ): Promise<{ error?: string; sent?: boolean }> {
+  // The same gate as `startClaimCheckout`, in the same position, and the two
+  // must stay the same shape for the reason `requestSchoolInvoice` gives about
+  // the admin check: a purchase-order route that admitted somebody the card
+  // route refuses is a way round the check rather than a second way in. This
+  // is in fact the route the gate exists FOR — a PO costs the person raising it
+  // nothing up front, which is what made claiming any school in the register
+  // free.
+  const unproved = await requireProvedEmailForPurchase(actor);
+  if (unproved) return { error: unproved };
+
   const target = await resolveClaimTarget(actor, formData);
   if ("error" in target) return { error: target.error };
 

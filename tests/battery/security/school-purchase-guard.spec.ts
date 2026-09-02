@@ -78,6 +78,13 @@ test.beforeAll(async () => {
       name: "Priya Second",
       displayName: "Miss Second",
       email: SQUATTER.email,
+      // A PROVED ADDRESS, because buying requires one (docs/dpo-decisions.md,
+      // 2 Sep 2026) and this spec is not about that gate. Without it every
+      // assertion below would pass for the wrong reason: the confirmation
+      // refusal lands first, so the sentences this file names would never be
+      // reached. tests/battery/security/email-confirmation-before-buying.spec.ts
+      // is where the unproved case is tested, on a teacher it builds itself.
+      emailConfirmedAt: new Date(),
       passwordHash: await bcrypt.hash(SQUATTER.password, 10),
       // The URN Oakfield was claimed as. Stored on THIS teacher's row, which is
       // the only place the server will read one from.
@@ -95,6 +102,13 @@ test.beforeAll(async () => {
       name: "Alex Nameless",
       displayName: "Mx Nameless",
       email: NAMELESS.email,
+      // A PROVED ADDRESS, because buying requires one (docs/dpo-decisions.md,
+      // 2 Sep 2026) and this spec is not about that gate. Without it every
+      // assertion below would pass for the wrong reason: the confirmation
+      // refusal lands first, so the sentences this file names would never be
+      // reached. tests/battery/security/email-confirmation-before-buying.spec.ts
+      // is where the unproved case is tested, on a teacher it builds itself.
+      emailConfirmedAt: new Date(),
       passwordHash: await bcrypt.hash(NAMELESS.password, 10),
       // No urn, no schoolName. Both are ordinary states: null is what every
       // teacher outside England has.
@@ -142,6 +156,13 @@ test.beforeAll(async () => {
       name: "Nadia Real",
       displayName: "Miss Real",
       email: UNPAID_ARRIVAL.email,
+      // A PROVED ADDRESS, because buying requires one (docs/dpo-decisions.md,
+      // 2 Sep 2026) and this spec is not about that gate. Without it every
+      // assertion below would pass for the wrong reason: the confirmation
+      // refusal lands first, so the sentences this file names would never be
+      // reached. tests/battery/security/email-confirmation-before-buying.spec.ts
+      // is where the unproved case is tested, on a teacher it builds itself.
+      emailConfirmedAt: new Date(),
       passwordHash: await bcrypt.hash(UNPAID_ARRIVAL.password, 10),
       urn: UNPAID_URN,
       schoolName: UNPAID_SCHOOL,

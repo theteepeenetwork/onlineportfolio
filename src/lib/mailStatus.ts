@@ -44,7 +44,7 @@
 // ---------------------------------------------------------------------------
 // Templates
 // ---------------------------------------------------------------------------
-// Three entries, because three templates are sent. The rule this list is kept
+// Four entries, because four templates are sent. The rule this list is kept
 // by: a key is added in the SAME COMMIT as the code that sends that mail, never
 // before. An entry with no send path behind it puts a permanently empty row on
 // the operator screen, and an empty row reads as "no mail of this kind has gone
@@ -57,7 +57,19 @@
 // screen lists them together and "Password reset" alone would leave an operator
 // wondering whether it covers their own door. It does not: an operator's
 // recovery is docs/ops-recovery.md and sends no mail.
-export const MAIL_TEMPLATE_KEYS = ["magic-link", "password-reset", "staff-invite"] as const;
+//
+// "email-confirm" arrives with `emailConfirmationEmail()` and the two purchase
+// routes that send it, in one commit, by the rule above. It is the one row on
+// this screen an operator should expect to be SMALL and to matter a lot: it is
+// sent only when somebody presses Buy without a proved address, so a run of
+// failures on it is a run of schools that could not pay
+// (docs/dpo-decisions.md, 2 Sep 2026).
+export const MAIL_TEMPLATE_KEYS = [
+  "magic-link",
+  "password-reset",
+  "staff-invite",
+  "email-confirm",
+] as const;
 
 export type MailTemplateKey = (typeof MAIL_TEMPLATE_KEYS)[number];
 
@@ -65,6 +77,7 @@ export const MAIL_TEMPLATE_LABEL: Record<MailTemplateKey, string> = {
   "magic-link": "Parent sign-in link",
   "password-reset": "Teacher password reset",
   "staff-invite": "Staff invitation",
+  "email-confirm": "Email confirmation before buying",
 };
 
 // ---------------------------------------------------------------------------
