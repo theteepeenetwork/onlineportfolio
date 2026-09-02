@@ -112,6 +112,26 @@ test.describe("A10 · Stripe webhook", () => {
 
   test.afterAll(async () => {
     await db.billingEvent.deleteMany({ where: { id: { startsWith: "evt_test_" } } });
+    // PUT SCHOOL B BACK, because the last test leaves it FROZEN.
+    //
+    // This file borrows a SEEDED subscription rather than building its own, and
+    // until 2 September 2026 that cost nothing: the whole suite was skipped by a
+    // condition nothing could falsify, so its fixture mutations never happened.
+    // The moment it actually ran, it began handing every spec that sorts after
+    // it in the same shard a frozen Oakfield — and `uploads.spec.ts` then fails
+    // its two rejection tests for a reason that has nothing to do with uploads,
+    // because the write gate refuses before the MIME message can render. The
+    // failure lands on whichever spec was added most recently, which is the
+    // worst possible place for it to land.
+    //
+    // Restoring to ACTIVE rather than to the seed's TRIAL is deliberate: what
+    // the next spec needs is a WRITABLE school, and `ops-billing.spec.ts`
+    // already records that it does not assert Oakfield's status because this
+    // file rewrites it. The fictional Stripe ids are left behind for the same
+    // reason. The stronger fix is to give this file a school it creates itself,
+    // as `class-code-rotation.spec.ts` does; that is a bigger change than the
+    // one that exposed the leak.
+    await resetSchoolBSub();
     await db.$disconnect();
   });
 
