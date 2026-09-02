@@ -4093,6 +4093,52 @@ cannot complete a school purchase.
 
 ---
 
+## F68 · Removing an invited colleague deleted a class of children's work · Critical → Fixed 2026-09-02
+
+Four things, each individually reasonable, together deleted children's work.
+`Class.teacher` is `onDelete: Cascade` and `Student` and `JournalItem` cascade
+from the class; `assignClassToStaff` resolved its target with **no status
+filter**; the console offers invited staff in the class-owner dropdown
+deliberately, so an admin can place next term's classes before everybody has
+accepted; and `removeStaff`'s INVITED branch was a bare `db.teacher.delete`, on
+the stated grounds that "an invited teacher never set a password and holds
+nothing". Every clause of that was true except the one carrying the weight.
+
+So removing an invited colleague who had been given a class deleted that class,
+its pupils and every piece of work in it — silently, with no audit row, nothing
+recoverable, **while the confirmation on screen said the classes were moving to
+the admin**. Measured on the fixtures: one removal took classes 12 → 11, pupils
+37 → 35 and journal items 31 → 29, in two clicks through the supported UI.
+
+### Fixed by handing over first
+
+The classes now move on both branches, in one transaction, before anything is
+deleted. Owner decision of 1 September 2026, with the acceptance criterion
+stated as a fact to be proved rather than an intention: **no work is deleted in
+the process.**
+
+The repro lives in `tests/battery/security/class-handover.spec.ts` rather than
+in `tests/battery/findings/`, and it counts classes, pupils, journal items,
+**drafts and assignment records** either side of a removal. The last two matter:
+`Teacher` also cascades to `ActivityTemplate` → `Assignment` →
+`AssignmentStudent` and `Draft`, and because `JournalItem.assignmentId` is
+`SET NULL` a journal-item count would not notice that chain. It is unreachable
+while an INVITED row is always brand new, and it is what would fire first if
+that ever stopped being true.
+
+### Why this entry survives its own fix
+
+The convention in AGENTS.md is to delete a finding once its repro moves into a
+blocking suite, and this one was deleted on that basis and then restored. It is
+kept for the reason F59, F61 and F66 are kept: **the code cites it by number**,
+in `src/app/actions/admin.ts`, `src/app/admin/AdminConsole.tsx`,
+`src/app/admin/Guide.tsx` and the spec itself. A citation pointing at nothing is
+worse than an entry that has outlived its bug. The full reasoning, the two
+rejected options and the suspension consequence are in
+`docs/dpo-decisions.md` (1 September 2026).
+
+---
+
 ## F69 · An open staff-row menu covers the next row's button · Serious (a11y) → Open
 
 Found 2 September 2026 by the axe scan added with the unverified-school gates,
