@@ -302,6 +302,7 @@ export function AdminConsole({
               submenu={submenu}
               onToggleMenu={(id) => { setMenuId(menuId === id ? null : id); setSubmenu(null); }}
               onSubmenu={setSubmenu}
+              onClose={closeMenus}
             />
             <p style={{ margin: "14px 2px 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>
               Each teacher manages their own classes and approval queue. Admins can invite staff, assign classes and manage the school subscription — but never see pupils&apos; work unless they teach the class.
@@ -586,6 +587,7 @@ function StaffTable({
   submenu,
   onToggleMenu,
   onSubmenu,
+  onClose,
 }: {
   staff: StaffRow[];
   classes: SchoolClass[];
@@ -594,8 +596,113 @@ function StaffTable({
   submenu: "role" | "classes" | null;
   onToggleMenu: (id: string) => void;
   onSubmenu: (s: "role" | "classes" | null) => void;
+  onClose: () => void;
 }) {
   const cols = "2.2fr 1.4fr 1.6fr 1fr 44px";
+
+  // The ⋯ button each open panel belongs to, kept so that closing the panel
+  // can put focus back on it. Registered per row as it renders; only ever one
+  // is read, because only one panel is open at a time.
+  const triggers = useRef(new Map<string, HTMLButtonElement>());
+  // The open panel itself. One ref, for the same reason.
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  // The scroll position THIS COMPONENT asked for, so the listener below can
+  // tell its own scroll from the admin's. See `bringIntoView`.
+  const ownScrollY = useRef<number | null>(null);
+
+  // THESE MENUS ARE POPOVERS, WHICH MEANS THEY CLOSE THEMSELVES (F69, decided
+  // 3 September 2026). An outside click is the console's own `onClick`, one
+  // level up. These are the other two halves of that contract:
+  //
+  // SCROLL, because the panel is positioned against its row and a scroll takes
+  // the row out from under it. Listened for in the CAPTURE phase because scroll
+  // does not bubble, and a scroll that started INSIDE the panel is ignored —
+  // otherwise a school with enough classes to make the list scroll would find
+  // that scrolling it closed the menu it was in.
+  //
+  // ESCAPE, with focus put back on the ⋯ button. The ruling names scroll and
+  // outside click; Escape is table stakes for a popover, and without it a
+  // keyboard user can only leave by tabbing through everything in it. Focus is
+  // moved BEFORE the panel unmounts, because focus inside a removed subtree
+  // falls to `document.body` and the next Tab starts again at the top of the
+  // page.
+  //
+  // AND A PANEL THAT CLOSES ON SCROLL HAS TO OPEN WHERE NOTHING NEEDS
+  // SCROLLING TO. This is the trap the two halves make together, and it is not
+  // hypothetical: it hung a security spec for two minutes. Open a menu on a row
+  // near the bottom of a long staff list and the panel runs past the fold; the
+  // only way to reach "Yes, remove …" is to scroll; scrolling closes the panel.
+  // The admin cannot finish the job, and a browser driver retries the click
+  // until it gives up.
+  //
+  // So when the panel opens — or GROWS, which is what pressing "Remove from
+  // school" does to it — the PAGE moves to bring it fully into view. Moving the
+  // page rather than the panel is the whole point: the panel's position in the
+  // DOCUMENT never changes, so "it cannot reach another control" stays a fact
+  // about the layout rather than a measurement that has to be redone. Flipping
+  // or shifting the panel instead would put it over whatever is above the
+  // table — the "＋ Invite staff" button is directly above it and in the same
+  // column band — which is this same finding again in a new place.
+  //
+  // That scroll would of course close the panel it just placed, so the position
+  // it scrolls TO is remembered and the one scroll event that lands on it is
+  // ignored. An admin cannot scroll to where they already are, so nothing of
+  // theirs is swallowed.
+  useEffect(() => {
+    if (!menuId) return;
+
+    const bringIntoView = () => {
+      const el = panelRef.current;
+      if (!el) return;
+      const margin = 12;
+      const box = el.getBoundingClientRect();
+      let delta = box.bottom - (window.innerHeight - margin);
+      if (delta <= 0) return;
+      // Never so far that the top of the panel leaves the viewport instead: a
+      // panel taller than the space available is what `maxHeight` is for.
+      delta = Math.min(delta, Math.max(0, box.top - margin));
+      if (delta <= 0) return;
+      // `behavior: "instant"` IS LOAD-BEARING, and it cost an afternoon.
+      // globals.css sets `scroll-behavior: smooth` on the document, so a plain
+      // `scrollBy` here is ANIMATED: `window.scrollY` has not moved when the
+      // next line reads it, the position below is never armed, and the stream
+      // of scroll events the animation fires then closes the panel that asked
+      // for it — every menu shutting itself the instant it opened. Instant is
+      // also what a reduced-motion reader is owed for a scroll they did not
+      // ask for.
+      const before = window.scrollY;
+      window.scrollTo({ top: before + delta, behavior: "instant" });
+      ownScrollY.current = window.scrollY === before ? null : window.scrollY;
+    };
+
+    bringIntoView();
+    const ro = new ResizeObserver(bringIntoView);
+    if (panelRef.current) ro.observe(panelRef.current);
+
+    const onScroll = (e: Event) => {
+      const t = e.target;
+      if (t instanceof Element && t.closest("[data-staff-menu]")) return;
+      if (ownScrollY.current !== null && window.scrollY === ownScrollY.current) {
+        ownScrollY.current = null;
+        return;
+      }
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      triggers.current.get(menuId)?.focus();
+      onClose();
+    };
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      ro.disconnect();
+      ownScrollY.current = null;
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menuId, onClose]);
+
   return (
     <div style={{ marginTop: 30, background: "#FFFDF7", border: "2px solid #E4DCC8", borderRadius: 16, overflow: "visible" }}>
       <div style={{ display: "grid", gridTemplateColumns: cols, gap: 12, padding: "14px 22px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
@@ -641,8 +748,12 @@ function StaffTable({
               {invited ? "Invited" : "Active"}
             </span>
 
-            <div style={{ position: "relative", justifySelf: "end" }}>
+            <div style={{ justifySelf: "end" }}>
               <button
+                ref={(el) => {
+                  if (el) triggers.current.set(p.id, el);
+                  else triggers.current.delete(p.id);
+                }}
                 onClick={(e) => { e.stopPropagation(); onToggleMenu(p.id); }}
                 aria-label={`Actions for ${p.name}`}
                 aria-expanded={open}
@@ -650,35 +761,76 @@ function StaffTable({
               >
                 {[0, 1, 2].map((i) => <span key={i} style={{ width: 4, height: 4, borderRadius: "50%", background: "#43506B" }} />)}
               </button>
-              {open && (
-                <div role="menu" onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 40, right: 0, width: 214, background: "#FFFDF7", border: "2px solid #22304A", borderRadius: 12, padding: 6, boxShadow: "0 12px 30px rgba(34,48,74,0.28)", zIndex: 40 }}>
-                  {submenu === "role" ? (
-                    <RoleSubmenu staff={p} verified={verified} onBack={() => onSubmenu(null)} />
-                  ) : submenu === "classes" ? (
-                    <ClassesSubmenu staff={p} classes={classes} verified={verified} onBack={() => onSubmenu(null)} />
-                  ) : p.invitationId ? (
-                    /* A PENDING INVITATION, so the menu is one item.
-
-                       NO "ASSIGN CLASSES": there is no `Teacher` row in this
-                       school to assign a class to. NO "EDIT ROLE": the role IS
-                       the offer, and changing it means making a new one. NO
-                       "RESEND": re-typing the address in the invite form
-                       upserts the row and sends the notification again, which
-                       is one path with one behaviour rather than two that
-                       drift — the lesson `resendInvite` was written to record,
-                       applied before the second path exists. */
-                    <CancelInvitationItem staff={p} invitationId={p.invitationId} />
-                  ) : (
-                    <>
-                      <MenuButton icon="edit" label="Edit role" onClick={() => onSubmenu("role")} />
-                      <MenuButton icon="class" label="Assign classes" onClick={() => onSubmenu("classes")} />
-                      {invited && <MenuForm action={resendInvite} staffId={p.id} icon="share" label="Resend invite" />}
-                      {!p.isYou && <RemoveStaffItem staff={p} verified={verified} />}
-                    </>
-                  )}
-                </div>
-              )}
             </div>
+
+            {/* ========== WHERE THIS PANEL OPENS, AND WHY IT IS NOT UNDER THE
+                ⋯ BUTTON (F69) ==========
+
+                It used to be `top: 40; right: 0` inside the button's own cell,
+                which put it directly over the NEXT row — and every row's ⋯
+                button is a control, so axe reported a serious `target-size`:
+                "partially obscured, smallest space is 32px by 14px". A 32×14px
+                target fails the finger this console's 44px floor exists for.
+
+                It now opens SIDEWAYS, into the only part of this table where no
+                control lives. The row is a grid whose last column is the 44px
+                actions column, inside 22px of row padding, so `right: 66` is
+                the left edge of that column: the panel's right edge stops 12px
+                short of the ⋯ button and CANNOT reach the column that every
+                other row's button is in, at any height, on any row, at any
+                viewport. Nothing else in the table body is interactive — name,
+                role, classes and status are all text — so the panel covers
+                words and never a target. That is the "cannot overlap another
+                control" half of the ruling, and it is held by construction
+                rather than by measuring the row beneath and hoping.
+                `maxWidth` shrinks it rather than letting it run off the left of
+                a narrow screen; `maxHeight` scrolls a long class list in place
+                instead of running off the bottom, which matters now that a
+                scroll closes the panel.
+
+                A SIBLING OF THE BUTTON'S CELL, not a child of it: the offsets
+                above are resolved against the ROW's padding box, which is what
+                makes them the row's geometry rather than the 32px button's. It
+                stays immediately after the button in the DOM, so the tab order
+                is unchanged — trigger, then the panel's items.
+
+                `data-staff-menu` is inert. It exists so the scroll-to-close
+                listener can tell a scroll of the panel from a scroll of the
+                page. */}
+            {open && (
+              <div
+                role="menu"
+                ref={panelRef}
+                data-staff-menu=""
+                onClick={(e) => e.stopPropagation()}
+                style={{ position: "absolute", top: 6, right: 66, width: 214, maxWidth: "calc(100% - 88px)", maxHeight: "min(70vh, 460px)", overflowY: "auto", background: "#FFFDF7", border: "2px solid #22304A", borderRadius: 12, padding: 6, boxShadow: "0 12px 30px rgba(34,48,74,0.28)", zIndex: 40 }}
+              >
+                {submenu === "role" ? (
+                  <RoleSubmenu staff={p} verified={verified} onBack={() => onSubmenu(null)} />
+                ) : submenu === "classes" ? (
+                  <ClassesSubmenu staff={p} classes={classes} verified={verified} onBack={() => onSubmenu(null)} />
+                ) : p.invitationId ? (
+                  /* A PENDING INVITATION, so the menu is one item.
+
+                     NO "ASSIGN CLASSES": there is no `Teacher` row in this
+                     school to assign a class to. NO "EDIT ROLE": the role IS
+                     the offer, and changing it means making a new one. NO
+                     "RESEND": re-typing the address in the invite form
+                     upserts the row and sends the notification again, which
+                     is one path with one behaviour rather than two that
+                     drift — the lesson `resendInvite` was written to record,
+                     applied before the second path exists. */
+                  <CancelInvitationItem staff={p} invitationId={p.invitationId} />
+                ) : (
+                  <>
+                    <MenuButton icon="edit" label="Edit role" onClick={() => onSubmenu("role")} />
+                    <MenuButton icon="class" label="Assign classes" onClick={() => onSubmenu("classes")} />
+                    {invited && <MenuForm action={resendInvite} staffId={p.id} icon="share" label="Resend invite" />}
+                    {!p.isYou && <RemoveStaffItem staff={p} verified={verified} />}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
