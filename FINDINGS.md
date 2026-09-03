@@ -4278,3 +4278,34 @@ person to add a template picking by accident.
 The change that isolated it added the fifth template and nothing else. Fixing an
 operator screen's spec inside a teacher-surface change would have put the repair
 somewhere nobody would look for it.
+
+---
+
+## F71 · The operator-console a11y scan can run before `<title>` has streamed · Low → Open
+
+Seen once, 3 September 2026, on PR #161's first CI run: `ops-auth-a11y.spec.ts:119`
+reported a single `document-title` violation on `/ops` against its empty
+baseline, and the identical job passed on rerun with no change to the branch.
+The branch touched nothing under `src/app/ops`.
+
+### What actually happened
+
+`/ops` deliberately sets no page title of its own — `src/app/ops/page.tsx`
+explains that a title names the area even on a 404 — and inherits the site
+title from the root layout instead. Next streams that `<head>` metadata, so on
+a slow runner there is a window in which the document has rendered enough for
+axe to scan and no `<title>` has arrived yet. The scan ran inside it, once.
+
+### Why it is logged rather than fixed
+
+The test is right to hold the operator screens to an empty baseline, and the
+page is right not to name itself. What is missing is the scan waiting for the
+thing it asserts on — `await expect(page).toHaveTitle(/./)` before `axe.run`,
+or the battery's `networkidle` idiom — and that is a one-line change to a gate
+spec someone should make deliberately rather than as a side effect of a console
+PR. It is the same class as F70: **a blocking gate whose result depends on
+timing rather than on the code under test**, and it will present as the
+newcomer's fault every time.
+
+The ops project only ran on that PR because a config change selects everything;
+a teacher-surface change would never have exercised it.
