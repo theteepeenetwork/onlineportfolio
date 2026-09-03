@@ -28,5 +28,14 @@ school it creates itself, as `class-code-rotation.spec.ts` does, or restore
 School B in an `afterAll`. Reported to the lead 2026-09-02; check whether it has
 landed before re-diagnosing.
 
+**It got sharper on 2026-09-02.** `joinSchoolPlan` now refuses an invitation
+whose school's plan is not writable, and the positive controls in
+`tests/battery/security/school-invitation-accept.spec.ts` (tests 1, 5 and 6)
+accept an offer **from School B**. A frozen Oakfield turns those from "the
+action works" into a refusal, so the spec would go red naming the acceptance
+guard rather than the webhook spec. Alphabetical file order saves it today —
+`school-…` sorts before `stripe-…`, so in one lane the accept spec runs first —
+which means the shard split is the only thing between this and a red gate.
+
 See [[project-shared-tree-git.md]] — report the fix for another agent's file
 rather than making it.
