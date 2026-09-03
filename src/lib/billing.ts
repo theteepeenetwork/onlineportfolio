@@ -254,6 +254,53 @@ export async function settleStatus(sub: Subscription): Promise<AccountStatus> {
   return status;
 }
 
+// ---------------------------------------------------------------------------
+// THE SAME QUESTION, ASKED IN SQL: is this school's plan one a teacher can be
+// handed to?
+//
+// `settleStatus` above is the answer at the moment of decision, and it is the
+// one `joinSchoolPlan` uses, because that is where a write is both allowed and
+// wanted. This is its read-only twin, for the three screens that must stop
+// ADVERTISING a school the action would refuse: the teacher-area banner, the
+// account page's invitation card, and the acceptance screen itself. All three
+// are renders. A render must not lazily freeze another school's row — that
+// would make a stranger's page view write a `BILLING_FROZEN` audit line into a
+// school she does not belong to — so the lapse is expressed as a filter rather
+// than performed.
+//
+// THE TWO MUST AGREE, AND THAT IS THE WHOLE MAINTENANCE BURDEN OF THIS
+// FUNCTION. A school this returns but `settleStatus` refuses is a banner
+// naming a school the page below it will not join, which is exactly the defect
+// the `verifiedAt` clause was added for. So it is derived from
+// `WRITABLE_STATUSES` rather than repeating a list of statuses, and the one
+// thing it does spell out — the lapsed trial — is `settleStatus`'s `trialLapsed`
+// turned inside out. If that condition changes, change this in the same commit.
+//
+// WRITTEN AS A POSITIVE `OR` RATHER THAN A `NOT`, deliberately. The negated
+// form (`NOT (TRIAL AND no stripe id AND trialEndsAt <= now)`) is correct in
+// TypeScript and wrong in SQL: `trialEndsAt <= now` is NULL for a row with no
+// trial end, so `NOT (… AND NULL)` is NULL, and a perfectly writable ACTIVE
+// school would be filtered out by three-valued logic. Every term below compares
+// a value that is either non-null or explicitly matched against null.
+//
+// `kind: "SCHOOL"` IS PART OF IT, not a separate check, because the failure it
+// prevents is the same failure: after `joinSchoolPlan` deletes her own FREE
+// row, a school with no SCHOOL plan would leave her governed by nothing at all.
+// A school with no subscription row at all is excluded too — a relation filter
+// on a to-one relation does not match a missing row.
+export function writableSchoolPlanWhere(now: Date = new Date()): Prisma.SubscriptionWhereInput {
+  return {
+    kind: "SCHOOL",
+    status: { in: [...WRITABLE_STATUSES] },
+    OR: [
+      { status: { not: "TRIAL" } },
+      { stripeSubscriptionId: { not: null } },
+      { trialEndsAt: null },
+      { trialEndsAt: { gt: now } },
+    ],
+  };
+}
+
 export type WriteGate =
   | { ok: true; status: AccountStatus }
   | { ok: false; status: AccountStatus | "UNKNOWN" };

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { accountStateForTeacher } from "@/lib/billing";
+import { accountStateForTeacher, writableSchoolPlanWhere } from "@/lib/billing";
 import { FrozenBanner } from "@/components/FrozenBanner";
 import { SchoolInvitationBanner } from "@/components/SchoolInvitationBanner";
 import { TeacherShell, type ShellClass } from "@/components/teacher/TeacherShell";
@@ -96,7 +96,19 @@ export default async function TeacherLayout({
             // tests/battery/security/school-invitation-accept.spec.ts, which
             // asserts the refusal screen names no school, and caught the
             // BANNER above it doing so.
-            school: { verifiedAt: { not: null } },
+            //
+            // AND THE PLAN MUST STILL BE ABLE TO WRITE, for the same reason
+            // one step further on. `verifiedAt` is stamped at payment and
+            // never cleared by a lapse, and a school subscription is never
+            // deleted, so a school that paid and then stopped keeps both and
+            // would still be named here. `joinSchoolPlan` refuses it — joining
+            // a frozen school would delete her own free row, which cannot
+            // freeze, and leave her governed by one that is frozen now: her
+            // class could not hand work in and she could not approve what is
+            // waiting. `writableSchoolPlanWhere` is the read-only twin of the
+            // `settleStatus` call that does the refusing; the two are written
+            // to agree, and a render must not freeze another school's row.
+            school: { verifiedAt: { not: null }, subscription: writableSchoolPlanWhere() },
           },
           orderBy: { createdAt: "desc" },
           select: { id: true, invitedByName: true, school: { select: { name: true } } },

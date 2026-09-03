@@ -560,3 +560,191 @@ test("declining answers the offer, keeps everything, and cannot be aimed at some
   expect(after.subscription?.status).toBe("ACTIVE");
   expect(await db.class.count({ where: { teacherId: alfie.teacherId } })).toBe(1);
 });
+
+// ===========================================================================
+// 9. THE SCHOOL'S PLAN MUST STILL BE ABLE TO WRITE
+//
+// Guard 6 used to read `kind` and never `status`, and the two facts it needed
+// are both sticky: `School.verifiedAt` is stamped at payment and never cleared
+// by a later lapse, and a school `Subscription` is never deleted —
+// `customer.subscription.deleted` routes to `freezeSubscription`. So a school
+// that paid and then stopped paying keeps `verifiedAt` and keeps a
+// `kind: "SCHOOL"` row at FROZEN, and it passed guards 4 and 6 together. A
+// fortnight is comfortably long enough for a card to fail inside an open
+// invitation.
+//
+// WHAT THE TEACHER GOT FOR PRESSING JOIN, and why this is a security test and
+// not a billing one: step 3 deletes her own FREE row, which RETENTION.md says
+// in terms has no billing route into FROZEN at all, and leaves her governed by
+// one that is frozen right now. `requireWritableAccount` gates
+// src/app/actions/journal.ts, so from that instant the children in her class
+// cannot hand work in and she cannot approve what is already waiting. The
+// approval queue stops, on an action whose screen told her she carries on
+// teaching the same classes in the same way.
+//
+// ONE SCHOOL, ONE COLUMN, THREE VALUES. The school below is created FROZEN,
+// then set to a TRIAL that ran out, then to ACTIVE, and the same invitation is
+// pressed each time. Nothing else about it changes between the presses, so a
+// refusal cannot be explained by the school, the teacher, the offer, or the
+// account: it differs by `Subscription.status` alone.
+//
+// THE LAPSED TRIAL IS NOT A THIRD FLAVOUR OF THE SAME CASE. It is the reason
+// the guard settles the status instead of reading the column: that row still
+// says the word "TRIAL" in the database until something asks, so a raw
+// comparison against the writable statuses would let it straight through.
+//
+// BUILT AND DESTROYED HERE. School C (Larchwood) is the seeded frozen school
+// and other specs assert its state; widening it into this file's fixture would
+// make those specs depend on this one.
+// ===========================================================================
+const LAPSED_SCHOOL = "Cranmere Fields Primary";
+
+test("a school whose plan has stopped paying cannot be joined, and her free plan survives the refusal", async ({ page }) => {
+  await db.school.deleteMany({ where: { name: LAPSED_SCHOOL } });
+  // VERIFIED, because this school really did pay once. That is the whole
+  // point: `verifiedAt` outlives the money, so guard 4 waves it through and
+  // guard 6 is the only thing left standing between it and her class.
+  const school = await db.school.create({
+    data: { name: LAPSED_SCHOOL, verifiedAt: new Date(Date.now() - 300 * 24 * 60 * 60 * 1000) },
+  });
+  const plan = await db.subscription.create({
+    data: {
+      kind: "SCHOOL",
+      status: "FROZEN",
+      frozenAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      schoolId: school.id,
+    },
+  });
+
+  try {
+    const alfie = await makeJoiner(ALFIE, "Alfie Nunn", "Willow");
+    const invitation = await offer(school.id, alfie.teacherId, {});
+
+    await openScreen(page, ALFIE, invitation.id);
+
+    // --- THE SCREEN ------------------------------------------------------
+    // The whole controller change is not explained and no button is offered,
+    // because the press would only refuse. The one sentence, and no school
+    // name in it: that a school has stopped paying its bill is a fact about
+    // the school and not hers to be given by us.
+    await expect(page.getByText(REFUSAL)).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Join / })).toHaveCount(0);
+    await expect(page.getByText(LAPSED_SCHOOL)).toHaveCount(0);
+
+    // --- THE BANNER, ON A SCREEN THAT IS NOT THIS ONE --------------------
+    // It follows a teacher around every page in the product, so it is the
+    // surface that would name the school loudest.
+    await page.goto("/teacher");
+    await expect(page.getByText(LAPSED_SCHOOL)).toHaveCount(0);
+    await expect(page.getByText("has asked you to join")).toHaveCount(0);
+
+    // --- THE CARD --------------------------------------------------------
+    await page.goto("/teacher/account");
+    await expect(page.getByText(LAPSED_SCHOOL)).toHaveCount(0);
+    await expect(page.getByText("A school has asked you to join it")).toHaveCount(0);
+
+    // --- THE PRESS -------------------------------------------------------
+    // A tampered client that never saw any of the above, which is the only
+    // way this id gets posted now.
+    await page.goto(`/teacher/account/invitation/${invitation.id}`);
+    expect(
+      await pressJoin(page, invitation.id),
+      "a frozen school is refused in the same words as every other refusal",
+    ).toContain(REFUSAL);
+
+    // THE ASSERTION THAT MATTERS MOST. A refusal that had already deleted her
+    // FREE row would be worse than the bug it fixes: she would be schoolless
+    // AND governed by nothing, which `requireWritableAccountForTeacher` reads
+    // as UNKNOWN and denies. Her plan is untouched, and so is she.
+    const after = await db.teacher.findUniqueOrThrow({
+      where: { id: alfie.teacherId },
+      select: { schoolId: true, subscription: { select: { kind: true, status: true } } },
+    });
+    expect(after.schoolId, "nobody's pupils pass to a school that has stopped paying").toBeNull();
+    expect(after.subscription?.kind, "and her own free plan is still there").toBe("FREE");
+    expect(after.subscription?.status, "still ACTIVE, still writable, still hers").toBe("ACTIVE");
+    expect(
+      (await db.schoolInvitation.findUniqueOrThrow({ where: { id: invitation.id } })).state,
+      "and the offer is not consumed by the refusal",
+    ).toBe("PENDING");
+
+    // --- THE SAME OFFER, FROM A SCHOOL ON A TRIAL THAT RAN OUT -----------
+    // The column now says TRIAL, which IS one of the writable statuses. Only
+    // `settleStatus` knows it is not: no live Stripe subscription and a trial
+    // end in the past. A guard reading the column would join her to it.
+    await db.subscription.update({
+      where: { id: plan.id },
+      data: {
+        status: "TRIAL",
+        frozenAt: null,
+        stripeSubscriptionId: null,
+        trialEndsAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    await page.goto("/teacher/account");
+    await expect(page.getByText(LAPSED_SCHOOL), "a lapsed trial is not advertised either").toHaveCount(0);
+
+    await page.goto(`/teacher/account/invitation/${invitation.id}`);
+    await expect(page.getByText(REFUSAL)).toBeVisible();
+    expect(
+      await pressJoin(page, invitation.id),
+      "a trial that ran out is refused even though the column still says TRIAL",
+    ).toContain(REFUSAL);
+    expect(
+      (await db.teacher.findUniqueOrThrow({ where: { id: alfie.teacherId } })).schoolId,
+      "a lapsed trial does not take a class of children either",
+    ).toBeNull();
+    // And the settle really did settle: asking froze it, exactly as the daily
+    // sweep would have.
+    expect(
+      (await db.subscription.findUniqueOrThrow({ where: { id: plan.id } })).status,
+      "settleStatus froze the lapsed trial as it answered",
+    ).toBe("FROZEN");
+
+    // --- THE POSITIVE CONTROL --------------------------------------------
+    // Same school, same offer, same teacher, same button. One column moves.
+    await db.subscription.update({
+      where: { id: plan.id },
+      data: { status: "ACTIVE", frozenAt: null, trialEndsAt: null },
+    });
+
+    // The surfaces come back, which is what proves they were withheld by this
+    // clause rather than broken by it.
+    await page.goto("/teacher/account");
+    await expect(page.getByText(LAPSED_SCHOOL).first()).toBeVisible();
+
+    await page.goto(`/teacher/account/invitation/${invitation.id}`);
+    await expect(page.getByRole("button", { name: /^Join / })).toBeVisible();
+
+    // AND THE SCREEN SAYS WHAT SHE IS MOVING ONTO. Joining a school in perfect
+    // health still takes her off a plan with no billing route into FROZEN and
+    // puts her on one that has both a pause and a deletion clock. Leaving that
+    // out made joining look costless, which on a screen whose own component
+    // invokes the Children's Code on nudging is itself a nudge.
+    await expect(page.getByText(/including if the school stops paying for it/)).toBeVisible();
+    await expect(page.getByText(/deleted after 12 months/)).toBeVisible();
+    // And that "they cannot see the work unless they teach the class" is a
+    // softer claim than it sounds, because an admin can arrange to teach it.
+    await expect(page.getByText(/move a class to a different teacher, including themselves/)).toBeVisible();
+
+    expect(
+      await pressJoin(page, invitation.id),
+      "a school that is paying is joined, so every refusal above was the status",
+    ).not.toContain(REFUSAL);
+
+    const joined = await db.teacher.findUniqueOrThrow({
+      where: { id: alfie.teacherId },
+      select: { schoolId: true, status: true, subscription: { select: { kind: true } } },
+    });
+    expect(joined.schoolId, "her own invitation to a paying school really does attach her").toBe(school.id);
+    expect(joined.status, "an established account stays ACTIVE through a join").toBe("ACTIVE");
+    expect(joined.subscription, "and now exactly one plan governs her: the school's").toBeNull();
+  } finally {
+    // The school goes whatever happened above. `SchoolInvitation` and
+    // `Subscription` both cascade from it, and the teacher is rebuilt by
+    // `beforeEach` and removed by `afterAll`.
+    await db.teacher.updateMany({ where: { schoolId: school.id }, data: { schoolId: null } });
+    await db.school.deleteMany({ where: { id: school.id } });
+  }
+});
