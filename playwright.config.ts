@@ -1,3 +1,4 @@
+import { BATTERY_STRIPE_KEY } from "./tests/battery/stripeFixtureKey";
 import { defineConfig } from "@playwright/test";
 
 // The app runs on port 3000 by default, but that port is often taken. Set
@@ -38,6 +39,27 @@ export default defineConfig({
     // which suite is running. `npm run dev` is unaffected. See next.config.ts.
     env: {
       PW_HIDE_DEV_INDICATOR: "1",
+      // A FICTIONAL TEST-MODE KEY, SO THE PURCHASE SCREEN IS REACHABLE AT ALL.
+      //
+      // `SchoolPlanPurchase` disables both buy buttons on `!configured`, which
+      // is `stripeConfigured()` — a bare check for STRIPE_SECRET_KEY. A
+      // developer's `.env` has one and CI has none, so a spec that clicks
+      // either button passes locally and hangs for the full timeout on a
+      // runner, waiting on a control that can never enable. That is exactly how
+      // `school-purchase.spec.ts` reached `main` red: 114 retries against
+      // `element is not enabled`, on a machine with nothing wrong with it.
+      //
+      // The key is never spent. Every spec that clicks those buttons asserts a
+      // refusal — a URN already claimed, an address not yet proved — and each of
+      // those returns before the first Stripe call, so nothing here reaches the
+      // network. `playwright.battery.config.ts` sets the same constant for the
+      // same reason; its comment explains the shape.
+      //
+      // If a spec is ever written that DOES cross the Stripe boundary, this key
+      // makes the call fail rather than succeed, and that is the correct
+      // outcome: a suite must not transact against anybody's Stripe account,
+      // test mode or otherwise.
+      STRIPE_SECRET_KEY: BATTERY_STRIPE_KEY,
     },
   },
 });
