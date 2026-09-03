@@ -672,7 +672,9 @@ function StaffTable({
       // ask for.
       const before = window.scrollY;
       window.scrollTo({ top: before + delta, behavior: "instant" });
-      ownScrollY.current = window.scrollY === before ? null : window.scrollY;
+      // Record WHERE the page was placed, not "one event is ours". The listener
+      // below closes only once the page has genuinely moved away from here.
+      ownScrollY.current = window.scrollY;
     };
 
     bringIntoView();
@@ -682,10 +684,18 @@ function StaffTable({
     const onScroll = (e: Event) => {
       const t = e.target;
       if (t instanceof Element && t.closest("[data-staff-menu]")) return;
-      if (ownScrollY.current !== null && window.scrollY === ownScrollY.current) {
-        ownScrollY.current = null;
-        return;
-      }
+      // POSITIONAL, NOT COUNTED. This used to consume exactly one scroll event
+      // whose scrollY exactly matched the placement, and treat the next as the
+      // admin's. That is correct on a fast machine and wrong on a slow one: a
+      // single scrollTo can arrive as two events, and a late layout shift fires
+      // one after the one-shot is spent. Either closed the menu before a test
+      // could read it — green locally, red on the CI runner, on the first PR.
+      // A menu closes on scroll because the row it is anchored to has moved out
+      // from under it; so the question is "has the page moved from where the
+      // panel was placed", and the answer is a distance, not an event count.
+      // 8px absorbs sub-pixel settling and a clamped scroll without letting a
+      // real scroll through.
+      if (ownScrollY.current !== null && Math.abs(window.scrollY - ownScrollY.current) < 8) return;
       onClose();
     };
     const onKey = (e: KeyboardEvent) => {
