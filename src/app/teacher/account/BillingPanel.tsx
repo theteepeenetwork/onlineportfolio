@@ -4,6 +4,8 @@ import { useActionState, useState } from "react";
 import { startCheckout, requestSchoolInvoice, openCustomerPortal } from "@/app/actions/billing";
 import type { AccountStatus, PlanKind } from "@/lib/billing";
 import { SCHOOL_BANDS, CHEAPEST_SCHOOL_PRICE, priceNote, formatPrice, type PlanKey } from "@/lib/billing-plans";
+import { box, Notice } from "./panelChrome";
+import { SchoolPlanPurchase } from "./SchoolPlanPurchase";
 
 type Props = {
   status: AccountStatus | "NONE";
@@ -18,22 +20,14 @@ type Props = {
   hasLiveSubscription: boolean;
   configured: boolean;
   checkout: "success" | "cancelled" | null;
+  /** Set once, by the redirect a completed invoice/PO purchase lands on. */
+  purchase: "invoice" | null;
   frozenNotice: boolean;
+  /** The DfE register row this teacher's stored URN names, or null. */
+  register: { name: string; town: string; postcode: string } | null;
+  /** `Teacher.schoolName` — what to put in the name field when there is no register row. */
+  schoolNameDefault: string;
 };
-
-// The account cards share the teacher area's card shell: a 3px ink outline and
-// an 18px radius, so a settings page reads as the same product as the register.
-const box: React.CSSProperties = { borderRadius: 18, padding: 20, border: "3px solid var(--ink)", background: "var(--cream)" };
-
-function Notice({ tone, children }: { tone: "good" | "warn" | "info"; children: React.ReactNode }) {
-  const bg = tone === "good" ? "#e8f5ec" : tone === "warn" ? "#fdecef" : "#eef4f8";
-  const fg = tone === "good" ? "#1f6b3a" : tone === "warn" ? "#9a3b52" : "#2b5c74";
-  return (
-    <p role="status" style={{ ...box, borderRadius: 16, background: bg, color: fg, border: "none", font: "600 15px var(--font-atkinson)", margin: "0 0 16px" }}>
-      {children}
-    </p>
-  );
-}
 
 export function BillingPanel(props: Props) {
   const { status, kind, trialDaysLeft, currentPeriodEndISO, isAdmin, hasSchool, hasCustomer, hasLiveSubscription, configured, foundingMember } = props;
@@ -52,6 +46,14 @@ export function BillingPanel(props: Props) {
     <div style={{ display: "grid", gap: 16 }}>
       {props.checkout === "success" && <Notice tone="good">Thank you — your plan is being set up. It can take a moment to show here.</Notice>}
       {props.checkout === "cancelled" && <Notice tone="info">Checkout was cancelled — nothing has been charged.</Notice>}
+      {props.purchase === "invoice" && (
+        <Notice tone="good">
+          Your school is set up. The invoice will be emailed to your billing contact with 30-day
+          terms, and your school can start straight away. You’ll find your staff, classes and
+          billing under Admin. Until the payment reaches us there are three admin jobs that stay
+          closed — your Admin page says which.
+        </Notice>
+      )}
       {props.frozenNotice && <Notice tone="warn">That needs an active plan. Renew below to carry on adding and changing work.</Notice>}
       {invoiceState?.sent && <Notice tone="good">We’ve raised the invoice — it will be emailed to your billing contact with 30-day terms.</Notice>}
       {err && <Notice tone="warn">{err}</Notice>}
@@ -75,25 +77,32 @@ export function BillingPanel(props: Props) {
         <Notice tone="info">Billing isn’t connected in this environment yet. Once Stripe keys are set, the plan options below become live.</Notice>
       )}
 
-      {/* A free teacher: nothing to buy. The school plan is the only upgrade, and
-          it is framed as what a SCHOOL needs — oversight, continuity, the data
-          relationship — never as a capacity limit the teacher has hit. */}
+      {/* A free teacher. The school plan is the only upgrade, and it is framed as
+          what a SCHOOL needs — oversight, continuity, the data relationship —
+          never as a capacity limit the teacher has hit.
+
+          This used to end in "Ask your head or business manager to get in touch
+          and we'll set it up", which was the only route to a paid plan in the
+          product and ran through a person at StoryJar. It is now a purchase. */}
       {!hasSchool && (
-        <section style={box} aria-labelledby="school-upgrade-heading">
-          <h2 id="school-upgrade-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>Thinking about your whole school?</h2>
-          <p style={{ margin: "6px 0 14px", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-            Your own classes stay free for as long as you want them. The school plan starts
-            at {formatPrice(CHEAPEST_SCHOOL_PRICE)} a year ({priceNote().toLowerCase()}), priced by how many pupils
-            are on roll — and it adds the things a school needs rather than a teacher:
-            oversight for leadership, work that stays with the school when staff move on,
-            year-end transfer, and a data agreement naming the school as the data
-            controller.
-          </p>
-          <p style={{ margin: 0, font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-            Ask your head or business manager to get in touch and we’ll set it up — or
-            we can send a one-page summary you can forward.
-          </p>
-        </section>
+        <>
+          <section style={box} aria-labelledby="school-upgrade-heading">
+            <h2 id="school-upgrade-heading" style={{ margin: 0, font: "600 20px var(--font-fredoka)", color: "var(--ink)" }}>Thinking about your whole school?</h2>
+            <p style={{ margin: "6px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+              Your own classes stay free for as long as you want them. The school plan starts
+              at {formatPrice(CHEAPEST_SCHOOL_PRICE)} a year ({priceNote().toLowerCase()}), priced by how many pupils
+              are on roll — and it adds the things a school needs rather than a teacher:
+              oversight for leadership, staff and classes managed in one place, an audit log
+              of who did what, work that stays with the school when staff move on, and a data
+              agreement naming the school as the data controller.
+            </p>
+          </section>
+          <SchoolPlanPurchase
+            register={props.register}
+            defaultSchoolName={props.schoolNameDefault}
+            configured={configured}
+          />
+        </>
       )}
 
       {/* School plan (admins only) */}
@@ -141,6 +150,12 @@ export function BillingPanel(props: Props) {
             <input type="hidden" name="plan" value={band} />
             <button className="sj-btn-outline" type="submit" disabled={invoicePending || !configured}>Request an invoice / PO instead</button>
           </form>
+          {/* The refund that replaced the trial (docs/pricing-decisions.md,
+              1 Sep 2026), in the same words as the landing page and the Terms.
+              Every button that takes money says it. */}
+          <p style={{ margin: "12px 0 0", font: "600 15px var(--font-atkinson)", color: "var(--ink)" }}>
+            Full refund within 42 days if it isn’t right for your school.
+          </p>
         </section>
       )}
 

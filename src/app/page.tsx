@@ -187,11 +187,17 @@ const PRICE_BANDS: [string, string][] = [
   ["Over 420 pupils", "£649"],
 ];
 
+// EVERY LINE HERE IS A CAPABILITY THAT EXISTS TODAY. "Year-end transfer and
+// whole-school export" sat in this list until 2 September 2026 and neither was
+// built (docs/paid-tier-plan.md, items 1 and 3): no rollover or move-up logic
+// exists, and export is teacher-scoped with no admin route. It was a dead-end
+// paragraph when it was written and it is now one press above a live checkout,
+// which changes what it is. Both go back when they ship, and not before.
 const SCHOOL_FEATURES = [
   "Everything in the teacher plan, for all your staff",
   "Oversight for leadership across the school",
+  "Staff, classes and an audit log in one admin console",
   "Work stays with the school when staff move on",
-  "Year-end transfer and whole-school export",
   "A data agreement naming the school as controller",
   "Pay by card or invoice and PO",
 ];

@@ -10,6 +10,45 @@ the competitive rationale in [`COMPETITIVE_POSITIONING.md`](../COMPETITIVE_POSIT
 
 ---
 
+## 2026-09-02 — Promo codes are wanted, and are switched off on the new purchase route until a free purchase means something
+
+**Decision:** `allow_promotion_codes` is removed from the school-claim checkout
+(`startClaimCheckout`). It stays on the existing route, which a school that
+already has an account uses, and which predates this work. Promo codes are
+wanted eventually; this is a deliberate absence, not an oversight, and the thing
+to design first is named below.
+
+**What is actually broken, which is narrower than it looked.** Stripe sets
+`payment_status: "no_payment_required"` only when the amount due is **zero**.
+Any discount below 100% still charges, so the status is `"paid"` and the claim
+transaction runs unchanged. **Promo codes already work on this route at any real
+discount. A free purchase does not** — the webhook's claim branch withholds on
+anything that is not `"paid"`, correctly, because creating a verified school on
+an uncleared payment is worse than creating none.
+
+**Why the obvious patch was refused.** Adding a `no_payment_required` branch that
+treats free as paid would have closed a safeguarding-review condition in an
+afternoon. It would also have settled, silently and in a webhook branch, every
+question nobody has asked: whether a comped school counts as **verified** when
+no payment ever confirmed the claim; what happens at renewal when the code
+lapses and Stripe bills a school that has never paid; whether a comped school is
+identifiable in the operator console or looks exactly like a paying one; and
+whether comping should exist at all. Those are pricing decisions. A branch in a
+payment handler is the wrong place to take them, and taking them as a side
+effect of a review fix is how a product acquires behaviour nobody chose.
+
+**Why removal costs nothing today.** The claim route is new on this branch and
+has never run in production, so switching the flag off takes no capability away
+from anybody. The existing route keeps it and keeps working.
+
+**What has to be decided before it goes back on.** What a free purchase *is* —
+verified or not, renewing or not, visible as comped or not — and then the
+webhook branch follows from that answer rather than standing in for it.
+
+**Decided by:** the founder. **Recorded:** 2026-09-02.
+
+---
+
 ## 2026-09-01 — No trial on a new purchase. A 42-day refund instead
 
 **Decision:** a school that buys StoryJar is a paying customer from the moment
@@ -68,7 +107,7 @@ landing page were both true when written and are both false the moment this
 ships. Changed in the same shipment.
 
 **Not removed:** the `TRIAL` status itself. `prisma/seed.ts`, `seed-test.ts`,
-the frozen-school persona and `scripts/ops/freeze-expired.mjs` all depend on it,
+the frozen-school persona and `scripts/freeze-expired.mjs` all depend on it,
 and the admin billing pane still renders a trial countdown for a row that has
 one. New purchases simply never enter that state. Removing the status is a
 separate cleanup, not a condition of this decision.

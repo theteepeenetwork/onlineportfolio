@@ -49,7 +49,7 @@ import { clickHydrated } from "../../e2e/helpers";
 // NOTHING IS CREATED BY THIS FILE. Step 1 of the wizard is filled in to reach
 // step 2, and the run stops there — no account, no class, no cleanup.
 //
-// Fixtures: prisma/seed-test.ts seeds 32 INVENTED schools, two of them sharing
+// Fixtures: prisma/seed-test.ts seeds 33 INVENTED schools, two of them sharing
 // the name "St Cuthbert's Catholic Primary School" and differing only by town
 // and postcode. That pair is used deliberately: it is the case the two display
 // lines exist for, and the case where a single-fragment accessible name would

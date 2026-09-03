@@ -62,8 +62,9 @@ gets an icon-only pre-reader home. The copy for each register is
 
 Teacher free permanently. School £199 to £649 a year, banded by pupils on roll
 (105, 210, 420, above). Every feature in every band, band fixed for the year.
-A 42-day trial for schools only. Not VAT registered. Pre-1-September signups are
-stamped `foundingMember`. The reasoning is
+No trial: a full refund within 42 days of the start of the paid year instead.
+Not VAT registered. Pre-1-September signups are stamped `foundingMember`. The
+reasoning is
 [`pricing-decisions.md`](./pricing-decisions.md); the code is
 `src/lib/billing-plans.ts`.
 

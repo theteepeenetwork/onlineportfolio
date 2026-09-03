@@ -142,8 +142,9 @@ export function BillingPane(props: Props) {
         {status === "NONE" && (
           <p style={{ ...BODY, margin: "8px 0 0" }}>
             No plan is set up for the school yet. Staff on their own free teacher plans can carry on as they are —
-            the school plan is what adds leadership oversight, work that stays with the school when staff move on,
-            year-end transfer and a data agreement naming the school as the data controller.
+            the school plan is what adds leadership oversight, staff and classes managed in one place, an audit log
+            of who did what, work that stays with the school when staff move on, and a data agreement naming the
+            school as the data controller.
           </p>
         )}
 
@@ -319,7 +320,13 @@ export function BillingPane(props: Props) {
               </button>
             </form>
           </div>
-          <p style={{ ...BODY, margin: "12px 0 0", fontSize: 14 }}>
+          {/* The refund that replaced the trial (docs/pricing-decisions.md,
+              1 Sep 2026), in the same words as the landing page and the Terms.
+              Every button that takes money says it. */}
+          <p style={{ ...BODY, margin: "12px 0 0", fontWeight: 700 }}>
+            Full refund within 42 days if it isn&rsquo;t right for your school.
+          </p>
+          <p style={{ ...BODY, margin: "6px 0 0", fontSize: 14 }}>
             Card payments are handled by Stripe — a school credit, debit or purchasing card all work, as do Apple
             Pay and Google Pay, and card details never reach Storyjar. The invoice route emails a bill with 30 days
             to pay; reply with your purchase order number and we&rsquo;ll put it on the invoice. Either way the plan

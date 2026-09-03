@@ -101,6 +101,9 @@ tenant, used to prove School B can never reach School A's anything.
 | Mr Okafor | `teacher@oakfield.sch.uk` | `password` | TEACHER, owns Acorn |
 
 - Class **Acorn**, code `ACRN22`, children Zara, Yusuf, Willow.
+- **Claimed as URN `900200`**, with a matching fictional `Establishment` row of
+  the same name. Oakfield is the school that is *already on StoryJar*, so the
+  duplicate-URN refusal has something real to refuse.
 - Parent **Nadia Rahman**, family code `OAKFAM1`, linked to Zara only. Her
   address is on the mail suppression list as a BOUNCE, so the delivery line on
   an adult record has something to say.
@@ -117,6 +120,25 @@ while every write is blocked server-side.
 - The only fixture with Stripe ids (`cus_seedlarchwood0001`,
   `sub_seedlarchwood0001`), so the operator billing screen has a link to build.
   St Bede's has none, which is the negative control on the same render.
+
+**School E, Pennyfields Primary** (ACTIVE but **UNVERIFIED**). Arranged on the
+invoice / PO route and not paid for yet, so the subscription is ACTIVE — finance
+holding an invoice for thirty days must not freeze a school — while
+`School.verifiedAt` is null. Use it to check the three admin powers an unpaid
+school does not have: moving a class to another member of staff, removing a
+colleague who has already joined, and making somebody else an admin. Everything
+else, including inviting staff and removing an INVITED row, stays open.
+
+| Account | Email | Password | Role |
+| --- | --- | --- | --- |
+| Mrs Okonkwo | `admin@pennyfields.sch.uk` | `password` | ADMIN |
+| Mr Vaughan | `teacher@pennyfields.sch.uk` | `password` | TEACHER, owns Kestrel |
+
+- Class **Kestrel**, code `PENN44`, no children — nothing in the unverified gates
+  reads a child.
+- It is the mirror image of School C: Larchwood is **frozen but verified** (it
+  paid once and lapsed), Pennyfields is **unfrozen but unverified**. Billing
+  status and verification are separate facts read by different code.
 
 **Platform operator fixture**
 

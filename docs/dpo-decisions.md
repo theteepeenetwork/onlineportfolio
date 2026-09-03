@@ -362,9 +362,15 @@ who has not signed up yet.
 **`joinSchoolPlan` requires an invitation.** `src/app/actions/billing.ts:286`
 attaches any signed-in schoolless teacher to any school by posted `schoolId`,
 with no check that the school asked for them. It has no caller in `src`, `tests`
-or `docs`, but a Next.js server action with no caller is still a live endpoint
-with a stable id, and today it is harmless only because no real `School` row
-exists — which is exactly what this work changes. It is not deleted, because it
+or `docs`. **Corrected 2 September 2026:** this entry originally said that a
+caller-less server action is still a live endpoint with a stable id. It is not.
+Next gives an unimported export no action id at all — verified in both
+directions, by finding `startCheckout`, `requestSchoolInvoice` and
+`openCustomerPortal` in `server-reference-manifest.json` while `joinSchoolPlan`
+is absent, and by watching it appear the moment it is imported into a screen.
+So it is unreachable today rather than merely harmless. That does not change the
+decision, only its urgency: the action becomes dispatchable the moment the
+acceptance screen imports it, which is precisely when it must already be safe. It is not deleted, because it
 fills a real gap: `inviteStaff` refuses an email that already belongs to a
 teacher, so a teacher who signed up free in September cannot be brought into
 their school when it buys in January. **It must succeed only against an unspent
@@ -387,3 +393,136 @@ of the squat but not remove the need for them.
 sub-processor. This narrows existing admin powers rather than widening any.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-01.
+
+---
+
+## 2026-09-01 — Removing a colleague hands their classes over first, and never deletes a child's work
+
+**Decision:** `removeStaff` moves every class a member of staff holds to the
+admin performing the removal **before** anything else happens, on both branches,
+in one transaction. The acceptance criterion is stated as a fact to be proved
+rather than an intention: **no work is deleted in the process.** It is asserted
+by counting classes, pupils and journal items either side of a removal driven
+through the real console, not by a comment.
+
+**What was wrong.** The `INVITED` branch was a bare `db.teacher.delete`, on the
+stated grounds that "an invited teacher never set a password and holds nothing".
+Every clause of that was true except the one carrying the weight. Four things,
+each individually reasonable:
+
+1. `Class.teacher` is `onDelete: Cascade`, and `Student` and `JournalItem`
+   cascade from the class.
+2. `assignClassToStaff` resolves its target by id and school with **no status
+   filter**, so an invited teacher is a valid one.
+3. The console offers invited staff in the class-owner dropdown and in the staff
+   row's "Assign classes", labelled `(invited)` — deliberately, because an admin
+   setting up in September wants next term's classes placed before everybody has
+   accepted.
+4. So removing an invited colleague who had been given a class deleted that
+   class, its pupils and every piece of work in it. Silently, with no audit row,
+   nothing recoverable — **while the confirmation on screen said the classes
+   were moving to the admin.**
+
+Measured on the fixtures before the fix: one removal took classes 12 → 11,
+pupils 37 → 35 and journal items 31 → 29, in two clicks through the supported
+UI. That is the shape the regression test now catches, and it was verified to
+fail before it was made to pass.
+
+**The two rejected options, so they are not re-proposed.** *Refuse the
+assignment at source* — `assignClassToStaff` rejects an `INVITED` target — is
+the more protective option in the abstract and was rejected because it costs the
+September workflow that point 3 exists to serve. *Null `schoolId` instead of
+deleting* was rejected because it leaves an account nobody can ever sign into,
+an invited teacher having no password.
+
+**Not a widening.** This is the 29 August 2026 entry's condition finally holding
+on both branches: the per-class `CLASS_ASSIGNED` audit row, which is what makes
+an admin's inherited holding *visibly temporary*, is now written for an invited
+colleague's classes as well. Before this change that branch wrote nothing,
+because there was nothing left to write about.
+
+**A known edge, not reachable today, recorded because the thing that makes it
+reachable is already planned.** `Teacher` also cascades to `ActivityTemplate` →
+`Assignment` → `AssignmentStudent` and `Draft`, and a `Draft` is a child's
+private unfinished work by the schema's own words. `JournalItem.assignmentId`
+is `SET NULL`, so a journal item survives that chain and a count of journal
+items would not notice it. It cannot fire today: `inviteStaff` refuses an email
+that already belongs to a teacher, an `INVITED` row is always freshly created,
+and every template-creation path writes to the acting teacher — so an invited
+teacher cannot own a template. **It would fire the moment an established account
+could carry `status = "INVITED"`**, which is one wrong turn away from the
+invitation work in the entry above. That work is designed to keep such a teacher
+`ACTIVE` and carry the invitation in its own row precisely so this cannot
+happen. The counts in the regression test now include drafts and assignment
+records so that a future shortcut is caught rather than reasoned about.
+
+**A change to what a suspension means, and it is deliberate.** Separately and in
+the same shipment, a teacher detached from a school is now put back on their own
+free plan. Before, they were left with no governing subscription at all: the
+write gate denied by default — correctly, rule 8 — while the account screen
+reported no plan and no banner explained it, so every save failed silently. That
+was an accident, but the effect was real, and the consequence of fixing it is
+that **a suspended member of staff now walks away with a fully writable StoryJar
+account** in which they can create their own classes and enrol children.
+
+Assessed and accepted. Their password already worked, and anyone may sign up for
+a free teacher account without asking, so the marginal risk is close to nil; the
+school's own children, classes and work are gone from that account, having been
+handed to the admin by the same transaction; and the removal confirmation now
+says so in plain words rather than leaving it to be discovered. A designated
+safeguarding lead reading "removed from the school" might otherwise assume the
+account itself was closed, which is why it is written down here and said on the
+screen. **Suspension has never meant, and does not now mean, that StoryJar
+closes an adult's personal account.** Only a school can end its own
+relationship with a member of staff.
+
+**Worth an outside check:** no. No new data category, no new processing, no new
+sub-processor. This stops a deletion and restores a plan; it grants no access to
+any child's data that did not exist before.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-01.
+
+---
+
+## 2026-09-02 — An unverified school may invite colleagues, but not as admins
+
+**Decision:** `inviteStaff` refuses `role = "ADMIN"` while `School.verifiedAt` is
+null. An unpaid school may still add colleagues as a teacher or a TA, and may
+make somebody an admin once the invoice is settled.
+
+**This narrows the entry of 1 September 2026**, which lists "inviting staff"
+among the powers an unverified school keeps. That list stands; only the admin
+role is withheld from it.
+
+**Why the retained power was too wide.** The 1 September entry refuses
+`setStaffRole` to ADMIN on the stated grounds that *"otherwise an unverified
+admin manufactures a second admin who looks no different from a verified one."*
+That reasoning is sound and the gate is correctly built — but `inviteStaff`
+accepts a role straight from the form, `ROLES` includes `ADMIN`, and the invite
+panel offers it. So the same end was reachable through the door the same entry
+holds open, with one extra step. Found by the agent implementing the gates,
+which flagged it rather than narrowing a recorded decision on its own authority.
+
+**Why the mitigations were not enough.** Two were real. A second admin at an
+unverified school is gated identically to the first, so nothing widens while the
+school stays unpaid; and a squatter needs control of the invited mailbox to get
+anyone to accept. Both run out at the same moment: **when the invoice is paid,
+both admins become fully powered at once**, and `detachBuyer` — the refund
+path — detaches only the buyer, so a school that pays, is refunded and freezes
+leaves the second admin in place. The window the gates exist to cover is
+precisely the window in which the second admin is created.
+
+**What is not done.** Admin stays available to a *verified* school's invite
+form. Removing it entirely, so that promotion through `setStaffRole` became the
+only route to ADMIN, was considered — one path is easier to reason about and to
+test than two — and rejected as a larger change to a working screen for a
+benefit this gate already delivers. If a later change makes that road worth
+taking, this is the paragraph to reverse.
+
+**Assessment.** This is a narrowing, not a widening: it removes a power an
+unverified school had this morning. No new data category, no new processing, no
+new sub-processor.
+
+**Worth an outside check:** no.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-02.

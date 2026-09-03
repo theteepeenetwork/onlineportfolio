@@ -42,7 +42,7 @@ him has not been built.
 
 **What is true in the code today.** `db.school.create` appears only in
 `prisma/seed.ts`, `prisma/seed-test.ts`, `prisma/seed-personas.ts` and
-`scripts/ops/seed-academy.mjs`. `createTeacherAndClass` stores `school` as free
+`scripts/ops/seed-academy.mjs`. `createTeacherAccount` stores `school` as free
 text plus the `urn` and never sets `schoolId`, which is §2 working as designed.
 So `/admin` does `if (!school) redirect("/teacher")`, and
 `ensureSchoolSubscription` opens with `if (!actor.schoolId) return null`. Both
@@ -86,7 +86,9 @@ paid doors are shut to every real account.
    model are in `docs/dpo-decisions.md` (1 Sep 2026).
 6. **Shut `joinSchoolPlan`.** `src/app/actions/billing.ts:286` attaches any
    signed-in schoolless teacher to any school by posted `schoolId` with no
-   invitation. No UI calls it; it is still a live server action, and item 0 is
+   invitation. No UI calls it, so Next gives it no action id and it cannot be
+   dispatched today — but the acceptance screen in the follow-up imports it, and
+   that is the moment it becomes reachable. Item 0 is
    what makes real `School` rows exist. Make it return an error unconditionally
    in this change. The invitation it needs — `inviteStaff` currently refuses an
    email that already belongs to a teacher, so an existing free teacher cannot
@@ -106,7 +108,7 @@ invoice route, where an invoice with 30-day terms is unpaid by definition. What
 holds the line there is step 5 above, not a shorter clock.
 
 The `TRIAL` status itself stays in the schema and the seeds — `prisma/seed.ts`,
-`seed-test.ts`, the frozen-school persona and `scripts/ops/freeze-expired.mjs`
+`seed-test.ts`, the frozen-school persona and `scripts/freeze-expired.mjs`
 all depend on it, and `BillingPane` still renders a countdown for a row that has
 one. New purchases simply never enter it. Removing the status is a separate
 cleanup.
