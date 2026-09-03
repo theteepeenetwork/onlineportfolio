@@ -294,6 +294,12 @@ test("the window filter is a filter, not a total of the table", async () => {
         ).toContain(`Attempted${expected}`);
       }
     }
+    // The negative half, and it is still a whole-page read on purpose: the
+    // all-time total includes the 99-failure row seeded twenty days back, and
+    // it exceeds every windowed figure on the screen, so it cannot coincide
+    // with any per-template number. If it appears anywhere, something summed
+    // without filtering.
+    const rendered = (await main.textContent()) ?? "";
     expect(rendered, "an out-of-window row must not be counted").not.toContain(
       `Attempted${attemptedEver}`,
     );
