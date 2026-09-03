@@ -1,9 +1,9 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { loginTeacher } from "../helpers";
+import { SCHOOL_A, loginTeacher } from "../helpers";
 
 // ===========================================================================
 // Nobody joins a school by naming it
@@ -17,19 +17,24 @@ import { loginTeacher } from "../helpers";
 // governed by, and appear in the audit log of, a school they have no connection
 // to.
 //
-// `docs/dpo-decisions.md` (1 September 2026) rules that it must succeed only
-// against an unspent invitation for that teacher and that school, which it
-// consumes. No invitation model exists yet, so until one does the action
-// refuses everything and reads and writes nothing.
+// WHAT CHANGED ON 2 SEPTEMBER 2026, AND WHAT THIS FILE IS NOW. The action was
+// emptied to a flat refusal while phase 2 was built, and this spec asserted two
+// things: that it had no action id at all (nothing imported it), and that
+// whatever a schoolless teacher posted, they stayed schoolless. Phase 2's
+// acceptance screen imports it, so THE FIRST OF THOSE IS NOW FALSE BY DESIGN
+// and the file's own comment said to replace it rather than extend it when the
+// day came. This is that replacement:
 //
-// This spec holds two separate things, because they can rot independently:
+//   1. The action IS dispatchable now. Asserted as a positive control, because
+//      every refusal below means nothing if the request never reached the
+//      action at all.
+//   2. It takes an INVITATION id, and a posted `schoolId` is not a thing it
+//      reads. That is the fix at the root rather than a validation around it,
+//      and it is the invariant this file has always been about.
 //
-//   1. The action is not dispatchable at all today. That is asserted rather
-//      than assumed — see the note in the first test, which is the one claim
-//      in this area that turned out NOT to be true as written.
-//   2. Whatever a signed-in schoolless teacher posts, they stay schoolless and
-//      keep their own free plan. That is the invariant, and it is the one that
-//      matters the day phase 2 wires this action into a screen.
+// The invitation-shaped attacks — somebody else's id, a spent one, an expired
+// one, a school that lost verification — are in
+// school-invitation-accept.spec.ts, which is where the transaction lives.
 // ===========================================================================
 
 const db = new PrismaClient();
@@ -40,12 +45,20 @@ const db = new PrismaClient();
 // other spec's counts.
 const JOINER = { email: "wants.to.join@independent.test", password: "password" };
 
-// The exact sentence the action returns. If this is edited, it must stay a
-// sentence a teacher would say: `scripts/error-string-audit.mjs` (npm run
-// audit:errors) is what checks that, and it is NOT part of `npm run check`.
-const REFUSAL = "Joining a school needs an invitation from that school.";
+// The one sentence the action returns for every refusal, from
+// src/lib/schoolInvitationPolicy.ts. If it is edited it must stay a sentence a
+// teacher would say: `scripts/error-string-audit.mjs` (npm run audit:errors) is
+// what checks that, and it is NOT part of `npm run check`.
+//
+// A SUBSTRING WITH NO APOSTROPHE IN IT, deliberately. The sentence itself
+// carries a typographic apostrophe (isn’t), and a server action's reply is a
+// React flight payload in which that character does not survive a `toContain`
+// comparison intact. Matching on the clause that has no punctuation in it
+// asserts the same sentence and cannot fail for a reason nobody cares about.
+const REFUSAL = "may have been answered already, withdrawn, or run out of time";
 
 let joinerId = "";
+let invitationId = "";
 
 test.beforeAll(async () => {
   await db.teacher.deleteMany({ where: { email: JOINER.email } });
@@ -56,6 +69,17 @@ test.beforeAll(async () => {
       email: JOINER.email,
       passwordHash: await bcrypt.hash(JOINER.password, 10),
       // No schoolId. Nothing but their own free row governs this account.
+      //
+      // BUT A PROVED ADDRESS, which a real September signup does NOT have
+      // (F67). Accepting an invitation now requires one — guard 0 of
+      // `joinSchoolPlan`, added in phase 2's Rule 1 review, and it runs before
+      // the invitation is even read so that the message cannot become an oracle
+      // about somebody's offer. Without this line every post below would be
+      // answered by that gate instead of by the guard it is aiming at, and the
+      // file would go on passing while proving nothing about a posted
+      // `schoolId`. Seeded teachers need no such line: prisma/seed-test.ts
+      // stamps every one of them in a single pass at the end.
+      emailConfirmedAt: new Date(),
     },
   });
   joinerId = teacher.id;
@@ -63,6 +87,26 @@ test.beforeAll(async () => {
   await db.subscription.create({
     data: { kind: "FREE", status: "ACTIVE", trialEndsAt: null, teacherId: teacher.id },
   });
+
+  // A REAL, OPEN INVITATION, and it is here for one reason: an action only
+  // appears in Next's server-reference manifest once a route that imports it
+  // has been compiled, and the only route that imports this one is the
+  // acceptance screen. Without a renderable invitation there is no acceptance
+  // screen, so the positive control below could not tell "unreachable" from
+  // "never built". It is never accepted in this file.
+  const school = await db.school.findFirstOrThrow({ where: { name: SCHOOL_A.name } });
+  const invitation = await db.schoolInvitation.create({
+    data: {
+      schoolId: school.id,
+      teacherId: teacher.id,
+      role: "TEACHER",
+      invitedName: "Jo Joiner",
+      invitedByName: "Mrs Lindqvist",
+      state: "PENDING",
+      expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+    },
+  });
+  invitationId = invitation.id;
 });
 
 test.afterAll(async () => {
@@ -112,49 +156,78 @@ function compiledActions(): { id: string; exportedName: string; filename: string
   return [...new Map(found.map((a) => [a.id, a])).values()];
 }
 
-test("joinSchoolPlan has no action id, so there is no way to dispatch it", async ({ page }) => {
-  // Compile the route that imports src/app/actions/billing.ts before reading
-  // the manifest. In dev, actions appear in it only once their route has been
-  // built, so scanning first would prove nothing about anything.
+/**
+ * Dispatch a server action the way a tampered client would, carrying whatever
+ * fields the test names — including ones no form on the screen has.
+ *
+ * IT IS SENT BY THE BROWSER, NOT BY `page.request.post`, AND THAT IS NOT A
+ * STYLE CHOICE. Playwright's own `multipart` encoder produces a body Next
+ * accepts, dispatches, and hands to the action with an EMPTY FormData, in any
+ * part order and with or without the `$ACTION_*` parts. Every refusal asserted
+ * through it therefore passes for the wrong reason: the action refuses an empty
+ * input rather than the input under test. That is exactly what the previous
+ * version of this file would have done the day the action became live, and it
+ * is why it was replaced rather than extended.
+ *
+ * The wire format was captured from a real submission by this app rather than
+ * guessed: the arguments array goes in field `0`, arg 0 being the previous
+ * state and arg 1 the FormData referenced as `$K1`, with each field carried
+ * under a matching `_1_` prefix.
+ */
+async function postAction(page: Page, id: string, fields: Record<string, string>) {
+  const out = await page.evaluate(
+    async ({ id, fields }: { id: string; fields: Record<string, string> }) => {
+      const fd = new FormData();
+      for (const [k, v] of Object.entries(fields)) fd.append(`_1_${k}`, v);
+      fd.append("0", '[{},"$K1"]');
+      const res = await fetch(location.pathname, {
+        method: "POST",
+        headers: { "Next-Action": id },
+        body: fd,
+      });
+      return { status: res.status, body: await res.text() };
+    },
+    { id, fields },
+  );
+  expect(out.status, "a refusal is an answer, not a crash").toBeLessThan(500);
+  return out.body;
+}
+
+/** Sign in and land on the acceptance screen, which is what compiles the action. */
+async function onTheAcceptanceScreen(page: Page) {
   await loginTeacher(page, JOINER);
-  await page.goto("/teacher/account");
-  await expect(page.getByRole("heading", { name: /account/i }).first()).toBeVisible();
+  await page.goto(`/teacher/account/invitation/${invitationId}`);
+  await expect(page.getByRole("button", { name: /^Join / })).toBeVisible();
+}
 
-  const actions = compiledActions();
-  const billing = actions.filter((a) => a.filename.endsWith("src/app/actions/billing.ts"));
+test("joinSchoolPlan is live now, and it is the acceptance screen that made it so", async ({ page }) => {
+  await onTheAcceptanceScreen(page);
 
-  // POSITIVE CONTROL FIRST, and it is what makes the negative mean anything.
-  // Without it a scan that found no manifest at all, or looked in the wrong
-  // dist directory, would "prove" the action is unreachable by finding nothing
-  // anywhere. These three are the exports BillingPanel.tsx really imports.
+  const billing = compiledActions().filter((a) => a.filename.endsWith("src/app/actions/billing.ts"));
+
+  // THE POSITIVE CONTROL, and it is what makes every refusal below mean
+  // anything. Without it a scan that found no manifest, or looked in the wrong
+  // dist directory, would "prove" any claim by finding nothing anywhere.
+  //
+  // Until 2 September 2026 this list was the three exports BillingPanel.tsx
+  // imports, and `joinSchoolPlan` was asserted ABSENT: Next registers only the
+  // exports a client component references, so a caller-less Server Action gets
+  // no id and cannot be dispatched. That is still true of caller-less actions,
+  // and it is no longer true of this one. The fourth entry IS the change.
   expect(
     [...new Set(billing.map((a) => a.exportedName))].sort(),
-    "the scan must be able to see billing.ts's live actions, or its silence about joinSchoolPlan means nothing",
-  ).toEqual(["openCustomerPortal", "requestSchoolInvoice", "startCheckout"]);
-
-  // THE NEGATIVE. Next registers only the exports a client component
-  // references, so an exported Server Action with no caller is given no id and
-  // cannot be reached: there is nothing for `Next-Action` to name.
-  //
-  // This corrects the premise this change was written on — that a caller-less
-  // Server Action is "still a live POST endpoint with a stable action id".
-  // Verified on Next 16.3.1 in both a dev compile and `next build`; the ids are
-  // not stable across the two either. Shutting the action is still right (the
-  // day it is wired into a screen it becomes reachable, and phase 2 wires it
-  // into a screen), but the urgency argument was overstated and this assertion
-  // is what will tell us the moment it stops being true.
-  expect(
-    billing.filter((a) => a.exportedName === "joinSchoolPlan"),
-    "joinSchoolPlan is not wired to any screen, so it must have no action id — if this fails it has been given one, and the test below is now the load-bearing one",
-  ).toEqual([]);
+    "the scan must see billing.ts's live actions, including the one this file is about",
+  ).toEqual(["joinSchoolPlan", "openCustomerPortal", "requestSchoolInvoice", "startCheckout"]);
 });
 
 test("a schoolless teacher cannot post their way into any school", async ({ page }) => {
-  await loginTeacher(page, JOINER);
-  await page.goto("/teacher/account");
+  await onTheAcceptanceScreen(page);
+  const id = compiledActions().find(
+    (a) => a.exportedName === "joinSchoolPlan" && a.filename.endsWith("src/app/actions/billing.ts"),
+  )!.id;
 
   // Real school ids, including one that really is running a school plan —
-  // which is the single condition the old body checked before attaching.
+  // the single condition the old body checked before attaching.
   const oakfield = await db.school.findFirstOrThrow({ where: { name: { contains: "Oakfield" } } });
   const bedes = await db.school.findFirstOrThrow({ where: { name: { contains: "Bede" } } });
   const oakfieldSub = await db.subscription.findUnique({ where: { schoolId: oakfield.id } });
@@ -163,59 +236,22 @@ test("a schoolless teacher cannot post their way into any school", async ({ page
     "Oakfield must really be on a school plan, or the strongest input is not being tested",
   ).toBe("SCHOOL");
 
-  const inputs = [oakfield.id, bedes.id, "", "   ", "not-a-school-id", "'; DROP TABLE School;--"];
+  const schoolIds = [oakfield.id, bedes.id, "", "   ", "not-a-school-id", "'; DROP TABLE School;--"];
 
-  // If the action ever gains an id, dispatch it for real — the point of this
-  // test is the endpoint, not the function. Dormant today (see the test above),
-  // which is why the invariant below is asserted whether or not this runs.
-  const actionId = compiledActions().find(
-    (a) => a.exportedName === "joinSchoolPlan" && a.filename.endsWith("src/app/actions/billing.ts"),
-  )?.id;
+  for (const schoolId of schoolIds) {
+    // A POSTED `schoolId` IS NOT A FIELD THIS ACTION READS. The refusal is not
+    // "that school said no"; it is that nothing named an invitation, so there
+    // was nothing to answer. Sent alongside a real, live invitation id in the
+    // same account — see beforeAll — so this is the strongest version of the
+    // attack: the teacher genuinely has an open offer, and is trying to spend
+    // it somewhere else.
+    const answer = await postAction(page, id, { schoolId });
+    expect(answer, "the action must say why it refused, in a teacher's words").toContain(REFUSAL);
 
-  for (const schoolId of inputs) {
-    if (actionId) {
-      // DO NOT COPY THIS SHAPE. `page.request.post({ multipart })` does NOT
-      // deliver a server action's FormData: Next accepts the body, dispatches
-      // the action, and hands it an EMPTY FormData — with any part order, with
-      // or without the `$ACTION_*` parts. A refusal asserted through it
-      // therefore passes for entirely the wrong reason, because the action
-      // refuses an empty input rather than the input under test. Found
-      // 2 September 2026 while building the purchase specs.
-      //
-      // This branch has never executed — `joinSchoolPlan` has no action id
-      // while nothing imports it — so nothing here has ever passed hollowly.
-      // But the day phase 2's acceptance screen wires it up, this becomes live
-      // and starts lying. Replace it then, do not extend it.
-      //
-      // What works is dispatching with `fetch` from inside the page, which is
-      // also a truer model of a tampered client than a request made from the
-      // test process. `tests/battery/security/school-purchase-guard.spec.ts`
-      // has a working example. The wire format below was captured from a real
-      // submission by this app rather than guessed — the arguments array goes
-      // in field `0`, arg 0 being the previous state and arg 1 the FormData
-      // referenced as `$K1`, with each field under a matching `_1_` prefix —
-      // and that part is still accurate; it is the transport that is wrong.
-      // To re-capture it after a React upgrade, listen for a POST carrying a
-      // `next-action` header and print `request.postData()`.
-      const res = await page.request.post("/teacher/account", {
-        headers: { "Next-Action": actionId },
-        multipart: { "_1_schoolId": schoolId, "0": '[{},"$K1"]' },
-        failOnStatusCode: false,
-      });
-      expect(res.status(), "a refusal is an answer, not a crash").toBeLessThan(500);
-      expect(await res.text(), "the action must say why it refused, in a teacher's words").toContain(REFUSAL);
-    } else {
-      // No id to dispatch. Post the same body the way an attacker with no
-      // action id can — which is also what csrf.spec.ts proves is refused —
-      // so the invariant below is asserted against a request that was really
-      // made rather than against nothing at all.
-      const res = await page.request.post("/teacher/account", {
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        data: `schoolId=${encodeURIComponent(schoolId)}`,
-        failOnStatusCode: false,
-      });
-      expect(res.status(), "a refusal is an answer, not a crash").toBeLessThan(500);
-    }
+    // And the same thing with the invitation id present TOO, so a school id
+    // cannot ride along and redirect a legitimate acceptance.
+    const both = await postAction(page, id, { schoolId, invitationId: "" });
+    expect(both).toContain(REFUSAL);
   }
 
   // THE INVARIANT, asserted against the database rather than against a screen.
@@ -229,7 +265,14 @@ test("a schoolless teacher cannot post their way into any school", async ({ page
   expect(after.subscription!.status).toBe("ACTIVE");
   expect(after.subscription!.trialEndsAt, "a free plan carries no countdown").toBeNull();
 
-  // And nothing was written into either school's audit log in this teacher's
+  // The invitation they really do hold is untouched: a refused post must not
+  // spend an offer either.
+  expect(
+    (await db.schoolInvitation.findUniqueOrThrow({ where: { id: invitationId } })).state,
+    "a refused post must not consume the invitation the teacher actually holds",
+  ).toBe("PENDING");
+
+  // And nothing was written into any school's audit log in this teacher's
   // name — the trail a school reads to know who is in it.
   expect(
     await db.auditLog.count({ where: { actorId: joinerId } }),

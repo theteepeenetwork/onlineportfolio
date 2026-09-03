@@ -1,13 +1,15 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { LogoutForm } from "@/components/LogoutForm";
-import { accountStateForTeacher, governingSubscription } from "@/lib/billing";
+import { accountStateForTeacher, governingSubscription, writableSchoolPlanWhere } from "@/lib/billing";
 import { stripeConfigured } from "@/lib/stripe";
 import type { DisplayStyle } from "@/lib/teacherName";
 import { ProfileForm } from "./ProfileForm";
 import { SecurityForms } from "./SecurityForms";
 import { BillingPanel } from "./BillingPanel";
 import { ConnectClaude } from "./ConnectClaude";
+import { InvitationCard } from "./InvitationCard";
+import { Notice } from "./panelChrome";
 import { originUrl } from "@/lib/appOrigin";
 
 // Account settings — the teacher's own profile, sign-in details and plan/billing.
@@ -17,11 +19,11 @@ import { originUrl } from "@/lib/appOrigin";
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; frozen?: string; purchase?: string }>;
+  searchParams: Promise<{ checkout?: string; frozen?: string; purchase?: string; joined?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") return null;
-  const { checkout, frozen, purchase } = await searchParams;
+  const { checkout, frozen, purchase, joined } = await searchParams;
 
   const teacher = { id: user.teacher.id, schoolId: user.teacher.schoolId };
   const [profile, account, sub, tokens, apps, origin] = await Promise.all([
@@ -66,6 +68,35 @@ export default async function AccountPage({
         })
       : null;
 
+  // Open invitations, for the card below. Same WHERE as the teacher layout's
+  // banner query and for the same reasons: both halves of "open" together, and
+  // not asked for at all once she has a school, because she could not act on
+  // one. Unlike the banner this lists every open offer rather than the most
+  // recent, since this is the screen somebody comes to in order to deal with
+  // them.
+  const invitations = user.teacher.schoolId
+    ? []
+    : await db.schoolInvitation.findMany({
+        where: {
+          teacherId: user.teacher.id,
+          state: "PENDING",
+          expiresAt: { gt: new Date() },
+          // The verified clause the banner carries, for the reason it carries
+          // it: an offer a teacher cannot accept must not be advertised to her
+          // by name on a screen whose only link refuses.
+          //
+          // And the writable-plan clause beside it, for the same reason again.
+          // A school that paid and then lapsed keeps `verifiedAt` and keeps its
+          // `kind: "SCHOOL"` row, so verification alone would still name it
+          // here; `joinSchoolPlan` settles the plan's effective status and
+          // refuses. See `writableSchoolPlanWhere`, which is written to agree
+          // with that settle.
+          school: { verifiedAt: { not: null }, subscription: writableSchoolPlanWhere() },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, invitedByName: true, school: { select: { name: true } } },
+      });
+
   return (
     <div style={{ maxWidth: 760 }}>
       <div style={{ marginBottom: 20 }}>
@@ -76,6 +107,27 @@ export default async function AccountPage({
       </div>
 
       <div style={{ display: "grid", gap: 16 }}>
+        {/* An offer she has not answered goes above her own details: it is the
+            only thing on this page with somebody else waiting on it. */}
+        <InvitationCard
+          invitations={invitations.map((inv) => ({
+            id: inv.id,
+            schoolName: inv.school.name,
+            invitedByName: inv.invitedByName,
+          }))}
+        />
+
+        {/* Set by the redirect at the end of `joinSchoolPlan`. It says what
+            happened rather than "success", because what happened is the thing
+            the acceptance screen spent five paragraphs on. */}
+        {joined === "1" && (
+          <Notice tone="good">
+            You have joined the school. Your classes and the children in them are the
+            school&rsquo;s now, and its plan covers you. Nothing has moved and your class codes are
+            unchanged.
+          </Notice>
+        )}
+
         <ProfileForm
           fullName={profile.name}
           title={profile.title ?? "Mr"}

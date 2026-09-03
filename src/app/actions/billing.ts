@@ -2,13 +2,20 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import type { Subscription } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
-import { governingSubscription, trialEndFromNow } from "@/lib/billing";
+import { WRITABLE_STATUSES, governingSubscription, settleStatus, trialEndFromNow } from "@/lib/billing";
 import { priceIdFor, isPlanKey, bandFor, type PlanKey } from "@/lib/billing-plans";
 import { claimSchool, type ClaimRefusal } from "@/lib/schoolClaim";
+import { requireProvedEmailForInvitation, requireProvedEmailForPurchase } from "@/lib/emailConfirmation";
+import {
+  INVITATION_REFUSED_MESSAGE,
+  isSchoolInvitationRole,
+  schoolInvitationIsOpen,
+} from "@/lib/schoolInvitationPolicy";
 import { recordAudit } from "@/lib/audit";
 // A Stripe error echoes back the parameter it objected to, and on customer
 // creation that parameter is the school admin's email address.
@@ -441,6 +448,20 @@ async function startClaimCheckout(
   plan: PlanKey,
   formData: FormData,
 ): Promise<{ error?: string }> {
+  // FIRST LINE, BEFORE THE TARGET IS EVEN RESOLVED. Buying requires a proved
+  // email address (docs/dpo-decisions.md, 2 Sep 2026), and what has to be true
+  // when it refuses is that nothing happened: no Stripe customer, no session,
+  // no `School`, no `Subscription`, no claim. Putting it after
+  // `resolveClaimTarget` would still satisfy that — that function writes
+  // nothing — but "first" is a property a reader can check at a glance and
+  // "first apart from one thing that happens not to write" is not.
+  //
+  // Only the CLAIM routes. `startCheckout`'s existing-school branch above is
+  // untouched: that school already exists, somebody already paid for it, and
+  // its admin is not claiming anything.
+  const unproved = await requireProvedEmailForPurchase(actor);
+  if (unproved) return { error: unproved };
+
   const target = await resolveClaimTarget(actor, formData);
   if ("error" in target) return { error: target.error };
 
@@ -612,6 +633,16 @@ async function requestClaimInvoice(
   plan: PlanKey,
   formData: FormData,
 ): Promise<{ error?: string; sent?: boolean }> {
+  // The same gate as `startClaimCheckout`, in the same position, and the two
+  // must stay the same shape for the reason `requestSchoolInvoice` gives about
+  // the admin check: a purchase-order route that admitted somebody the card
+  // route refuses is a way round the check rather than a second way in. This
+  // is in fact the route the gate exists FOR — a PO costs the person raising it
+  // nothing up front, which is what made claiming any school in the register
+  // free.
+  const unproved = await requireProvedEmailForPurchase(actor);
+  if (unproved) return { error: unproved };
+
   const target = await resolveClaimTarget(actor, formData);
   if ("error" in target) return { error: target.error };
 
@@ -735,52 +766,328 @@ export async function openCustomerPortal(
   redirect(url);
 }
 
-// DELIBERATELY EMPTY. Not dead code, and not a stub to fill in casually.
+
+// ===========================================================================
+// A teacher who already has a StoryJar account joins the school that asked her.
 //
-// What it used to do: take a `schoolId` from the posted form and attach any
-// signed-in schoolless teacher to that school — set `Teacher.schoolId`, delete
-// their own FREE `Subscription` row, and audit BILLING_JOINED_SCHOOL.
+// WHAT THIS USED TO BE, AND WHY THE SHAPE CHANGED. It took a `schoolId` from
+// the posted form and attached any signed-in schoolless teacher to that school.
+// The only thing it checked was that the named school ran a school plan, never
+// that the school had asked for this teacher, so any teacher could post any
+// school's id and have their classes and their pupils' work pass into a school
+// they had no connection to. It was emptied to a flat refusal while phase 2 was
+// built, and this is phase 2.
 //
-// Why that was unsafe: the only thing it checked was that the named school ran
-// a school plan. It never asked whether that school had asked for this teacher.
-// So any teacher could post any school's id and, from that moment, their
-// classes and their pupils' work would be governed by — and appear in the audit
-// log of — a school they have no connection to.
+// THE INPUT IS AN INVITATION ID, NOT A SCHOOL ID, and that is the fix rather
+// than a validation of the old one. The school is DERIVED from the invitation
+// row. There is no posted value anywhere in this action that names a school, so
+// there is nothing for a tampered client to point somewhere else: the worst a
+// forged id can do is name a row that is not this teacher's, which is one
+// `findFirst` scoped by `teacherId` away from being nothing at all
+// (docs/dpo-decisions.md, 2 September 2026).
 //
-// How reachable it actually was, measured rather than assumed: it had no caller
-// in `src`, `tests` or `docs`, and on Next 16 an exported Server Action that no
-// client component imports is given no action id at all, so there was nothing
-// for `Next-Action` to name and no way to dispatch it. That is asserted, with a
-// positive control, in
-// tests/battery/security/join-school-plan-needs-an-invitation.spec.ts. It is
-// NOT a permanent property: the day a screen imports this function it becomes a
-// live POST endpoint, and phase 2's acceptance screen imports it. So the body
-// is emptied now, while there is nothing to get wrong, rather than left to be
-// noticed later.
+// NOTHING ACTUALLY "MOVES" IN THE DATABASE, AND SOMEBODY WILL GO LOOKING FOR A
+// COLUMN THAT IS NOT THERE. `Class` has no `schoolId`: a class belongs to a
+// school only through the teacher who holds it, which is the same fact F59 was
+// about on the removal side. So the whole of "her classes and the children in
+// them become the school's" is ONE `Teacher.schoolId` write. When
+// `Class.schoolId` lands with year-end transfer, this transaction gains a
+// `class.updateMany` beside step 2 and the audit loop below is already written
+// for it.
 //
-// Why it is kept rather than removed: it fills a real gap that is still open —
-// `inviteStaff` refuses an email that already belongs to a teacher, so a
-// teacher who signed up free in September cannot be brought into their school
-// when it buys in January. This is the shell that flow will fill, and
-// `docs/dpo-decisions.md` (1 September 2026) says so explicitly.
+// SHE STAYS `ACTIVE` THROUGHOUT, AND THIS IS THE LOAD-BEARING SENTENCE IN THE
+// FILE. Flipping an established account's `status` to "INVITED" is the obvious
+// shortcut — it is what a fresh invitee carries — and it walks into a live
+// cascade: `removeStaff`'s INVITED branch DELETES the teacher row outright,
+// `Teacher` cascades to `ActivityTemplate` → `Assignment` → `AssignmentStudent`
+// and directly to `Draft`, and a `Draft` is a child's private unfinished work by
+// the schema's own words. `JournalItem.assignmentId` is SET NULL, so a
+// journal-item count would not notice any of it. The separate
+// `SchoolInvitation` row exists precisely so this shortcut never has to be
+// taken (docs/dpo-decisions.md, 2 September 2026).
 //
-// What it needs before it may do anything, and does not have yet: an
-// invitation model. There is none in the schema today. Per
-// `docs/dpo-decisions.md` (1 September 2026), when it returns it must succeed
-// only against an unspent invitation for THAT teacher and THAT school, which it
-// consumes — the school derived from the invitation row, never from a posted
-// id. Joining a school also moves a teacher's pupils from their own
-// responsibility to the school's (RETENTION.md, "Individual vs school"), so the
-// screen that calls it has to say so in plain words before anything is pressed.
-//
-// Until then it reads nothing, writes nothing and refuses everything. The
-// signature is retained so the shape of the action does not change.
+// THE SIGNATURE AND THE EXPORT NAME ARE UNCHANGED on purpose, so the shape of
+// the action does not change even though everything it does has.
+// ===========================================================================
 export async function joinSchoolPlan(
   _prev: { error?: string; ok?: boolean } | undefined,
   formData: FormData,
 ): Promise<{ error?: string; ok?: boolean }> {
-  void formData; // read deliberately not done — see above. Present only to keep lint quiet.
-  return {
-    error: "Joining a school needs an invitation from that school. Ask your school’s StoryJar admin to invite you.",
-  };
+  const actor = await requireTeacher();
+  const invitationId = String(formData.get("invitationId") ?? "");
+
+  // --- GUARD 0: SHE MUST HAVE PROVED SHE HOLDS HER OWN ADDRESS -------------
+  // Owner decision, phase 2's Rule 1 review. Signup proves no address at all
+  // (F67), so an account registered against head@realschool.sch.uk by somebody
+  // who does not hold that mailbox could answer an offer the school aimed at
+  // that mailbox — and an invitation carrying ADMIN is one `assignClassToStaff`
+  // press from every child's work in the school, because an admin can make
+  // themselves teach any class at will. Every other route into a school proves
+  // the mailbox by construction; this was the exception.
+  //
+  // FIRST, BEFORE THE INVITATION IS EVEN READ, and the ordering is the point.
+  // Placed after the six guards, the message itself would become an oracle:
+  // "confirm your address" rather than "that invitation isn't open" would tell
+  // whoever posted an id that it named a live offer from a paying school. Here
+  // the answer cannot depend on any fact about any invitation, because none has
+  // been read yet. It also means no future guard can be reordered in front of a
+  // write and quietly get ahead of this one.
+  //
+  // FOR EVERY ROLE, NOT ONLY ADMIN. The four invitation cases are built to look
+  // alike; a proof required only for ADMIN would tell the recipient what she
+  // had been offered before she answered it, and a TEACHER invitation hands
+  // over the same children's work in the same transaction anyway.
+  //
+  // IT REFUSES BY SENDING. The teacher gets a confirmation link and a sentence
+  // naming her own address, so a typo made at signup is visible at the moment
+  // it costs something, and pressing Join again is the resend. Declining is NOT
+  // gated (`declineSchoolInvitation`): saying no reaches nothing, and making
+  // somebody prove an address to refuse is friction with no safeguarding
+  // purpose.
+  const unproved = await requireProvedEmailForInvitation({ teacherId: actor.teacherId });
+  if (unproved) return { error: unproved };
+
+  // ONE SENTENCE FOR EVERY REFUSAL, from the policy module, and the screen
+  // never says which one happened. The code always knows; saying would answer
+  // "is this invitation id real?" and "does that school have an offer out to
+  // that teacher?" for anybody signed in. See INVITATION_REFUSED_MESSAGE.
+  const refuse = { error: INVITATION_REFUSED_MESSAGE };
+
+  // --- GUARD 1: the invitation, SCOPED BY `teacherId` ----------------------
+  // `findFirst` with both columns, never `findUnique` by the posted id and a
+  // check afterwards. Somebody else's invitation is not "found and rejected"
+  // here; it is simply not found.
+  const invitation = await db.schoolInvitation.findFirst({
+    where: { id: invitationId, teacherId: actor.teacherId },
+    select: {
+      id: true,
+      schoolId: true,
+      role: true,
+      state: true,
+      expiresAt: true,
+      // NO SUBSCRIPTION SUB-SELECT. The plan is read in full at guard 6,
+      // because the effective status needs the whole row and a sub-select here
+      // would leave two half-read copies of the same fact in one action.
+      school: { select: { name: true, verifiedAt: true } },
+    },
+  });
+  if (!invitation) return refuse;
+
+  // --- GUARD 2: is the offer still open? -----------------------------------
+  // Both halves together, from the one place that defines "open": PENDING
+  // alone would accept a row that lapsed in March, an unexpired clock alone
+  // would accept one the school withdrew this morning.
+  if (!schoolInvitationIsOpen(invitation)) return refuse;
+
+  // --- GUARD 3: she must have no school of her own -------------------------
+  // Checked here as well as in step 2's WHERE, because a refusal a person can
+  // read is better than a transaction that throws. Step 2 is what makes it
+  // safe; this is what makes it explicable.
+  if (actor.schoolId) return refuse;
+
+  // --- GUARD 4: the school is still verified, RE-CHECKED AT ACCEPT ---------
+  // `inviteStaff` refuses an existing account while `School.verifiedAt` is
+  // null, so this looks redundant and is not. A school can lose verification
+  // between the invitation and the answer — a refund detaches the buyer, and
+  // fourteen days is long enough for that to happen — and THIS is the moment
+  // children's data changes hands, not the moment the offer was made. The 1
+  // September ground for letting an unpaid school invite ("an invitation does
+  // nothing until the teacher accepts") is exactly the sentence that makes the
+  // check belong here (docs/dpo-decisions.md, 2 September 2026).
+  //
+  // ONE CORRECTION TO THE PARAGRAPH ABOVE, checked rather than assumed: TODAY
+  // NOTHING CLEARS `verifiedAt`. The only two writes in the repository are
+  // `claimSchool` setting it at creation and `markSchoolVerified` stamping it
+  // when the money arrives (src/lib/schoolClaim.ts); `detachBuyer` moves the
+  // buyer and leaves the column alone, and `releaseUrnIfUnverified` writes
+  // `urn`, never this. So what this guard actually catches is a school that was
+  // NEVER verified — the invoice route where the money never came — and not a
+  // school that lost it. A school that paid and then lapsed is a `verifiedAt`
+  // that stands and a plan that has stopped, and GUARD 6 is the only thing that
+  // sees it. Both guards are kept: if `verifiedAt` is ever cleared on refund,
+  // this one starts firing for the reason the paragraph above already gives.
+  if (!invitation.school.verifiedAt) return refuse;
+
+  // --- GUARD 5: the role is in the closed vocabulary -----------------------
+  // The value is about to be written onto `Teacher.role`, which is what
+  // `requireAdmin` reads. A row carrying a word nobody recognises must not
+  // become a role nobody granted, and denying by default (rule 8) means naming
+  // the roles that are allowed rather than the ones that are not.
+  if (!isSchoolInvitationRole(invitation.role)) return refuse;
+
+  // --- GUARD 6: the school runs a school plan AND THAT PLAN CAN STILL WRITE -
+  // The one check the old body had, and it read `kind` alone. That was half a
+  // guard, and the missing half is the one that reaches children:
+  //
+  //   `School.verifiedAt` is stamped at payment and never cleared by a later
+  //   lapse, and a school `Subscription` is never deleted —
+  //   `customer.subscription.deleted` routes to `freezeSubscription`. So a
+  //   school that paid and then lapsed keeps `verifiedAt` and keeps a
+  //   `kind: "SCHOOL"` row at `status: "FROZEN"`. It passed guard 4 and it
+  //   passed this one. Fourteen days is comfortably long enough for a card to
+  //   fail inside an open invitation.
+  //
+  // WHAT SHE GOT FOR PRESSING JOIN. Step 3 below deletes her own FREE row, so
+  // `governingSubscription` returns the school's FROZEN one — and RETENTION.md
+  // ("Free teacher plan vs school plan") says in terms that a free account has
+  // no billing route into FROZEN at all. `requireWritableAccount` gates
+  // src/app/actions/journal.ts, so from that instant the children in her class
+  // cannot hand work in and she cannot approve what is already waiting: the
+  // approval queue stops, on an action whose screen told her she carries on
+  // teaching the same classes in the same way. Her children's work also enters
+  // the 12-month frozen-to-deletion lifecycle it was previously outside.
+  //
+  // THE EFFECTIVE STATUS, NOT THE COLUMN. A trial that ran out with no live
+  // Stripe subscription is still the word "TRIAL" in the database until
+  // something asks; `settleStatus` is what asks, and it freezes it as it
+  // answers. Reading `plan.status` directly would let exactly that school
+  // through. This is the moment children's data changes hands, so it is the
+  // moment to settle it — the same argument guard 4 makes for re-checking
+  // `verifiedAt` here rather than trusting the check made when the offer was
+  // sent (Rule 1: take the more protective option).
+  //
+  // READ IN FULL, HERE, rather than sub-selected on the invitation above,
+  // because `settleStatus` needs the whole row and because one query on a
+  // once-in-a-career action is not worth a partial type. `schoolId` is unique
+  // on `Subscription`, so this is the school's plan or nothing.
+  //
+  // REFUSED IN THE SAME ONE SENTENCE as every other failure, and that is not
+  // laziness. `INVITATION_REFUSED_MESSAGE` is deliberately one sentence for
+  // all six modes; a distinct message here would tell a teacher that her
+  // prospective employer has not paid its bill, which is a fact about the
+  // school and not hers to learn from us.
+  const plan = await db.subscription.findUnique({ where: { schoolId: invitation.schoolId } });
+  if (!plan || plan.kind !== "SCHOOL") return refuse;
+  if (!WRITABLE_STATUSES.includes(await settleStatus(plan))) return refuse;
+
+  // --- The whole join, or none of it ---------------------------------------
+  // Four writes, EVERY ONE OF THEM GUARDED IN ITS OWN WHERE rather than by
+  // what was read a few lines above, because everything read above was read
+  // outside this transaction and could have changed since.
+  const classes = await db.class.findMany({
+    where: { teacherId: actor.teacherId },
+    select: { id: true, name: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  try {
+    await db.$transaction(async (tx) => {
+      // 1. CONSUME THE INVITATION FIRST. Not third, not last. If two tabs
+      //    press the button at the same moment, the loser fails HERE, before
+      //    anything else has been written, so there is nothing to roll back
+      //    and no window in which a teacher is half-joined.
+      const consumed = await tx.schoolInvitation.updateMany({
+        where: { id: invitation.id, teacherId: actor.teacherId, state: "PENDING" },
+        data: { state: "ACCEPTED", respondedAt: new Date() },
+      });
+      if (consumed.count === 0) throw new Error("invitation was not open");
+
+      // 2. THE ATTACH, AND `schoolId: null` IN THE WHERE IS THE POINT OF IT.
+      //    It is what makes it impossible for this action to move a teacher
+      //    OUT of a school, or from one school into another, no matter what is
+      //    posted and no matter what raced it. A teacher who gained a school
+      //    between guard 3 and here is zero rows, and the throw undoes step 1.
+      //
+      //    `status` IS DELIBERATELY WRITTEN AS "ACTIVE" rather than left
+      //    alone. She is already ACTIVE, so this changes nothing today — it is
+      //    here so that the one status this row must never carry is stated in
+      //    the write itself. See the header: an established account carrying
+      //    "INVITED" is deleted outright by `removeStaff`, taking children's
+      //    drafts and the record of which children an activity was set to with
+      //    it.
+      const attached = await tx.teacher.updateMany({
+        where: { id: actor.teacherId, schoolId: null },
+        data: { schoolId: invitation.schoolId, role: invitation.role, status: "ACTIVE" },
+      });
+      if (attached.count === 0) throw new Error("teacher already had a school");
+
+      // 3. HER OWN FREE ROW GOES, so exactly one plan governs her.
+      //    `governingSubscription` prefers the school's whenever `schoolId` is
+      //    set, so leaving it would not break anything today — it would leave
+      //    a second row that says something false about who covers her, and
+      //    the day she is removed from the school `restoreFreePlan` writes her
+      //    a fresh one anyway. `deleteMany` rather than `delete` because a
+      //    teacher may legitimately have no row at all.
+      //
+      //    THE SCREEN PROMISES NOTHING SHE MADE IS DELETED, and this is the
+      //    line that promise is about. It deletes a billing row and nothing
+      //    else: no class, no pupil, no journal item, no draft.
+      await tx.subscription.deleteMany({ where: { teacherId: actor.teacherId } });
+
+      // 4. EVERY OTHER OPEN OFFER CLOSES AS SUPERSEDED. Nobody did anything to
+      //    these and the state says so: it is not DECLINED, because she did
+      //    not turn them down, and not REVOKED, because the school did not
+      //    take them back. Without this they rot in a stranger's console as a
+      //    live claim on pupils that are now another school's.
+      //
+      //    `respondedAt` IS LEFT NULL for the same reason. The column means
+      //    "when the teacher answered", and she never answered these.
+      await tx.schoolInvitation.updateMany({
+        where: { teacherId: actor.teacherId, state: "PENDING", id: { not: invitation.id } },
+        data: { state: "SUPERSEDED" },
+      });
+    });
+  } catch {
+    // Nothing committed. The one sentence, again — a teacher who lost a race
+    // and a teacher who forged an id are told the same thing, and the state
+    // they are in is the state they were in.
+    return refuse;
+  }
+
+  // --- Audited AFTER the commit --------------------------------------------
+  // `removeStaff`'s convention: no audit row may claim something that was
+  // rolled back. `recordAudit` swallows its own failures, which is right here
+  // and is the opposite of `claimSchool`'s rule — that one grants ADMIN and
+  // must not exist without its record; this one is a teacher recording what
+  // she did to her own account.
+  //
+  // ONE ROW PER CLASS, `subjectType: "CLASS"`, because a school asking "who
+  // held this class, and when did that change" filters by class id and reads
+  // custody in order. A class that arrived by acceptance must appear in that
+  // read, and a single summary row naming only the teacher would not.
+  //
+  // NOT `CLASS_ASSIGNED`, and this is not a matter of taste: src/app/admin/
+  // page.tsx reads `CLASS_ASSIGNED` rows to build the "inherited" flag that
+  // tells an admin they are temporarily holding a colleague's children's work
+  // after a removal. A row written here would make that flag say something
+  // untrue about a class that simply arrived with its own teacher.
+  for (const klass of classes) {
+    await recordAudit({
+      action: "CLASS_JOINED_SCHOOL", actorType: "TEACHER",
+      actorId: actor.teacherId, actorName: actor.name, schoolId: invitation.schoolId,
+      subjectType: "CLASS", subjectId: klass.id,
+      detail: `${klass.name} became ${invitation.school.name}'s when ${actor.name} accepted the invitation to join`,
+    });
+  }
+
+  // THE CONTROLLER-CHANGE RECORD. This is the row a data protection lead is
+  // looking for when they ask when a school became responsible for these
+  // children's work and on whose say-so, so it says both.
+  await recordAudit({
+    action: "SCHOOL_INVITATION_ACCEPTED", actorType: "TEACHER",
+    actorId: actor.teacherId, actorName: actor.name, schoolId: invitation.schoolId,
+    subjectType: "SCHOOL_INVITATION", subjectId: invitation.id,
+    detail:
+      `${actor.name} accepted the invitation to join as ${invitation.role.toLowerCase()}` +
+      (classes.length > 0
+        ? `, and ${classes.length} ${classes.length === 1 ? "class" : "classes"} became the school's`
+        : ", holding no classes"),
+  });
+
+  // KEPT VERBATIM, INCLUDING THE ACTION NAME, for continuity: this is the row
+  // the billing timeline has meant since the old body wrote it, and an admin
+  // reading a school's history should not find the same event under two names
+  // either side of this change.
+  await recordAudit({
+    action: "BILLING_JOINED_SCHOOL", actorType: "TEACHER",
+    actorId: actor.teacherId, actorName: actor.name, schoolId: invitation.schoolId,
+    subjectType: "TEACHER", subjectId: actor.teacherId,
+    detail: `Joined ${invitation.school.name}'s plan`,
+  });
+
+  // The banner, the rail's school name and the account page are all stale, and
+  // so is every admin screen that lists staff or classes.
+  revalidatePath("/teacher", "layout");
+  revalidatePath("/admin");
+  redirect("/teacher/account?joined=1");
 }

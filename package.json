@@ -10,7 +10,7 @@
     "postinstall": "prisma generate",
     "setup": "prisma db push && tsx prisma/seed.ts",
     "db:seed": "tsx prisma/seed.ts",
-    "billing:freeze": "node scripts/freeze-expired.mjs",
+    "billing:freeze": "tsx scripts/freeze-expired.mjs",
     "gias:import": "tsx scripts/gias-import.ts",
     "db:seed:test": "FORCE_SEED=1 tsx prisma/seed-test.ts",
     "db:seed:personas": "tsx prisma/seed-personas.ts",

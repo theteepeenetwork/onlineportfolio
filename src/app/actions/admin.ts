@@ -7,10 +7,15 @@ import { getCurrentUser } from "@/lib/auth";
 import { deriveTeacherName } from "@/lib/teacherName";
 import { recordAudit } from "@/lib/audit";
 import { sendStaffInvite } from "@/lib/staffInvite";
+import { sendSchoolInvitation } from "@/lib/schoolInvite";
 import { handOverClasses } from "@/lib/classHandover";
 import { restoreFreePlan } from "@/lib/billing";
 import { schoolIsVerified } from "@/lib/schoolClaim";
 import { makeClassCode } from "@/lib/classCode";
+import {
+  SCHOOL_INVITATION_ROLES,
+  schoolInvitationExpiry,
+} from "@/lib/schoolInvitationPolicy";
 
 // Resolve the current user as a school admin, or bounce them out. Every admin
 // mutation goes through this, so a non-admin (or a teacher with no school) can
@@ -22,7 +27,14 @@ async function requireAdmin(): Promise<{ teacherId: string; schoolId: string; ac
   return { teacherId: user.teacher.id, schoolId: user.teacher.schoolId, actorName: user.teacher.displayName };
 }
 
-const ROLES = ["ADMIN", "TEACHER", "TA"];
+// ONE list, imported rather than retyped. This was a module-private
+// `["ADMIN", "TEACHER", "TA"]` — a third copy of the same three words, which
+// src/lib/schoolInvitationPolicy.ts asked whoever wired the invitation actions
+// to remove. It matters more now than it did: the same value is written to
+// `Teacher.role` on one branch of `inviteStaff` and to
+// `SchoolInvitation.role` on another, and two arrays that agreed on the day
+// they were written would let those branches drift apart.
+const ROLES: readonly string[] = SCHOOL_INVITATION_ROLES;
 
 // Invite a member of staff. They join the school as INVITED with no usable
 // password until they accept and set one; they can't sign in meanwhile.
@@ -83,9 +95,171 @@ export async function inviteStaff(
     };
   }
 
-  const existing = await db.teacher.findUnique({ where: { email } });
-  if (existing) return { error: "Someone with that email is already on StoryJar." };
+  // =========================================================================
+  // THE FOUR-CASE BRANCH. What is read here is `{ id, schoolId }`, not merely
+  // whether a row exists, because the four cases differ only by `schoolId`.
+  //
+  //   1. NO ACCOUNT               create an INVITED Teacher row, mail the way in
+  //   2. ACCOUNT, schoolId null   write a SchoolInvitation, mail a notification
+  //   3. ACCOUNT, this school     refuse: they are already on the console
+  //   4. ACCOUNT, another school  refuse, WITHOUT naming the other school
+  //
+  // WHAT THIS REPLACES, and why it had to go. Until 2 September 2026 every one
+  // of these got "Someone with that email is already on StoryJar." — so a
+  // teacher who signed up free in September could not be brought into their
+  // school when it bought in January, which is the common case and the last
+  // thing standing between a school buying and its staff using what it bought
+  // (docs/dpo-decisions.md, 2 September 2026).
+  //
+  // CASES 1 AND 2 MUST LOOK IDENTICAL TO THE ADMIN, and that is a safeguarding
+  // property rather than a tidiness one. The old refusal was a plain
+  // account-existence oracle: type any address in the country and be told
+  // whether that person has a StoryJar account. After this change a schoolless
+  // account no longer confirms itself — the same row appears in the staff
+  // table, with the same "Invited" label, the same colour, the same audit entry
+  // and the same counts on the Overview tab. Case 4 is the only oracle left,
+  // and it fires for a strictly smaller set of addresses than the sentence it
+  // replaces. Read the notes in src/app/admin/AdminConsole.tsx and
+  // src/app/admin/page.tsx before "fixing" any of that sameness.
+  //
+  // WHAT IS STILL DISTINGUISHABLE, said plainly rather than left to be
+  // discovered: the row's ⋯ MENU. An invitation offers "Cancel invitation" and
+  // nothing else, because there is no Teacher row in this school to assign a
+  // class to or to change a role on. So an admin who opens the menu can still
+  // tell which kind of row it is, one click later. Closing that would mean
+  // either rendering controls that cannot work or withholding controls a fresh
+  // invitation genuinely needs; both are worse. It is recorded here so that the
+  // "indistinguishable" claim above is read as the narrow, true one.
+  const existing = await db.teacher.findUnique({
+    where: { email },
+    select: { id: true, schoolId: true },
+  });
 
+  if (existing) {
+    // ===== AN UNVERIFIED SCHOOL: ONE SENTENCE, THE SAME FOR 2, 3 AND 4 =====
+    //
+    // Read before `existing.schoolId` is branched on, and before anything is
+    // written or sent, so the answer cannot vary with which of the three cases
+    // is true. An unpaid school learns nothing here about where — or whether —
+    // this adult already works.
+    //
+    // WHY AN UNVERIFIED SCHOOL MAY NOT DO THIS AT ALL. The 1 September decision
+    // keeps "inviting staff" among an unverified school's powers on the stated
+    // ground that "an invitation does nothing until the invited teacher
+    // accepts". That is true of a brand-new person, who brings nothing — case 1
+    // below, which stays open, as two dated decisions and the console's own
+    // banner say it does. It is FALSE here: this invitee brings classes, pupils
+    // and journals into a stranger's console, and `createTeacherAccount`
+    // verifies no address (F67), so anybody at all can raise a purchase order
+    // against a school they have nothing to do with. The squatter could not
+    // *inherit* the classes — `removeStaff` on an ACTIVE colleague is gated —
+    // but the moment a real teacher accepted, the school's admins would see the
+    // class names, the pupil counts and that teacher's audit trail.
+    // (docs/dpo-decisions.md, 2 September 2026.)
+    //
+    // WHAT THIS REFUSAL STILL DISCLOSES, honestly: an unverified school that
+    // gets this sentence rather than a row has learned that the address has an
+    // account. That is exactly the oracle every school had this morning, now
+    // narrowed to unverified ones only. Closing it completely would mean
+    // refusing case 1 too, which would take away a power two dated decisions
+    // grant and which `tests/battery/security/unverified-school-gates.spec.ts`
+    // asserts an unpaid school keeps.
+    if (!school?.verifiedAt) {
+      return {
+        error:
+          "While the school plan is unpaid you can only invite colleagues who are new to StoryJar. Bringing in someone who already has an account moves their classes and their pupils’ work into this school, so it waits until the payment reaches us.",
+      };
+    }
+
+    // ===== CASE 3: ALREADY ON THIS SCHOOL =====
+    // Refusing discloses nothing: they are visibly on the staff table the admin
+    // is looking at.
+    if (existing.schoolId === schoolId) {
+      return { error: "They’re already on your staff list — their row is in the table below." };
+    }
+
+    // ===== CASE 4: ON ANOTHER SCHOOL. NEVER NAME IT. =====
+    //
+    // Telling an admin WHERE a stranger works is real information about an
+    // adult that they did not have a moment ago, and they supplied only an
+    // email address to get it. So the sentence is CONDITIONAL — "if they
+    // already use StoryJar with another school" — which is a true thing to say
+    // to somebody who mistyped an address, and does not confirm on its own that
+    // this particular person is on StoryJar at all.
+    if (existing.schoolId !== null) {
+      return {
+        error:
+          "That address can’t be added here. If they already use StoryJar with another school, they’ll need to leave it before they can join this one — it’s worth asking them.",
+      };
+    }
+
+    // ===== CASE 2: AN ACCOUNT WITH NO SCHOOL. THE WHOLE POINT. =====
+    //
+    // UPSERT, NOT CREATE, and there is deliberately no "resend" anywhere: the
+    // model is unique on (teacherId, schoolId), and re-typing the address is
+    // the one path that refreshes the offer and sends the notification again.
+    // One path, one behaviour — which is the lesson `resendInvite` above was
+    // written to record, applied before the second path exists rather than
+    // after.
+    //
+    // The update REOPENS a row the teacher declined or the school revoked, with
+    // a fresh clock and `respondedAt` cleared. A school may ask twice; what it
+    // may not do is have the old answer still standing while a new offer is
+    // live. `state` and `expiresAt` are always written together, because
+    // `schoolInvitationIsOpen` reads both and either alone is half a bug.
+    //
+    // `invitedName` IS THE NAME THE ADMIN TYPED, never the account's own —
+    // see the column's comment in prisma/schema.prisma. Rendering the real name
+    // would tell an admin what a stranger is called, and would make this row
+    // look different from a fresh INVITED one in the staff list.
+    //
+    // NOTHING IS WRITTEN TO THE TEACHER ROW. She stays ACTIVE, keeps her free
+    // plan, keeps her classes and keeps her `schoolId` of null until she
+    // accepts. Flipping `status` to "INVITED" instead is the shortcut that
+    // would make `removeStaff`'s INVITED branch delete her pupils' drafts and
+    // assignment records; the whole reason this model exists is that it does
+    // not need to be taken (docs/dpo-decisions.md, 2 September 2026).
+    const invitation = await db.schoolInvitation.upsert({
+      where: { teacherId_schoolId: { teacherId: existing.id, schoolId } },
+      create: {
+        schoolId,
+        teacherId: existing.id,
+        role,
+        invitedName: name,
+        invitedByTeacherId: teacherId,
+        invitedByName: actorName,
+        state: "PENDING",
+        expiresAt: schoolInvitationExpiry(),
+      },
+      update: {
+        role,
+        invitedName: name,
+        invitedByTeacherId: teacherId,
+        invitedByName: actorName,
+        state: "PENDING",
+        expiresAt: schoolInvitationExpiry(),
+        respondedAt: null,
+      },
+      select: { id: true },
+    });
+
+    // THE SAME AUDIT ACTION AND THE SAME DETAIL AS CASE 1, on purpose. The
+    // audit tab is rendered to the same admin as the staff table, so a distinct
+    // action here would rebuild the account-existence oracle one tab across.
+    // Only `subjectType` and `subjectId` differ, and neither reaches the
+    // browser: page.tsx sends the audit's actor, action, detail and time.
+    await recordAudit({
+      action: "STAFF_INVITED", actorType: "ADMIN", actorId: teacherId, actorName, schoolId,
+      subjectType: "SCHOOL_INVITATION", subjectId: invitation.id,
+      detail: `Invited ${name} as ${role}`,
+    });
+
+    await sendSchoolInvitation(email, schoolName, actorName);
+    revalidatePath("/admin");
+    return {};
+  }
+
+  // ===== CASE 1: NO ACCOUNT. UNCHANGED. =====
   const { displayName } = deriveTeacherName({ title: "", fullName: name, displayStyle: "first" });
   const created = await db.teacher.create({
     data: {
@@ -265,6 +439,60 @@ export async function resendInvite(formData: FormData) {
     await recordAudit({
       action: "STAFF_INVITE_RESENT", actorType: "ADMIN", actorId: teacherId, actorName, schoolId,
       subjectType: "TEACHER", subjectId: staff.id, detail: `Resent the invitation to ${staff.name}`,
+    });
+  }
+  revalidatePath("/admin");
+}
+
+// Take back an offer made to a teacher who already has an account.
+//
+// THERE IS NO "RESEND" BESIDE THIS, deliberately, and no "edit role" either.
+// Re-typing the address in the invite form upserts the row and sends the
+// notification again — one path, one behaviour — and the role IS the offer, so
+// changing it means making a new one.
+//
+// NOTHING IS DELETED AND NOTHING MOVES. The row goes to REVOKED, which is a
+// third value beside DECLINED and SUPERSEDED because a support call asks which
+// of the three happened (src/lib/schoolInvitationPolicy.ts). The invitee's
+// account, her classes and her pupils are untouched — they were never this
+// school's to touch, which is the whole reason the invitation existed.
+//
+// `respondedAt` IS LEFT NULL. The column means "when the teacher answered", and
+// a school taking an offer back is not the teacher answering. `updatedAt` is
+// what records when this happened.
+//
+// NOT GATED ON `verifiedAt`. Every other gate in this file withholds something
+// that moves children's work between adults; this one only ever narrows what a
+// school is offering, and an unpaid school that typed the wrong address needs
+// to be able to withdraw it.
+//
+// SCOPED BY `schoolId` IN THE WRITE ITSELF, not checked before it. `updateMany`
+// with both columns in the `where` cannot be raced or fooled by an id from
+// another school's console; a `findUnique` followed by an `update` can be. A
+// posted id belonging to School A is simply zero rows updated for School B, and
+// the audit row below is written only if something actually changed.
+export async function cancelSchoolInvitation(formData: FormData) {
+  const { schoolId, teacherId, actorName } = await requireAdmin();
+  const invitationId = String(formData.get("invitationId") ?? "");
+
+  // Read first for the NAME ONLY, and scoped to this school, so the audit
+  // detail can say who the offer was to. `invitedName` is the name this admin's
+  // own school typed; the invitee's real name never enters this action.
+  const invitation = await db.schoolInvitation.findFirst({
+    where: { id: invitationId, schoolId },
+    select: { invitedName: true },
+  });
+
+  const { count } = await db.schoolInvitation.updateMany({
+    where: { id: invitationId, schoolId, state: "PENDING" },
+    data: { state: "REVOKED" },
+  });
+
+  if (count > 0) {
+    await recordAudit({
+      action: "SCHOOL_INVITATION_CANCELLED", actorType: "ADMIN", actorId: teacherId, actorName,
+      schoolId, subjectType: "SCHOOL_INVITATION", subjectId: invitationId,
+      detail: `Cancelled the invitation to ${invitation?.invitedName ?? "a colleague"}`,
     });
   }
   revalidatePath("/admin");

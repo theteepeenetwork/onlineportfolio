@@ -26,3 +26,14 @@ true. Then mutate the source — comment out the call site the new tests are
 supposed to cover — and confirm the tests go red for the right reason. Two of
 mine did, which is the only evidence that a 24ms passing test is doing work.
 Same family as [[feedback-tightening-a-scanner-fails-open]].
+
+**And `npm run test:changed` cannot be that evidence for a NEW spec.**
+`scripts/run-suites.mjs` prints per-test lines only when a shard fails; a fully
+green `--all` gives you shard totals ("113 passed", "93 passed") and no test
+names at all, so a spec file that was never collected — wrong directory, a
+`testDir` that does not cover it, a filename Playwright ignores — is
+indistinguishable from one that passed. Confirmed 2026-09-02: two new security
+specs were "green" in a 837-test `--all` run with no line naming either of them.
+Running the two files alone printed `Running 10 tests` and all ten names, which
+is the proof. Piping the runner through `tail` also hands you `tail`'s exit
+code, so redirect to a file and echo `$?` instead.

@@ -3,6 +3,7 @@ import type { Prisma, Subscription } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
+import { releaseUrnIfUnverified } from "@/lib/urnRelease";
 
 // ---------------------------------------------------------------------------
 // Billing state + the single server-side write gate.
@@ -188,6 +189,21 @@ export async function restoreFreePlanFor(teacherId: string): Promise<void> {
 // Freeze a subscription (make the account read-only) exactly once, and audit it.
 // The guarded updateMany means a redelivered webhook or a second concurrent
 // request won't double-stamp frozenAt or double-log. Auditing never throws.
+//
+// AND IT RELEASES A SQUATTED REGISTER CLAIM. This is the shared freeze — the
+// lazy trial lapse in `settleStatus` and both of the Stripe webhook's freezing
+// events (`customer.subscription.updated` mapping to FROZEN, and
+// `customer.subscription.deleted`) all arrive here — so it is the one place
+// that sees every freeze the app itself performs. An unverified school gives up
+// its `School.urn` at that moment (docs/dpo-decisions.md, 2 Sep 2026); a school
+// that paid and later lapsed keeps it. See src/lib/urnRelease.ts for the guard,
+// and `scripts/freeze-expired.mjs` for the by-state sweep that catches any path
+// that does not come through this function.
+//
+// INSIDE THE `count > 0` BRANCH, so the release happens on the freeze rather
+// than on every redelivery of one. `releaseUrnIfUnverified` is idempotent
+// anyway, but a release that ran on every webhook retry would be one more thing
+// asserting itself against a paying school's row for no reason.
 export async function freezeSubscription(
   sub: Pick<Subscription, "id" | "schoolId">,
   reason: string,
@@ -208,6 +224,10 @@ export async function freezeSubscription(
       subjectId: sub.id,
       detail: `Account frozen (read-only): ${reason}`,
     });
+    // A FREE teacher plan has no `schoolId` and no claim to give up. It also has
+    // no route to FROZEN at all (see the module header) — this is belt and
+    // braces on a branch that should never be reached with a null.
+    if (sub.schoolId) await releaseUrnIfUnverified(db, sub.schoolId, reason);
   }
 }
 
@@ -232,6 +252,53 @@ export async function settleStatus(sub: Subscription): Promise<AccountStatus> {
     return "FROZEN";
   }
   return status;
+}
+
+// ---------------------------------------------------------------------------
+// THE SAME QUESTION, ASKED IN SQL: is this school's plan one a teacher can be
+// handed to?
+//
+// `settleStatus` above is the answer at the moment of decision, and it is the
+// one `joinSchoolPlan` uses, because that is where a write is both allowed and
+// wanted. This is its read-only twin, for the three screens that must stop
+// ADVERTISING a school the action would refuse: the teacher-area banner, the
+// account page's invitation card, and the acceptance screen itself. All three
+// are renders. A render must not lazily freeze another school's row — that
+// would make a stranger's page view write a `BILLING_FROZEN` audit line into a
+// school she does not belong to — so the lapse is expressed as a filter rather
+// than performed.
+//
+// THE TWO MUST AGREE, AND THAT IS THE WHOLE MAINTENANCE BURDEN OF THIS
+// FUNCTION. A school this returns but `settleStatus` refuses is a banner
+// naming a school the page below it will not join, which is exactly the defect
+// the `verifiedAt` clause was added for. So it is derived from
+// `WRITABLE_STATUSES` rather than repeating a list of statuses, and the one
+// thing it does spell out — the lapsed trial — is `settleStatus`'s `trialLapsed`
+// turned inside out. If that condition changes, change this in the same commit.
+//
+// WRITTEN AS A POSITIVE `OR` RATHER THAN A `NOT`, deliberately. The negated
+// form (`NOT (TRIAL AND no stripe id AND trialEndsAt <= now)`) is correct in
+// TypeScript and wrong in SQL: `trialEndsAt <= now` is NULL for a row with no
+// trial end, so `NOT (… AND NULL)` is NULL, and a perfectly writable ACTIVE
+// school would be filtered out by three-valued logic. Every term below compares
+// a value that is either non-null or explicitly matched against null.
+//
+// `kind: "SCHOOL"` IS PART OF IT, not a separate check, because the failure it
+// prevents is the same failure: after `joinSchoolPlan` deletes her own FREE
+// row, a school with no SCHOOL plan would leave her governed by nothing at all.
+// A school with no subscription row at all is excluded too — a relation filter
+// on a to-one relation does not match a missing row.
+export function writableSchoolPlanWhere(now: Date = new Date()): Prisma.SubscriptionWhereInput {
+  return {
+    kind: "SCHOOL",
+    status: { in: [...WRITABLE_STATUSES] },
+    OR: [
+      { status: { not: "TRIAL" } },
+      { stripeSubscriptionId: { not: null } },
+      { trialEndsAt: null },
+      { trialEndsAt: { gt: now } },
+    ],
+  };
 }
 
 export type WriteGate =

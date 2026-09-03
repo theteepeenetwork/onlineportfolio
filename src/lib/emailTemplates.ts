@@ -1,5 +1,13 @@
 // ---------------------------------------------------------------------------
-// The emails StoryJar sends. Three of them.
+// The emails StoryJar sends. FIVE of them: the parent's sign-in link, a
+// teacher's password reset, a staff invitation, the confirm-your-address mail
+// sent before a school can buy, and the school invitation that tells a teacher
+// who ALREADY has an account that an offer is waiting for them in the app.
+//
+// This line said "Three of them" until 2 September 2026, when there were four.
+// It is corrected rather than deleted because the counts in this file are the
+// point: the one further down, over `escapeHtml`, counts the untrusted strings,
+// and a habit of letting a count go stale is how that one goes stale too.
 //
 // **This module deliberately does NOT import `server-only`.** Its predecessor,
 // `src/lib/emails.ts`, did, and the cost of that guard was that nothing outside
@@ -34,13 +42,15 @@
 // they learn only that someone asked to sign in to a service for primary
 // schools, and nothing about any child.
 //
-// Two ADULT-typed strings do reach a body, both in the staff invitation: the
-// school's name, and — when that school's plan has not been paid for — the name
-// of the admin who arranged it. Both are escaped (`escapeHtml`, at the foot of
-// this file). This paragraph used to say that every word here was fixed copy
-// and that nothing a teacher typed was interpolated; the school name was
-// already an exception when it said so, and an undercount of what is untrusted
-// is how the next one arrives unescaped.
+// THREE ADULT-typed values reach a body, across two templates: the school's
+// name (the staff invitation and the school invitation), the name of the admin
+// who arranged an UNPAID school's staff invitation, and the name of the admin
+// who sent a school invitation. All three are escaped (`escapeHtml`, at the
+// foot of this file, which counts them again for the same reason). This
+// paragraph used to say that every word here was fixed copy and that nothing a
+// teacher typed was interpolated; the school name was already an exception when
+// it said so, and an undercount of what is untrusted is how the next one
+// arrives unescaped.
 //
 // **There are no images. Not one, not even a logo.** Three reasons, in order of
 // importance:
@@ -302,16 +312,195 @@ ${button(url, "Set your password")}
   return { subject, text, html };
 }
 
-// TWO pieces of caller-supplied text reach an email body, and both go through
-// here rather than being trusted: the school's name, and — on an unpaid school's
-// staff invitation — the name of the admin who arranged it. Both are typed by an
-// adult at signup and neither is checked against anything (SAFEGUARDING rule
-// 15), and a mail client is not React: nothing escapes for us.
+/**
+ * Prove that this mailbox answers, before a school becomes anybody's.
+ *
+ * Sent from the two CLAIM purchase routes — the ones that bring a `School` into
+ * existence and make the buyer its admin (docs/dpo-decisions.md, 2 Sep 2026) —
+ * AND from `joinSchoolPlan`, where a teacher answers a school's invitation and
+ * a class of children's work changes hands. Free signup sends nothing and asks
+ * for nothing.
+ *
+ * TWO OPENINGS, ONE LINK. The `reason` picks which of the two is true; the
+ * link, the clock and the stamp it writes are identical, and the stamp opens
+ * both doors. The variants exist because of who reads this message rather than
+ * for tidiness: see the paragraph below. A buyer's letter handed to somebody
+ * answering an invitation would tell the one reader who most needs to act that
+ * money is being spent, which is exactly the claim a real head teacher would
+ * dismiss as spam because they are not buying anything.
+ *
+ * THE LAST PARAGRAPH IS THE POINT OF THE WHOLE EMAIL, and it is written for a
+ * reader the rest of the product cannot reach. Signup verifies no address
+ * (F67), so the person holding this message may be a head teacher whose address
+ * a stranger typed in order to claim their school. For them, "didn't expect
+ * this?" is not a footnote: it is the first time anybody has told them it is
+ * happening, and the instruction has to be DO NOT OPEN THE LINK — opening it is
+ * what completes the squatter's proof. That is why this one says "reply and
+ * tell us" where the reset says "you can ignore this".
+ *
+ * NO CALLER-SUPPLIED TEXT REACHES THIS BODY, deliberately. Not the school name,
+ * not the buyer's name. Naming the school would tell whoever received a
+ * mistyped address which school somebody is claiming — a small disclosure, but
+ * an unnecessary one — and it would put a third untrusted string into an email
+ * body (see `escapeHtml` below, and the comment about counting them).
+ */
+export type EmailConfirmationReason = "purchase" | "invitation";
+
+export function emailConfirmationEmail(
+  url: string,
+  reason: EmailConfirmationReason = "purchase",
+): { subject: string; text: string; html: string } {
+  const invitation = reason === "invitation";
+  const subject = "Confirm your email address for StoryJar";
+  const preheader = "One link, so we know we can reach you. It lasts 24 hours.";
+
+  // WHAT IS HAPPENING, in one sentence, for a reader who may not have signed up
+  // at all. Neither variant names a school, a colleague or a price — the same
+  // rule the rest of this body keeps.
+  const opening = invitation
+    ? [
+        "Someone with this email address is answering an invitation to join a",
+        "school on StoryJar. Before a school can take on a class of children's",
+        "work, we need to know we can reach you here.",
+      ]
+    : [
+        "Someone is setting up a school plan on StoryJar with this email address.",
+        "Before anything is bought or charged, we need to know we can reach you here.",
+      ];
+  const openingHtml = invitation
+    ? "Someone with this email address is answering an invitation to join a school on StoryJar. Before a school can take on a class of children&rsquo;s work, we need to know we can reach you here."
+    : "Someone is setting up a school plan on StoryJar with this email address. Before anything is bought or charged, we need to know we can reach you here.";
+  const againButton = invitation ? "the Join button" : "the buy button";
+  // The reassurance at the end has to be TRUE of the door that sent it. On the
+  // invitation route nothing is being bought at all, so "nothing has been
+  // charged" alone would answer a question this reader is not asking and leave
+  // the one they are — has anybody been given my school? — unanswered.
+  const nothingHappened = invitation
+    ? "Nobody has joined anything and nothing has been charged."
+    : "Nothing has been bought and nothing has been charged.";
+
+  const text = [
+    "Confirm your email address",
+    "",
+    ...opening,
+    "",
+    url,
+    "",
+    "The link works once and lasts 24 hours. If it runs out, go back to StoryJar",
+    `and press ${againButton} again — we'll send a fresh one straight away.`,
+    "",
+    "Didn't set up a StoryJar account? Then somebody has used your address, by",
+    "mistake or otherwise. Please do NOT open the link. Reply to this email",
+    `instead and a real person will sort it out. ${nothingHappened}`,
+    "",
+    "---",
+    FOOTER_TEXT,
+    REPLY_TEXT,
+  ].join("\n");
+
+  const html = shell(
+    preheader,
+    `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">Confirm your email address</h1>
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">${openingHtml}</p>
+${button(url, "Confirm this address")}
+<p style="margin:0;font-size:15px;line-height:1.6;color:${BODY};">The link works once and lasts 24 hours. If it runs out, go back to StoryJar and press ${againButton} again — we'll send a fresh one straight away.</p>
+<div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
+<p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>
+<p style="margin:0 0 18px;font-size:13px;line-height:1.6;color:${MUTED};word-break:break-all;">${url}</p>
+<p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};"><strong>Didn't set up a StoryJar account?</strong> Then somebody has used your address, by mistake or otherwise. Please do not open the link. Reply to this email instead and a real person will sort it out. ${nothingHappened}</p>`,
+  );
+
+  return { subject, text, html };
+}
+
+/**
+ * An offer to join a school, for somebody who ALREADY has a StoryJar account.
+ *
+ * THIS EMAIL MINTS NOTHING AND ACCEPTS NOTHING. It carries no token, no code
+ * and no credential of any kind: `url` is the recipient's own `/teacher` page,
+ * and the offer is answered in the app by the signed-in holder of the account
+ * (docs/dpo-decisions.md, 2 September 2026). Compare `staffInviteEmail`, which
+ * has to mail a credential because the person receiving it has no account to
+ * sign in to. This one does, so a forwardable bearer token whose payload is
+ * "attach my pupils to this school" would be a third credential bought for
+ * nothing — and a mistyped address would reach somebody who cannot act on it
+ * at all, because the invitation is bound to a teacher id rather than to
+ * whoever opened an email.
+ *
+ * IT NAMES THE INVITER, and that is the same reasoning as the unpaid-school
+ * disclosure one function up: a recipient has to be able to judge whether this
+ * is legitimate, and a name they recognise — or plainly do not — is the only
+ * thing in the message that lets them. It costs the inviter's name to somebody
+ * who was going to be told it on the acceptance screen anyway.
+ *
+ * IT SAYS IGNORING IT IS SAFE, in both parts, because that is TRUE here in a
+ * way it is not of the confirm-your-address mail: an unanswered invitation
+ * lapses on its own after fourteen days and changes nothing about the
+ * recipient's classes, pupils or account meanwhile.
+ *
+ * TWO caller-supplied strings reach this body — the school's name and the
+ * inviter's — and both are escaped. Neither is checked against anything
+ * (SAFEGUARDING rule 15).
+ */
+export function schoolInvitationEmail(
+  schoolName: string,
+  invitedByName: string,
+  url: string,
+): { subject: string; text: string; html: string } {
+  // Fixed copy, built from nothing. A subject line is visible on a lock screen
+  // to anybody holding the phone, so it names neither the school nor a person.
+  const subject = "There's an invitation waiting for you on StoryJar";
+  const preheader = "Sign in when you have a minute — there's nothing to do in this email.";
+
+  const text = [
+    "An invitation is waiting for you on StoryJar",
+    "",
+    `${invitedByName} has invited you to join ${schoolName} on StoryJar.`,
+    "",
+    "There is nothing to accept in this email, and no link in it agrees to",
+    "anything. The invitation is waiting inside StoryJar: sign in as you normally",
+    "do and you'll find it on your own page, with what joining would mean for",
+    "your classes and your pupils set out in full before you answer.",
+    "",
+    url,
+    "",
+    "Don't recognise that name or that school? You can ignore this email, and",
+    "ignoring it is safe. Nothing about your account, your classes or your pupils",
+    "changes, and the invitation runs out on its own if you never answer it.",
+    "",
+    "---",
+    FOOTER_TEXT,
+    REPLY_TEXT,
+  ].join("\n");
+
+  const html = shell(
+    preheader,
+    `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">An invitation is waiting for you on StoryJar</h1>
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};"><strong style="color:${INK};">${escapeHtml(invitedByName)}</strong> has invited you to join <strong style="color:${INK};">${escapeHtml(schoolName)}</strong> on StoryJar.</p>
+<p style="margin:14px 0 0;font-size:16px;line-height:1.6;color:${BODY};">There is nothing to accept in this email, and no link in it agrees to anything. The invitation is waiting inside StoryJar: sign in as you normally do and you&rsquo;ll find it on your own page, with what joining would mean for your classes and your pupils set out in full before you answer.</p>
+${button(url, "Sign in to StoryJar")}
+<div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
+<p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn&rsquo;t work, copy and paste this into your browser:</p>
+<p style="margin:0 0 18px;font-size:13px;line-height:1.6;color:${MUTED};word-break:break-all;">${url}</p>
+<p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};"><strong>Don&rsquo;t recognise that name or that school?</strong> You can ignore this email, and ignoring it is safe. Nothing about your account, your classes or your pupils changes, and the invitation runs out on its own if you never answer it.</p>`,
+  );
+
+  return { subject, text, html };
+}
+
+// THREE pieces of caller-supplied text reach an email body, and all three go
+// through here rather than being trusted: the school's name (on the staff
+// invitation AND the school invitation), the name of the admin who arranged an
+// unpaid school's staff invitation, and the name of the admin who sent a school
+// invitation. Each is typed by an adult at signup or into a form and none is
+// checked against anything (SAFEGUARDING rule 15), and a mail client is not
+// React: nothing escapes for us.
 //
-// This comment used to say the school name was the only such text. That stopped
-// being true when the unpaid disclosure landed, and it is recorded rather than
-// quietly reworded because the count is the point: a comment that undercounts
-// what is untrusted is how the third one arrives unescaped.
+// This comment said "the school name is the only such text" until the unpaid
+// disclosure landed, and "TWO" until the school invitation landed on 2
+// September 2026. Both corrections are recorded rather than quietly reworded
+// because the count is the point: a comment that undercounts what is untrusted
+// is how the fourth one arrives unescaped.
 function escapeHtml(s: string): string {
   return s.replace(
     /[&<>"']/g,

@@ -49,6 +49,13 @@ test.beforeAll(async () => {
       name: "Robin Vale",
       displayName: "Miss Vale",
       email: BUYER.email,
+      // A PROVED ADDRESS, because buying requires one (docs/dpo-decisions.md,
+      // 2 Sep 2026) and this spec is not about that gate. Without it every
+      // assertion below would pass for the wrong reason: the confirmation
+      // refusal lands first, so the sentences this file names would never be
+      // reached. tests/battery/security/email-confirmation-before-buying.spec.ts
+      // is where the unproved case is tested, on a teacher it builds itself.
+      emailConfirmedAt: new Date(),
       passwordHash: await bcrypt.hash(BUYER.password, 10),
       // Bramblewick is seeded in the register (prisma/seed-test.ts) and is NOT
       // claimed, so this teacher lands on the register branch.

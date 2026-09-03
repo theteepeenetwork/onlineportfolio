@@ -729,6 +729,84 @@ async function main() {
   });
 
   // -------------------------------------------------------------------------
+  // A SCHOOLLESS FREE TEACHER, with a class and pupils of her own.
+  //
+  // The fixture phase 2 is about. `inviteStaff` refuses an email that already
+  // belongs to a teacher, so a teacher who signed up free in September cannot
+  // be brought into their school when it buys in January — and that refusal
+  // cannot be tested at all without somebody in exactly this state:
+  //
+  //   `schoolId: null`, an ACTIVE account, her OWN FREE plan, and children whose
+  //   work would change hands if she accepted an invitation.
+  //
+  // She belongs to NO school, which is the whole point, so she is seeded here
+  // rather than inside one of the five school blocks above.
+  //
+  // SHE HAS A FREE SUBSCRIPTION, AND IT IS NOT DECORATION. A teacher with no
+  // school and no subscription is precisely the stranded state
+  // tests/battery/security/removed-staff-keep-a-free-plan.spec.ts sweeps the
+  // whole table for, so a fixture without one would fail that blocking spec —
+  // in a file nobody would think to look in — rather than failing anything
+  // about invitations. It is also what makes her realistic: this is the row
+  // `createTeacherAccount` writes for every free signup.
+  //
+  // `schoolName` is free text and `urn` is null, which is the ordinary shape of
+  // a free signup: what she typed at the door, never checked against anything
+  // (docs/school-identity.md §5). Thornbury Lane is deliberately NOT one of the
+  // fictional Establishment rows seeded below, so nothing here looks like a
+  // register claim.
+  //
+  // PUPILS BUT NO JOURNAL ITEMS. The pupils are load-bearing: the acceptance
+  // screen's whole claim is that her classes AND THE CHILDREN IN THEM become
+  // the school's, and a fixture with an empty class could not prove anything
+  // moved. Children's WORK is left out on purpose — whether accepting an
+  // invitation may touch a draft is a question `class-handover.spec.ts` already
+  // guards at the cascade level, and a fixture carrying drafts here would
+  // invite a second, weaker assertion about it in the wrong file.
+  //
+  // Her `emailConfirmedAt` is stamped by the one-pass update at the end of this
+  // file, along with every other fixture teacher. Left null she would be
+  // refused at the purchase gate (docs/dpo-decisions.md, 2 Sep 2026) and a
+  // phase 2 spec would fail for a reason that has nothing to do with
+  // invitations.
+  //
+  // NOT ADDED TO prisma/seed-personas.ts. The persona journeys delete staff,
+  // classes and access, and must never touch the fixtures the blocking gates
+  // depend on.
+  // -------------------------------------------------------------------------
+  console.log("[seed-test] Appending a schoolless FREE teacher (no school at all) …");
+  const freeTeacher = await db.teacher.create({
+    data: {
+      name: "Nadia Brookfield",
+      title: "Miss",
+      displayStyle: "formal",
+      displayName: "Miss Brookfield",
+      email: "free.teacher@example.test",
+      passwordHash: await bcrypt.hash("password", 10),
+      schoolName: "Thornbury Lane Primary",
+      role: "TEACHER",
+      status: "ACTIVE",
+      // No schoolId. Stated as an absence rather than written as `null`,
+      // because the column's default is already null and a reader should see
+      // that nothing put her in a school rather than that something took her
+      // out of one.
+    },
+  });
+  await db.subscription.create({
+    data: { kind: "FREE", status: "ACTIVE", trialEndsAt: null, teacherId: freeTeacher.id },
+  });
+  const bluebell = await db.class.create({
+    data: { name: "Bluebell Class", yearGroup: "Year 2", classCode: "BLUE33", teacherId: freeTeacher.id },
+  });
+  await Promise.all(
+    ["Elsie", "Kofi", "Marnie"].map((name, i) =>
+      db.student.create({
+        data: { name, classId: bluebell.id, avatarColor: oakColors[i % oakColors.length] },
+      }),
+    ),
+  );
+
+  // -------------------------------------------------------------------------
   // StoryJar's shared activity library.
   //
   // Two rows, and the second one is the point: an UNPUBLISHED activity must be
@@ -847,6 +925,25 @@ async function main() {
     },
   });
 
+  // EVERY FIXTURE TEACHER HAS A PROVED EMAIL ADDRESS.
+  //
+  // `Teacher.emailConfirmedAt` gates the two CLAIM purchase routes
+  // (docs/dpo-decisions.md, 2 Sep 2026), and null is the honest default for a
+  // real signup — StoryJar has asked nobody to open a link. A fixture is not a
+  // real signup: a fixture that could not buy would fail every purchase spec
+  // for a reason that has nothing to do with what those specs are about.
+  //
+  // Done in ONE PASS at the end rather than field by field on each create, so
+  // that a teacher added later cannot be forgotten. A spec that needs an
+  // UNPROVED teacher builds its own — see
+  // tests/battery/security/email-confirmation-before-buying.spec.ts, which does
+  // exactly that, and would silently stop testing anything if it relied on a
+  // fixture this line could change under it.
+  await db.teacher.updateMany({
+    where: { emailConfirmedAt: null },
+    data: { emailConfirmedAt: new Date() },
+  });
+
   console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
   console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN234 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
@@ -855,6 +952,7 @@ async function main() {
   console.log("  School B voice: /uploads/seed-oak-voice.m4a (APPROVED)  /uploads/seed-oak-voice-pending.webm (PENDING)");
   console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class ARCH22 (Willow)  read-only");
   console.log("  School E (Pennyfields, ACTIVE but UNVERIFIED): admin admin@pennyfields.sch.uk / password  teacher teacher@pennyfields.sch.uk / password  class PENN44 (Kestrel)");
+  console.log("  Free teacher, NO school: free.teacher@example.test / password  class BLUE33 (Bluebell, 3 pupils)  FREE plan — the phase 2 invitation fixture");
   console.log("  StoryJar library: seed-autumn-walk (published, /uploads/shared/seed-shared-bg.svg)  seed-not-published-yet (unpublished)");
   console.log("  Connector tokens: School A/B/C — see API_TOKEN_* in prisma/seed-test.ts and tests/battery/helpers.ts");
   console.log("  Establishment register: 33 fictional schools (Bramblewick, St Cuthbert's ×2, The Grange, Oakfield 900200 = the claimed one, 25× Meadowbank for the bound)");

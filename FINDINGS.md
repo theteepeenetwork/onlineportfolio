@@ -4139,7 +4139,7 @@ rejected options and the suspension consequence are in
 
 ---
 
-## F69 · An open staff-row menu covers the next row's button · Serious (a11y) → Open
+## F69 · An open staff-row menu covers the next row's button · Serious (a11y) → Open, fix decided
 
 Found 2 September 2026 by the axe scan added with the unverified-school gates,
 which was the first scan ever to open a staff-row menu. It is **pre-existing and
@@ -4166,7 +4166,22 @@ is not, for the reason below.
 
 ### Why it is logged rather than fixed
 
-The fix is a design decision, not an edit. It turns on what those menus *are*:
+**Decided 3 September 2026: they are popovers.** The owner ruled, and what
+follows from that ruling is the work — it closes on scroll and on an outside
+click, and it is positioned so it cannot overlap another control. "Cannot
+overlap" is the load-bearing half and it is real layout work in a grid whose
+rows are 44px apart: it is not enough for the menu to *usually* clear the row
+beneath, because the fault axe reports is a control with 32×14px of unobscured
+space, and a menu that clears the next row at the top of a list and not at the
+bottom fails for exactly the people the 44px floor exists for.
+
+**When it lands**, the scan in `tests/battery/a11y/axe.spec.ts` should move off
+the last row. It opens the last row's menu today precisely because nothing sits
+beneath it there, and that choice is commented; once a menu cannot obscure
+anything, scanning any row proves more.
+
+The three options as they were put, kept because the reasoning for the one not
+taken is the argument against reopening it:
 
 - a **modal dialog** — trap focus, dim the rest, close on Escape. Correct if the
   menu is a decision the admin must finish. Heavier, and it makes a two-click

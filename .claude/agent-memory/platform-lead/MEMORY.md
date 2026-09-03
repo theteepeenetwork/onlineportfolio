@@ -17,3 +17,4 @@
 - [A green run is not a run](feedback-a-green-run-is-not-a-run.md) — count what RAN; an env-guarded skip reports green while proving nothing
 - [Worktree with no node_modules](project-worktree-node-modules-trap.md) — npx resolves up to the parent, so only Turbopack notices, 120s later
 - [Close the door, don't decide behind it](feedback-close-the-door-dont-decide-behind-it.md) — a fix must not settle an undecided design question in a branch; make the state unreachable instead
+- [Proving a migration offline](project-proving-a-migration-offline.md) — replay the chain, diff for empty, and turn `PRAGMA foreign_keys` ON or the cascade proof is fake
