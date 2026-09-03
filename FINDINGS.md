@@ -4187,6 +4187,19 @@ nothing needs scrolling to, so the *page* moves rather than the panel; and
 close the menu as it opens. Only the security specs that drive the menus caught
 the first — a11y and e2e were green while it was broken.
 
+**And a defect in the fix, found by its first PR.** Close-on-scroll guarded
+its distance check against a baseline recorded only when the panel had to be
+placed; a panel that already fitted left it `null`, the guard was bypassed, and
+the next scroll event closed the menu. There is always a next scroll event on a
+freshly loaded page: `globals.css` sets `scroll-behavior: smooth`, so Next's own
+scroll-to-top after navigation animates and keeps emitting for a few hundred
+milliseconds. The first menu opened after a load died to that animation's tail;
+the second survived because it had finished. It reproduced only when the console
+was tall enough to scroll at all, which is why a one-row probe passed and the
+two-row invitation test failed, locally and on CI, every time. Five hypotheses
+were ruled out before a mutation observer on the row caught it directly: menu
+added, menu removed, inside 300ms. The baseline is now recorded on every open.
+
 **When it landed**, the scan in `tests/battery/a11y/axe.spec.ts` moved off
 the last row. It opens the last row's menu today precisely because nothing sits
 beneath it there, and that choice is commented; once a menu cannot obscure

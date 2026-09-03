@@ -650,6 +650,18 @@ function StaffTable({
   // theirs is swallowed.
   useEffect(() => {
     if (!menuId) return;
+    // THE BASELINE IS RECORDED ON EVERY OPEN, whether or not the panel needs
+    // placing. It used to be set only when bringIntoView actually scrolled, so
+    // a panel that already fitted left ownScrollY null, the distance guard in
+    // onScroll was bypassed, and the very next scroll event closed the menu.
+    // There IS a next scroll event on a freshly loaded page: globals.css sets
+    // scroll-behavior: smooth, so Next's own scroll-to-top on navigation
+    // animates and keeps emitting for a few hundred milliseconds. The first
+    // menu opened after a load was closed by that animation's tail; the second
+    // survived because it had finished. It reproduced only when the console
+    // was tall enough to scroll at all, which is why a one-row probe passed and
+    // the two-row test failed, here and on CI, every time.
+    ownScrollY.current = window.scrollY;
 
     const bringIntoView = () => {
       const el = panelRef.current;

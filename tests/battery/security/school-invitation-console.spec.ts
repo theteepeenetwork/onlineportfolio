@@ -429,10 +429,22 @@ test("an address with an account and one without produce the same row on the con
     // which kind of row it is — and it is asserted here so that the
     // "indistinguishable" claim above is read as the narrow, true one rather
     // than as a promise the product does not keep.
+    // WAIT FOR HYDRATION BEFORE EACH CLICK, and this is not belt-and-braces.
+    // A server-rendered ⋯ button is visible, enabled and stable — everything
+    // Playwright's click waits for — before React has attached its handler, so
+    // a click that lands first does nothing and leaves no trace. The CI trace
+    // for the first red run measured these two clicks at 10ms and 11ms after
+    // their goto; the first happened to win the race and the second happened
+    // to lose it, on the same runner, on three runs in a row. `networkidle` is
+    // the idiom the rest of the battery already uses for this (seven specs).
+    // The F69 popover did not cause it — it made the console's hydration
+    // heavier and exposed a race this spec always carried.
     await page.goto("/admin");
+    await page.waitForLoadState("networkidle");
     await one.getByRole("button", { name: /actions for sam taylor/i }).click();
     await expect(page.getByRole("menuitem", { name: /assign classes/i })).toBeVisible();
     await page.goto("/admin");
+    await page.waitForLoadState("networkidle");
     await two.getByRole("button", { name: /actions for sam taylor/i }).click();
     await expect(page.getByRole("menuitem", { name: /cancel invitation/i })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: /assign classes/i })).toHaveCount(0);
