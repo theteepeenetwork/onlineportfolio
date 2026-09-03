@@ -5,6 +5,7 @@ import {
   INVITATION_REFUSED_MESSAGE,
   schoolInvitationIsOpen,
 } from "@/lib/schoolInvitationPolicy";
+import { writableSchoolPlanWhere } from "@/lib/billing";
 import { box } from "../../panelChrome";
 import { InvitationDecision } from "./InvitationDecision";
 
@@ -26,12 +27,28 @@ import { InvitationDecision } from "./InvitationDecision";
 //   2. if she leaves that school later, they STAY WITH IT. This sentence is
 //      RETENTION.md "Free teacher plan vs school plan" in plain words and must
 //      not be softened. It is the one a teacher would most like to be untrue;
-//   3. what the school's admins can see, and what they cannot;
+//   3. what the school's admins can see, and what they cannot — including
+//      that an admin can move a class to a different teacher, themselves
+//      included. "They would not see the work unless they teach the class" is
+//      literally true and materially soft on its own, because
+//      `assignClassToStaff` makes teaching the class a thing an admin can
+//      arrange in one click. The audit row it writes is named in the same
+//      breath, because "recorded" is what makes the first half still mean
+//      something;
 //   4. her free plan ends and the school's covers her, nothing is charged to
 //      her, and NOTHING SHE HAS MADE IS DELETED. That last clause is said out
 //      loud because the transaction really does delete a row: her own
 //      `Subscription`. A teacher who hears "your plan is deleted" and imagines
-//      her classes going with it has understood the sentence and not the fact;
+//      her classes going with it has understood the sentence and not the fact.
+//      IT ALSO SAYS THAT THE SCHOOL'S PLAN CAN PAUSE, and that is the half the
+//      screen was missing. RETENTION.md's "Free teacher plan vs school plan"
+//      makes it the distinguishing property of the free plan that it has no
+//      billing route into FROZEN at all; accepting moves her onto a plan that
+//      does, where an unpaid bill makes her account read-only — the children
+//      cannot hand work in, she cannot approve what is waiting — and starts a
+//      12-month clock towards deletion. Leaving that out made joining look
+//      costless, and on a screen whose own reason for existing is that a
+//      teacher should not be nudged, an omission in one direction is a nudge;
 //   5. what does NOT change, because a screen made only of consequences reads
 //      as a warning, and a teacher declining out of vague alarm has been
 //      nudged just as surely as one accepting out of eagerness.
@@ -69,8 +86,28 @@ export default async function InvitationPage({
   // `findFirst` with `teacherId` in the WHERE means it is not found at all,
   // which is the same instinct as the queue page one directory over
   // (SAFEGUARDING rules 4 and 8).
+  //
+  // AND THE SCHOOL'S PLAN MUST STILL BE ABLE TO WRITE, which is the third
+  // place this clause is written and the reason all three agree. It is in the
+  // WHERE rather than in the condition below, exactly as the banner and the
+  // account card have it, so the database does not hand this page a row it may
+  // not draw. A school that paid and then lapsed keeps `verifiedAt` and keeps
+  // its `kind: "SCHOOL"` row at FROZEN, so it would otherwise be explained in
+  // full here, offered a button, and refused on the press. `joinSchoolPlan`
+  // settles the plan's effective status and refuses; `writableSchoolPlanWhere`
+  // is that settle written as a filter, because a render must not freeze
+  // another school's row on a stranger's page view.
+  //
+  // A row filtered out here falls into the same one sentence as everything
+  // else below. That is deliberate: it declines to tell a teacher that a
+  // school has stopped paying its bill, which is a fact about the school and
+  // not hers to be given by us.
   const invitation = await db.schoolInvitation.findFirst({
-    where: { id: invitationId, teacherId: user.teacher.id },
+    where: {
+      id: invitationId,
+      teacherId: user.teacher.id,
+      school: { subscription: writableSchoolPlanWhere() },
+    },
     select: {
       id: true,
       role: true,
@@ -197,14 +234,19 @@ export default async function InvitationPage({
         <p style={PARA}>
           The school&rsquo;s StoryJar admins would see your classes, how many children are in each
           one, and a record of what you do in StoryJar. They would not see the children&rsquo;s work
-          itself unless they teach the class.
+          itself unless they teach the class. An admin can also move a class to a different
+          teacher, including themselves, and StoryJar records it when they do.
         </p>
 
         <h3 style={SUB}>Your plan</h3>
         <p style={PARA}>
           Your free teacher plan ends and {schoolName}&rsquo;s plan covers you instead. Nothing is
           charged to you, now or later. Nothing you have made is deleted: every class, every child
-          and every piece of work stays exactly where it is.
+          and every piece of work stays exactly where it is. From then on the school&rsquo;s plan is
+          the one that governs your account, including if the school stops paying for it: a school
+          plan that goes unpaid is paused, so everyone can still read and download the work but
+          nobody can add to it, and work left in a paused account is deleted after 12 months. Your
+          free plan has nothing to pay and never pauses, so this part is a real change.
         </p>
 
         <h3 style={SUB}>What does not change</h3>

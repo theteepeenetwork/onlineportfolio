@@ -7,7 +7,7 @@ import type { Subscription } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
-import { governingSubscription, trialEndFromNow } from "@/lib/billing";
+import { WRITABLE_STATUSES, governingSubscription, settleStatus, trialEndFromNow } from "@/lib/billing";
 import { priceIdFor, isPlanKey, bandFor, type PlanKey } from "@/lib/billing-plans";
 import { claimSchool, type ClaimRefusal } from "@/lib/schoolClaim";
 import { requireProvedEmailForPurchase } from "@/lib/emailConfirmation";
@@ -834,13 +834,10 @@ export async function joinSchoolPlan(
       role: true,
       state: true,
       expiresAt: true,
-      school: {
-        select: {
-          name: true,
-          verifiedAt: true,
-          subscription: { select: { kind: true } },
-        },
-      },
+      // NO SUBSCRIPTION SUB-SELECT. The plan is read in full at guard 6,
+      // because the effective status needs the whole row and a sub-select here
+      // would leave two half-read copies of the same fact in one action.
+      school: { select: { name: true, verifiedAt: true } },
     },
   });
   if (!invitation) return refuse;
@@ -866,6 +863,18 @@ export async function joinSchoolPlan(
   // September ground for letting an unpaid school invite ("an invitation does
   // nothing until the teacher accepts") is exactly the sentence that makes the
   // check belong here (docs/dpo-decisions.md, 2 September 2026).
+  //
+  // ONE CORRECTION TO THE PARAGRAPH ABOVE, checked rather than assumed: TODAY
+  // NOTHING CLEARS `verifiedAt`. The only two writes in the repository are
+  // `claimSchool` setting it at creation and `markSchoolVerified` stamping it
+  // when the money arrives (src/lib/schoolClaim.ts); `detachBuyer` moves the
+  // buyer and leaves the column alone, and `releaseUrnIfUnverified` writes
+  // `urn`, never this. So what this guard actually catches is a school that was
+  // NEVER verified — the invoice route where the money never came — and not a
+  // school that lost it. A school that paid and then lapsed is a `verifiedAt`
+  // that stands and a plan that has stopped, and GUARD 6 is the only thing that
+  // sees it. Both guards are kept: if `verifiedAt` is ever cleared on refund,
+  // this one starts firing for the reason the paragraph above already gives.
   if (!invitation.school.verifiedAt) return refuse;
 
   // --- GUARD 5: the role is in the closed vocabulary -----------------------
@@ -875,12 +884,50 @@ export async function joinSchoolPlan(
   // the roles that are allowed rather than the ones that are not.
   if (!isSchoolInvitationRole(invitation.role)) return refuse;
 
-  // --- GUARD 6: the school actually runs a school plan ---------------------
-  // The one check the old body had. It is last because it is the least of
-  // them, and it survives because joining a school whose plan is not a school
-  // plan would leave her governed by nothing at all after step 3 deletes her
-  // own row.
-  if (invitation.school.subscription?.kind !== "SCHOOL") return refuse;
+  // --- GUARD 6: the school runs a school plan AND THAT PLAN CAN STILL WRITE -
+  // The one check the old body had, and it read `kind` alone. That was half a
+  // guard, and the missing half is the one that reaches children:
+  //
+  //   `School.verifiedAt` is stamped at payment and never cleared by a later
+  //   lapse, and a school `Subscription` is never deleted —
+  //   `customer.subscription.deleted` routes to `freezeSubscription`. So a
+  //   school that paid and then lapsed keeps `verifiedAt` and keeps a
+  //   `kind: "SCHOOL"` row at `status: "FROZEN"`. It passed guard 4 and it
+  //   passed this one. Fourteen days is comfortably long enough for a card to
+  //   fail inside an open invitation.
+  //
+  // WHAT SHE GOT FOR PRESSING JOIN. Step 3 below deletes her own FREE row, so
+  // `governingSubscription` returns the school's FROZEN one — and RETENTION.md
+  // ("Free teacher plan vs school plan") says in terms that a free account has
+  // no billing route into FROZEN at all. `requireWritableAccount` gates
+  // src/app/actions/journal.ts, so from that instant the children in her class
+  // cannot hand work in and she cannot approve what is already waiting: the
+  // approval queue stops, on an action whose screen told her she carries on
+  // teaching the same classes in the same way. Her children's work also enters
+  // the 12-month frozen-to-deletion lifecycle it was previously outside.
+  //
+  // THE EFFECTIVE STATUS, NOT THE COLUMN. A trial that ran out with no live
+  // Stripe subscription is still the word "TRIAL" in the database until
+  // something asks; `settleStatus` is what asks, and it freezes it as it
+  // answers. Reading `plan.status` directly would let exactly that school
+  // through. This is the moment children's data changes hands, so it is the
+  // moment to settle it — the same argument guard 4 makes for re-checking
+  // `verifiedAt` here rather than trusting the check made when the offer was
+  // sent (Rule 1: take the more protective option).
+  //
+  // READ IN FULL, HERE, rather than sub-selected on the invitation above,
+  // because `settleStatus` needs the whole row and because one query on a
+  // once-in-a-career action is not worth a partial type. `schoolId` is unique
+  // on `Subscription`, so this is the school's plan or nothing.
+  //
+  // REFUSED IN THE SAME ONE SENTENCE as every other failure, and that is not
+  // laziness. `INVITATION_REFUSED_MESSAGE` is deliberately one sentence for
+  // all six modes; a distinct message here would tell a teacher that her
+  // prospective employer has not paid its bill, which is a fact about the
+  // school and not hers to learn from us.
+  const plan = await db.subscription.findUnique({ where: { schoolId: invitation.schoolId } });
+  if (!plan || plan.kind !== "SCHOOL") return refuse;
+  if (!WRITABLE_STATUSES.includes(await settleStatus(plan))) return refuse;
 
   // --- The whole join, or none of it ---------------------------------------
   // Four writes, EVERY ONE OF THEM GUARDED IN ITS OWN WHERE rather than by

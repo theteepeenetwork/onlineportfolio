@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { LogoutForm } from "@/components/LogoutForm";
-import { accountStateForTeacher, governingSubscription } from "@/lib/billing";
+import { accountStateForTeacher, governingSubscription, writableSchoolPlanWhere } from "@/lib/billing";
 import { stripeConfigured } from "@/lib/stripe";
 import type { DisplayStyle } from "@/lib/teacherName";
 import { ProfileForm } from "./ProfileForm";
@@ -84,7 +84,14 @@ export default async function AccountPage({
           // The verified clause the banner carries, for the reason it carries
           // it: an offer a teacher cannot accept must not be advertised to her
           // by name on a screen whose only link refuses.
-          school: { verifiedAt: { not: null } },
+          //
+          // And the writable-plan clause beside it, for the same reason again.
+          // A school that paid and then lapsed keeps `verifiedAt` and keeps its
+          // `kind: "SCHOOL"` row, so verification alone would still name it
+          // here; `joinSchoolPlan` settles the plan's effective status and
+          // refuses. See `writableSchoolPlanWhere`, which is written to agree
+          // with that settle.
+          school: { verifiedAt: { not: null }, subscription: writableSchoolPlanWhere() },
         },
         orderBy: { createdAt: "desc" },
         select: { id: true, invitedByName: true, school: { select: { name: true } } },
