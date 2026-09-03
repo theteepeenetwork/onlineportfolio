@@ -222,24 +222,34 @@ test("a11y (AA): admin console", async ({ page }) => {
   // unrolled "back" button straight inside one. Fixed in AdminConsole.tsx in the
   // same change; this is the half that keeps it fixed.
   //
-  // THE LAST ROW, AND THE REASON IS A SEPARATE, PRE-EXISTING FAULT THAT THIS IS
-  // NOT THE PLACE TO FIX. Every staff row renders the same menu, so which row is
-  // open makes no difference to the markup being scanned here. It makes a
-  // difference to one other thing: an open menu is an overlay, and on any row
-  // but the last it covers the NEXT row's "Actions for …" button, which axe
-  // reports as a serious `target-size` ("partially obscured … smallest space is
-  // 32px by 14px"). That is true of this console today, on `main`, with no
-  // change of mine near it, and it is a real if mild fault — the menu is not a
-  // modal, so the thing underneath is still meant to be a target. Fixing it means
-  // deciding what these menus ARE (a modal dialog, or a popover that closes on
-  // scroll), which is a design question and a different change. Recorded here so
-  // that picking the last row reads as what it is: this test is about the ROLES
-  // inside the menu, and it should fail for that reason or not at all.
+  // A ROW WITH A ROW BENEATH IT, AND THAT CHOICE IS THE ASSERTION THAT F69 IS
+  // FIXED. This opened the LAST row's menu until 3 September 2026, for a reason
+  // that was a fault rather than a preference: the panel was positioned under
+  // the ⋯ button, so on every row but the last it covered the NEXT row's
+  // "Actions for …" button and axe called it a serious `target-size`
+  // ("partially obscured … smallest space is 32px by 14px"). The last row was
+  // the one place nothing sat beneath to be obscured.
+  //
+  // The panels now open SIDEWAYS, into the band of the table where no control
+  // lives, and they cannot reach another row's ⋯ button at any height, on any
+  // row, at any viewport (AdminConsole.tsx says how). So this scans a row that
+  // HAS a row under it, which is strictly more than the last row ever proved:
+  // if `target-size` comes back here, the panel has been moved back over the
+  // rows beneath it, whatever the code looks like.
   await page.getByRole("button", { name: "Staff", exact: true }).click();
-  const rowMenu = page.getByRole("button", { name: /^actions for /i }).last();
+  const triggers = page.getByRole("button", { name: /^actions for /i });
+  // The guard on that choice. A scan of the last row's menu would go green
+  // while F69 was wide open, so the "is there a row beneath" part fails HERE,
+  // loudly, rather than quietly passing below.
+  expect(
+    await triggers.count(),
+    "this scan needs a staff row with another staff row beneath it",
+  ).toBeGreaterThan(2);
+  // The SECOND row, so: not the last (nothing beneath it to obscure) and not
+  // the first, which is the admin's own row — their menu has no removal item
+  // and the last scan below needs one.
+  const rowMenu = triggers.nth(1);
   await rowMenu.click();
-  // Not the admin's own row: their menu has no removal item, and the last scan
-  // below needs one.
   await expect(page.getByRole("menuitem", { name: /remove from school/i })).toBeVisible();
   assertNoSeriousViolations(await scan(page), "admin staff row menu");
 

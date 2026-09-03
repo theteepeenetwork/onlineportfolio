@@ -4139,7 +4139,7 @@ rejected options and the suspension consequence are in
 
 ---
 
-## F69 · An open staff-row menu covers the next row's button · Serious (a11y) → Open, fix decided
+## F69 · An open staff-row menu covers the next row's button · Serious (a11y) → Fixed 2026-09-03
 
 Found 2 September 2026 by the axe scan added with the unverified-school gates,
 which was the first scan ever to open a staff-row menu. It is **pre-existing and
@@ -4175,7 +4175,32 @@ beneath, because the fault axe reports is a control with 32×14px of unobscured
 space, and a menu that clears the next row at the top of a list and not at the
 bottom fails for exactly the people the 44px floor exists for.
 
-**When it lands**, the scan in `tests/battery/a11y/axe.spec.ts` should move off
+**Landed, and measured.** The panel sits against the row's padding box at
+`right: 66` — the row's 22px padding plus the 44px actions column — so its edge
+stops 12px short of the column every other row's button occupies, at any height,
+on any row, at any viewport; everything else in the table body is text. The scan
+now opens **row 2 of 4** and `target-size` on the row beneath reads **none** in
+all four panel states, where it read 32×14px before. Two things the ruling did
+not say and the build had to: a popover that closes on scroll must open where
+nothing needs scrolling to, so the *page* moves rather than the panel; and
+`globals.css` scrolls smoothly, so that scroll must be instant or its own frames
+close the menu as it opens. Only the security specs that drive the menus caught
+the first — a11y and e2e were green while it was broken.
+
+**And a defect in the fix, found by its first PR.** Close-on-scroll guarded
+its distance check against a baseline recorded only when the panel had to be
+placed; a panel that already fitted left it `null`, the guard was bypassed, and
+the next scroll event closed the menu. There is always a next scroll event on a
+freshly loaded page: `globals.css` sets `scroll-behavior: smooth`, so Next's own
+scroll-to-top after navigation animates and keeps emitting for a few hundred
+milliseconds. The first menu opened after a load died to that animation's tail;
+the second survived because it had finished. It reproduced only when the console
+was tall enough to scroll at all, which is why a one-row probe passed and the
+two-row invitation test failed, locally and on CI, every time. Five hypotheses
+were ruled out before a mutation observer on the row caught it directly: menu
+added, menu removed, inside 300ms. The baseline is now recorded on every open.
+
+**When it landed**, the scan in `tests/battery/a11y/axe.spec.ts` moved off
 the last row. It opens the last row's menu today precisely because nothing sits
 beneath it there, and that choice is commented; once a menu cannot obscure
 anything, scanning any row proves more.
@@ -4266,3 +4291,34 @@ person to add a template picking by accident.
 The change that isolated it added the fifth template and nothing else. Fixing an
 operator screen's spec inside a teacher-surface change would have put the repair
 somewhere nobody would look for it.
+
+---
+
+## F71 · The operator-console a11y scan can run before `<title>` has streamed · Low → Open
+
+Seen once, 3 September 2026, on PR #161's first CI run: `ops-auth-a11y.spec.ts:119`
+reported a single `document-title` violation on `/ops` against its empty
+baseline, and the identical job passed on rerun with no change to the branch.
+The branch touched nothing under `src/app/ops`.
+
+### What actually happened
+
+`/ops` deliberately sets no page title of its own — `src/app/ops/page.tsx`
+explains that a title names the area even on a 404 — and inherits the site
+title from the root layout instead. Next streams that `<head>` metadata, so on
+a slow runner there is a window in which the document has rendered enough for
+axe to scan and no `<title>` has arrived yet. The scan ran inside it, once.
+
+### Why it is logged rather than fixed
+
+The test is right to hold the operator screens to an empty baseline, and the
+page is right not to name itself. What is missing is the scan waiting for the
+thing it asserts on — `await expect(page).toHaveTitle(/./)` before `axe.run`,
+or the battery's `networkidle` idiom — and that is a one-line change to a gate
+spec someone should make deliberately rather than as a side effect of a console
+PR. It is the same class as F70: **a blocking gate whose result depends on
+timing rather than on the code under test**, and it will present as the
+newcomer's fault every time.
+
+The ops project only ran on that PR because a config change selects everything;
+a teacher-surface change would never have exercised it.

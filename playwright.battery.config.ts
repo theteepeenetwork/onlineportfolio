@@ -42,7 +42,14 @@ export default defineConfig({
   reporter: [["list"], ["html", { outputFolder: "playwright-report/battery", open: "never" }]],
   use: {
     baseURL: BASE_URL,
-    trace: "on-first-retry",
+    // "retain-on-failure" rather than "on-first-retry" WHILE PR #161 IS OPEN. The
+    // battery runs with no retries, so on-first-retry never fires and a first-run
+    // failure leaves only a screenshot. school-invitation-console.spec.ts:331
+    // fails deterministically on the CI runner and passes every time here, and
+    // after five ruled-out causes the trace is the only evidence left to get.
+    // Revert to "on-first-retry" before merge, or keep it if a trace on every
+    // red gate is judged worth the artefact size.
+    trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [
