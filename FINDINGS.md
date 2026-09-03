@@ -4139,7 +4139,7 @@ rejected options and the suspension consequence are in
 
 ---
 
-## F69 · An open staff-row menu covers the next row's button · Serious (a11y) → Open, fix decided
+## F69 · An open staff-row menu covers the next row's button · Serious (a11y) → Fixed 2026-09-03
 
 Found 2 September 2026 by the axe scan added with the unverified-school gates,
 which was the first scan ever to open a staff-row menu. It is **pre-existing and
@@ -4175,7 +4175,19 @@ beneath, because the fault axe reports is a control with 32×14px of unobscured
 space, and a menu that clears the next row at the top of a list and not at the
 bottom fails for exactly the people the 44px floor exists for.
 
-**When it lands**, the scan in `tests/battery/a11y/axe.spec.ts` should move off
+**Landed, and measured.** The panel sits against the row's padding box at
+`right: 66` — the row's 22px padding plus the 44px actions column — so its edge
+stops 12px short of the column every other row's button occupies, at any height,
+on any row, at any viewport; everything else in the table body is text. The scan
+now opens **row 2 of 4** and `target-size` on the row beneath reads **none** in
+all four panel states, where it read 32×14px before. Two things the ruling did
+not say and the build had to: a popover that closes on scroll must open where
+nothing needs scrolling to, so the *page* moves rather than the panel; and
+`globals.css` scrolls smoothly, so that scroll must be instant or its own frames
+close the menu as it opens. Only the security specs that drive the menus caught
+the first — a11y and e2e were green while it was broken.
+
+**When it landed**, the scan in `tests/battery/a11y/axe.spec.ts` moved off
 the last row. It opens the last row's menu today precisely because nothing sits
 beneath it there, and that choice is commented; once a menu cannot obscure
 anything, scanning any row proves more.
