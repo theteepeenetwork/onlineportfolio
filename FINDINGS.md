@@ -4203,3 +4203,66 @@ to obscure, and the spec says in a comment exactly why that row was chosen. So
 the menus are scanned in both paid and unpaid states, this fault is recorded
 rather than silently unasserted, and the day it is fixed the scan can move to
 any row.
+
+---
+
+## F70 · A mail-screen assertion fails on whoever adds the next template · Medium → Fixed 2026-09-03
+
+Isolated 2 September 2026 while adding a fifth email template. **Pre-existing,
+and it fails on the newcomer** — which is the worst place for it to land.
+
+### What it asserts, and what the page renders
+
+`tests/battery/security/ops-mail.spec.ts:264`, *"the window filter is a filter,
+not a total of the table"*, sums every `MailCounter` row for today **across all
+templates** and asserts the page contains `Attempted<sum>`.
+
+`/ops/mail` renders **Attempted per template** and never a window total. So the
+assertion passes only in the one case where those two numbers coincide:
+**exactly one template has counters on the day the suite runs.**
+
+### Why it looks like the newcomer's fault
+
+Add a template that actually sends something in the same run and the sum moves
+while no rendered number does. The failure then appears the first time somebody
+adds an email — and it appears in *their* branch, three files from anything they
+wrote.
+
+The isolation here was done properly and is worth copying: the template key was
+removed from `MAIL_TEMPLATE_KEYS` and the suite re-run, producing the **identical
+failure with the identical expected substring**. A template with zero counters
+adds an `Attempted0` row and changes no sum, so the newcomer was ruled out
+rather than assumed innocent.
+
+### Why the shard split hides it
+
+It goes green whenever `ops-mail.spec.ts` lands in a shard alone, which is why
+`test:changed` does not see it and why it survived. That is the same class as
+the frozen-Oakfield leak found the day before: **a spec whose result depends on
+what else ran beside it.** Three of the file's tests share its serial describe
+and do not run once it fails, so the reported count understates the loss.
+
+### The fix, as taken
+
+**The test was wrong at the grain, not the intent.** It already computed its
+figures from the table rather than hard-coding them — an earlier fix for this
+same class of bug, with the reason written beside it — but it summed across
+templates and looked for that total anywhere on the page. The assertion is now
+per template, per window, which is strictly stronger than the sum it replaces:
+a total can agree by coincidence while a single figure is wrong, and every
+template is now checked in both windows rather than one number once. The page
+was not changed. The out-of-window control stays.
+
+### What it looked like before that
+
+Either the page grows a window total and the assertion becomes true, or the
+assertion narrows to the per-template figure it can actually see. The first is a
+product change to an operator screen; the second is a smaller claim than the
+test's own name makes. Whoever owns `/ops/mail` should pick, rather than the next
+person to add a template picking by accident.
+
+### Not fixed here
+
+The change that isolated it added the fifth template and nothing else. Fixing an
+operator screen's spec inside a teacher-surface change would have put the repair
+somewhere nobody would look for it.
