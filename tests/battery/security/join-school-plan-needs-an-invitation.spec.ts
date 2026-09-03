@@ -69,6 +69,17 @@ test.beforeAll(async () => {
       email: JOINER.email,
       passwordHash: await bcrypt.hash(JOINER.password, 10),
       // No schoolId. Nothing but their own free row governs this account.
+      //
+      // BUT A PROVED ADDRESS, which a real September signup does NOT have
+      // (F67). Accepting an invitation now requires one — guard 0 of
+      // `joinSchoolPlan`, added in phase 2's Rule 1 review, and it runs before
+      // the invitation is even read so that the message cannot become an oracle
+      // about somebody's offer. Without this line every post below would be
+      // answered by that gate instead of by the guard it is aiming at, and the
+      // file would go on passing while proving nothing about a posted
+      // `schoolId`. Seeded teachers need no such line: prisma/seed-test.ts
+      // stamps every one of them in a single pass at the end.
+      emailConfirmedAt: new Date(),
     },
   });
   joinerId = teacher.id;

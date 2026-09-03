@@ -53,6 +53,15 @@ import { InvitationDecision } from "./InvitationDecision";
 //      as a warning, and a teacher declining out of vague alarm has been
 //      nudged just as surely as one accepting out of eagerness.
 //
+// AND ONE CONDITION THAT IS ABOUT HER RATHER THAN ABOUT THE SCHOOL. Accepting
+// requires a proved email address (owner decision, phase 2's Rule 1 review),
+// and if hers is not proved the screen says so in the decision section rather
+// than letting her read the whole argument and be refused on the press. It does
+// NOT hide the page the way an unverified or frozen school does: those two are
+// facts about the school that are not hers to be given by us, this one is a
+// fact about her own account that she can fix in the next minute, and she
+// should be able to read what accepting means while she waits for the email.
+//
 // AND HER OWN COUNTS, beside it. "Your classes become the school's" is an
 // abstraction until it says Bluebell Class and three children. It is her own
 // data shown to her, nobody else's.
@@ -169,6 +178,34 @@ export default async function InvitationPage({
   });
   const pupils = classes.reduce((n, c) => n + c._count.students, 0);
 
+  // HAS SHE PROVED SHE HOLDS HER OWN ADDRESS? `joinSchoolPlan` refuses while
+  // this is null, and the screen has to know so that it can say so BEFORE the
+  // button rather than after the press. That is the fault fixed for
+  // `verifiedAt` and again for a frozen plan: explaining the whole controller
+  // change, offering a button, and only then refusing.
+  //
+  // BUT NOT BY HIDING THE PAGE, which is what those two do. Their reason is a
+  // fact about the SCHOOL that is not hers to be given by us, so the screen
+  // says one sentence and nothing else. This one is a fact about HER OWN
+  // ACCOUNT and she can fix it in the next minute, so the right screen is the
+  // whole explanation — she should be able to read what accepting means while
+  // she waits for the email — with the decision section saying plainly what
+  // she has to do first.
+  //
+  // READ FROM THE ROW, not from the session: `getCurrentUser` does not carry
+  // `emailConfirmedAt`, and a session minted before she opened the link would
+  // be stale in the direction that shows a refusal to somebody who has already
+  // complied. The address comes from the same read for the same reason — the
+  // action mails whatever the row says, so the screen must name whatever the
+  // row says.
+  const me = await db.teacher.findUnique({
+    where: { id: user.teacher.id },
+    select: { email: true, emailConfirmedAt: true },
+  });
+  // DENY BY DEFAULT (rule 8). An unreadable row is treated as unproved, which
+  // matches what `joinSchoolPlan` would do with the press.
+  const emailConfirmed = me?.emailConfirmedAt != null;
+
   return (
     <div style={{ maxWidth: 720, display: "grid", gap: 16 }}>
       <div>
@@ -263,7 +300,12 @@ export default async function InvitationPage({
         <p style={{ margin: "8px 0 16px", font: "400 16px var(--font-atkinson)", color: "var(--ink-soft)" }}>
           {invitation.invitedByName} asked on behalf of {schoolName}.
         </p>
-        <InvitationDecision invitationId={invitation.id} schoolName={schoolName} />
+        <InvitationDecision
+          invitationId={invitation.id}
+          schoolName={schoolName}
+          emailConfirmed={emailConfirmed}
+          email={me?.email ?? user.teacher.email}
+        />
       </section>
     </div>
   );

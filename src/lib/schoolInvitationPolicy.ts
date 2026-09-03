@@ -181,3 +181,80 @@ export function schoolInvitationIsOpen(
 export const INVITATION_REFUSED_MESSAGE =
   "That invitation isn't open any more — it may have been answered already, withdrawn, or run out of time. " +
   "Ask the school's StoryJar admin to send you a new one.";
+
+// ---------------------------------------------------------------------------
+// The seventh refusal, and the one that does NOT share the sentence above
+// ---------------------------------------------------------------------------
+//
+// WHY THIS ONE IS DIFFERENT IN KIND. The six modes above are all facts about
+// the INVITATION — never sent, expired, declined, revoked, not yours, not real
+// — and they share one sentence precisely because the differences between them
+// are things a signed-in teacher must not be able to ask about somebody else's
+// account ("is this id real?", "does St Bede's have an offer out to her?").
+//
+// This one is a fact about the READER'S OWN ACCOUNT: she has never proved she
+// holds the address she signed up with. It gives away nothing about any
+// invitation, any school or any colleague, because she is the only person it
+// is about — and, unlike all six, IT IS SOMETHING SHE CAN FIX IN THE NEXT
+// MINUTE. Telling her "that invitation isn't open any more" would be both
+// false and useless: the offer is open, and the sentence would send her to ask
+// her school's admin for a replacement that would be refused in exactly the
+// same way.
+//
+// WHAT IT IS FOR. Signup proves no address at all (FINDINGS F67), so an
+// account registered against head@realschool.sch.uk by somebody who does not
+// hold that mailbox can answer an offer the school aimed at that mailbox — and
+// an invitation carrying ADMIN is one `assignClassToStaff` press from reading
+// every child's work in the school. Requiring the mailbox at ACCEPT is what
+// every other route into a school already has by construction: `inviteStaff`
+// mails a bearer token, `claimSchool` requires `emailConfirmedAt`, and
+// `setStaffRole` can only promote somebody who arrived through one of those.
+//
+// THREE SENTENCES, NOT ONE, for the reason the purchase gate gives one file
+// over (src/lib/passwordTokenPolicy.ts): a teacher who is told a link is on
+// its way when it is not, or that nothing was sent when something was, waits
+// for the wrong thing. They are worded for THIS door rather than shared with
+// the purchase door, whose wording opens "Before you can buy" and would be
+// nonsense to a teacher who is not buying anything.
+
+/**
+ * The refusal when her address is not proved, WITH the confirmation link
+ * already on its way.
+ *
+ * It names the address, because a typo made at signup is invisible until the
+ * moment it costs something, and this is that moment. It says which button to
+ * press again rather than sending her looking for a resend that does not
+ * exist: pressing Join IS the resend.
+ */
+export function invitationNeedsConfirmedEmailMessage(email: string): string {
+  return (
+    `Before you can join a school, we need to know we can reach you. We've emailed a link to ${email} — ` +
+    `open it, then come back and press Join again. ` +
+    `If it hasn't arrived in a few minutes, check your junk folder, and press Join again for a fresh link.`
+  );
+}
+
+/**
+ * The same refusal when no link could be sent, because this account has asked
+ * for several in the last few minutes.
+ *
+ * A SEPARATE SENTENCE because the one above would be a promise of an email
+ * that is not coming, and a teacher who then waits for it has no way to tell
+ * the difference.
+ */
+export const INVITATION_EMAIL_CONFIRMATION_THROTTLED_MESSAGE =
+  "Before you can join a school, we need to know we can reach you — and we've already sent you a link in the last few " +
+  "minutes. Please open the most recent one, or wait a moment and press Join again.";
+
+/**
+ * The refusal when StoryJar could not establish whether the address is proved
+ * at all — her own record could not be read.
+ *
+ * REFUSES RATHER THAN ALLOWS (SAFEGUARDING rule 8). What is being gated hands
+ * a class of children's work to a school, so an unreadable row is not a case
+ * to be generous about. It says plainly that nothing happened, because the
+ * thing she is afraid of on this screen is having half-joined.
+ */
+export const INVITATION_EMAIL_CONFIRMATION_UNAVAILABLE_MESSAGE =
+  "We couldn't check your account just now, so nothing has changed and you have not joined anything. " +
+  "Please refresh the page and try once more.";

@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { SCHOOL_A, SCHOOL_B, loginTeacher } from "../helpers";
+import { hashPasswordToken } from "@/lib/passwordTokenPolicy";
 
 // ===========================================================================
 // ACCEPTING AN INVITATION: the moment a school becomes responsible for another
@@ -71,7 +72,12 @@ let unpaidSchoolId = "";
  * end, one class, two children in it. The class and the children are not
  * decoration — points 1 and 4 are about what does and does not move with her.
  */
-async function makeJoiner(who: { email: string; password: string }, name: string, className: string) {
+async function makeJoiner(
+  who: { email: string; password: string },
+  name: string,
+  className: string,
+  opts: { emailConfirmed?: boolean } = {},
+) {
   await db.teacher.deleteMany({ where: { email: who.email } });
   const teacher = await db.teacher.create({
     data: {
@@ -81,10 +87,14 @@ async function makeJoiner(who: { email: string; password: string }, name: string
       passwordHash: await bcrypt.hash(who.password, 10),
       status: "ACTIVE",
       role: "TEACHER",
-      // Proved, so nothing in this file can be refused by a gate it is not
-      // about. Accepting does not require it today; if that ever changes, this
-      // line is what stops these tests silently becoming a test of that.
-      emailConfirmedAt: new Date(),
+      // PROVED BY DEFAULT, so nothing in this file is refused by a gate it is
+      // not about. Accepting NOW REQUIRES IT (section 10 below), which is what
+      // this line was written in anticipation of: a spec that builds its own
+      // teacher gets no `emailConfirmedAt` from anywhere, and every test above
+      // would otherwise have quietly become a test of that one gate. Seeded
+      // teachers are unaffected — `prisma/seed-test.ts` stamps every one of
+      // them in a single pass at the end.
+      emailConfirmedAt: opts.emailConfirmed === false ? null : new Date(),
     },
   });
   await db.subscription.create({
@@ -747,4 +757,227 @@ test("a school whose plan has stopped paying cannot be joined, and her free plan
     await db.teacher.updateMany({ where: { schoolId: school.id }, data: { schoolId: null } });
     await db.school.deleteMany({ where: { id: school.id } });
   }
+});
+
+// ===========================================================================
+// 10. ACCEPTING REQUIRES A PROVED EMAIL ADDRESS
+//
+// Owner decision, phase 2's Rule 1 review. Signup proves no address at all
+// (F67, still open), so an account registered against head@realschool.sch.uk
+// by somebody who does not hold that mailbox could answer an offer the school
+// aimed at that mailbox.
+//
+// WHY THIS IS NOT SIMPLY F67 IN A SECOND PLACE. Every other route into a
+// school proves the mailbox by construction: `inviteStaff` case 1 MAILS a
+// bearer token, so only the mailbox holder can ever set the password;
+// `claimSchool` requires `emailConfirmedAt`; `setStaffRole` can only promote
+// somebody who is already inside the school by one of those. Acceptance was
+// the first path where the SCHOOL names an address and somebody other than its
+// holder can answer — and an invitation that carried ADMIN is one
+// `assignClassToStaff` press from every child's work in the school, because an
+// admin may move any class to any member of staff, themselves included.
+//
+// WHAT A REFUSAL MUST NOT HAVE DONE, and it is asserted every time rather than
+// once: it must not have consumed the invitation, deleted her FREE row, or
+// moved a class. A refusal that had already deleted her plan would leave her
+// schoolless AND governed by nothing, which is worse than the bug.
+//
+// AND THE MAIL IS COUNTED WITH A CONTROL. "No mail here, mail there" passes
+// identically in an environment where mail is broken everywhere, so the
+// counted delta is taken across the SAME teacher pressing the SAME button
+// either side of confirming her address: one press sends, the next sends
+// nothing and joins her instead.
+// ===========================================================================
+
+/** The refusal this section is about, matched on the clause with no punctuation. */
+const NEEDS_EMAIL = "we need to know we can reach you";
+
+/** How many confirmation emails StoryJar has tried to send, across every outcome. */
+async function confirmMailAttempts(): Promise<number> {
+  const rows = await db.mailCounter.findMany({ where: { templateKey: "email-confirm" } });
+  return rows.reduce((n, r) => n + r.count, 0);
+}
+
+/**
+ * Put a usable confirmation link in front of a teacher and hand back the raw
+ * value, the way `email-confirmation-before-buying.spec.ts` does.
+ *
+ * The raw value is never stored, so a test cannot read the one the refusal
+ * just emailed; it writes its own through the SAME digest the application
+ * uses. Opening it walks the real route, so what proves the gate open is the
+ * link a teacher would actually be sent, not a column poked in the database.
+ */
+async function plantConfirmToken(teacherId: string): Promise<string> {
+  const raw = `test-confirm-${teacherId}-${Date.now()}`;
+  await db.teacherPasswordToken.create({
+    data: {
+      resetHash: hashPasswordToken(raw),
+      teacherId,
+      purpose: "CONFIRM",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  });
+  return raw;
+}
+
+test("a teacher who has not proved her address cannot accept, is told why, and is emailed a link", async ({ page }) => {
+  const alfie = await makeJoiner(ALFIE, "Alfie Nunn", "Willow", { emailConfirmed: false });
+  const invitation = await offer(schoolAId, alfie.teacherId, {});
+
+  await openScreen(page, ALFIE, invitation.id);
+
+  // --- THE SCREEN ------------------------------------------------------
+  // NOT the frozen-school treatment. That one hides the page behind one
+  // sentence because the reason is a fact about the school and not hers to be
+  // given by us. This reason is a fact about HER OWN account, she can fix it in
+  // the next minute, and she should be able to read what accepting means while
+  // she waits for the email. So the whole argument is still here.
+  await expect(page.getByText(/If you leave/).first()).toBeVisible();
+  await expect(page.getByText(/deleted after 12 months/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Join / })).toBeVisible();
+
+  // And she is told BEFORE the press, which is the fault fixed for an
+  // unverified school and again for a frozen plan: the whole argument, a
+  // button, and only then a refusal nobody warned her about.
+  await expect(page.getByRole("heading", { name: /confirm your email address first/i })).toBeVisible();
+  await expect(page.getByText(ALFIE.email).first(), "a typo made at signup is visible at the moment it costs something").toBeVisible();
+
+  // --- THE PRESS -------------------------------------------------------
+  const mailBefore = await confirmMailAttempts();
+  const answer = await pressJoin(page, invitation.id);
+
+  expect(answer, "an unproved address cannot take a class of children into a school").toContain(NEEDS_EMAIL);
+  expect(answer, "and the sentence names her address").toContain(ALFIE.email);
+  // NOT the one-sentence invitation refusal. That would be false — the offer is
+  // open — and useless: it would send her to ask her school's admin for a
+  // replacement that would be refused in exactly the same way.
+  expect(answer, "this refusal is about her account, not about the invitation").not.toContain(REFUSAL);
+
+  // --- WHAT THE REFUSAL MUST NOT HAVE DONE ------------------------------
+  const after = await db.teacher.findUniqueOrThrow({
+    where: { id: alfie.teacherId },
+    select: {
+      schoolId: true,
+      role: true,
+      emailConfirmedAt: true,
+      subscription: { select: { kind: true, status: true } },
+    },
+  });
+  expect(after.schoolId, "nobody's pupils pass to a school on an unproved address").toBeNull();
+  expect(after.role, "and no role is granted by a refusal").toBe("TEACHER");
+  expect(after.emailConfirmedAt, "and the gate certainly does not confirm the address it just refused").toBeNull();
+  expect(after.subscription?.kind, "her own free plan is still there").toBe("FREE");
+  expect(after.subscription?.status, "still ACTIVE, still writable, still hers").toBe("ACTIVE");
+  expect(
+    (await db.schoolInvitation.findUniqueOrThrow({ where: { id: invitation.id } })).state,
+    "and the offer is not spent by the attempt",
+  ).toBe("PENDING");
+  expect(await db.class.count({ where: { teacherId: alfie.teacherId } }), "and her class is where it was").toBe(1);
+  expect(await db.student.count({ where: { class: { teacherId: alfie.teacherId } } })).toBe(2);
+
+  // --- WHAT IT DID DO ---------------------------------------------------
+  // Refusing without sending anything would be refusing her twice: there is no
+  // resend button anywhere in the product, and pressing Join IS the resend.
+  const tokens = await db.teacherPasswordToken.findMany({ where: { teacherId: alfie.teacherId } });
+  expect(tokens, "a refusal that sends no link leaves her nowhere to go").toHaveLength(1);
+  expect(tokens[0].purpose).toBe("CONFIRM");
+  expect(tokens[0].usedAt, "and the link must still be spendable").toBeNull();
+  const mailAfterRefusal = await confirmMailAttempts();
+  expect(
+    mailAfterRefusal - mailBefore,
+    "the confirmation must be counted where an operator can see it",
+  ).toBeGreaterThan(0);
+
+  // --- THE POSITIVE CONTROL, AND THE MAIL CONTROL WITH IT ---------------
+  // The same teacher, the same offer, the same button. One column moves, and
+  // it moves by opening a real confirmation link rather than by writing to the
+  // column directly.
+  const raw = await plantConfirmToken(alfie.teacherId);
+  await page.goto(`/confirm-email?token=${raw}`);
+  expect(
+    (await db.teacher.findUniqueOrThrow({ where: { id: alfie.teacherId } })).emailConfirmedAt,
+    "opening the link proves the address",
+  ).not.toBeNull();
+
+  await page.goto(`/teacher/account/invitation/${invitation.id}`);
+  await expect(
+    page.getByRole("heading", { name: /confirm your email address first/i }),
+    "and the screen stops asking",
+  ).toHaveCount(0);
+
+  const joined = await pressJoin(page, invitation.id);
+  expect(joined, "a proved address is not stopped by this gate").not.toContain(NEEDS_EMAIL);
+  expect(joined, "nor by any other").not.toContain(REFUSAL);
+
+  const now = await db.teacher.findUniqueOrThrow({
+    where: { id: alfie.teacherId },
+    select: { schoolId: true, status: true, subscription: { select: { kind: true } } },
+  });
+  expect(now.schoolId, "so every refusal above was the address and nothing else").toBe(schoolAId);
+  expect(now.status, "an established account stays ACTIVE through a join").toBe("ACTIVE");
+  expect(now.subscription, "and exactly one plan governs her now: the school's").toBeNull();
+  expect(
+    (await db.schoolInvitation.findUniqueOrThrow({ where: { id: invitation.id } })).state,
+  ).toBe("ACCEPTED");
+
+  // THE CONTROL THE MAIL ASSERTION NEEDS. A "mail here, none there" pair passes
+  // identically when mail is broken everywhere; this is the same teacher and
+  // the same button, and the successful press sends nothing at all.
+  expect(
+    await confirmMailAttempts(),
+    "a teacher who has proved her address is emailed nothing when she joins",
+  ).toBe(mailAfterRefusal);
+});
+
+test("the refusal is the same whatever the invitation offered — it is never a role oracle", async ({ page }) => {
+  // THE NARROWER GATE WAS CONSIDERED AND REJECTED: requiring proof only for
+  // ADMIN would tell the recipient what she had been offered before she
+  // answered it, and a TEACHER invitation hands over the same children's work
+  // in the same transaction anyway. The four invitation cases are built to look
+  // alike and this one must not be the seam that tells them apart.
+  const beth = await makeJoiner(BETH, "Beth Rowe", "Hazel", { emailConfirmed: false });
+  const asAdmin = await offer(schoolBId, beth.teacherId, { role: "ADMIN" });
+
+  await openScreen(page, BETH, asAdmin.id);
+  const answer = await pressJoin(page, asAdmin.id);
+
+  expect(answer, "an ADMIN invitation is refused in the same words as any other").toContain(NEEDS_EMAIL);
+  expect(answer, "and the refusal never mentions what was offered").not.toMatch(/\badmin\b/i);
+
+  const after = await db.teacher.findUniqueOrThrow({
+    where: { id: beth.teacherId },
+    select: { schoolId: true, role: true },
+  });
+  expect(after.schoolId, "an unproved address does not become an admin of a school").toBeNull();
+  expect(after.role, "and is granted nothing").toBe("TEACHER");
+  expect((await db.schoolInvitation.findUniqueOrThrow({ where: { id: asAdmin.id } })).state).toBe("PENDING");
+});
+
+test("declining needs no proved address, because saying no reaches nothing", async ({ page }) => {
+  // DELIBERATELY NOT GATED. Making somebody prove an address in order to REFUSE
+  // is friction with no safeguarding purpose: nothing of anybody's moves, and a
+  // teacher who cannot say no is left with a live offer she does not want.
+  const alfie = await makeJoiner(ALFIE, "Alfie Nunn", "Willow", { emailConfirmed: false });
+  const invitation = await offer(schoolBId, alfie.teacherId, {});
+  const mailBefore = await confirmMailAttempts();
+
+  await openScreen(page, ALFIE, invitation.id);
+  await page.getByRole("button", { name: /no thank you/i }).click();
+  await page.waitForURL((url) => url.pathname === "/teacher/account");
+
+  const declined = await db.schoolInvitation.findUniqueOrThrow({ where: { id: invitation.id } });
+  expect(declined.state, "an unproved teacher can still answer no").toBe("DECLINED");
+  expect(declined.respondedAt).not.toBeNull();
+  expect(
+    await confirmMailAttempts(),
+    "and declining sends her no confirmation email, because it asks nothing of her address",
+  ).toBe(mailBefore);
+
+  const after = await db.teacher.findUniqueOrThrow({
+    where: { id: alfie.teacherId },
+    select: { schoolId: true, emailConfirmedAt: true, subscription: { select: { kind: true } } },
+  });
+  expect(after.schoolId).toBeNull();
+  expect(after.emailConfirmedAt, "and nothing about her account changed").toBeNull();
+  expect(after.subscription?.kind).toBe("FREE");
 });

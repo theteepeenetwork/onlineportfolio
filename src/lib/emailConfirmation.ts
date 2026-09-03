@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { originUrl } from "@/lib/appOrigin";
 import { sendMail } from "@/lib/mailer";
-import { emailConfirmationEmail } from "@/lib/emailTemplates";
+import { emailConfirmationEmail, type EmailConfirmationReason } from "@/lib/emailTemplates";
 import { mintEmailConfirmToken } from "@/lib/passwordTokens";
 import {
   allowOutboundMail,
@@ -16,6 +16,11 @@ import {
   EMAIL_CONFIRMATION_UNAVAILABLE_MESSAGE,
   emailConfirmationSentMessage,
 } from "@/lib/passwordTokenPolicy";
+import {
+  INVITATION_EMAIL_CONFIRMATION_THROTTLED_MESSAGE,
+  INVITATION_EMAIL_CONFIRMATION_UNAVAILABLE_MESSAGE,
+  invitationNeedsConfirmedEmailMessage,
+} from "@/lib/schoolInvitationPolicy";
 
 // ---------------------------------------------------------------------------
 // BUYING REQUIRES A PROVED EMAIL ADDRESS
@@ -44,6 +49,31 @@ import {
 // gates stay whether or not it is ever closed. They were designed on the
 // assumption it is unfixed and that assumption should not quietly expire
 // because of this file.
+//
+// THE SECOND DOOR: ACCEPTING A SCHOOL INVITATION
+//
+// Added in phase 2's Rule 1 review, and it is not merely F67 resurfacing in a
+// second place. Every other route into a school proved the mailbox by
+// construction — `inviteStaff` case 1 mails a bearer token, so only the
+// mailbox holder can ever set the password; `claimSchool` requires
+// `emailConfirmedAt`; `setStaffRole` can only promote somebody already inside
+// the school by one of those. ACCEPTANCE IS THE FIRST PATH WHERE THE SCHOOL
+// NAMES AN ADDRESS AND SOMEBODY OTHER THAN ITS HOLDER CAN ANSWER: a head
+// invites head@realschool.sch.uk, and whoever registered that address at
+// signup — nobody having checked — presses Join.
+//
+// The pay-off is larger than an extra console. `assignClassToStaff` lets an
+// ADMIN of a verified school move any class in the school to any member of
+// staff, themselves included, so an invitation that carried ADMIN is one press
+// from every child's work in that school. SAFEGUARDING rule 5's "unless they
+// personally teach that class" is satisfied literally, because an admin can
+// make themselves teach any class at will.
+//
+// THE SAME ASYMMETRY STILL HOLDS, and it is the reason this is the right place
+// for the second door too: signup is untouched. Nothing asks a teacher to
+// prove an address until the moment she is about to hand a class of children's
+// work to a school — which, like pressing Buy, is an act she is deliberately
+// taking and will say so about if it fails.
 //
 // WHY THE REFUSAL SENDS THE EMAIL ITSELF
 //
@@ -98,23 +128,95 @@ export async function requireProvedEmailForPurchase(actor: {
   teacherId: string;
   email: string;
 }): Promise<PurchaseRefusal> {
+  return requireProvedEmail(actor.teacherId, PURCHASE_WORDING);
+}
+
+/**
+ * The same gate in front of ACCEPTING A SCHOOL INVITATION (`joinSchoolPlan`).
+ *
+ * Owner decision, phase 2's Rule 1 review. Accepting was the one route into a
+ * school that proved no mailbox: `inviteStaff` mails a bearer token so only
+ * the mailbox holder can set the password, `claimSchool` requires
+ * `emailConfirmedAt`, and `setStaffRole` can only promote somebody who arrived
+ * through one of those. Acceptance is the first path where the SCHOOL names an
+ * address and somebody other than its holder can answer — and an invitation
+ * carrying ADMIN is one `assignClassToStaff` press from every child's work in
+ * the school, because an admin can make themselves teach any class at will.
+ *
+ * IT FIRES FOR EVERY ROLE, and that is deliberate rather than lazy. Gating
+ * ADMIN alone was considered and rejected: the four invitation cases are built
+ * to look alike, and a proof requirement that fired only for ADMIN would tell
+ * the recipient what they had been offered before they answered it. A role
+ * oracle bought nothing, because a TEACHER invitation hands over the same
+ * children's work in the same transaction.
+ *
+ * THE CALLER PASSES NO EMAIL, unlike the purchase gate above. It never used
+ * the one it was given — the address is read from the row either way, so a
+ * stale session cannot aim this email anywhere — and asking for a value that
+ * is then ignored invites the next reader to think it is trusted.
+ */
+export async function requireProvedEmailForInvitation(actor: {
+  teacherId: string;
+}): Promise<PurchaseRefusal> {
+  return requireProvedEmail(actor.teacherId, INVITATION_WORDING);
+}
+
+/**
+ * What a teacher is told at one of the two doors, and which email they get.
+ *
+ * TWO SETS OF WORDS RATHER THAN ONE, because the purchase sentences all open
+ * "Before you can buy" and would be nonsense to a teacher who is not buying
+ * anything — she is answering an invitation, and on that screen the sentence
+ * has to tell her which button to press again. The MECHANISM below is shared;
+ * only the words differ, which is the right way round: a second copy of the
+ * throttle or the mint is how the two doors would come to disagree.
+ */
+type ConfirmationWording = {
+  sent: (email: string) => string;
+  throttled: string;
+  unavailable: string;
+  reason: EmailConfirmationReason;
+};
+
+const PURCHASE_WORDING: ConfirmationWording = {
+  sent: emailConfirmationSentMessage,
+  throttled: EMAIL_CONFIRMATION_THROTTLED_MESSAGE,
+  unavailable: EMAIL_CONFIRMATION_UNAVAILABLE_MESSAGE,
+  reason: "purchase",
+};
+
+const INVITATION_WORDING: ConfirmationWording = {
+  sent: invitationNeedsConfirmedEmailMessage,
+  throttled: INVITATION_EMAIL_CONFIRMATION_THROTTLED_MESSAGE,
+  unavailable: INVITATION_EMAIL_CONFIRMATION_UNAVAILABLE_MESSAGE,
+  reason: "invitation",
+};
+
+/**
+ * The gate itself, shared by both doors. DENY BY DEFAULT: an unreadable row
+ * refuses rather than falling through to "probably fine".
+ */
+async function requireProvedEmail(
+  teacherId: string,
+  wording: ConfirmationWording,
+): Promise<PurchaseRefusal> {
   let teacher: { emailConfirmedAt: Date | null; email: string } | null;
   try {
     teacher = await db.teacher.findUnique({
-      where: { id: actor.teacherId },
+      where: { id: teacherId },
       select: { emailConfirmedAt: true, email: true },
     });
   } catch {
-    return EMAIL_CONFIRMATION_UNAVAILABLE_MESSAGE;
+    return wording.unavailable;
   }
-  if (!teacher) return EMAIL_CONFIRMATION_UNAVAILABLE_MESSAGE;
+  if (!teacher) return wording.unavailable;
   if (teacher.emailConfirmedAt !== null) return null;
 
   // The address is read from the row rather than taken from the session actor,
   // so a stale session cannot aim this email anywhere. They are the same value
   // in every normal case; when they are not, the database is right.
-  const sent = await sendEmailConfirmation(actor.teacherId, teacher.email);
-  return sent ? emailConfirmationSentMessage(teacher.email) : EMAIL_CONFIRMATION_THROTTLED_MESSAGE;
+  const sent = await sendEmailConfirmation(teacherId, teacher.email, wording.reason);
+  return sent ? wording.sent(teacher.email) : wording.throttled;
 }
 
 /**
@@ -131,7 +233,11 @@ export async function requireProvedEmailForPurchase(actor: {
  * product rides on it. It is checked after the per-teacher budget so the two
  * counters cannot disagree about who was turned away.
  */
-async function sendEmailConfirmation(teacherId: string, email: string): Promise<boolean> {
+async function sendEmailConfirmation(
+  teacherId: string,
+  email: string,
+  reason: EmailConfirmationReason,
+): Promise<boolean> {
   const key = CONFIRM_MAIL_KEY(teacherId);
   if (isRateLimited(key)) return false;
   // AND the coarse ceiling on the SOURCE, which is the same counter
@@ -144,7 +250,15 @@ async function sendEmailConfirmation(teacherId: string, email: string): Promise<
   recordFailure(key);
 
   const path = await mintEmailConfirmToken(teacherId);
-  const mail = emailConfirmationEmail(`${await originUrl()}${path}`);
+  // WHY THE EMAIL KNOWS WHICH DOOR SENT IT. The link is the same link and the
+  // stamp it writes opens both doors, but the letter is read by somebody who
+  // may not have signed up at all — a real head whose address a stranger
+  // registered. Telling that person "somebody is setting up a school plan and
+  // nothing has been charged" when what is actually happening is that somebody
+  // is answering an invitation aimed at THEM is the one sentence they would
+  // dismiss. The variant says what is really going on, names no school and no
+  // colleague, and asks them to reply to us.
+  const mail = emailConfirmationEmail(`${await originUrl()}${path}`, reason);
   // The result is deliberately not surfaced. What a teacher is told is the same
   // whether Mailjet accepted the message or not, because there is nothing they
   // could do differently either way and the mail health of the deployment is an
