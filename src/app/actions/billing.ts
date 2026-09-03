@@ -10,7 +10,7 @@ import { getStripe, stripeConfigured } from "@/lib/stripe";
 import { WRITABLE_STATUSES, governingSubscription, settleStatus, trialEndFromNow } from "@/lib/billing";
 import { priceIdFor, isPlanKey, bandFor, type PlanKey } from "@/lib/billing-plans";
 import { claimSchool, type ClaimRefusal } from "@/lib/schoolClaim";
-import { requireProvedEmailForPurchase } from "@/lib/emailConfirmation";
+import { requireProvedEmailForInvitation, requireProvedEmailForPurchase } from "@/lib/emailConfirmation";
 import {
   INVITATION_REFUSED_MESSAGE,
   isSchoolInvitationRole,
@@ -815,6 +815,37 @@ export async function joinSchoolPlan(
 ): Promise<{ error?: string; ok?: boolean }> {
   const actor = await requireTeacher();
   const invitationId = String(formData.get("invitationId") ?? "");
+
+  // --- GUARD 0: SHE MUST HAVE PROVED SHE HOLDS HER OWN ADDRESS -------------
+  // Owner decision, phase 2's Rule 1 review. Signup proves no address at all
+  // (F67), so an account registered against head@realschool.sch.uk by somebody
+  // who does not hold that mailbox could answer an offer the school aimed at
+  // that mailbox — and an invitation carrying ADMIN is one `assignClassToStaff`
+  // press from every child's work in the school, because an admin can make
+  // themselves teach any class at will. Every other route into a school proves
+  // the mailbox by construction; this was the exception.
+  //
+  // FIRST, BEFORE THE INVITATION IS EVEN READ, and the ordering is the point.
+  // Placed after the six guards, the message itself would become an oracle:
+  // "confirm your address" rather than "that invitation isn't open" would tell
+  // whoever posted an id that it named a live offer from a paying school. Here
+  // the answer cannot depend on any fact about any invitation, because none has
+  // been read yet. It also means no future guard can be reordered in front of a
+  // write and quietly get ahead of this one.
+  //
+  // FOR EVERY ROLE, NOT ONLY ADMIN. The four invitation cases are built to look
+  // alike; a proof required only for ADMIN would tell the recipient what she
+  // had been offered before she answered it, and a TEACHER invitation hands
+  // over the same children's work in the same transaction anyway.
+  //
+  // IT REFUSES BY SENDING. The teacher gets a confirmation link and a sentence
+  // naming her own address, so a typo made at signup is visible at the moment
+  // it costs something, and pressing Join again is the resend. Declining is NOT
+  // gated (`declineSchoolInvitation`): saying no reaches nothing, and making
+  // somebody prove an address to refuse is friction with no safeguarding
+  // purpose.
+  const unproved = await requireProvedEmailForInvitation({ teacherId: actor.teacherId });
+  if (unproved) return { error: unproved };
 
   // ONE SENTENCE FOR EVERY REFUSAL, from the policy module, and the screen
   // never says which one happened. The code always knows; saying would answer

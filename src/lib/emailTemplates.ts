@@ -313,11 +313,21 @@ ${button(url, "Set your password")}
 }
 
 /**
- * Prove that this mailbox answers, before StoryJar takes any money.
+ * Prove that this mailbox answers, before a school becomes anybody's.
  *
- * Sent only from the two CLAIM purchase routes — the ones that bring a `School`
- * into existence and make the buyer its admin (docs/dpo-decisions.md, 2 Sep
- * 2026). Free signup sends nothing and asks for nothing.
+ * Sent from the two CLAIM purchase routes — the ones that bring a `School` into
+ * existence and make the buyer its admin (docs/dpo-decisions.md, 2 Sep 2026) —
+ * AND from `joinSchoolPlan`, where a teacher answers a school's invitation and
+ * a class of children's work changes hands. Free signup sends nothing and asks
+ * for nothing.
+ *
+ * TWO OPENINGS, ONE LINK. The `reason` picks which of the two is true; the
+ * link, the clock and the stamp it writes are identical, and the stamp opens
+ * both doors. The variants exist because of who reads this message rather than
+ * for tidiness: see the paragraph below. A buyer's letter handed to somebody
+ * answering an invitation would tell the one reader who most needs to act that
+ * money is being spent, which is exactly the claim a real head teacher would
+ * dismiss as spam because they are not buying anything.
  *
  * THE LAST PARAGRAPH IS THE POINT OF THE WHOLE EMAIL, and it is written for a
  * reader the rest of the product cannot reach. Signup verifies no address
@@ -334,25 +344,54 @@ ${button(url, "Set your password")}
  * an unnecessary one — and it would put a third untrusted string into an email
  * body (see `escapeHtml` below, and the comment about counting them).
  */
-export function emailConfirmationEmail(url: string): { subject: string; text: string; html: string } {
+export type EmailConfirmationReason = "purchase" | "invitation";
+
+export function emailConfirmationEmail(
+  url: string,
+  reason: EmailConfirmationReason = "purchase",
+): { subject: string; text: string; html: string } {
+  const invitation = reason === "invitation";
   const subject = "Confirm your email address for StoryJar";
   const preheader = "One link, so we know we can reach you. It lasts 24 hours.";
+
+  // WHAT IS HAPPENING, in one sentence, for a reader who may not have signed up
+  // at all. Neither variant names a school, a colleague or a price — the same
+  // rule the rest of this body keeps.
+  const opening = invitation
+    ? [
+        "Someone with this email address is answering an invitation to join a",
+        "school on StoryJar. Before a school can take on a class of children's",
+        "work, we need to know we can reach you here.",
+      ]
+    : [
+        "Someone is setting up a school plan on StoryJar with this email address.",
+        "Before anything is bought or charged, we need to know we can reach you here.",
+      ];
+  const openingHtml = invitation
+    ? "Someone with this email address is answering an invitation to join a school on StoryJar. Before a school can take on a class of children&rsquo;s work, we need to know we can reach you here."
+    : "Someone is setting up a school plan on StoryJar with this email address. Before anything is bought or charged, we need to know we can reach you here.";
+  const againButton = invitation ? "the Join button" : "the buy button";
+  // The reassurance at the end has to be TRUE of the door that sent it. On the
+  // invitation route nothing is being bought at all, so "nothing has been
+  // charged" alone would answer a question this reader is not asking and leave
+  // the one they are — has anybody been given my school? — unanswered.
+  const nothingHappened = invitation
+    ? "Nobody has joined anything and nothing has been charged."
+    : "Nothing has been bought and nothing has been charged.";
 
   const text = [
     "Confirm your email address",
     "",
-    "Someone is setting up a school plan on StoryJar with this email address.",
-    "Before anything is bought or charged, we need to know we can reach you here.",
+    ...opening,
     "",
     url,
     "",
     "The link works once and lasts 24 hours. If it runs out, go back to StoryJar",
-    "and press the buy button again — we'll send a fresh one straight away.",
+    `and press ${againButton} again — we'll send a fresh one straight away.`,
     "",
     "Didn't set up a StoryJar account? Then somebody has used your address, by",
     "mistake or otherwise. Please do NOT open the link. Reply to this email",
-    "instead and a real person will sort it out. Nothing has been bought and",
-    "nothing has been charged.",
+    `instead and a real person will sort it out. ${nothingHappened}`,
     "",
     "---",
     FOOTER_TEXT,
@@ -362,13 +401,13 @@ export function emailConfirmationEmail(url: string): { subject: string; text: st
   const html = shell(
     preheader,
     `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">Confirm your email address</h1>
-<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">Someone is setting up a school plan on StoryJar with this email address. Before anything is bought or charged, we need to know we can reach you here.</p>
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">${openingHtml}</p>
 ${button(url, "Confirm this address")}
-<p style="margin:0;font-size:15px;line-height:1.6;color:${BODY};">The link works once and lasts 24 hours. If it runs out, go back to StoryJar and press the buy button again — we'll send a fresh one straight away.</p>
+<p style="margin:0;font-size:15px;line-height:1.6;color:${BODY};">The link works once and lasts 24 hours. If it runs out, go back to StoryJar and press ${againButton} again — we'll send a fresh one straight away.</p>
 <div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
 <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${MUTED};">If the button doesn't work, copy and paste this into your browser:</p>
 <p style="margin:0 0 18px;font-size:13px;line-height:1.6;color:${MUTED};word-break:break-all;">${url}</p>
-<p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};"><strong>Didn't set up a StoryJar account?</strong> Then somebody has used your address, by mistake or otherwise. Please do not open the link. Reply to this email instead and a real person will sort it out. Nothing has been bought and nothing has been charged.</p>`,
+<p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};"><strong>Didn't set up a StoryJar account?</strong> Then somebody has used your address, by mistake or otherwise. Please do not open the link. Reply to this email instead and a real person will sort it out. ${nothingHappened}</p>`,
   );
 
   return { subject, text, html };
