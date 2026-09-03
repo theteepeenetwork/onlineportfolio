@@ -8,6 +8,8 @@ import { BATTERY_MAIL_HMAC_KEY } from "../mailHmacFixtureKey";
 import { recordMailAttempt } from "@/lib/mailCounters";
 import {
   MAIL_SUPPRESSION_SYNC_JOB,
+  MAIL_TEMPLATE_KEYS,
+  MAIL_TEMPLATE_LABEL,
   MAIL_VERDICT_LABEL,
   classifyMailResult,
   mailVerdict,
@@ -257,12 +259,41 @@ test("the window filter is a filter, not a total of the table", async () => {
     ).toBeGreaterThan(attemptedWeek);
     expect(rows.some((row) => row.count === 99), "the out-of-window fixture is missing").toBe(true);
 
-    // Read as raw textContent rather than through toContainText, because the
-    // term and its figure are a <dt>/<dd> pair and only the raw concatenation
-    // puts them next to each other.
-    const rendered = (await main.textContent()) ?? "";
-    expect(rendered, "today's attempts").toContain(`Attempted${attemptedToday}`);
-    expect(rendered, "the seven-day attempts").toContain(`Attempted${attemptedWeek}`);
+    // ASSERTED PER TEMPLATE, PER WINDOW, WHICH IS THE GRAIN THE SCREEN ACTUALLY
+    // RENDERS. This used to sum every template together and look for that total
+    // anywhere in `main`, and the screen has never drawn such a number: a
+    // `WindowCard` holds one `TemplateRow` per template and each draws its own
+    // `Attempted`. The sum therefore matched a rendered figure only while
+    // exactly one template had counters on the day the suite ran, so the day a
+    // fifth template shipped it broke — in that person's branch, three files
+    // from anything they wrote. Logged as F70.
+    //
+    // Computing from the table stays, and for the reason the paragraph above
+    // gives: other specs send real mail and every attempt is counted, so a
+    // written-in figure is wrong about the world rather than about the screen.
+    // What changes is only the grain. This is strictly stronger than the sum it
+    // replaces — a total can agree by coincidence while a per-template figure is
+    // wrong, and now every template is checked in both windows rather than one
+    // number being checked once.
+    for (const [label, from] of [
+      ["Today", today],
+      ["The last 7 days", weekAgo],
+    ] as const) {
+      const card = main.locator("li.card").filter({ has: page.getByRole("heading", { name: label, exact: true }) });
+      for (const key of MAIL_TEMPLATE_KEYS) {
+        const expected = total((r) => r.templateKey === key && r.day >= from && r.day <= today);
+        const row = card.locator("li").filter({
+          has: page.getByRole("heading", { name: MAIL_TEMPLATE_LABEL[key], exact: true }),
+        });
+        // Raw textContent rather than toContainText, because the term and its
+        // figure are a <dt>/<dd> pair and only the concatenation puts them
+        // together.
+        expect(
+          (await row.textContent()) ?? "",
+          `${label}: ${MAIL_TEMPLATE_LABEL[key]}`,
+        ).toContain(`Attempted${expected}`);
+      }
+    }
     expect(rendered, "an out-of-window row must not be counted").not.toContain(
       `Attempted${attemptedEver}`,
     );
