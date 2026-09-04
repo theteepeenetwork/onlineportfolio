@@ -26,13 +26,13 @@ export function CameraDialog({
   onCancel,
 }: {
   title: string;
-  labels: { take: string; cancel: string; choose: string; failed: string };
+  labels: { take: string; cancel: string; choose: string; failed: string; flip: string };
   onCapture: (dataUrl: string, type: string) => void;
   onCancel: () => void;
 }) {
   // Destructured rather than held as `cam`: the lint rule that keeps refs out
   // of render cannot see past an object that carries one.
-  const { videoRef, status, start, stop, snapshot } = useCameraStream();
+  const { videoRef, status, facing, canFlip, start, flip, stop, snapshot } = useCameraStream();
   const ref = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
   const titleId = useId();
@@ -143,14 +143,33 @@ export function CameraDialog({
             />
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            playsInline
-            muted
-            autoPlay
-            className="w-full rounded-xl border border-border bg-black"
-            style={{ aspectRatio: "4 / 3" }}
-          />
+          <div className="relative">
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              autoPlay
+              className="w-full rounded-xl border border-border bg-black"
+              // The front camera is mirrored, the way every phone's camera app
+              // mirrors it: a child moving right should see themselves move
+              // right. Only the PREVIEW — `snapshot()` draws the video's own
+              // frames, so what is saved is the way round the room really is.
+              style={{ aspectRatio: "4 / 3", transform: facing === "user" ? "scaleX(-1)" : undefined }}
+            />
+            {canFlip && (
+              <button
+                type="button"
+                onClick={() => void flip()}
+                disabled={status !== "live"}
+                data-camera-flip
+                aria-label={labels.flip}
+                title={labels.flip}
+                className="absolute bottom-2 right-2 flex h-16 w-16 items-center justify-center rounded-full border-2 border-border bg-white/90 shadow-lg hover:bg-surface disabled:opacity-50"
+              >
+                <Icon name="camera-flip" size={30} decorative />
+              </button>
+            )}
+          </div>
         )}
         <div className="mt-3 flex gap-2">
           {!failed && (

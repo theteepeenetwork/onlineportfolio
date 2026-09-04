@@ -50,28 +50,68 @@ test.afterEach(async ({ page }) => {
 // magenta at ten a second — or, with `fail`, the refusal a locked-down laptop
 // gives. Playwright's own fake-device flags would do the same at the config
 // level, but a config change selects the whole battery on every PR.
-function stubCamera(page: Page, opts: { fail?: boolean } = {}) {
-  return page.addInitScript((fail: boolean) => {
-    const getUserMedia = fail
-      ? () => Promise.reject(new DOMException("denied", "NotAllowedError"))
-      : () => {
-          const c = document.createElement("canvas");
-          c.width = 640;
-          c.height = 480;
-          const x = c.getContext("2d")!;
-          const paint = () => {
-            x.fillStyle = "#d946ef";
-            x.fillRect(0, 0, 640, 480);
-          };
-          paint();
-          setInterval(paint, 100);
-          return Promise.resolve(c.captureStream(10));
+// `cameras` is how many the device reports: 1 (the default) must offer no flip
+// button at all, 2 offers one. Every getUserMedia call records the facingMode
+// it was asked for on `window.__facing`, which is how the flip is asserted —
+// a fake stream looks identical whichever way it claims to point.
+function stubCamera(page: Page, opts: { fail?: boolean; cameras?: number } = {}) {
+  return page.addInitScript(
+    ({ fail, cameras }: { fail: boolean; cameras: number }) => {
+      (window as unknown as { __facing: string[] }).__facing = [];
+      const getUserMedia = (constraints?: MediaStreamConstraints) => {
+        const video = constraints?.video;
+        const mode =
+          typeof video === "object" && video && "facingMode" in video
+            ? String((video as { facingMode?: unknown }).facingMode)
+            : "unknown";
+        (window as unknown as { __facing: string[] }).__facing.push(mode);
+        if (fail) return Promise.reject(new DOMException("denied", "NotAllowedError"));
+        const c = document.createElement("canvas");
+        c.width = 640;
+        c.height = 480;
+        const x = c.getContext("2d")!;
+        const paint = () => {
+          x.fillStyle = "#d946ef";
+          x.fillRect(0, 0, 640, 480);
         };
-    const md = navigator.mediaDevices;
-    if (md) Object.defineProperty(md, "getUserMedia", { value: getUserMedia, configurable: true });
-    else Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia }, configurable: true });
-  }, !!opts.fail);
+        paint();
+        setInterval(paint, 100);
+        return Promise.resolve(c.captureStream(10));
+      };
+      const enumerateDevices = () =>
+        Promise.resolve(
+          Array.from({ length: cameras }, (_, i) => ({
+            kind: "videoinput",
+            deviceId: `cam${i}`,
+            label: `camera ${i}`,
+            groupId: "g",
+            toJSON() {
+              return {};
+            },
+          })) as MediaDeviceInfo[],
+        );
+      const md = navigator.mediaDevices;
+      if (md) {
+        Object.defineProperty(md, "getUserMedia", { value: getUserMedia, configurable: true });
+        Object.defineProperty(md, "enumerateDevices", { value: enumerateDevices, configurable: true });
+      } else {
+        Object.defineProperty(navigator, "mediaDevices", {
+          value: { getUserMedia, enumerateDevices },
+          configurable: true,
+        });
+      }
+    },
+    { fail: !!opts.fail, cameras: opts.cameras ?? 1 },
+  );
 }
+
+// The way the camera was asked to point, most recent first-and-only. React
+// runs an effect twice in development, so the dialog genuinely calls
+// getUserMedia twice on open; the hook's generation guard makes the loser
+// silent (see useCameraStream). The LATEST call is therefore the one that
+// decides what the child is looking at, and the one worth asserting.
+const facingNow = async (page: Page) =>
+  (await page.evaluate(() => (window as unknown as { __facing: string[] }).__facing ?? [])).at(-1);
 
 // The child's side of the frame is only reachable with a camera, stubbed or
 // real, so its accessibility scan lives here rather than in the a11y battery.
@@ -349,6 +389,55 @@ test("a child cannot move, resize or remove the frame", async ({ page, context }
   await expect(page.locator('div[data-frame="filled"]')).toHaveCount(1);
   await dragAcross();
   await expect(page.getByRole("button", { name: "Remove object" })).toHaveCount(0);
+});
+
+test("a child can switch to the front camera when the device has one", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["camera"]);
+  await stubCamera(page, { cameras: 2 });
+  await buildTemplateWithFrame(page, "Frame flip");
+  await openAsChild(page, "Frame flip");
+
+  await page.getByRole("button", { name: "Take a photo" }).click();
+  const dialog = page.getByRole("dialog", { name: "Take a photo" });
+  await expect(dialog.getByRole("button", { name: "Take photo" })).toBeEnabled({ timeout: 15_000 });
+
+  // Opens on the rear camera: the ordinary job is photographing a thing on the
+  // desk, not the child holding the tablet.
+  expect(await facingNow(page)).toBe("environment");
+  const video = dialog.locator("video");
+  expect(await video.evaluate((el) => getComputedStyle(el).transform)).toBe("none");
+
+  const flip = page.locator("button[data-camera-flip]");
+  await expect(flip).toBeVisible();
+  const box = (await flip.boundingBox())!;
+  expect(box.width).toBeGreaterThanOrEqual(64);
+  expect(box.height).toBeGreaterThanOrEqual(64);
+
+  await flip.click();
+  await expect(dialog.getByRole("button", { name: "Take photo" })).toBeEnabled({ timeout: 15_000 });
+  expect(await facingNow(page)).toBe("user");
+  // The front preview is mirrored, as every phone camera app mirrors it.
+  expect(await video.evaluate((el) => getComputedStyle(el).transform)).toContain("-1");
+
+  // And it still takes a photo after switching.
+  await dialog.getByRole("button", { name: "Take photo" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('div[data-frame="filled"] img')).toHaveCount(1);
+});
+
+test("a device with one camera is offered no switch button", async ({ page, context }) => {
+  await context.grantPermissions(["camera"]);
+  await stubCamera(page, { cameras: 1 });
+  await buildTemplateWithFrame(page, "Frame one camera");
+  await openAsChild(page, "Frame one camera");
+
+  await page.getByRole("button", { name: "Take a photo" }).click();
+  const dialog = page.getByRole("dialog", { name: "Take a photo" });
+  await expect(dialog.getByRole("button", { name: "Take photo" })).toBeEnabled({ timeout: 15_000 });
+  await expect(page.locator("button[data-camera-flip]")).toHaveCount(0);
 });
 
 test("when the camera will not open, a child can choose a picture instead", async ({

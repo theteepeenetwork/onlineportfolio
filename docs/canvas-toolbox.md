@@ -101,6 +101,15 @@ image is something the teacher already has. The decisions:
 - **Minimum 160×120 model units**, so the retake button fits at scale 1.
 - **No register gating** (decision 4): a frame renders, taps and flattens
   identically for EYFS, KS1 and KS2.
+- **Both cameras.** The dialog opens on the rear camera, because the ordinary
+  job is photographing a thing on the desk. Where the device reports more than
+  one camera, a 64px switch button sits in the corner of the preview; a device
+  with one camera is offered nothing, since the count is taken from
+  `enumerateDevices()` after permission is granted and denies by default. The
+  front preview is mirrored the way a phone's camera app mirrors it, and only
+  the preview — the saved photo is the way round the room really is. If the
+  device lists a camera it will not actually open, the previous one is
+  reopened rather than showing an error where a working picture was.
 - **The optional prompt** (`label`) is the teacher's own words, shown inside the
   empty frame and never read aloud. The child's button and the dialog use
   fixed copy from `src/lib/copy/student.ts`.

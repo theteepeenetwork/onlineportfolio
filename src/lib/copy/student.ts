@@ -111,6 +111,7 @@ function reg(mode: AgeMode) {
         take: "Take photo",
         cancel: "Cancel",
         choose: "Choose a picture instead",
+        flip: "Switch camera",
         failed: "We couldn't open the camera. You can choose a picture instead.",
       },
       wordsHeading: "My words",
