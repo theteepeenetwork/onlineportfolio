@@ -102,6 +102,17 @@ function reg(mode: AgeMode) {
     // "Photo" on their jar — so nothing here asks them to choose again.
     add: {
       photoHeading: "Take a photo",
+      // A teacher's photo frame on the canvas. Fixed UI copy in every register
+      // (never the teacher's own prompt, which is shown and not spoken), so the
+      // camera dialog says the same thing to a child and in the teacher's
+      // preview.
+      photoAgain: "Take it again",
+      camera: {
+        take: "Take photo",
+        cancel: "Cancel",
+        choose: "Choose a picture instead",
+        failed: "We couldn't open the camera. You can choose a picture instead.",
+      },
       wordsHeading: "My words",
       audioHeading: p("Record your voice", "Record a voice note"),
       // Voice-note controls. Plain, calm words a pre-reader can be shown by an

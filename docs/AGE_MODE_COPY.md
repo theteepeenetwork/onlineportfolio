@@ -104,7 +104,13 @@ so it stays one voice for everyone. Also a few labels that read fine at any age.
 `What's your class code?` · `Your teacher will show you.` · `Next` ·
 `Delete the last letter` · `Hear it` · `Take a photo` · `Tell us about your
 work` · `Back to my jar` · `My activities` · `My moments` · `All done ✓` ·
-`{n} to do` · `Add {letter}` · `Letter {i} of {total}`
+`{n} to do` · `Add {letter}` · `Letter {i} of {total}` · `Take it again` ·
+`Take photo` · `Choose a picture instead` · `We couldn't open the camera. You
+can choose a picture instead.`
+
+The last four are the canvas's photo frame (a teacher's placeholder a child
+fills from the camera). They are one voice on purpose: the same dialog opens in
+the teacher's preview, and it must say what a child will see.
 
 *(If any of these strike you as too young for a Y6, move them up into the swap
 table and I'll make them age-aware.)*

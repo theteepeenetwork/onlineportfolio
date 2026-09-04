@@ -76,6 +76,12 @@ async function persistObjectsPayload(raw: string): Promise<string | null> {
       if (o.type === "image" && o.src.startsWith("data:image")) {
         o.src = await saveImageDataUrl(o.src);
       }
+      // A photo frame's picture is the CHILD'S, taken at answer time and
+      // flattened into their handed-in page. A teacher never captures into one
+      // — the preview lets them try the camera, and the preview saves nothing
+      // — so a source arriving here is stripped rather than stored as
+      // template media (SAFEGUARDING rule 7).
+      if (o.type === "frame" && o.src) delete o.src;
     }
   }
   return JSON.stringify(objects.pages);

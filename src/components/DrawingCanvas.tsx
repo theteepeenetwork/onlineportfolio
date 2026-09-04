@@ -24,10 +24,17 @@ import {
 import { serverSaveDraft, serverLoadDraftBounded, serverDiscardDraft } from "@/lib/draftSync";
 import {
   MAX_OBJECTS_PER_PAGE,
+  MIN_FRAME_W,
+  MIN_FRAME_H,
+  FRAME_DEFAULT_W,
+  FRAME_DEFAULT_H,
+  FRAME_PHOTO_MAX_PX,
   rotateStepFor,
   wrapRotation,
   type CanvasObj,
 } from "@/lib/canvasObjects";
+import { studentCopyNeutral } from "@/lib/copy/student";
+import { CameraDialog } from "./camera/CameraDialog";
 import { isStorableImageType } from "@/lib/imageTypes";
 import { readAloudOnDevice } from "@/lib/readAloud";
 import { useOnDeviceVoiceReady } from "@/lib/useSpeechReady";
@@ -402,8 +409,70 @@ type TextObj = ObjLock & {
   // turn handle means one thing on this canvas rather than two.
   rot?: number;
 };
-type Obj = ImageObj | ShapeObj | TextObj;
+// Mirrors FrameObj in src/lib/canvasObjects.ts. The teacher places the box;
+// the child fills it from the camera. `src` only ever exists on a child's
+// canvas (and in their own draft), and is flattened into the page they hand in.
+type FrameObj = ObjLock & {
+  id: string;
+  type: "frame";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  src?: string;
+  alt?: string;
+  label?: string;
+};
+type Obj = ImageObj | ShapeObj | TextObj | FrameObj;
 type HistoryEntry = { img: string; objects: Obj[] };
+
+// The smallest an object may be resized to, by drag or by button. A line or a
+// rule really is a box a couple of units tall; an area shape keeps 24 so it
+// cannot be squashed to nothing and lost; a photo frame keeps room for the
+// child's 64px "take it again" button.
+function minObjSize(o: Obj): { w: number; h: number } {
+  if (o.type === "shape") {
+    const m = minShapeSize(o.shape);
+    return { w: m, h: m };
+  }
+  if (o.type === "frame") return { w: MIN_FRAME_W, h: MIN_FRAME_H };
+  return { w: 24, h: 24 };
+}
+
+// Crop a captured photo to the frame's proportion, about its centre, capped on
+// the long side. On screen the picture is `objectFit: fill` and the export is
+// `drawImage(img, x, y, w, h)`; both are only correct because the bitmap
+// already has the frame's shape. Same WebP-first, JPEG-fallback rule as
+// `normaliseImport`, for the same reason: a PNG of a photograph is enormous.
+async function cropToAspect(dataUrl: string, aspect: number, maxLong: number): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const el = new Image();
+    el.onload = () => res(el);
+    el.onerror = () => rej(new Error("this device can't open that picture"));
+    el.src = dataUrl;
+  });
+  const sw = img.naturalWidth || 1;
+  const sh = img.naturalHeight || 1;
+  let cw = sw;
+  let ch = Math.round(sw / aspect);
+  if (ch > sh) {
+    ch = sh;
+    cw = Math.round(sh * aspect);
+  }
+  cw = Math.max(1, cw);
+  ch = Math.max(1, ch);
+  const sx = Math.round((sw - cw) / 2);
+  const sy = Math.round((sh - ch) / 2);
+  const k = Math.min(1, maxLong / Math.max(cw, ch));
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(cw * k));
+  c.height = Math.max(1, Math.round(ch * k));
+  const cx = c.getContext("2d");
+  if (!cx) throw new Error("this device can't open that picture");
+  cx.drawImage(img, sx, sy, cw, ch, 0, 0, c.width, c.height);
+  const webp = c.toDataURL("image/webp", 0.9);
+  return webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/jpeg", 0.9);
+}
 
 
 
@@ -651,6 +720,9 @@ export function DrawingCanvas({
   const [thumbs, setThumbs] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  // Which photo frame the camera is open for, and on which page — a photo that
+  // arrives after the page changed under it is dropped rather than misfiled.
+  const [captureFrame, setCaptureFrame] = useState<{ id: string; page: number } | null>(null);
   const [ready, setReady] = useState(false);
   // "Ready to hand in?" confirmation (child submit only — see confirmSubmit).
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
@@ -867,6 +939,26 @@ export function DrawingCanvas({
   function cloneObjs(list: Obj[]): Obj[] {
     return list.map((o) => ({ ...o }));
   }
+  // Pictures and photo frames both composite from `imgCacheRef`, by object id.
+  // A frame's source can CHANGE — a retake, or the undo of one — so a cached
+  // element is trusted only while its source still matches, and reloaded
+  // otherwise. For a plain picture the source never changes, so this is the
+  // preload it always was.
+  async function ensureObjectImages(objs: Obj[]) {
+    await Promise.all(
+      objs.map(async (o) => {
+        if (o.type !== "image" && o.type !== "frame") return;
+        if (!o.src) return;
+        const cached = imgCacheRef.current.get(o.id);
+        if (cached && cached.src === o.src) return;
+        try {
+          imgCacheRef.current.set(o.id, await loadImage(o.src));
+        } catch {
+          /* image will simply not render */
+        }
+      }),
+    );
+  }
   function refreshUndoRedo() {
     setCanUndo((undoRef.current[currentRef.current]?.length ?? 0) > 0);
     setCanRedo((redoRef.current[currentRef.current]?.length ?? 0) > 0);
@@ -976,6 +1068,21 @@ export function DrawingCanvas({
           lines.forEach((line, i) => ec.fillText(line, cx, startY + i * lineHeight));
           ec.textAlign = "left";
           ec.textBaseline = "alphabetic";
+          ec.restore();
+        }
+      } else if (o.type === "frame") {
+        const img = o.src ? imgCacheRef.current.get(o.id) : undefined;
+        if (img && img.complete && img.naturalWidth) {
+          ec.drawImage(img, o.x, o.y, o.w, o.h);
+        } else if (forPreview) {
+          // The teacher's Pages-panel thumbnail shows where the frame is. A
+          // child's hand-in of an empty frame is a blank box, never
+          // placeholder chrome — it is their page, not a form.
+          ec.save();
+          ec.setLineDash([12, 10]);
+          ec.strokeStyle = "#94a3b8";
+          ec.lineWidth = 4;
+          ec.strokeRect(o.x + 2, o.y + 2, o.w - 4, o.h - 4);
           ec.restore();
         }
       } else {
@@ -1241,16 +1348,7 @@ export function DrawingCanvas({
         }
       }),
     );
-    await Promise.all(
-      objectsRef.current.flat().map(async (o) => {
-        if (o.type !== "image" || imgCacheRef.current.has(o.id)) return;
-        try {
-          imgCacheRef.current.set(o.id, await loadImage(o.src));
-        } catch {
-          /* image will simply not render */
-        }
-      }),
-    );
+    await ensureObjectImages(objectsRef.current.flat());
     const strokeImgs = await Promise.all(
       pagesRef.current.map(async (p) => {
         try {
@@ -1375,16 +1473,7 @@ export function DrawingCanvas({
       if (seededObjects.some((p) => p.length)) anyDrawnRef.current = true;
 
       // Preload image objects so they composite synchronously.
-      await Promise.all(
-        seededObjects.flat().map(async (o) => {
-          if (o.type !== "image" || imgCacheRef.current.has(o.id)) return;
-          try {
-            imgCacheRef.current.set(o.id, await loadImage(o.src));
-          } catch {
-            /* image will simply not render */
-          }
-        }),
-      );
+      await ensureObjectImages(seededObjects.flat());
 
       setPageCount(pagesRef.current.length);
 
@@ -1782,7 +1871,9 @@ export function DrawingCanvas({
   function restore(entry: HistoryEntry) {
     objectsRef.current[currentRef.current] = entry.objects;
     setObjects([...entry.objects]);
-    void paintDataUrl(entry.img).then(() => {
+    // The images too: undoing a retake must composite the photo that was
+    // there before, not the one the cache was last told about.
+    void Promise.all([paintDataUrl(entry.img), ensureObjectImages(entry.objects)]).then(() => {
       pagesRef.current[currentRef.current] = entry.img;
       syncHidden();
       refreshThumbs();
@@ -1817,6 +1908,7 @@ export function DrawingCanvas({
   function goToPage(index: number) {
     if (index < 0 || index >= pagesRef.current.length || index === currentRef.current) return;
     finishEditing();
+    setCaptureFrame(null);
     syncHidden();
     currentRef.current = index;
     setCurrent(index);
@@ -1828,6 +1920,7 @@ export function DrawingCanvas({
 
   function addPage() {
     finishEditing();
+    setCaptureFrame(null);
     syncHidden();
     clearCanvas();
     const blank = canvasRef.current!.toDataURL("image/png"); // transparent strokes
@@ -1860,6 +1953,7 @@ export function DrawingCanvas({
   function duplicatePageAt(target: number) {
     if (target < 0 || target >= pagesRef.current.length) return;
     finishEditing();
+    setCaptureFrame(null);
     // Bake the page on screen first, so duplicating a DIFFERENT page never
     // drops the in-progress work on the one being viewed.
     syncHidden();
@@ -1968,6 +2062,7 @@ export function DrawingCanvas({
     if (pagesRef.current.length <= 1) return;
     if (target < 0 || target >= pagesRef.current.length) return;
     finishEditing();
+    setCaptureFrame(null);
     // Bake the page on screen first, so deleting a DIFFERENT page never drops
     // the in-progress work on the page you're currently viewing.
     syncHidden();
@@ -2544,9 +2639,12 @@ export function DrawingCanvas({
     refreshThumbs();
   }
 
-  // Update the text of a text object while it's being typed.
+  // Update the text of a text object while it's being typed. A photo frame's
+  // words are its prompt, kept under a different name so nothing that reads a
+  // shape's label ever mistakes a teacher's instruction for one.
   function updateText(id: string, text: string) {
-    updateObject(id, { text });
+    const target = (objectsRef.current[currentRef.current] ?? []).find((o) => o.id === id);
+    updateObject(id, target?.type === "frame" ? { label: text } : { text });
     if (text.trim()) anyDrawnRef.current = true;
     syncHidden();
     refreshThumbs();
@@ -2559,6 +2657,64 @@ export function DrawingCanvas({
     setSelectedId(id);
     setEditingId(id);
     editingRef.current = id;
+  }
+
+  // A photo frame: the teacher's placeholder for a picture the child will take.
+  // Author-only — the fan button that calls this is not rendered anywhere else.
+  function addFrame() {
+    const list = objectsRef.current[currentRef.current] ?? [];
+    if (list.length >= MAX_OBJECTS_PER_PAGE) return;
+    finishEditing();
+    pushHistory();
+    const id = `o${objIdRef.current++}`;
+    const obj: FrameObj = {
+      id,
+      type: "frame",
+      x: (W - FRAME_DEFAULT_W) / 2,
+      y: (H - FRAME_DEFAULT_H) / 2,
+      w: FRAME_DEFAULT_W,
+      h: FRAME_DEFAULT_H,
+    };
+    objectsRef.current[currentRef.current] = [...list, obj];
+    setObjects(objectsRef.current[currentRef.current]);
+    anyDrawnRef.current = true;
+    setSelectedId(id);
+    setTool("cursor");
+    setOpenKit(null);
+    setFanOpen(false);
+    syncHidden();
+    refreshThumbs();
+  }
+
+  // The child's photo arriving from the camera dialog. Normalised like an
+  // import (capped, re-encoded small), then cropped to the frame's own shape so
+  // the on-screen picture and the flattened one agree, then cached BEFORE the
+  // object changes so the very next composite already has it.
+  async function onFramePhoto(dataUrl: string, type: string) {
+    const target = captureFrame;
+    setCaptureFrame(null);
+    if (!target || target.page !== currentRef.current) return;
+    const list = objectsRef.current[currentRef.current] ?? [];
+    const frame = list.find((o): o is FrameObj => o.id === target.id && o.type === "frame");
+    if (!frame) return;
+    let src: string;
+    let img: HTMLImageElement;
+    try {
+      const normalised = await normaliseImport(dataUrl, type);
+      src = await cropToAspect(normalised, frame.w / frame.h, FRAME_PHOTO_MAX_PX);
+      img = await loadImage(src);
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : "That picture didn't work. Have another go.");
+      return;
+    }
+    // History first, so undo takes the photo out again (or puts the previous
+    // one back, on a retake).
+    pushHistory();
+    imgCacheRef.current.set(frame.id, img);
+    updateObject(frame.id, { src });
+    anyDrawnRef.current = true;
+    syncHidden();
+    refreshThumbs();
   }
 
   // Get an imported picture into a shape this app can actually carry.
@@ -3070,6 +3226,37 @@ export function DrawingCanvas({
     />
   ) : null;
 
+  // The photo frames on the current page, for a child. Rendered ABOVE the
+  // stroke canvas like the quiz layer, so a child can tap one under the pen
+  // tool — an EYFS child never reaches for the cursor tool — while the
+  // container stays pointer-events-none so the rest of the page is drawable.
+  // Both labels are register-neutral fixed copy, so the teacher's preview shows
+  // exactly what a child sees.
+  const framesOnPage = objects.filter((o): o is FrameObj => o.type === "frame");
+  const frameCopy = studentCopyNeutral.add;
+  const frameTapLayer =
+    !isObjectAuthor && framesOnPage.length ? (
+      <FrameTapLayer
+        frames={framesOnPage}
+        scale={scale}
+        takeLabel={frameCopy.photoHeading}
+        againLabel={frameCopy.photoAgain}
+        onTap={(id) => {
+          finishEditing();
+          setCaptureFrame({ id, page: currentRef.current });
+        }}
+      />
+    ) : null;
+
+  const cameraDialog = captureFrame ? (
+    <CameraDialog
+      title={frameCopy.photoHeading}
+      labels={frameCopy.camera}
+      onCapture={(dataUrl, type) => void onFramePhoto(dataUrl, type)}
+      onCancel={() => setCaptureFrame(null)}
+    />
+  ) : null;
+
   const hiddenInputs = (
     <>
       <input type="hidden" name={name} ref={hiddenRef} />
@@ -3148,6 +3335,7 @@ export function DrawingCanvas({
         }}
       />
       {quizLayer}
+      {frameTapLayer}
     </>
   );
 
@@ -3167,6 +3355,7 @@ export function DrawingCanvas({
         {confirmingSubmit && (
           <ConfirmSubmitPrompt pageCount={pageCount} onCancel={() => setConfirmingSubmit(false)} />
         )}
+        {cameraDialog}
 
         <div
           ref={wrapRef}
@@ -3306,6 +3495,11 @@ export function DrawingCanvas({
                     <Icon name={KIT_ICON[kit.id]} size={26} decorative />
                   </FanBtn>
                 ))}
+                {/* Teacher-only, like the quiz: a child never adds a frame,
+                    they fill the one the teacher placed. */}
+                {isObjectAuthor && (
+                  <FanBtn label="Photo frame" onClick={addFrame}><Icon name="camera" size={26} decorative /></FanBtn>
+                )}
                 {isQuizAuthor && (
                   <FanBtn label="Quiz" onClick={() => { setFanOpen(false); setOpenKit(null); setTool("cursor"); openQuizPanel(); }}><Icon name="help" size={26} decorative /></FanBtn>
                 )}
@@ -3580,6 +3774,7 @@ export function DrawingCanvas({
   return (
     <div>
       {hiddenInputs}
+      {cameraDialog}
 
       <div className="mb-2 flex flex-wrap items-center gap-2">
         {TOOLS.map((t) => (
@@ -4375,6 +4570,15 @@ type ObjHandlers = {
 //    pieces — e.g. the numbers being sorted).
 //  - child, own object          → fully editable (their import), no padlock.
 function objCapabilities(o: Obj, author: boolean) {
+  // A photo frame. Author: an ordinary object (move / resize / delete /
+  // duplicate / order) but no padlock, because it is always fixed for a child.
+  // Child: fixed by what it is, whatever `locked` says; the tap layer above the
+  // stroke canvas is what a child interacts with, not this wrapper.
+  if (o.type === "frame") {
+    return author
+      ? { movable: true, editable: true, showLock: false, fixed: false, source: false }
+      : { movable: false, editable: false, showLock: false, fixed: true, source: false };
+  }
   if (author) {
     // A padlock you can drag straight through is not a padlock. Locking pins
     // the object for the person who locked it too, until they unlock it —
@@ -4619,6 +4823,9 @@ function ObjectToolbar({
           </button>
             </>
           )}
+          {/* No padlock on a photo frame: a child can never move one, so
+              there is nothing for a padlock to decide. */}
+          {o.type !== "frame" && (
           <button
             type="button"
             onClick={() => onToggleLock(o.id)}
@@ -4633,6 +4840,7 @@ function ObjectToolbar({
           >
             <Icon name={o.locked ? "lock-closed" : "lock-open"} size={30} decorative />
           </button>
+          )}
           {/* Make this a source. A child dragging it gets a new one and this
               stays put, so a worksheet hands out as many counters or ten-rods
               as they need and they never open a palette. */}
@@ -5041,7 +5249,7 @@ function MediaObjectView({
   onTextChange,
   onFinishEditing,
   onContextMenu,
-}: ObjHandlers & { o: ImageObj | ShapeObj; selected: boolean; grouped: boolean; editing: boolean }) {
+}: ObjHandlers & { o: ImageObj | ShapeObj | FrameObj; selected: boolean; grouped: boolean; editing: boolean }) {
   const cap = objCapabilities(o, author);
   // `cap.showLock` is the author. A locked object is not movable by anyone, but
   // its author must still be able to TAP it — that is how they reach the
@@ -5079,9 +5287,9 @@ function MediaObjectView({
     // The same two floors the drag path uses: a line or a rule really is a box
     // a couple of units tall, everything else keeps 24 so it cannot be squashed
     // to nothing and lost.
-    const min = o.type === "shape" ? minShapeSize(o.shape) : 24;
-    const w = Math.min(W, Math.max(min, o.w * factor));
-    const h = Math.min(H, Math.max(min, o.h * factor));
+    const min = minObjSize(o);
+    const w = Math.min(W, Math.max(min.w, o.w * factor));
+    const h = Math.min(H, Math.max(min.h, o.h * factor));
     // Nothing to do at the limit — better than a press that silently does
     // nothing to w and something to h, which reads as the shape distorting.
     if (Math.abs(w - o.w) < 0.5 && Math.abs(h - o.h) < 0.5) return;
@@ -5254,7 +5462,8 @@ function MediaObjectView({
       // Vector kinds (line / arrow) get a much smaller floor: a number line or
       // a table rule IS a box a couple of units tall. Area shapes keep 24 so a
       // rectangle can't be squashed to nothing and lost.
-      const min = o.type === "shape" ? minShapeSize(o.shape) : 24;
+      const floor = minObjSize(o);
+      const min = floor.w;
 
       // Project the screen delta onto the shape's OWN axes. Drag right on a
       // shape rotated 90° and it should get taller, not wider — the handle is
@@ -5281,13 +5490,15 @@ function MediaObjectView({
       // different angle instead. Turning is the turn handle's job; this one
       // only makes it bigger.
       const lock =
-        o.type === "image"
-          ? o.aspect
-          : o.type === "shape" && isVectorKind(o.shape)
-            ? d.sh > 0
-              ? d.sw / d.sh
-              : null
-            : shapeAspect(o);
+        o.type === "frame"
+          ? null
+          : o.type === "image"
+            ? o.aspect
+            : isVectorKind(o.shape)
+              ? d.sh > 0
+                ? d.sw / d.sh
+                : null
+              : shapeAspect(o);
       let w: number;
       let h: number;
       if (lock) {
@@ -5307,8 +5518,8 @@ function MediaObjectView({
         w = Math.min(Math.max(rawW, loW), hiW);
         h = w / lock;
       } else {
-        w = Math.max(min, Math.min(W, rawW));
-        h = Math.max(min, Math.min(H, d.sh + dLocalY));
+        w = Math.max(floor.w, Math.min(W, rawW));
+        h = Math.max(floor.h, Math.min(H, d.sh + dLocalY));
       }
 
       // x/y pin the top-left but the rotation turns about the CENTRE, so
@@ -5353,7 +5564,7 @@ function MediaObjectView({
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onDoubleClick={o.type === "shape" && cap.editable ? () => onEditText(o.id) : undefined}
+      onDoubleClick={(o.type === "shape" || o.type === "frame") && cap.editable ? () => onEditText(o.id) : undefined}
       className={`absolute touch-none ${
         canGrab ? "pointer-events-auto cursor-move" : "pointer-events-none"
       } ${
@@ -5404,7 +5615,57 @@ function MediaObjectView({
         </div>
       )}
 
-      {o.type === "image" ? (
+      {o.type === "frame" ? (
+        <div
+          // `data-frame` names the kind and its state on the element that
+          // draws it, as `data-shape` does for a shape.
+          data-frame={o.src ? "filled" : "empty"}
+          className="pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-lg"
+          style={
+            o.src
+              ? undefined
+              : {
+                  border: `${Math.max(2, 4 * scale)}px dashed #94a3b8`,
+                  background: "rgba(241, 245, 249, 0.7)",
+                }
+          }
+        >
+          {o.src ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={o.src}
+              alt={o.alt || "Your photo"}
+              draggable={false}
+              className="h-full w-full select-none"
+              style={{ objectFit: "fill" }}
+            />
+          ) : (
+            <>
+              {/* The teacher's prompt sits at the top, so the child's tap
+                  button (centred, in the layer above) never covers it. */}
+              {o.label && !editing && (
+                <div
+                  className="shrink-0 px-2 pt-1 text-center font-semibold text-slate-600"
+                  style={{
+                    fontFamily: FONT_STACK,
+                    fontSize: Math.min(o.h * 0.12, 30) * scale,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {o.label}
+                </div>
+              )}
+              {/* The camera glyph is the teacher's cue only; a child's cue is
+                  the tap button in FrameTapLayer, which sits over this box. */}
+              {author && (
+                <div className="flex flex-1 items-center justify-center text-slate-400">
+                  <Icon name="camera" size={Math.min(64, Math.max(24, o.h * scale * 0.3))} decorative />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : o.type === "image" ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={o.src}
@@ -5485,18 +5746,18 @@ function MediaObjectView({
         </div>
       )}
 
-      {/* Editing the label. */}
-      {o.type === "shape" && editing && (
+      {/* Editing the label — or, on a photo frame, the teacher's prompt. */}
+      {(o.type === "shape" || o.type === "frame") && editing && (
         <textarea
           autoFocus
-          value={o.text ?? ""}
+          value={(o.type === "frame" ? o.label : o.text) ?? ""}
           onChange={(e) => onTextChange(o.id, e.target.value)}
           onBlur={onFinishEditing}
           onPointerDown={(e) => e.stopPropagation()}
-          placeholder="Type…"
+          placeholder={o.type === "frame" ? "What should they photograph?" : "Type…"}
           className="pointer-events-auto absolute inset-1 resize-none rounded border-2 border-brand bg-white/80 text-center outline-none"
           style={{
-            color: o.textColor ?? "#1f2430",
+            color: o.type === "shape" ? o.textColor ?? "#1f2430" : "#1f2430",
             fontFamily: FONT_STACK,
             fontWeight: 600,
             fontSize: Math.min(o.h * 0.26, 44) * scale,
@@ -5510,8 +5771,9 @@ function MediaObjectView({
           unrotate={unrotate}
           boxW={boxW}
           boxH={boxH}
-          // A picture has no words to change, so it has no pencil.
-          onEdit={o.type === "shape" ? () => onEditText(o.id) : undefined}
+          // A picture has no words to change, so it has no pencil. A frame's
+          // words are the teacher's prompt.
+          onEdit={o.type === "shape" || o.type === "frame" ? () => onEditText(o.id) : undefined}
           onDelete={() => onDelete(o.id)}
           startRotate={o.type === "shape" ? startRotate : undefined}
           startResize={startResize}
@@ -5522,7 +5784,7 @@ function MediaObjectView({
           nudgeSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          noun="shape"
+          noun={o.type === "frame" ? "photo frame" : "shape"}
           deleteLabel="Remove object"
         />
       )}
@@ -6015,6 +6277,82 @@ function TextObjectView({
       />
     )}
     </>
+  );
+}
+
+// ===========================================================================
+// Photo-frame tap layer — the child's way into a teacher's photo frame.
+// Rendered above the stroke canvas, like the quiz layer, so it works under the
+// pen; each target is a real button at the child touch floor (SAFEGUARDING
+// rule 18). An EMPTY frame is one big button. A FILLED frame keeps only a
+// small "take it again" button in its corner, so the rest of the photo is the
+// child's to draw over.
+// ===========================================================================
+
+function FrameTapLayer({
+  frames,
+  scale,
+  takeLabel,
+  againLabel,
+  onTap,
+}: {
+  frames: FrameObj[];
+  scale: number;
+  takeLabel: string;
+  againLabel: string;
+  onTap: (id: string) => void;
+}) {
+  // Real pixels, not model units: the floor is what a finger needs.
+  const RETAKE = 64;
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {frames.map((o) => {
+        const left = o.x * scale;
+        const top = o.y * scale;
+        const w = o.w * scale;
+        const h = o.h * scale;
+        if (o.src) {
+          return (
+            <button
+              key={o.id}
+              type="button"
+              data-frame-tap={o.id}
+              aria-label={againLabel}
+              title={againLabel}
+              onClick={() => onTap(o.id)}
+              className="pointer-events-auto absolute flex items-center justify-center rounded-xl border-2 border-border bg-white/90 shadow-lg hover:bg-surface"
+              // Bottom-right corner, inside the frame where it fits and
+              // overflowing the frame — never the stage — where the frame is
+              // drawn smaller than the floor.
+              style={{
+                left: Math.max(left, left + w - RETAKE - 4),
+                top: Math.max(top, top + h - RETAKE - 4),
+                width: RETAKE,
+                height: RETAKE,
+              }}
+            >
+              <Icon name="camera" size={30} decorative />
+            </button>
+          );
+        }
+        return (
+          <button
+            key={o.id}
+            type="button"
+            data-frame-tap={o.id}
+            aria-label={takeLabel}
+            onClick={() => onTap(o.id)}
+            className="pointer-events-auto absolute flex flex-col items-center justify-center gap-1 rounded-lg text-slate-600 hover:bg-brand/5"
+            style={{ left, top, width: Math.max(RETAKE, w), height: Math.max(RETAKE, h) }}
+          >
+            <Icon name="camera" size={Math.min(56, Math.max(28, h * 0.3))} decorative />
+            <span className="font-bold" style={{ fontSize: Math.min(24, Math.max(14, h * 0.1)), fontFamily: FONT_STACK }}>
+              {takeLabel}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
