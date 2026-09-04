@@ -4322,3 +4322,40 @@ newcomer's fault every time.
 
 The ops project only ran on that PR because a config change selects everything;
 a teacher-surface change would never have exercised it.
+
+## F72 · Four ops-blindness checks fail on any machine whose repo path contains a child's name · Medium → Fixed 2026-09-04
+
+Found 4 September 2026, the first full battery run after the repository moved
+from `~/Documents/Projects/Github/` to `~/Developer/`. Four security tests went
+red with the same message — *a child's name reached the schools list: Dev* — on
+`/ops/schools`, `/ops/billing`, `/ops/health` and the parent record. All four
+failed identically alone (4 failed / 36 passed in 1.6 minutes), so it was not
+the swap-pressure class. `main` had not changed since the last green run.
+
+### What was on the page
+
+`next dev` serialises the source location of every server action into the
+flight payload: `"location":["module evaluation","/Users/…/Developer/
+onlineportfolio/.next-lane-1/dev/server/chunks/…"]`. The ops specs read that
+payload on purpose — `textContent("body")` and `page.content()` both include
+it, and ops-health's helper says why: a prop serialised and never rendered is
+still a leak. So the machine's path is on every operator page, and
+`not.toContain("Dev")` found it inside **Developer**. Nothing about a child was
+on the screen. The old path contained no name; CI's (`/home/runner/work/…`)
+does not either, which is why neither had ever seen it.
+
+### The fix, as taken
+
+`withoutOwnPath()` in `tests/battery/helpers.ts` removes `process.cwd()` from
+the body before the scan, and the three specs' body helpers call it. That is
+the narrowest cut available: only the repository's own absolute path goes,
+which no school can put on a page, and the payload is otherwise scanned exactly
+as before. The alternative — matching names on word boundaries — would have
+let a name concatenated into an identifier through, and was not taken. The
+product was not changed; a production build emits no location at all.
+
+### The class
+
+Same family as F70 and F71: **a blocking gate whose verdict depends on the
+machine, not on the code under test.** It would have presented as the fault of
+whoever next cloned the repository into a folder with the wrong name.

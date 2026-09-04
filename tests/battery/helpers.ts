@@ -383,3 +383,21 @@ export async function clearSession(page: Page) {
 export async function fetchStatus(page: Page, url: string): Promise<number> {
   return page.evaluate((u) => fetch(u, { credentials: "include" }).then((r) => r.status), url);
 }
+
+/**
+ * Remove this repository's own absolute path from a page body before scanning
+ * it for a child's name.
+ *
+ * `next dev` serialises the source location of every server action into the
+ * flight payload (`"location":["module evaluation","/Users/…/repo/.next/…"]`),
+ * and the ops specs deliberately read that payload — `textContent("body")` and
+ * `page.content()` both include it — because a prop serialised and never
+ * rendered is still a leak. The cost is that the machine's path is on every
+ * page, and a substring check for a name matches it whenever the path contains
+ * one: the repo moved to `~/Developer` on 2026-09-04 and "Dev" went red on four
+ * screens (F72). Only the path itself is removed; nothing a school could put on
+ * the page is touched, and a production build emits no location at all.
+ */
+export function withoutOwnPath(body: string): string {
+  return body.split(process.cwd()).join("");
+}

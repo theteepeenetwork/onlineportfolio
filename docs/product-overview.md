@@ -46,7 +46,9 @@ Multiple classes with codes and pasteable rosters (see
 activity templates, canvas-drawn or uploaded as PDF and picture worksheets. A
 maths kit on the template canvas: number lines, arrows, jump arrows, braces,
 base 10, place value counters, ten frames, hundred squares, arrays, fractions
-and a clock face, with apparatus markable as "endless". Assign a template as a
+and a clock face, with apparatus markable as "endless". A photo frame a child
+fills from the device camera when they do the activity, flattened into their
+page. Assign a template as a
 run, to a whole class or to chosen children, reassign it to other classes or
 next year, past responses kept. An approval queue: approve and publish with
 skill tags, or send back with a note. Add work on a child's behalf. A per-child

@@ -62,6 +62,56 @@ rollback loses new shapes on the **next save**, not on read. That argues for
 landing the kit after the 1 to 2 September launch rather than in the fortnight
 before it.
 
+The photo frame (below) is worse than that, because it is a new member of the
+object union rather than a new shape kind: an older `normalizeObject` returns
+`null` for `type: "frame"`, so a template re-saved on an old build loses every
+frame on that save, not merely its kind. A child mid-activity keeps the photo,
+because it is in their composite pages, not in the object.
+
+## Photo frame (built 4 September 2026)
+
+A teacher asked for a placeholder on the canvas that a child fills with a photo.
+It is a fourth object type, `type: "frame"` in `src/lib/canvasObjects.ts`, not
+a `ShapeKind`, because a shape has no vocabulary for a picture source and an
+image is something the teacher already has. The decisions:
+
+- **Teacher-only.** It is a `＋` fan entry gated on `objectMode === "author"`,
+  like the quiz. A child's fan never offers it; decision 2 above applies.
+- **Fixed for a child by what it is, not by a padlock.** `objCapabilities`
+  returns not-movable, not-editable for a frame in answer mode whatever
+  `locked` says, and `locked` is not stored on a frame at all. The padlock is
+  not offered on one.
+- **The child taps a layer above the stroke canvas** (`FrameTapLayer`, the
+  quiz layer's precedent), so it works under the pen tool. An empty frame is
+  one big button, "Take a photo"; a filled one keeps a 64px "Take it again"
+  in its corner so the rest of the photo is drawable. Both at the child touch
+  floor, SAFEGUARDING rule 18.
+- **The capture pipeline** is `normaliseImport` (cap 2000px, WebP) then a
+  centre crop to the frame's own proportion, long side at most 1600px
+  (`cropToAspect`). That is what lets the screen use `objectFit: fill` and the
+  export use `drawImage(img, x, y, w, h)` and agree.
+- **The photo is baked, never stored on its own.** It exists in the child's
+  IndexedDB draft (opaque `objects`), in the server draft's composite pages,
+  and in the handed-in page PNG. No new media category, retention row or
+  `/uploads` branch. A teacher's save strips any `src` from a frame
+  (`persistObjectsPayload`), so a child's photo can never become template
+  media; the preview lets a teacher try the camera and saves nothing.
+- **An empty frame draws nothing in a hand-in** and a dashed rectangle only in
+  the teacher's Pages-panel thumbnail. It is the child's page, not a form.
+- **Minimum 160×120 model units**, so the retake button fits at scale 1.
+- **No register gating** (decision 4): a frame renders, taps and flattens
+  identically for EYFS, KS1 and KS2.
+- **The optional prompt** (`label`) is the teacher's own words, shown inside the
+  empty frame and never read aloud. The child's button and the dialog use
+  fixed copy from `src/lib/copy/student.ts`.
+- **Cross-device resume** (`serverPagesToCanvas`) bakes the photo into the page
+  background and loses the frame object, so a retake is no longer offered
+  after resuming on another device. Every other object loses its structure the
+  same way, and the work is not lost.
+
+Tests: `tests/e2e/photo-frame.spec.ts`, and the validator cases in
+`tests/e2e/canvas-object-validation.spec.ts`.
+
 ## Phasing
 
 1. Refactor, `shapeParts`, and a kit registry with one kit. Zero user-visible

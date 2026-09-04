@@ -127,6 +127,27 @@ test("a11y (AA): quiz builder in the template editor", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "quiz builder (question closed)");
 });
 
+// A photo frame in the template editor: the frame itself (a dashed box with
+// the teacher's prompt), its corner controls and toolbar, and the prompt
+// editor. The child's side of it is scanned in tests/e2e/photo-frame.spec.ts,
+// where the camera is stubbed.
+test("a11y (AA): a photo frame in the template editor", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities/new");
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Photo frame" }).click();
+  await expect(page.locator('div[data-frame="empty"]')).toHaveCount(1);
+  // Placed selected, so the toolbar and corner controls are in the tree.
+  await expect(page.getByRole("button", { name: "Remove object" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "photo frame (selected)");
+
+  // With the prompt editor open.
+  await page.locator("div[data-object]").filter({ has: page.locator("[data-frame]") }).dblclick();
+  await expect(page.getByPlaceholder("What should they photograph?")).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "photo frame (prompt open)");
+});
+
 test("a11y (AA): class manager", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/teacher/class");

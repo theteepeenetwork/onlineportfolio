@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, asOperator } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, asOperator, withoutOwnPath } from "../helpers";
 import { MIN_CELL, maskEmail, reasonProblem, REASON_MIN } from "@/lib/ops/dto";
 
 // ===========================================================================
@@ -72,7 +72,7 @@ const CLASS_NAMES = ["Sunflower", "Ladybird", "Acorns", "Butterflies", "Acorn Cl
 const CODES = [SCHOOL_A.classCode, SCHOOL_B.classCode, SCHOOL_C.classCode, SCHOOL_A.parentFamilyCode, SCHOOL_B.parentFamilyCode];
 
 async function bodyText(page: Page): Promise<string> {
-  return (await page.textContent("body")) ?? "";
+  return withoutOwnPath((await page.textContent("body")) ?? "");
 }
 
 async function submitLookup(
