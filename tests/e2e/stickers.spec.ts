@@ -1,5 +1,35 @@
 import { test, expect } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { teacherLogin, studentLogin, logout, drawOnCanvas, pageCount, openDrawing } from "./helpers";
+
+// Wait for the "I have looked" mark to actually land before reloading.
+//
+// The arrival panel retires on `jarSeenAt`, which `MarkSeenOnView` fires from a
+// useEffect once the page has hydrated: a fire-and-forget server action, with
+// no revalidate and nothing rendered for a test to wait on. Reloading before it
+// lands re-renders the panel and fails the assertion below — a green feature
+// reported as a bug. This machine wrote it inside the three assertions that
+// follow the panel appearing; a loaded CI runner did not, which is the whole
+// difference between this passing here and failing there.
+//
+// So the wait is on the write itself, the way `drafts.spec.ts` waits for the
+// real draft store rather than sleeping and hoping. Same lesson as F36.
+async function waitForJarSeen(name: string, after: Date) {
+  const db = new PrismaClient();
+  try {
+    for (let i = 0; i < 80; i++) {
+      const child = await db.student.findFirst({
+        where: { name, class: { name: "Sunflower Class" } },
+        select: { jarSeenAt: true },
+      });
+      if (child?.jarSeenAt && child.jarSeenAt >= after) return;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    throw new Error(`jarSeenAt was never written for ${name}`);
+  } finally {
+    await db.$disconnect();
+  }
+}
 
 // Sticker feedback (design 1b + 1d): the teacher opens a waiting moment on the
 // sticker sheet, peels stickers onto the work with a kind note, and the child
@@ -40,6 +70,7 @@ test("stickers travel from the teacher's sheet to the child's jar and back", asy
 
   // Finn opens his jar: the sticker arrival panel plays, with the note.
   await logout(page);
+  const lookedAt = new Date();
   await studentLogin(page, "Finn");
   const panel = page.getByRole("region", { name: /A new sticker just arrived/ });
   await expect(panel).toBeVisible();
@@ -56,6 +87,7 @@ test("stickers travel from the teacher's sheet to the child's jar and back", asy
   // that used to dismiss it no longer exists. Without that, a card headed "A
   // new sticker just arrived" would sit there for ever, so this assertion is
   // the one that proves the replacement works.
+  await waitForJarSeen("Finn", lookedAt);
   await page.reload();
   await expect(page.getByRole("region", { name: /A new sticker just arrived/ })).toHaveCount(0);
 

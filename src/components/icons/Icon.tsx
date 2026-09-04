@@ -27,6 +27,7 @@ export type IconName =
   | "add-picture"
   | "add-file"
   | "camera"
+  | "camera-flip"
   | "voice"
   | "draw"
   | "write"
@@ -107,6 +108,17 @@ const ICONS: Record<IconName, Glyph> = {
   ) },
   "camera": { label: "Take a photo", glyph: (
     <><path d="M3 9 Q3 7.5 4.5 7.5 L7 7.5 L8.5 5.5 L15.5 5.5 L17 7.5 L19.5 7.5 Q21 7.5 21 9 L21 17 Q21 18.5 19.5 18.5 L4.5 18.5 Q3 18.5 3 17 Z" fill="#FFFDF7" /> <circle cx="12" cy="12.5" r="3.4" fill="#8AB9D6" /> <circle cx="18" cy="10.5" r="0.8" fill="#F0B441" stroke="none" /></>
+  ) },
+  // Two arrows going round a small camera: swap to the other camera on the
+  // device. Not the `rotate` glyph — that one turns an object on the canvas,
+  // and two meanings on one drawing is how an icon stops saying either.
+  //
+  // The arrows are OUTSIDE the camera because the first drawing put a turning
+  // arrow inside the lens, which at the 30px this actually ships at collapsed
+  // into a dark dot: identical to the plain `camera` glyph, on a button whose
+  // whole job is to not be the shutter.
+  "camera-flip": { label: "Switch camera", glyph: (
+    <><path d="M5.5 10.5 A7 7 0 0 1 18.5 9.5" fill="none" /> <path d="M16 6.4 L18.9 9.4 L15.8 12" fill="none" /> <path d="M18.5 13.5 A7 7 0 0 1 5.5 14.5" fill="none" /> <path d="M8 17.6 L5.1 14.6 L8.2 12" fill="none" /> <path d="M8.6 11 Q8.6 10.3 9.3 10.3 L10 10.3 L10.5 9.5 L13.5 9.5 L14 10.3 L14.7 10.3 Q15.4 10.3 15.4 11 L15.4 13.6 Q15.4 14.3 14.7 14.3 L9.3 14.3 Q8.6 14.3 8.6 13.6 Z" fill="#8AB9D6" strokeWidth="1.3" /></>
   ) },
   "voice": { label: "Record your voice", glyph: (
     <><rect x="9" y="3" width="6" height="10" rx="3" fill="#C2476B" /> <path d="M6 11 A6 6 0 0 0 18 11" /> <line x1="12" y1="17" x2="12" y2="20" /> <line x1="9" y1="20.5" x2="15" y2="20.5" /></>
