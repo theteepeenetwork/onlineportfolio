@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, asOperator } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, asOperator, withoutOwnPath } from "../helpers";
 import { MONITORED, NOT_MONITORED, NOT_RECORDED, instanceFacts } from "@/lib/ops/health";
 
 // ===========================================================================
@@ -72,8 +72,8 @@ const DARK_TILES = ["media-volume", "startup-check", "outside-watch", "backups",
 async function payload(page: Page): Promise<string> {
   // page.content() rather than textContent: props can be serialised into the
   // flight payload without ever being rendered, and a leak nobody can see on
-  // screen is still a leak.
-  return page.content();
+  // screen is still a leak. The repo's own path is stripped first: see F72.
+  return withoutOwnPath(await page.content());
 }
 
 function tile(page: Page, id: string) {
