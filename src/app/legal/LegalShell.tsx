@@ -1,33 +1,36 @@
 import Link from "next/link";
 import { JarLogo } from "@/components/storyjar/JarLogo";
 
-// Every policy in one place, so the shell can cross-link them and the footer can
-// list them. `key` is the route segment under /legal.
-export const POLICIES: { key: string; label: string }[] = [
-  { key: "privacy", label: "Privacy Policy" },
-  { key: "privacy-for-families", label: "Privacy — plain English" },
-  { key: "cookies", label: "Cookie Policy" },
-  { key: "safeguarding", label: "Safeguarding & Child Protection" },
-  { key: "terms", label: "Terms of Service" },
-  { key: "acceptable-use", label: "Acceptable Use Policy" },
-  { key: "data-processing", label: "Data Processing Agreement" },
-  { key: "sub-processors", label: "Sub-processors" },
-  { key: "accessibility", label: "Accessibility Statement" },
-];
+export { POLICIES, policyStatus } from "./policies";
+export type { PolicyStatus } from "./policies";
+import { POLICIES, policyStatus } from "./policies";
 
-// Shared chrome for the /legal/* pages: StoryJar nav, a prominent "draft"
-// banner, a readable column, and a cross-linking footer.
+// Shared chrome for the /legal/* pages: StoryJar nav, the "draft" banner where
+// it still applies, a readable column, and a cross-linking footer.
+//
+// Pass `policyKey` — the route segment — and the shell decides the banner from
+// POLICIES. A page that passes nothing is treated as a draft.
+// `directoryPage` is for /legal itself, which is a list of policies rather than
+// a policy. It is the only way to render this shell without a key and without a
+// banner, and it exists so that a policy page cannot quietly opt itself out:
+// a policy's banner is decided by POLICIES and nothing else.
 export function LegalShell({
   title,
-  updated = "Draft — not yet published",
+  policyKey,
+  directoryPage = false,
+  updated,
   intro,
   children,
 }: {
   title: string;
+  policyKey?: string;
+  directoryPage?: boolean;
   updated?: string;
   intro?: string;
   children: React.ReactNode;
 }) {
+  const isDraft = !directoryPage && policyStatus(policyKey) === "draft";
+  const lastUpdated = updated ?? (isDraft ? "Draft — not yet published" : "5 September 2026");
   return (
     <div className="sj" style={{ minHeight: "100vh", background: "var(--paper)", color: "var(--ink)", fontFamily: "var(--font-atkinson)", display: "flex", flexDirection: "column" }}>
       <nav style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 32px", maxWidth: 820, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
@@ -39,16 +42,20 @@ export function LegalShell({
       </nav>
 
       <main style={{ flex: 1, maxWidth: 820, margin: "0 auto", width: "100%", padding: "12px 32px 64px", boxSizing: "border-box" }}>
-        {/* Draft / not-legal-advice banner — required on every policy until reviewed. */}
-        <div role="note" style={{ background: "var(--honey-tint)", border: "2px solid var(--honey)", borderRadius: 14, padding: "14px 18px", margin: "0 0 26px" }}>
-          <p style={{ margin: 0, font: "700 15px var(--font-atkinson)", color: "var(--honey-ink)" }}>⚠️ Draft for review — not legal advice.</p>
-          <p style={{ margin: "6px 0 0", font: "400 14px/1.5 var(--font-atkinson)", color: "var(--honey-ink)" }}>
-            This is a working draft. It must be reviewed and approved by a qualified data-protection / education-law professional and the responsible Data Protection Officer before it is published or relied upon. Placeholders in <code>[square brackets]</code> need real values.
-          </p>
-        </div>
+        {/* Draft / not-legal-advice banner — carried by every policy that POLICIES
+            still marks as a draft. Removing it from a page is a statement that a
+            school may rely on it, so it is governed by the table, not by the page. */}
+        {isDraft && (
+          <div role="note" style={{ background: "var(--honey-tint)", border: "2px solid var(--honey)", borderRadius: 14, padding: "14px 18px", margin: "0 0 26px" }}>
+            <p style={{ margin: 0, font: "700 15px var(--font-atkinson)", color: "var(--honey-ink)" }}>⚠️ Draft for review — not legal advice.</p>
+            <p style={{ margin: "6px 0 0", font: "400 14px/1.5 var(--font-atkinson)", color: "var(--honey-ink)" }}>
+              This is a working draft. It has not yet been reviewed by a qualified data-protection or education-law professional, and it should not be relied upon until it has been. Our published policies are listed on the <Link href="/legal">policies page</Link>.
+            </p>
+          </div>
+        )}
 
         <h1 style={{ margin: 0, font: "600 40px/1.1 var(--font-fredoka)" }}>{title}</h1>
-        <p style={{ margin: "10px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Last updated: {updated}</p>
+        <p style={{ margin: "10px 0 0", font: "400 15px var(--font-atkinson)", color: "var(--sj-muted)" }}>Last updated: {lastUpdated}</p>
         {intro && <p style={{ margin: "18px 0 0", font: "400 18px/1.6 var(--font-atkinson)", color: "var(--ink-soft)" }}>{intro}</p>}
 
         <div className="legal-prose" style={{ marginTop: 24 }}>{children}</div>

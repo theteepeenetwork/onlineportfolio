@@ -4,7 +4,7 @@ export const metadata = { title: "Terms of Service — StoryJar" };
 
 export default function Terms() {
   return (
-    <LegalShell title="Terms of Service" intro="These terms govern a school's and its staff's use of StoryJar. They are written for the school as the customer.">
+    <LegalShell title="Terms of Service" policyKey="terms" intro="These terms govern a school's and its staff's use of StoryJar. They are written for the school as the customer.">
       <h2>1. The agreement</h2>
       <p>These Terms, together with the <a href="/legal/data-processing">Data Processing Agreement</a> and <a href="/legal/acceptable-use">Acceptable Use Policy</a>, form the agreement between the school (&ldquo;you&rdquo;) and StoryJar. By creating an account or using the service you accept them on behalf of your school.</p>
 

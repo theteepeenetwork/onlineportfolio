@@ -4,14 +4,22 @@ export const metadata = { title: "Privacy Policy — StoryJar" };
 
 export default function Privacy() {
   return (
-    <LegalShell title="Privacy Policy" intro="This policy explains what personal data StoryJar processes, why, on whose behalf, and the rights people have. A short plain-English version for families is also available.">
+    <LegalShell title="Privacy Policy" policyKey="privacy" intro="This policy explains what personal data StoryJar processes, why, on whose behalf, and the rights people have. A short plain-English version for families is also available.">
       <h2>1. Who is responsible for your data</h2>
       <p>
-        StoryJar is a service provided by <strong>[Full name]</strong>, a sole trader trading as
-        &ldquo;StoryJar&rdquo;, of <strong>[business address]</strong> (&ldquo;StoryJar&rdquo;, &ldquo;we&rdquo;).
-        StoryJar is a one-person business: the founder is also the person responsible for data protection, and can be
-        reached at <strong>hello@storyjar.co.uk</strong>. We are registered with the Information Commissioner&apos;s
-        Office (ICO) under <strong>[registration number]</strong>.
+        StoryJar is a service provided by <strong>Storyjar Limited</strong>, a company registered in England and
+        Wales (company number <strong>17404945</strong>), trading as &ldquo;StoryJar&rdquo;, of{" "}
+        <strong>2 Peel Court, 24 St Cuthberts Way, Darlington, DL1 1GB</strong> (&ldquo;StoryJar&rdquo;,
+        &ldquo;we&rdquo;). We are registered with the Information Commissioner&apos;s Office (ICO) under{" "}
+        <strong>C2015410</strong>.
+      </p>
+      <p>
+        StoryJar is a small business and does not have a Data Protection Officer. The ICO&apos;s own assessment
+        confirmed that one is not required here: we do not monitor people&apos;s behaviour at scale, and
+        children&apos;s schoolwork is not special category data. There is instead a named{" "}
+        <strong>person responsible for data protection</strong>, and you can reach them at{" "}
+        <strong>hello@storyjar.co.uk</strong>. A school that needs that person named in a contract or a due-diligence
+        return should ask, and we will give the name.
       </p>
       <p>
         For the data of <strong>children, parents and staff</strong>, the <strong>school is the data controller</strong>
@@ -58,11 +66,10 @@ export default function Privacy() {
         EEA are covered by the UK&apos;s adequacy regulations.
       </p>
       <p>
-        <strong>Backups.</strong> Backups of that data are taken by our hosting provider. We are confirming the
-        geographic location of those backups with them in writing, and{" "}
-        <strong>it is not yet established</strong>. We would rather tell you that than imply an answer we do not
-        have, so until it is confirmed we make no claim about where backups are held. We will update this notice
-        when we have it, and a school that needs the answer before then should ask us.
+        <strong>Backups.</strong> Backups of that data are taken by our hosting provider and are held in{" "}
+        <strong>the same region as the service itself — EU West, Amsterdam, in the Netherlands</strong>, confirmed
+        with the provider in writing on 5 September 2026. No copy of a child&apos;s work leaves the EEA, in a backup
+        or otherwise.
       </p>
       <p>
         <strong>Support access from outside the EEA.</strong> Our hosting provider is incorporated in the United
@@ -81,7 +88,14 @@ export default function Privacy() {
         We keep a child&apos;s data for as long as the school&apos;s subscription and the school&apos;s own retention
         rules require, and then delete it. A school can export or delete a class&apos;s data at any time; deletion removes
         both the database records and the underlying media files. Full details are set out in the{" "}
-        <a href="/legal/data-processing">Data Processing Agreement</a>. <em>[Confirm the exact retention schedule before publication.]</em>
+        <a href="/legal/data-processing">Data Processing Agreement</a>.
+      </p>
+      <p>
+        <strong>Deletion and backups.</strong> Deleting data removes it from the live service straight away. Copies
+        of it remain in our hosting provider&apos;s backups until those backups age out on their normal rotation:
+        daily backups are kept for <strong>6 days</strong>, weekly backups for <strong>1 month</strong>, and monthly
+        backups for <strong>3 months</strong>. Those copies are not used to restore deleted work, and they are held
+        in the same EU region as the service.
       </p>
 
       <h2>7. Security</h2>
@@ -115,7 +129,10 @@ export default function Privacy() {
       </p>
 
       <h2>11. Changes</h2>
-      <p>We will tell schools about material changes to this policy. This is a draft; the published version will carry a real effective date.</p>
+      <p>
+        We will tell schools about material changes to this policy before they take effect. This version is effective
+        from <strong>5 September 2026</strong>, and the date it was last updated is shown at the top of the page.
+      </p>
     </LegalShell>
   );
 }

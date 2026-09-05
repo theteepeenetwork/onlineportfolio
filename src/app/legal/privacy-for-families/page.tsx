@@ -4,7 +4,7 @@ export const metadata = { title: "Privacy — plain English — StoryJar" };
 
 export default function PrivacyForFamilies() {
   return (
-    <LegalShell title="Privacy — the plain-English version" intro="For parents, carers and children. The full Privacy Policy has all the detail; this is the short, clear version the ICO Children's Code asks us to provide.">
+    <LegalShell title="Privacy — the plain-English version" policyKey="privacy-for-families" intro="For parents, carers and children. The full Privacy Policy has all the detail; this is the short, clear version the ICO Children's Code asks us to provide.">
       <h2>What is StoryJar?</h2>
       <p>StoryJar is a place where your child&apos;s teacher keeps a journal of the lovely things your child makes at school — photos, drawings and their own words.</p>
 

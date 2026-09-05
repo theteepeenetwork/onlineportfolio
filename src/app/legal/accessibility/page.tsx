@@ -4,7 +4,7 @@ export const metadata = { title: "Accessibility Statement — StoryJar" };
 
 export default function Accessibility() {
   return (
-    <LegalShell title="Accessibility Statement" intro="StoryJar should be usable by every child and adult. Accessibility is part of keeping children included and safe.">
+    <LegalShell title="Accessibility Statement" policyKey="accessibility" intro="StoryJar should be usable by every child and adult. Accessibility is part of keeping children included and safe.">
       <h2>Our commitment</h2>
       <p>We aim to meet <strong>WCAG 2.2 level AA</strong> and to be usable by young children and by adults with a range of needs.</p>
 
