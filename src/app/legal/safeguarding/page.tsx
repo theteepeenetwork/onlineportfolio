@@ -4,7 +4,7 @@ export const metadata = { title: "Safeguarding & Child Protection — StoryJar" 
 
 export default function Safeguarding() {
   return (
-    <LegalShell title="Safeguarding & Child Protection" intro="StoryJar holds the work of children aged 3–11. Keeping them safe is our first principle — every design decision is made to protect the child.">
+    <LegalShell title="Safeguarding & Child Protection" policyKey="safeguarding" intro="StoryJar holds the work of children aged 3–11. Keeping them safe is our first principle — every design decision is made to protect the child.">
       <h2>Our safeguarding principles</h2>
       <ul>
         <li><strong>Children are never account-holders.</strong> No child logins, emails or passwords. Children sign in only with a class code and by tapping their own name.</li>
@@ -12,7 +12,7 @@ export default function Safeguarding() {
         <li><strong>An adult always checks first.</strong> Every moment a child makes waits in the teacher&apos;s approval queue and is never shown to anyone until the teacher approves it.</li>
         <li><strong>Access is need-to-know.</strong> A child&apos;s work is visible only to staff who teach that child and to a linked parent/carer (read-only). School admins do not see children&apos;s work unless they teach the class. Media (photos and drawings) is access-controlled, never at a public link.</li>
         <li><strong>No tracking, no profiling, no advertising.</strong> Ever.</li>
-        <li><strong>Data stays in Europe</strong> — stored in Amsterdam, in the Netherlands.</li>
+        <li><strong>Data stays in Europe</strong> — stored in Amsterdam, in the Netherlands, and backed up in the same region.</li>
       </ul>
 
       <h2>How this supports schools</h2>
@@ -43,8 +43,9 @@ export default function Safeguarding() {
       <p>
         If we become aware of a personal-data breach or a safeguarding issue, we notify the affected school(s) without
         undue delay so they can meet their statutory duties (including the ICO&apos;s 72-hour reporting requirement where
-        applicable). StoryJar is a one-person business, so the single point of contact for both data-protection and
-        safeguarding matters is <strong>[Full name]</strong> at <strong>hello@storyjar.co.uk</strong>. We do not contact
+        applicable). StoryJar is a small business, so there is one point of contact for both data-protection and
+        safeguarding matters: the person responsible for data protection at <strong>Storyjar Limited</strong>, reachable
+        at <strong>hello@storyjar.co.uk</strong>. We do not contact
         children or the public directly about an incident — we go to the school, because the school is the data
         controller and holds the safeguarding relationship with the family.
       </p>
