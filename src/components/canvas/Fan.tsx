@@ -221,6 +221,29 @@ function face(u: Unit, opts: { selected?: boolean; radius?: number } = {}): Reac
 
 // --- The pen fan -----------------------------------------------------------
 
+/** The pen the disc holds: the design's own art, a slim body in the current
+    colour with a cream ferrule, tilted 20° the way a pen lies in a hand. */
+export function PenArt({ colour }: { colour: string }) {
+  return (
+    <svg
+      width={32}
+      height={78}
+      viewBox="0 0 36 88"
+      fill="none"
+      stroke="#22304A"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ transform: "rotate(-20deg)", display: "block" }}
+    >
+      <path d="M11 36 L25 36 L25 79 Q25 83 18 83 Q11 83 11 79 Z" fill={colour} />
+      <path d="M11 36 L11 30 Q11 27.5 13 27 L23 27 Q25 27.5 25 30 L25 36 Z" fill="#FFFDF7" />
+      <path d="M13.6 27 L14.6 16 Q14.6 12 18 12 Q21.4 12 21.4 16 L22.4 27 Z" fill={colour} />
+    </svg>
+  );
+}
+
 export type PenFanProps = {
   u: Unit;
   hand: Hand;
@@ -365,8 +388,10 @@ export function PenFan({
               is how a child draws on a photograph. */}
           {showColours &&
             [...FAN_COLOURS, WHITE].map((c, i) => {
-            const outer = i >= 5;
             const extra = i === FAN_COLOURS.length;
+            // White rides the INNER arc's spare slot; the design's own slot at
+            // the end of the outer arc belongs to "pick any colour".
+            const outer = extra ? false : i >= 5;
             const current = colour.toLowerCase() === c.hex.toLowerCase();
             const isHeld = held === c.hex;
             const dot = isHeld ? 60 : current ? 54 : 46;
@@ -503,7 +528,7 @@ function AnyColour({
   onColour: (hex: string) => void;
 }) {
   const size = 64;
-  const { left, top } = polar(cx, cy, R_COLOUR_IN, A_EXTRA, dir, size);
+  const { left, top } = polar(cx, cy, R_COLOUR_OUT, A_EXTRA, dir, size);
   const dx = cx - size / 2 - left;
   const dy = cy - size / 2 - top;
   return (

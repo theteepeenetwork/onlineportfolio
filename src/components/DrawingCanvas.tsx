@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon, type IconName } from "./icons/Icon";
 import { ShapeThumb } from "./canvas/ShapeThumb";
-import { PenFan, PlusFan, type PlusItem, type PlusOption } from "./canvas/Fan";
+import { PenArt, PenFan, PlusFan, type PlusItem, type PlusOption } from "./canvas/Fan";
 import { PageTray } from "./canvas/PageTray";
 import { KitPalette } from "./canvas/KitPalette";
 import {
@@ -137,7 +137,6 @@ const DEFAULT_TOOL_SIZES: Record<Tool, number> = {
 };
 // The four drawing tools map onto four distinct nib shapes + stroke weights:
 // pencil → Pen (thin), pen → Felt tip (thick), highlighter (wide/translucent),
-// eraser. See ToolShape for the drawn nibs and true-weight sample strokes.
 const TOOLS: { key: Tool; label: string; icon?: IconName }[] = [
   { key: "cursor", label: "Move", icon: "select" },
   { key: "pencil", label: "Pen", icon: "pen" },
@@ -745,7 +744,10 @@ export function DrawingCanvas({
   // A template (teacher building it, or a child working on it) opens on the
   // Select tool, so objects can be picked up and moved straight away.
   // A plain free-draw still opens ready to draw with the Pen.
-  const [tool, setTool] = useState<Tool>(objectMode ? "cursor" : "pencil");
+  // A blank page opens with the FELT TIP in hand — the blue pen the design's
+  // disc holds — not the ink pencil. A worksheet with pieces to move opens on
+  // Move, as before.
+  const [tool, setTool] = useState<Tool>(objectMode ? "cursor" : "pen");
   // Per-tool colour, kept for the whole session. `color` is the active tool's
   // colour; changing it only affects the tool you're currently holding.
   const [toolColors, setToolColors] = useState<Record<Tool, string>>(DEFAULT_TOOL_COLORS);
@@ -3910,7 +3912,7 @@ export function DrawingCanvas({
                 }}
                 onColour={(hex) => setColor(hex)}
                 onSize={(n) => setSize(n)}
-                art={<ToolShape kind={drawingTool ? tool : "pen"} color={color} />}
+                art={<PenArt colour={drawingTool ? color : toolColors.pen} />}
               />
 
               <PlusFan
@@ -4551,81 +4553,6 @@ function Stepper({
   );
 }
 
-// The picker-cup tools, drawn tip-up on the design system's 36×88 keyline. Each
-// pen shows ITS OWN stored colour on the whole body + nib — always, whether or
-// not it's the one in use — so you can see at a glance that (say) the Pen is
-// still yellow while you're drawing with the Felt tip. Tools stay distinct by
-// nib shape and tray position. The Eraser is colourless (it rubs out).
-function ToolShape({ kind, color }: { kind: Tool; color: string }) {
-  const svg = {
-    width: 58,
-    height: 142,
-    viewBox: "0 0 36 88",
-    fill: "none" as const,
-    stroke: "#22304A",
-    strokeWidth: 2,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-  if (kind === "cursor") {
-    // The arrow (icon library's "select"), stood up at pen scale. It's a
-    // shorter shape than the pens, so it sits whole on the shelf rather than
-    // sinking to a nib — the lift on pick is what marks it as the live tool.
-    //
-    // A hand was tried here and reverted: it didn't read well on the shelf. The
-    // tool is still called Move (aria-label, tooltip) and — the part that
-    // actually protects a child — it is only OFFERED when there is something to
-    // move, so a wrong tap can no longer leave a child holding a tool that does
-    // nothing. See SHELF and `canMove`.
-    return (
-      <svg {...svg}>
-        <g transform="translate(-15 7)">
-          <path d="M18 13 L18 55 L28 46 L34 60 L41 57 L35 43 L48 43 Z" fill="#FFFDF7" />
-        </g>
-      </svg>
-    );
-  }
-  if (kind === "eraser") {
-    return (
-      <svg {...svg}>
-        <path d="M11 32 Q11 24 18 24 Q25 24 25 32 L25 79 Q25 83 18 83 Q11 83 11 79 Z" fill="#8AB9D6" />
-        <path d="M11 42 L25 34 L25 32 Q25 24 18 24 Q11 24 11 32 Z" fill="#E08A9B" />
-        <rect x="9.5" y="52" width="17" height="12" rx="2" fill="#F3E3C3" />
-      </svg>
-    );
-  }
-  if (kind === "highlighter") {
-    return (
-      <svg {...svg}>
-        <path d="M9 38 L27 38 L27 79 Q27 83 18 83 Q9 83 9 79 Z" fill={color} />
-        <path d="M11 38 L11 30 Q11 28 13 27.5 L23 27.5 Q25 28 25 30 L25 38 Z" fill={color} />
-        <path d="M12 27.5 L24 27.5 L24 23 L12 23 Z" fill="#FFFDF7" />
-        <path d="M12 23 L24 23 L21.5 9 L13.5 12 Z" fill={color} />
-      </svg>
-    );
-  }
-  if (kind === "pen") {
-    // Felt tip — bold marker.
-    return (
-      <svg {...svg}>
-        <path d="M11 36 L25 36 L25 79 Q25 83 18 83 Q11 83 11 79 Z" fill={color} />
-        <path d="M11 36 L11 30 Q11 27.5 13 27 L23 27 Q25 27.5 25 30 L25 36 Z" fill="#FFFDF7" />
-        <path d="M13.6 27 L14.6 16 Q14.6 12 18 12 Q21.4 12 21.4 16 L22.4 27 Z" fill={color} />
-      </svg>
-    );
-  }
-  // Pen — fine liner.
-  return (
-    <svg {...svg}>
-      <path d="M12 33 L24 33 L24 79 Q24 83 18 83 Q12 83 12 79 Z" fill={color} />
-      <path d="M13 33 L18 11 L23 33 Z" fill="#FFFDF7" />
-      <path d="M16.1 18 L18 9 L19.9 18 Z" fill={color} />
-      <path d="M24 37 Q27.5 37 27.5 42 L27.5 55 Q27.5 57.5 25 57" />
-      <line x1="12" y1="41" x2="24" y2="41" />
-    </svg>
-  );
-}
 
 type ObjHandlers = {
   scale: number;
