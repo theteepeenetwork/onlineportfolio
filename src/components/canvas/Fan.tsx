@@ -653,9 +653,18 @@ export function PlusFan({
             );
           })}
 
-          {/* The second row, on the same arcs the colours use, mirrored. */}
+          {/* The second row, on the same arcs the colours use, mirrored. The
+              options are one GROUP, named for the item that fanned them out —
+              which is what they are to a screen reader, and what lets the a11y
+              gate sweep every shape button the way it sweeps a kit's grid. The
+              wrapper covers the paper and takes no pointer of its own; each
+              button inside opts back in. */}
           {openItem?.options && (
-            <>
+            <div
+              role="group"
+              aria-label={openItem.label}
+              className="pointer-events-none absolute inset-0 [&>button]:pointer-events-auto"
+            >
               <Band
                 u={u}
                 cx={cx}
@@ -706,7 +715,7 @@ export function PlusFan({
                   </FanItem>
                 );
               })}
-            </>
+            </div>
           )}
         </>
       )}

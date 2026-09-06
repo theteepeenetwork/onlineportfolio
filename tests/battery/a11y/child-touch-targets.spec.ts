@@ -114,7 +114,7 @@ test("the controls that only appear once a child taps something meet the floor t
   // A shape, placed then tapped.
   await page.locator('button[title="Add"]').click();
   await page.getByRole("button", { name: "Shapes" }).click();
-  await page.locator('[role="group"] button').first().click();
+  await page.getByRole("button", { name: "Rectangle", exact: true }).click();
   await pickTool(page, "Move");
   await expect(page.getByRole("button", { name: "Remove object" })).toBeVisible();
   let small = await undersizedControls(page);
@@ -124,7 +124,7 @@ test("the controls that only appear once a child taps something meet the floor t
 
   // A text box, placed then tapped. Same four corners, same floor.
   await page.locator('button[title="Add"]').click();
-  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.getByRole("button", { name: "Words", exact: true }).click();
   await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.7);
   await page.locator('textarea[placeholder="Type…"]').waitFor();
   await page.keyboard.type("Hi");

@@ -662,12 +662,16 @@ h4 {
    prefers-reduced-motion is then free — the one guard below cuts the duration
    and `forwards` keeps the item exactly where it already was. */
 @keyframes sj-fan-in {
+  /* Travel and fade, never scale: a button that is 60% of itself for a third of
+     a second is a 43px target on a canvas whose floor is 64, and the a11y gate
+     measured exactly that. Full size from the first frame; only its place and
+     its opacity move. */
   from {
-    transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.6);
+    transform: translate(var(--dx, 0), var(--dy, 0));
     opacity: 0;
   }
   to {
-    transform: translate(0, 0) scale(1);
+    transform: translate(0, 0);
     opacity: 1;
   }
 }
