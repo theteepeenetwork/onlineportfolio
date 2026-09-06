@@ -3511,7 +3511,10 @@ export function DrawingCanvas({
     // `u` survives as the one place a floor is applied, and so that the few
     // things that SHOULD track the paper (the empty-state words) are visibly
     // the exceptions.
-    const u = (n: number, floor = 0) => Math.max(n, floor);
+    // A floor is for sizes. A negative is an offset — a card's lift, the tray
+    // strip's pull-up — and goes through untouched; flooring it at zero was
+    // what pinned every lifted card to the tray and clipped its number.
+    const u = (n: number, floor = 0) => (n < 0 ? n : Math.max(n, floor));
     const teacher = isObjectAuthor || isQuizAuthor;
     // The two discs are anchored to the PAPER's corners at design size, not
     // scaled with the frame — see `penCx` in canvasFan.ts.

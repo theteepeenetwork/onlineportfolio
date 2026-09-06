@@ -180,17 +180,34 @@ export function PageTray({
           ref={stripRef}
           className="sj-noscrollbar"
           style={{
-            display: "flex",
-            gap: u(GAP),
+            position: "relative",
             width: u(stripW),
+            // The design's headroom: the scroll box is 124 tall for an 84 card,
+            // pulled up 40 so it sits on the tray's floor, and the row inside
+            // is pushed down the same 40. An `overflow-x: auto` box clips on
+            // the y axis too, so the room for the lifted card has to be INSIDE
+            // it — a card that grows up out of the tray and is cut off at the
+            // tray's edge undoes the whole point of lifting it.
+            height: u(124),
+            margin: `${u(-40)}px ${u(-8)}px 0`,
+            padding: `0 ${u(8)}px`,
             overflowX: "auto",
+            overflowY: "hidden",
             scrollSnapType: "x proximity",
-            // Headroom: the active card grows UP out of the tray, and a strip
-            // that clipped it would undo the whole point of lifting it.
-            paddingTop: u(20),
-            marginTop: u(-20),
+            touchAction: "pan-x",
           }}
         >
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              gap: u(GAP),
+              height: u(CARD_H, 64),
+              marginTop: u(40),
+              padding: `0 ${u(6)}px`,
+              width: "max-content",
+            }}
+          >
           {Array.from({ length: count }, (_, i) => {
             const isActive = i === active;
             const dragging = drag?.from === i;
@@ -268,6 +285,7 @@ export function PageTray({
               </button>
             );
           })}
+          </div>
         </div>
 
         {/* Past five pages the strip scrolls, and says so at whichever end has
@@ -279,7 +297,7 @@ export function PageTray({
               className="pointer-events-none absolute"
               style={{
                 right: 0,
-                top: 0,
+                top: u(-40),
                 bottom: 0,
                 width: u(40),
                 background: `linear-gradient(to left, ${KRAFT_TAG}, transparent)`,
