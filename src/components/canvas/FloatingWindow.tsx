@@ -77,6 +77,8 @@ export function FloatingWindow({
   /** "Close the maths kit" / "Tuck away" — the words differ, the button does not. */
   closeLabel: string;
   children: ReactNode;
+  /** The tallest the body may be before it scrolls. Capped below by the room
+      between the window's top and the page tray, whatever is asked for. */
   bodyMaxH?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -118,7 +120,7 @@ export function FloatingWindow({
     drag.current = null;
     setDragging(false);
     if (!d) return;
-    const height = ref.current ? ref.current.offsetHeight : bodyMaxH;
+    const height = ref.current ? ref.current.offsetHeight : bodyH + HEADER_H;
     // A tap on the pill opens it again; a drag leaves it as it was.
     const next = d.moved ? pos : { ...pos, collapsed: false };
     onPos(parkWindow(next, height, paper));
@@ -126,6 +128,9 @@ export function FloatingWindow({
 
   const collapsed = pos.collapsed;
   const stop = (e: React.PointerEvent) => e.stopPropagation();
+  // The tray owns the foot of the paper. A window that grew past it put its
+  // question list on top of "new page" and a teacher could not add one.
+  const bodyH = Math.max(120, Math.min(bodyMaxH, paper.h - pos.y - HEADER_H - TRAY_ROOM));
 
   return (
     <div
@@ -176,7 +181,7 @@ export function FloatingWindow({
         <button
           type="button"
           onPointerDown={stop}
-          onClick={() => onPos(parkWindow({ ...pos, collapsed: !collapsed }, bodyMaxH, paper))}
+          onClick={() => onPos(parkWindow({ ...pos, collapsed: !collapsed }, bodyH + HEADER_H, paper))}
           title={collapsed ? "Expand" : "Shrink to a pill"}
           aria-label={collapsed ? "Expand" : "Shrink to a pill"}
           aria-expanded={!collapsed}
@@ -205,7 +210,7 @@ export function FloatingWindow({
             display: "flex",
             flexDirection: "column",
             gap: u(10),
-            maxHeight: u(bodyMaxH),
+            maxHeight: bodyH,
             overflowY: "auto",
           }}
         >

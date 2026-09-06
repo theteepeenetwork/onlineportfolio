@@ -18,6 +18,7 @@ import {
   DISC,
   FAN_COLOURS,
   FRAME_H,
+  FRAME_W,
   NEAR_X,
   WHITE,
   discCy,
@@ -3483,6 +3484,8 @@ export function DrawingCanvas({
     const penX = penCx(hand, paper.w);
     const plusX = plusCx(hand, paper.w);
     const discY = discCy(paper.h);
+    // The design frame is 1194 wide and the top row only fits at that width.
+    const stackTop = paper.w < FRAME_W;
 
     // Something is open that a touch on the paper should CLOSE rather than
     // draw through. The floating windows are deliberately not in this list:
@@ -3618,7 +3621,7 @@ export function DrawingCanvas({
                 // over the page and clamps itself to the stage — the object
                 // toolbar — reads this and stops short of it, instead of
                 // parking its settings row on top of "new page".
-                ["--sj-chrome-top" as string]: `${u(96)}px`,
+                ["--sj-chrome-top" as string]: `${stackTop ? u(170) : u(96)}px`,
                 ["--sj-chrome-bottom" as string]: `${u(150)}px`,
                 ["--sj-chrome-left" as string]: `${u(reserveLeft)}px`,
                 ["--sj-chrome-right" as string]: `${u(reserveRight)}px`,
@@ -3693,8 +3696,20 @@ export function DrawingCanvas({
                   pill on the right runs under the activity's own title
                   (asserted in tests/e2e/child-escape.spec.ts). */}
               <div
-                className="absolute flex items-center"
-                style={{ left: u(16), top: u(16), gap: u(10), zIndex: Z_CHROME }}
+                className="absolute flex"
+                style={{
+                  left: u(16),
+                  top: u(16),
+                  gap: u(10),
+                  zIndex: Z_CHROME,
+                  // On a paper narrower than the design frame the row does not
+                  // fit, and an overflowing row puts "Clear page" off the edge
+                  // — which is how a child on a 768px tablet lost it. Stack the
+                  // way out above the rest, exactly as the old chrome did, and
+                  // for the same reason.
+                  flexDirection: stackTop ? "column" : "row",
+                  alignItems: stackTop ? "flex-start" : "center",
+                }}
               >
                 {onClose && closeLabel && (
                   <ChromePill u={u} label={closeLabel} onClick={onClose}>
@@ -3703,6 +3718,7 @@ export function DrawingCanvas({
                     {closeLabel}
                   </ChromePill>
                 )}
+                <div className="flex items-center" style={{ gap: u(10) }}>
                 {onClose && !closeLabel && (
                   <ChromeRound u={u} label="Close" onClick={onClose}>
                     <Icon name="close" size={u(24)} decorative />
@@ -3718,7 +3734,7 @@ export function DrawingCanvas({
                   <Icon name="waiting" size={u(18)} decorative />
                   {teacher ? "Draft template" : "Not in your jar yet"}
                 </StatusChip>
-                {title && (
+                {title && !stackTop && (
                   <span
                     style={{
                       font: `600 ${u(22)}px var(--font-fredoka)`,
@@ -3752,15 +3768,26 @@ export function DrawingCanvas({
                 >
                   <Icon name="point" size={u(24)} decorative />
                 </ChromeRound>
+                </div>
               </div>
 
               {/* Under the top row, on the work itself: the subtitle and the
                   teacher's note on a piece that was sent back. */}
-              {(subtitle || teacherNote) && (
+              {(subtitle || teacherNote || (title && stackTop)) && (
                 <div
                   className="pointer-events-none absolute"
-                  style={{ left: u(16), top: u(92), width: u(520), zIndex: Z_CHROME }}
+                  style={{
+                    left: u(16),
+                    top: stackTop ? u(166) : u(92),
+                    width: Math.min(u(520), paper.w - u(32)),
+                    zIndex: Z_CHROME,
+                  }}
                 >
+                  {title && stackTop && (
+                    <p style={{ font: `600 ${u(20)}px var(--font-fredoka)`, color: "var(--ink)" }}>
+                      {title}
+                    </p>
+                  )}
                   {subtitle && (
                     <p style={{ font: `400 ${u(15)}px var(--font-atkinson)`, color: "var(--ink-soft)" }}>
                       {subtitle}
