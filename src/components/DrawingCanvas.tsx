@@ -3587,6 +3587,7 @@ export function DrawingCanvas({
                 // over the page and clamps itself to the stage — the object
                 // toolbar — reads this and stops short of it, instead of
                 // parking its settings row on top of "new page".
+                ["--sj-chrome-top" as string]: `${u(96)}px`,
                 ["--sj-chrome-bottom" as string]: `${u(150)}px`,
                 ["--sj-chrome-left" as string]: `${u(reserveLeft)}px`,
                 ["--sj-chrome-right" as string]: `${u(reserveRight)}px`,
@@ -4596,7 +4597,7 @@ function objCapabilities(o: Obj, author: boolean) {
  * How much of the stage's bottom edge is its own furniture rather than page.
  * Zero on the inline canvas, which has no tray under it.
  */
-function chromeInset(stage: HTMLElement, side: "bottom" | "left" | "right"): number {
+function chromeInset(stage: HTMLElement, side: "top" | "bottom" | "left" | "right"): number {
   const raw = getComputedStyle(stage).getPropertyValue(`--sj-chrome-${side}`);
   const n = parseFloat(raw);
   return Number.isFinite(n) ? n : 0;
@@ -4720,8 +4721,13 @@ function ObjectToolbar({
     const s = stage.getBoundingClientRect();
     const insetL = chromeInset(stage, "left");
     const insetR = chromeInset(stage, "right");
+    const insetT = chromeInset(stage, "top");
+    // A couple of pixels of slack. Capping the bar at EXACTLY the free band
+    // makes the clamp's floor and ceiling equal to within a rounding error,
+    // which reads as "it does not fit" and drops it back to the middle of the
+    // whole stage — under the very window the inset was there to avoid.
     setMaxW((prev) => {
-      const next = Math.max(160, s.width - 16 - insetL - insetR);
+      const next = Math.max(160, s.width - 20 - insetL - insetR);
       return Math.abs(prev - next) < 0.5 ? prev : next;
     });
     const tw = el.offsetWidth;
@@ -4730,7 +4736,7 @@ function ObjectToolbar({
     // then the gap, then itself.
     const need = HIT_PX / 2 + TOOLBAR_GAP + th;
     // Above if it fits above, otherwise below if it fits below.
-    const roomAbove = w.top - s.top >= need;
+    const roomAbove = w.top - s.top - insetT >= need;
     const roomBelow = s.bottom - chromeBottom(stage) - w.bottom >= need;
     const nextFlip = !roomAbove && roomBelow;
     setFlip((prev) => (prev === nextFlip ? prev : nextFlip));
@@ -4755,9 +4761,10 @@ function ObjectToolbar({
     // the page tray and the two fan discs, and a toolbar clamped onto them is a
     // toolbar that stops a child adding a page.
     const floor = s.bottom - chromeBottom(stage);
+    const ceiling = s.top + insetT;
     let dy = 0;
-    if (intendedTop < s.top + TOOLBAR_GAP) {
-      dy = s.top + TOOLBAR_GAP - intendedTop;
+    if (intendedTop < ceiling + TOOLBAR_GAP) {
+      dy = ceiling + TOOLBAR_GAP - intendedTop;
     } else if (intendedTop + th > floor - TOOLBAR_GAP) {
       dy = floor - TOOLBAR_GAP - (intendedTop + th);
     }
@@ -4767,7 +4774,13 @@ function ObjectToolbar({
     const half = tw / 2;
     const lo = margin + half + insetL;
     const hi = s.width - margin - half - insetR;
-    const clamped = lo > hi ? s.width / 2 : Math.min(hi, Math.max(lo, naturalCentre));
+    // If it cannot fit in the free band at all, centre it IN THAT BAND rather
+    // than on the whole stage — otherwise "it doesn't fit" parks it back under
+    // the window the band was measured to avoid.
+    const clamped =
+      lo > hi
+        ? (insetL + (s.width - insetR)) / 2
+        : Math.min(hi, Math.max(lo, naturalCentre));
     const next = clamped - naturalCentre;
     setShift((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
   });
