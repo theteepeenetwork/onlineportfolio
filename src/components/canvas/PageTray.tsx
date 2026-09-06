@@ -76,6 +76,17 @@ export function PageTray({
   const stripRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<number | null>(null);
   const [drag, setDrag] = useState<{ from: number; to: number; dx: number } | null>(null);
+  // Where the strip is scrolled to, so the fade and chevron sit only at an end
+  // that has more pages beyond it — as the design draws them.
+  const [scroll, setScroll] = useState({ left: 0, max: 0 });
+  const readScroll = () => {
+    const el = stripRef.current;
+    if (!el) return;
+    setScroll((prev) => {
+      const next = { left: el.scrollLeft, max: el.scrollWidth - el.clientWidth };
+      return prev.left === next.left && prev.max === next.max ? prev : next;
+    });
+  };
   const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressRef = useRef<{ i: number; x: number; lifted: boolean; moved: boolean } | null>(null);
 
@@ -90,11 +101,18 @@ export function PageTray({
       el.scrollTo({ left: Math.max(0, target - el.clientWidth / 2 + u(CARD_W) / 2), behavior: "smooth" });
     }
   }, [active, u]);
+  useEffect(() => {
+    readScroll();
+  }, [count]);
 
   // Five pages' worth, or whatever room there is between the discs — whichever
   // is less. Past that the strip scrolls, which it already knows how to do.
+  // The scroll box is pulled 8 into the tray's padding on each side and pads
+  // the same 8 back, so its CONTENT box is 16 narrower than its width: the
+  // width has to carry that, or the last card is jammed against "new page"
+  // and a lifted end card is cut off by the box's own edge.
   const stripW = Math.min(
-    Math.min(count, VISIBLE) * SLOT - GAP + 12,
+    Math.min(count, VISIBLE) * SLOT - GAP + 24 + 16,
     Math.max(u(SLOT, 64), maxWidth - u(72, 64) - u(GAP) - u(16) - 6),
   );
 
@@ -179,6 +197,7 @@ export function PageTray({
         <div
           ref={stripRef}
           className="sj-noscrollbar"
+          onScroll={readScroll}
           style={{
             position: "relative",
             width: u(stripW),
@@ -204,7 +223,7 @@ export function PageTray({
               gap: u(GAP),
               height: u(CARD_H, 64),
               marginTop: u(40),
-              padding: `0 ${u(6)}px`,
+              padding: `0 ${u(12)}px`,
               width: "max-content",
             }}
           >
@@ -289,34 +308,42 @@ export function PageTray({
         </div>
 
         {/* Past five pages the strip scrolls, and says so at whichever end has
-            more left in it. */}
-        {count > VISIBLE && (
-          <>
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute"
-              style={{
-                right: 0,
-                top: u(-40),
-                bottom: 0,
-                width: u(40),
-                background: `linear-gradient(to left, ${KRAFT_TAG}, transparent)`,
-              }}
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute"
-              style={{
-                right: u(4),
-                top: "50%",
-                transform: "translateY(-50%)",
-                font: `600 ${u(26)}px var(--font-fredoka)`,
-                color: KRAFT_DARK,
-              }}
-            >
-              ›
-            </span>
-          </>
+            more left in it — a fade into the kraft and a chevron. */}
+        {scroll.max > 4 && scroll.left < scroll.max - 4 && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute flex items-center justify-end"
+            style={{
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: u(40),
+              paddingRight: u(2),
+              background: `linear-gradient(to left, ${KRAFT_TAG}, transparent)`,
+              font: `600 ${u(26)}px var(--font-fredoka)`,
+              color: KRAFT_DARK,
+            }}
+          >
+            ›
+          </span>
+        )}
+        {scroll.left > 4 && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute flex items-center justify-start"
+            style={{
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: u(40),
+              paddingLeft: u(2),
+              background: `linear-gradient(to right, ${KRAFT_TAG}, transparent)`,
+              font: `600 ${u(26)}px var(--font-fredoka)`,
+              color: KRAFT_DARK,
+            }}
+          >
+            ‹
+          </span>
         )}
       </div>
 

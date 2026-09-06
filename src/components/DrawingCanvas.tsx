@@ -3894,7 +3894,10 @@ export function DrawingCanvas({
                 dir={penDir(hand)}
                 open={toolBarOpen}
                 tool={tool}
-                colour={color}
+                // The fan shows the PEN's colour whatever is in hand: with Move
+                // picked the "current colour" is the cursor's, which is ink and
+                // means nothing to a child looking at the nibs.
+                colour={drawingTool ? color : toolColors.pen}
                 size={size}
                 canMove={canMove}
                 onToggle={() => {
