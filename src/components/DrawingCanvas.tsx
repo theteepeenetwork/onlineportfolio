@@ -4809,9 +4809,18 @@ function ObjectToolbar({
     // then the gap, then itself.
     const need = HIT_PX / 2 + TOOLBAR_GAP + th;
     // Above if it fits above, otherwise below if it fits below.
-    const roomAbove = w.top - s.top - insetT >= need;
-    const roomBelow = s.bottom - chromeBottom(stage) - w.bottom >= need;
-    const nextFlip = !roomAbove && roomBelow;
+    const insetB = chromeBottom(stage);
+    const roomAbove = w.top - s.top - insetT;
+    const roomBelow = s.bottom - insetB - w.bottom;
+    const nextFlip =
+      roomAbove >= need ? false : roomBelow >= need ? true : roomBelow > roomAbove;
+    // Whether the side it chose actually has the room. When NEITHER does — a
+    // hundred flat is most of the page — the bar is clamped against the stage's
+    // real edge rather than against the chrome's band. Sliding under the top
+    // row is recoverable (the chrome is drawn above it); being pushed down onto
+    // the object's own corner controls is not, and that is what happened to a
+    // rectangle turned 15°.
+    const fits = nextFlip ? roomBelow >= need : roomAbove >= need;
     setFlip((prev) => (prev === nextFlip ? prev : nextFlip));
 
     // Computed from where the toolbar WOULD sit untransformed, not from where
@@ -4833,8 +4842,8 @@ function ObjectToolbar({
     // its own chrome (`--sj-chrome-bottom`): on the full-screen canvas that is
     // the page tray and the two fan discs, and a toolbar clamped onto them is a
     // toolbar that stops a child adding a page.
-    const floor = s.bottom - chromeBottom(stage);
-    const ceiling = s.top + insetT;
+    const floor = s.bottom - (fits ? insetB : 0);
+    const ceiling = s.top + (fits ? insetT : 0);
     let dy = 0;
     if (intendedTop < ceiling + TOOLBAR_GAP) {
       dy = ceiling + TOOLBAR_GAP - intendedTop;
