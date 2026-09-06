@@ -39,6 +39,12 @@ export const metadata: Metadata = {
   title: "StoryJar — every child's story, collected",
   description:
     "A class journal and portfolio for ages 3–11. Children pop their photos, drawings and words into the jar — and nothing is kept until the teacher has seen it.",
+  // Pinterest domain claim. An inert marker tag — no script, no pixel, no
+  // request to Pinterest — so it carries none of the tracking that the
+  // safeguarding rules keep off child-facing pages.
+  other: {
+    "p:domain_verify": "92eac9232deee0c258eea0b290a74428",
+  },
 };
 
 export default function RootLayout({
