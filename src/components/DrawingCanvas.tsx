@@ -2361,7 +2361,14 @@ export function DrawingCanvas({
       y: (H - h) / 2 + dy,
       w,
       h,
-      fill: preset.fill ?? SHAPE_DEFAULTS.fill,
+      // Apparatus arrives cream, so what is written on it reads; a plain shape
+      // arrives in the colour the pen is set to, so what a child sees on the
+      // fan is what lands on the page. A preset's own colour wins over both.
+      fill:
+        preset.fill ??
+        (preset.kind === "grid" || preset.kind === "pie" || preset.kind === "ring"
+          ? "#fffdf7"
+          : color),
       stroke: preset.stroke ?? SHAPE_DEFAULTS.stroke,
       strokeWidth: preset.strokeWidth ?? SHAPE_DEFAULTS.strokeWidth,
       ...(preset.text ? { text: preset.text } : {}),
@@ -3572,7 +3579,7 @@ export function DrawingCanvas({
       const options: PlusOption[] = presets.map((preset) => ({
         key: preset.id,
         label: preset.label,
-        art: <ShapeThumb preset={preset} px={u(40)} />,
+        art: <ShapeThumb preset={preset} px={u(40)} fill={preset.fill ?? color} />,
         onSelect: () => addShape(preset),
       }));
       plusItems.push({ key: "shapes", icon: "shapes", label: shapesKit.label, ring: 0, options });
@@ -3658,6 +3665,11 @@ export function DrawingCanvas({
                 // active card's lift, so 128 covers it. Every extra pixel here
                 // is a pixel the object bar cannot use.
                 ["--sj-chrome-bottom" as string]: `${u(128)}px`,
+                // The top row, for the object bar to PREFER to keep out of: a
+                // piece near the top gets its bar below itself, as the design
+                // has it. A preference only — see the bar's own note on why
+                // clamping to it was worse than sliding under it.
+                ["--sj-chrome-top" as string]: `${stackTop ? u(170) : u(96)}px`,
                 ["--sj-chrome-left" as string]: `${u(reserveLeft)}px`,
                 ["--sj-chrome-right" as string]: `${u(reserveRight)}px`,
               }}
@@ -4705,7 +4717,7 @@ function objCapabilities(o: Obj, author: boolean) {
  * How much of the stage's bottom edge is its own furniture rather than page.
  * Zero on the inline canvas, which has no tray under it.
  */
-function chromeInset(stage: HTMLElement, side: "bottom" | "left" | "right"): number {
+function chromeInset(stage: HTMLElement, side: "top" | "bottom" | "left" | "right"): number {
   const raw = getComputedStyle(stage).getPropertyValue(`--sj-chrome-${side}`);
   const n = parseFloat(raw);
   return Number.isFinite(n) ? n : 0;
@@ -4870,7 +4882,13 @@ function ObjectToolbar({
     // the bar some of its own visibility on a cramped page, the chrome is drawn
     // above it, and nothing is trapped.
     const insetB = chromeBottom(stage);
-    const roomAbove = w.top - s.top;
+    const insetT = chromeInset(stage, "top");
+    // Above the object, out from under the top row, if that fits; below it,
+    // above the tray, if that fits; else whichever side has more. The top row
+    // shapes the CHOICE and nothing else — the clamp further down still runs
+    // against the stage edge, because clamping against the row pushed the bar
+    // onto the object's own corners.
+    const roomAbove = w.top - s.top - insetT;
     const roomBelow = s.bottom - insetB - w.bottom;
     const nextFlip =
       roomAbove >= need ? false : roomBelow >= need ? true : roomBelow > roomAbove;
@@ -6970,9 +6988,6 @@ function QuizBoxView({
   // on-device voice to say it with. Both, or nothing.
   const voiceReady = useOnDeviceVoiceReady();
   const canHear = !author && !!hearItLabel && !!q.prompt && voiceReady;
-  // The sync hint is an authoring affordance, not content: below about half
-  // size it's unreadable anyway and the space is better spent on the question.
-  const showSyncHint = editable && k > 0.55;
 
   // Answer rows stretch to share out the box's height, so their size has little
   // to do with how much text is in them: two short answers in a tall box left
@@ -7110,14 +7125,6 @@ function QuizBoxView({
       >
         {editable ? (
           <>
-            {showSyncHint && (
-              <p
-                className="text-center font-bold uppercase tracking-wide"
-                style={{ fontSize: px(11), color: "var(--glass-ink)", letterSpacing: ".08em" }}
-              >
-                Edits here also show in the Quiz builder
-              </p>
-            )}
             {/* The prompt: an inline field with the design's dashed calm
                 border, in Fredoka, smaller once the question runs long. The
                 border and padding are on a WRAPPER, not the field: BoxField

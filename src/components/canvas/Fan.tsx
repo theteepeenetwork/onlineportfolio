@@ -611,11 +611,8 @@ export function PlusFan({
     <>
       {open && (
         <>
-          <Band u={u} cx={cx} cy={cy} frame={frame} dir={dir} r={R_PLUS_INNER} half={44} from={-58} to={46} fill={KRAFT_TAG} delay={0} />
-          {outer.length > 0 && (
-            <Band u={u} cx={cx} cy={cy} frame={frame} dir={dir} r={R_PLUS_OUTER} half={44} from={-62} to={32} fill={HONEY_TINT} delay={40} />
-          )}
-
+          {/* No band under the ＋ fan's own rings: the design draws its items
+              bare on the paper, and keeps the kraft band for a second row. */}
           {[...inner, ...outer].map((item) => {
             const isOuter = item.ring === 1;
             const list = isOuter ? outer : inner;
