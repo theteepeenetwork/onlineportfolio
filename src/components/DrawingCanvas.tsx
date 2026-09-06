@@ -3484,8 +3484,12 @@ export function DrawingCanvas({
     const penX = penCx(hand, paper.w);
     const plusX = plusCx(hand, paper.w);
     const discY = discCy(paper.h);
-    // The design frame is 1194 wide and the top row only fits at that width.
-    const stackTop = paper.w < FRAME_W;
+    // Stack only when the row actually cannot fit. What makes it too wide is
+    // the labelled way out — "← Back to my jar" is a quarter of a 768px tablet
+    // on its own. A teacher's row starts with a 64px ✕ and fits at any width
+    // this canvas is used at, and stacking it anyway would cost the page 74px
+    // of height it needs for the object bar.
+    const stackTop = Boolean(closeLabel) && paper.w < FRAME_W;
 
     // Something is open that a touch on the paper should CLOSE rather than
     // draw through. The floating windows are deliberately not in this list:
@@ -4783,6 +4787,11 @@ function ObjectToolbar({
   // off both edges is a control nobody can reach. Measured rather than guessed,
   // because it is the stage that decides.
   const [maxW, setMaxW] = useState(0);
+  // True when the bar had to be laid across the object itself. It draws over
+  // the object's BODY but never over its corner controls, which keep their own
+  // higher layer: a bar that swallowed the resize corner would be a bar that
+  // stopped a short piece being resized at all.
+  const [overObject, setOverObject] = useState(false);
   useLayoutEffect(() => {
     const el = ref.current;
     const wrap = wrapRef.current;
@@ -4815,11 +4824,12 @@ function ObjectToolbar({
     const nextFlip =
       roomAbove >= need ? false : roomBelow >= need ? true : roomBelow > roomAbove;
     // Whether the side it chose actually has the room. When NEITHER does — a
-    // hundred flat is most of the page — the bar is clamped against the stage's
-    // real edge rather than against the chrome's band. Sliding under the top
-    // row is recoverable (the chrome is drawn above it); being pushed down onto
-    // the object's own corner controls is not, and that is what happened to a
-    // rectangle turned 15°.
+    // hundred flat is most of the page, and a turned rectangle is not far off —
+    // the two bands are not equal. The page tray is a floor and stays one: a
+    // toolbar clamped onto it is a toolbar whose settings row swallows the taps
+    // meant for "new page". The top row is a preference: sliding under it costs
+    // the bar some of its own visibility, which is recoverable, where being
+    // pushed DOWN onto the object's own corner controls is not.
     const fits = nextFlip ? roomBelow >= need : roomAbove >= need;
     setFlip((prev) => (prev === nextFlip ? prev : nextFlip));
 
@@ -4842,14 +4852,24 @@ function ObjectToolbar({
     // its own chrome (`--sj-chrome-bottom`): on the full-screen canvas that is
     // the page tray and the two fan discs, and a toolbar clamped onto them is a
     // toolbar that stops a child adding a page.
-    const floor = s.bottom - (fits ? insetB : 0);
+    const floor = s.bottom - insetB;
     const ceiling = s.top + (fits ? insetT : 0);
     let dy = 0;
-    if (intendedTop < ceiling + TOOLBAR_GAP) {
+    if (!fits) {
+      // Nowhere to stand. Rather than wedge the bar between the object and a
+      // band it cannot clear — which is how a stepper ended up underneath the
+      // object's own resize corner — put it ACROSS the object's middle, where
+      // the four corners are not, and let it draw over the object. The middle
+      // is where a hand grabs the thing, and losing that while it is selected
+      // is a smaller loss than a control nobody can press.
+      dy = (w.top + w.bottom) / 2 - th / 2 - intendedTop;
+    }
+    if (intendedTop + dy < ceiling + TOOLBAR_GAP) {
       dy = ceiling + TOOLBAR_GAP - intendedTop;
-    } else if (intendedTop + th > floor - TOOLBAR_GAP) {
+    } else if (intendedTop + dy + th > floor - TOOLBAR_GAP) {
       dy = floor - TOOLBAR_GAP - (intendedTop + th);
     }
+    setOverObject((prev) => (prev === !fits ? prev : !fits));
     setLift((prev) => (Math.abs(prev - dy) < 0.5 ? prev : dy));
     const margin = 8;
     const naturalCentre = w.left + w.width / 2 - s.left; // canvas-space px
@@ -4890,7 +4910,9 @@ function ObjectToolbar({
           flip ? `${lift}px` : `calc(-100% + ${lift}px)`
         })`,
       }}
-      className="pointer-events-auto absolute z-30 flex flex-col items-center gap-1.5 whitespace-nowrap"
+      className={`pointer-events-auto absolute flex flex-col items-center gap-1.5 whitespace-nowrap ${
+        overObject ? "z-[35]" : "z-30"
+      }`}
     >
       {/* The top row is what a teacher does TO the object: where it sits in the
           stack, whether it is pinned, whether it is endless, whether there is
