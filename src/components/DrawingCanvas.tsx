@@ -3486,10 +3486,13 @@ export function DrawingCanvas({
     const discY = discCy(paper.h);
     // Stack only when the row actually cannot fit. What makes it too wide is
     // the labelled way out — "← Back to my jar" is a quarter of a 768px tablet
-    // on its own. A teacher's row starts with a 64px ✕ and fits at any width
-    // this canvas is used at, and stacking it anyway would cost the page 74px
-    // of height it needs for the object bar.
-    const stackTop = Boolean(closeLabel) && paper.w < FRAME_W;
+    // on its own — and with it the row is about 740px, so it fits on a 1024px
+    // iPad and not on a 768px one. A teacher's row starts with a 64px ✕ and
+    // fits at any width this canvas is used at. Stacking when there is no need
+    // is not free: it costs the page 74px of height the object bar needs, and
+    // on a 720px window that is the difference between a turn button a child
+    // can press and one under the status chip.
+    const stackTop = Boolean(closeLabel) && paper.w < 900;
 
     // Something is open that a touch on the paper should CLOSE rather than
     // draw through. The floating windows are deliberately not in this list:
@@ -3625,8 +3628,10 @@ export function DrawingCanvas({
                 // over the page and clamps itself to the stage — the object
                 // toolbar — reads this and stops short of it, instead of
                 // parking its settings row on top of "new page".
-                ["--sj-chrome-top" as string]: `${stackTop ? u(170) : u(96)}px`,
-                ["--sj-chrome-bottom" as string]: `${u(150)}px`,
+                // The tray is 84 (card) + 16 (padding) + 12 (bottom) + the
+                // active card's lift, so 128 covers it. Every extra pixel here
+                // is a pixel the object bar cannot use.
+                ["--sj-chrome-bottom" as string]: `${u(128)}px`,
                 ["--sj-chrome-left" as string]: `${u(reserveLeft)}px`,
                 ["--sj-chrome-right" as string]: `${u(reserveRight)}px`,
               }}
@@ -4674,7 +4679,7 @@ function objCapabilities(o: Obj, author: boolean) {
  * How much of the stage's bottom edge is its own furniture rather than page.
  * Zero on the inline canvas, which has no tray under it.
  */
-function chromeInset(stage: HTMLElement, side: "top" | "bottom" | "left" | "right"): number {
+function chromeInset(stage: HTMLElement, side: "bottom" | "left" | "right"): number {
   const raw = getComputedStyle(stage).getPropertyValue(`--sj-chrome-${side}`);
   const n = parseFloat(raw);
   return Number.isFinite(n) ? n : 0;
@@ -4787,11 +4792,6 @@ function ObjectToolbar({
   // off both edges is a control nobody can reach. Measured rather than guessed,
   // because it is the stage that decides.
   const [maxW, setMaxW] = useState(0);
-  // True when the bar had to be laid across the object itself. It draws over
-  // the object's BODY but never over its corner controls, which keep their own
-  // higher layer: a bar that swallowed the resize corner would be a bar that
-  // stopped a short piece being resized at all.
-  const [overObject, setOverObject] = useState(false);
   useLayoutEffect(() => {
     const el = ref.current;
     const wrap = wrapRef.current;
@@ -4803,7 +4803,6 @@ function ObjectToolbar({
     const s = stage.getBoundingClientRect();
     const insetL = chromeInset(stage, "left");
     const insetR = chromeInset(stage, "right");
-    const insetT = chromeInset(stage, "top");
     // A couple of pixels of slack. Capping the bar at EXACTLY the free band
     // makes the clamp's floor and ceiling equal to within a rounding error,
     // which reads as "it does not fit" and drops it back to the middle of the
@@ -4817,20 +4816,26 @@ function ObjectToolbar({
     // What the toolbar needs beyond the object's own edge: half a corner press,
     // then the gap, then itself.
     const need = HIT_PX / 2 + TOOLBAR_GAP + th;
-    // Above if it fits above, otherwise below if it fits below.
+    // Above if it fits above, otherwise below if it fits below, otherwise
+    // whichever side has more room.
+    //
+    // The page tray is a FLOOR. A toolbar clamped onto it is a toolbar whose
+    // settings row swallows the taps meant for "new page", and a teacher then
+    // cannot add a page while a number line is selected.
+    //
+    // The top row is deliberately NOT reserved in the same way. Reserving it
+    // wedged the bar between the object and a band it could not clear, which
+    // put a number line's steppers underneath the object's own resize corner —
+    // and every way out of that (laying the bar across the piece, out-ranking
+    // its corners) cost something worse: a piece that could not be dragged, or
+    // a short one that could not be resized. Sliding under the top row costs
+    // the bar some of its own visibility on a cramped page, the chrome is drawn
+    // above it, and nothing is trapped.
     const insetB = chromeBottom(stage);
-    const roomAbove = w.top - s.top - insetT;
+    const roomAbove = w.top - s.top;
     const roomBelow = s.bottom - insetB - w.bottom;
     const nextFlip =
       roomAbove >= need ? false : roomBelow >= need ? true : roomBelow > roomAbove;
-    // Whether the side it chose actually has the room. When NEITHER does — a
-    // hundred flat is most of the page, and a turned rectangle is not far off —
-    // the two bands are not equal. The page tray is a floor and stays one: a
-    // toolbar clamped onto it is a toolbar whose settings row swallows the taps
-    // meant for "new page". The top row is a preference: sliding under it costs
-    // the bar some of its own visibility, which is recoverable, where being
-    // pushed DOWN onto the object's own corner controls is not.
-    const fits = nextFlip ? roomBelow >= need : roomAbove >= need;
     setFlip((prev) => (prev === nextFlip ? prev : nextFlip));
 
     // Computed from where the toolbar WOULD sit untransformed, not from where
@@ -4853,23 +4858,13 @@ function ObjectToolbar({
     // the page tray and the two fan discs, and a toolbar clamped onto them is a
     // toolbar that stops a child adding a page.
     const floor = s.bottom - insetB;
-    const ceiling = s.top + (fits ? insetT : 0);
+    const ceiling = s.top;
     let dy = 0;
-    if (!fits) {
-      // Nowhere to stand. Rather than wedge the bar between the object and a
-      // band it cannot clear — which is how a stepper ended up underneath the
-      // object's own resize corner — put it ACROSS the object's middle, where
-      // the four corners are not, and let it draw over the object. The middle
-      // is where a hand grabs the thing, and losing that while it is selected
-      // is a smaller loss than a control nobody can press.
-      dy = (w.top + w.bottom) / 2 - th / 2 - intendedTop;
-    }
-    if (intendedTop + dy < ceiling + TOOLBAR_GAP) {
+    if (intendedTop < ceiling + TOOLBAR_GAP) {
       dy = ceiling + TOOLBAR_GAP - intendedTop;
-    } else if (intendedTop + dy + th > floor - TOOLBAR_GAP) {
+    } else if (intendedTop + th > floor - TOOLBAR_GAP) {
       dy = floor - TOOLBAR_GAP - (intendedTop + th);
     }
-    setOverObject((prev) => (prev === !fits ? prev : !fits));
     setLift((prev) => (Math.abs(prev - dy) < 0.5 ? prev : dy));
     const margin = 8;
     const naturalCentre = w.left + w.width / 2 - s.left; // canvas-space px
@@ -4910,9 +4905,7 @@ function ObjectToolbar({
           flip ? `${lift}px` : `calc(-100% + ${lift}px)`
         })`,
       }}
-      className={`pointer-events-auto absolute flex flex-col items-center gap-1.5 whitespace-nowrap ${
-        overObject ? "z-[35]" : "z-30"
-      }`}
+      className="pointer-events-auto absolute z-30 flex flex-col items-center gap-1.5 whitespace-nowrap"
     >
       {/* The top row is what a teacher does TO the object: where it sits in the
           stack, whether it is pinned, whether it is endless, whether there is
@@ -5053,7 +5046,7 @@ function ObjectToolbar({
           {/* The swatch IS the label: a paint-pot glyph beside a colour dot was
               two things saying one thing, on a bar with no room for either. */}
           <label
-            className="relative block overflow-hidden rounded-full"
+            className="pointer-events-auto relative block overflow-hidden rounded-full"
             style={{ width: HIT, height: HIT, flex: "0 0 auto", border: "2px solid var(--paper)" }}
           >
             <input
@@ -5083,7 +5076,7 @@ function ObjectToolbar({
           </button>
 
           <label
-            className="relative block overflow-hidden rounded-full"
+            className="pointer-events-auto relative block overflow-hidden rounded-full"
             style={{ width: HIT, height: HIT, flex: "0 0 auto", border: "2px dashed var(--paper)" }}
           >
             <input
