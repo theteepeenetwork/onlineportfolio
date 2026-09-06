@@ -68,7 +68,7 @@ test.describe("who is offered the kit", () => {
 
       // The child's inner ring, in full: three things to insert and no more.
       await expect(page.getByRole("button", { name: "Shapes" })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Photo / PDF" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Photo", exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Words" })).toBeVisible();
 
       // The line, the arrow and the ring are not apparatus, so they are here

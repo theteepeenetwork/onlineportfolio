@@ -3561,7 +3561,9 @@ export function DrawingCanvas({
     plusItems.push({
       key: "photo",
       icon: "add-picture",
-      label: "Photo / PDF",
+      // "Photo" to a child; the teacher's canvas, which imports PDFs too, keeps
+      // the live label.
+      label: teacher ? "Photo / PDF" : "Photo",
       ring: 0,
       onSelect: () => {
         closeFans();

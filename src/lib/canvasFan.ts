@@ -200,11 +200,13 @@ export function secondRow(
   if (count <= 4) {
     return spread(count, -62, -4).map((deg) => ({ r: radii[0], deg }));
   }
+  // Two arcs: the design's own windows, −68…0 inside and −58…−10 outside —
+  // the outer one shorter and offset, so nothing lines up radially.
   const inner = Math.ceil(count / 2);
   const outer = count - inner;
   return [
-    ...spread(inner, -66, -2).map((deg) => ({ r: radii[0], deg })),
-    ...spread(outer, -55.3, -12.7).map((deg) => ({ r: radii[1], deg })),
+    ...spread(inner, -68, 0).map((deg) => ({ r: radii[0], deg })),
+    ...spread(outer, -58, -10).map((deg) => ({ r: radii[1], deg })),
   ];
 }
 
