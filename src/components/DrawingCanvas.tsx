@@ -2357,7 +2357,7 @@ export function DrawingCanvas({
       id,
       type: "shape",
       shape: preset.kind,
-      x: freeCentreX() - w / 2 + dx,
+      x: Math.max(0, Math.min(W - w, placeX(w) + dx)),
       y: (H - h) / 2 + dy,
       w,
       h,
@@ -3016,7 +3016,7 @@ export function DrawingCanvas({
       // The middle of the room that is LEFT, not the middle of the page: with
       // the builder parked on the right, a box at page centre put its own
       // resize corner under the window that made it.
-      x: freeCentreX() - QUIZ_W / 2,
+      x: placeX(QUIZ_W),
       y: (H - QUIZ_H) / 2,
       w: QUIZ_W,
       h: QUIZ_H,
@@ -3313,6 +3313,13 @@ export function DrawingCanvas({
     if (!fullScreen || box.w <= 0) return W / 2;
     const mid = (reserveLeft + (box.w - reserveRight)) / 2;
     return (mid / box.w) * W;
+  }
+  // Where a piece `w` wide lands: centred in the free band, but ON THE PAGE
+  // first. A 700-wide number line centred beside an open window started at
+  // x = −16, with its take-it-away corner off the edge of the paper. Clear of
+  // the window is the preference; inside the page is the rule.
+  function placeX(w: number): number {
+    return Math.max(0, Math.min(W - w, freeCentreX() - w / 2));
   }
 
   const objectLayer = (
