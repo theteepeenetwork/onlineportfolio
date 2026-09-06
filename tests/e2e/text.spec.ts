@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { studentLogin, openDrawing } from "./helpers";
+import { studentLogin, openDrawing, pickTool } from "./helpers";
 
 // Text boxes are objects: after being placed they can be re-selected, moved,
 // and re-edited. (Dev has no seeded or other-test work.)
@@ -13,19 +13,19 @@ test("text can be placed, re-selected, moved and re-edited", async ({ page }) =>
 
   // Pick the Text tool and tap the canvas to place a text box, then type.
   await page.locator('button[title="Add"]').click();
-  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.getByRole("button", { name: "Words", exact: true }).click();
   await page.mouse.click(cbox.x + cbox.width * 0.4, cbox.y + cbox.height * 0.4);
   await page.locator('textarea[placeholder="Type…"]').waitFor();
   await page.keyboard.type("Hello");
 
   // Commit by switching to the pen.
-  await page.locator('button[title="Pen"]').click();
+  await page.locator('button[title="Pens"]').click();
   const label = page.getByText("Hello", { exact: true });
   await expect(label).toBeVisible();
   await expect(page.locator('textarea[placeholder="Type…"]')).toHaveCount(0);
 
   // With the cursor tool, re-select by tapping it — the controls appear.
-  await page.locator('button[aria-label="Move"]').click();
+  await pickTool(page, "Move");
   const before = (await label.boundingBox())!;
   await page.mouse.click(before.x + before.width / 2, before.y + before.height / 2);
   await expect(page.getByRole("button", { name: "Edit text" })).toBeVisible();
@@ -48,7 +48,7 @@ test("text can be placed, re-selected, moved and re-edited", async ({ page }) =>
   await expect(editor).toHaveValue("Hello");
   await page.keyboard.press("End");
   await page.keyboard.type(" world");
-  await page.locator('button[title="Pen"]').click();
+  await page.locator('button[title="Pens"]').click();
   await expect(page.getByText("Hello world", { exact: true })).toBeVisible();
 
   // Turn it. A text box carries the same four corners a shape does, so it
@@ -59,7 +59,7 @@ test("text can be placed, re-selected, moved and re-edited", async ({ page }) =>
   const tbox = (await turned.boundingBox())!;
   const wrapper = turned.locator("..");
   // Committing with the pen dropped the selection, so pick the box up again.
-  await page.locator('button[aria-label="Move"]').click();
+  await pickTool(page, "Move");
   await page.mouse.click(tbox.x + tbox.width / 2, tbox.y + tbox.height / 2);
   await expect(page.getByRole("button", { name: "Turn text" })).toBeVisible();
   expect(await wrapper.evaluate((el) => getComputedStyle(el).transform)).toBe("none");

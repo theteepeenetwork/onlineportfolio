@@ -654,6 +654,69 @@ h4 {
 }
 
 
+/* ── The canvas thumb fans ─────────────────────────────────────────────────
+   Every item in a fan is drawn AT its final place and animated back from the
+   disc it sprang out of, so nothing depends on measuring anything: the
+   component sets --dx / --dy (the offset from the disc centre) and the delay,
+   and the keyframe does the rest. Landing on the final frame under
+   prefers-reduced-motion is then free — the one guard below cuts the duration
+   and `forwards` keeps the item exactly where it already was. */
+@keyframes sj-fan-in {
+  from {
+    transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* A band sweeps open from the disc end rather than fading in, so the group is
+   drawn before the buttons that sit on it. */
+@keyframes sj-fan-sweep {
+  from {
+    stroke-dashoffset: var(--len, 0);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* A toast says what the last thing undoes to. It arrives with the same
+   overshoot as everything else that lands on this canvas. */
+@keyframes sj-toast-in {
+  from {
+    transform: translate(-50%, 14px) scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* An object placed from a kit, a window opening, a page menu. */
+@keyframes sj-pop-in {
+  from {
+    transform: scale(0.86);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* The page tray scrolls sideways past five pages. A visible scrollbar under a
+   row of page cards reads as a second, thinner page. */
+.sj-noscrollbar {
+  scrollbar-width: none;
+}
+.sj-noscrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Reduced motion: ONE guard, for everything ─────────────────────────────
    SAFEGUARDING rule 18 requires prefers-reduced-motion to be honoured. This
    used to be SEVEN blocks scattered beside the animations they covered, each

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { teacherLogin } from "./helpers";
+import { teacherLogin, pickTool, openPenFan } from "./helpers";
 
 // A teacher can place objects on a template and choose, per object, whether it
 // may be moved: a padlock (open by default) locks it when tapped. A locked
@@ -112,8 +112,13 @@ test("teacher padlock locks an object so pupils can't move it; unlocked stays mo
     .filter({ has: page.locator("svg[data-shape]") });
   await expect(objectWraps).toHaveCount(2);
   // A template with objects opens on the Select tool by default, so a pupil can
-  // pick objects up straight away (no need to switch tools first).
-  await expect(page.locator('button[aria-label="Move"]')).toHaveAttribute("aria-pressed", "true");
+  // pick objects up straight away (no need to switch tools first). The tool
+  // ring lives in the pen fan now, so open it to see which one is in hand.
+  await openPenFan(page);
+  await expect(
+    page.locator('button[aria-label="Move — drag & resize things"]'),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.locator('button[title="Pens"]').click();
 
   // The locked object is fixed (pointer-events: none); the unlocked one can be
   // grabbed (pointer-events: auto). Exactly one of each.
@@ -129,7 +134,7 @@ test("teacher padlock locks an object so pupils can't move it; unlocked stays mo
   await page.goto(`${templateUrl}/edit`);
   await page.getByRole("button", { name: /Edit template/ }).click();
   await expect(objectPaths).toHaveCount(2);
-  await page.locator('button[aria-label="Move"]').click();
+  await pickTool(page, "Move");
 
   // Selecting an object brings up its author toolbar (proving it's editable
   // again), and each object's lock state was preserved: the rectangle (added

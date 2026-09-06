@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { teacherLogin, turnObject } from "./helpers";
+import { teacherLogin, turnObject, pickTool } from "./helpers";
 
 // The object toolbar hovers above a selected object, but must drop BELOW it when
 // the object is near the top edge, so it never clips off the top of the canvas.
@@ -219,8 +219,8 @@ test("every corner control of a turned text box can still be pressed", async ({ 
   await page.mouse.click(cbox.x + cbox.width * 0.45, cbox.y + cbox.height * 0.5);
   await page.locator('textarea[placeholder="Type…"]').waitFor();
   await page.keyboard.type("Hello");
-  await page.locator('button[title="Pen"]').click();
-  await page.locator('button[aria-label="Move"]').click();
+  await page.locator('button[title="Pens"]').click();
+  await pickTool(page, "Move");
   const label = page.getByText("Hello", { exact: true });
   const lb = (await label.boundingBox())!;
   await page.mouse.click(lb.x + lb.width / 2, lb.y + lb.height / 2);

@@ -303,7 +303,7 @@ test.describe("what the kit draws", () => {
   // --- The signs ------------------------------------------------------------
 
   test("an operator is a shape, so its fill and line are the child's", async ({ page }) => {
-    await place(page, "Signs", "Add sign");
+    await place(page, "Symbols", "Add sign");
     const path = page.locator('svg[data-shape="operator"] path').first();
     await expect(path).toBeVisible();
     // Filled and stroked like any other shape — that is the point of it being
@@ -314,7 +314,7 @@ test.describe("what the kit draws", () => {
   });
 
   test("one sign can be changed into another without starting again", async ({ page }) => {
-    await place(page, "Signs", "Add sign");
+    await place(page, "Symbols", "Add sign");
     const path = page.locator('svg[data-shape="operator"] path').first();
     const plus = (await path.getAttribute("d"))!;
 
