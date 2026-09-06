@@ -148,7 +148,7 @@ async function buildTemplateWithFrame(page: Page, title: string, prompt?: string
   await expect(page.locator('div[data-frame="empty"]')).toHaveCount(1);
   if (prompt) {
     await frameWrapper(page).dblclick();
-    const box = page.getByPlaceholder("What should they photograph?");
+    const box = page.getByPlaceholder(/Your prompt/);
     await expect(box).toBeVisible();
     await box.fill(prompt);
     await box.blur();
@@ -240,7 +240,7 @@ test("a teacher adds, resizes, prompts, saves and removes a photo frame", async 
 
   // The teacher's prompt, typed by double-tapping the frame.
   await wrap.dblclick();
-  const box = page.getByPlaceholder("What should they photograph?");
+  const box = page.getByPlaceholder(/Your prompt/);
   await expect(box).toBeVisible();
   await box.fill("Your model");
   await box.blur();

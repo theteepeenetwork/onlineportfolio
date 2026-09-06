@@ -200,6 +200,10 @@ const IMAGE_LOAD_BUDGET_MS = 30_000;
 // from these, so they're the maximum rather than a fixed size.
 const QUIZ_W = 380;
 const QUIZ_H = 300;
+// How much a question box grows for each answer added, and shrinks for each
+// taken away — the design's 50 a row — so the box always has room for its own
+// answers rather than clipping the fourth.
+const QUIZ_ROW = 50;
 // How small a teacher may drag a box: a quiz can be a small aside on a busy
 // worksheet, not just the main event. Well under the old 220×160 floor — which
 // was nominal anyway, since at that size the old fixed-size contents didn't fit
@@ -267,6 +271,19 @@ const SIZE_STEP = 1.1;
 // The child touch floor (SAFEGUARDING rule 18), as a number the offsets can be
 // derived from rather than a second place to keep in step.
 const HIT_PX = 64;
+
+// The sign each operator draws, for the settings row's seven buttons. Glyphs
+// here only; the accessible name is the word (OPERATOR_LABEL), because "×" read
+// aloud is not reliably "times".
+const OPERATOR_GLYPH: Record<OperatorKind, string> = {
+  add: "+",
+  subtract: "−",
+  multiply: "×",
+  divide: "÷",
+  equals: "=",
+  less: "<",
+  greater: ">",
+};
 // Above the floating toolbar's `z-30`. The two can only meet where there is room
 // for the toolbar neither above nor below the object — the case the placement
 // below deliberately accepts — and when they do, the object's own controls are
@@ -3034,7 +3051,9 @@ export function DrawingCanvas({
       let n = q.options.length;
       let oid = `opt${n}`;
       while (used.has(oid)) oid = `opt${++n}`;
-      return { ...q, options: [...q.options, { id: oid }] };
+      // The box grows with its answers — 50 units a row, as the design has it —
+      // so a fourth answer lands in the box rather than being clipped by it.
+      return { ...q, options: [...q.options, { id: oid }], h: Math.min(QUIZ_H, q.h + QUIZ_ROW) };
     });
     commitQuiz();
   }
@@ -3047,7 +3066,7 @@ export function DrawingCanvas({
       const correctOptionId = options.some((o) => o.id === q.correctOptionId)
         ? q.correctOptionId
         : options[0].id;
-      return { ...q, options, correctOptionId };
+      return { ...q, options, correctOptionId, h: Math.max(QUIZ_MIN_H, q.h - QUIZ_ROW) };
     });
     commitQuiz();
   }
@@ -4703,6 +4722,7 @@ function ObjectToolbar({
   onSize,
   onDuplicate,
   canDuplicate,
+  onEdit,
 }: {
   o: Obj;
   showAuthor: boolean; // teacher: show order + padlock
@@ -4745,6 +4765,12 @@ function ObjectToolbar({
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
   canDuplicate: boolean;
+  // Change the words: a shape's label, a frame's prompt, a text box's text.
+  // Absent where there are none (a picture). It lives here, not on a corner,
+  // because the design's four corners are the four things every piece can do,
+  // and a fifth disc at the top-centre landed on the settings row whenever a
+  // tall piece pushed the bar down onto it.
+  onEdit?: () => void;
 }) {
   const shape = o.type === "shape" ? (o as ShapeObj) : null;
   // Locked, seen by the person who locked it. Everything except the padlock is
@@ -4760,6 +4786,11 @@ function ObjectToolbar({
   const btn =
     "pointer-events-auto flex items-center justify-center rounded-full text-[var(--paper)] hover:bg-white/15";
   const btnStyle: React.CSSProperties = { width: HIT, height: HIT, flex: "0 0 auto" };
+  // Which colour menu is open under the bar: the fill's or the line's. The
+  // design offers the palette as a row of swatches rather than the browser's
+  // own colour dialog, so the ten a child knows from the pen fan are the ten
+  // a teacher is offered here — the same vocabulary in both places.
+  const [pick, setPick] = useState<"fill" | "stroke" | null>(null);
   // Whether this shape has any numbers to show, and so whether the second row
   // exists. A rectangle has none and gets one row, as it always did.
   const hasNumbers =
@@ -5039,55 +5070,73 @@ function ObjectToolbar({
       </button>
       )}
 
+      {!pinned && onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          className={btn}
+          style={btnStyle}
+          title="Change the words"
+          aria-label="Edit text"
+        >
+          <Icon name="edit" size={GLYPH} decorative />
+        </button>
+      )}
+
       {showStyle && <span className="mx-0.5 h-7 w-px bg-white/25" />}
 
       {showStyle && shape && (
         <>
-          {/* The swatch IS the label: a paint-pot glyph beside a colour dot was
-              two things saying one thing, on a bar with no room for either. */}
-          <label
-            className="pointer-events-auto relative block overflow-hidden rounded-full"
-            style={{ width: HIT, height: HIT, flex: "0 0 auto", border: "2px solid var(--paper)" }}
+          {/* Fill and line: a swatch of each, opening a row of the ten under
+              the bar. The swatch IS the label — a paint-pot glyph beside a
+              colour dot was two things saying one thing. */}
+          <button
+            type="button"
+            onClick={() => setPick((p) => (p === "fill" ? null : "fill"))}
+            className={btn}
+            style={pick === "fill" ? { ...btnStyle, background: "var(--paper)" } : btnStyle}
+            aria-label="Fill colour"
+            aria-pressed={pick === "fill"}
+            title="Fill colour"
           >
-            <input
-              type="color"
-              value={shape.fill === "none" ? "#93c5fd" : shape.fill}
-              onChange={(e) => onStyle({ fill: e.target.value })}
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              aria-label="Fill colour"
-            />
             <span
-              className="block h-full w-full"
+              aria-hidden="true"
               style={{
+                display: "block",
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                border: "2px solid var(--paper)",
+                boxSizing: "border-box",
                 background:
                   shape.fill === "none"
-                    ? "repeating-linear-gradient(45deg,#eee,#eee 4px,#fff 4px,#fff 8px)"
+                    ? "repeating-linear-gradient(45deg,#eee,#eee 3px,#fff 3px,#fff 6px)"
                     : shape.fill,
               }}
             />
-          </label>
+          </button>
           <button
             type="button"
-            onClick={() => onStyle({ fill: shape.fill === "none" ? "#93c5fd" : "none" })}
-            className="pointer-events-auto flex items-center justify-center rounded-full px-2 text-xs font-bold text-[var(--paper)] hover:bg-white/15"
-            style={{ height: HIT, flex: "0 0 auto" }}
+            onClick={() => setPick((p) => (p === "stroke" ? null : "stroke"))}
+            className={btn}
+            style={pick === "stroke" ? { ...btnStyle, background: "var(--paper)" } : btnStyle}
+            aria-label="Line colour"
+            aria-pressed={pick === "stroke"}
+            title="Line colour"
           >
-            {shape.fill === "none" ? "Add fill" : "No fill"}
-          </button>
-
-          <label
-            className="pointer-events-auto relative block overflow-hidden rounded-full"
-            style={{ width: HIT, height: HIT, flex: "0 0 auto", border: "2px dashed var(--paper)" }}
-          >
-            <input
-              type="color"
-              value={shape.stroke}
-              onChange={(e) => onStyle({ stroke: e.target.value })}
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              aria-label="Line colour"
+            <span
+              aria-hidden="true"
+              style={{
+                display: "block",
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                border: "2px dashed var(--paper)",
+                boxSizing: "border-box",
+                background: shape.stroke,
+              }}
             />
-            <span className="block h-full w-full" style={{ background: shape.stroke }} />
-          </label>
+          </button>
           <div className="flex gap-1">
             {[3, 6, 12].map((sw) => (
               <button
@@ -5117,6 +5166,94 @@ function ObjectToolbar({
         </>
       )}
       </div>
+
+      {/* The colour row: the ten swatches, "No fill" for the fill, and the
+          any-colour disc for anything the ten do not carry. Picking one closes
+          the row and commits one undo step. */}
+      {pick && shape && (
+        <div
+          role="group"
+          aria-label={pick === "fill" ? "Fill colour" : "Line colour"}
+          className="flex items-center rounded-full"
+          style={{
+            gap: 6,
+            padding: "6px 8px",
+            background: "var(--cream)",
+            border: "3px solid var(--ink)",
+            boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+          }}
+        >
+          {SWATCHES.map((c) => {
+            const cur = (pick === "fill" ? shape.fill : shape.stroke).toLowerCase() === c.toLowerCase();
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  onStyle(pick === "fill" ? { fill: c } : { stroke: c });
+                  setPick(null);
+                }}
+                aria-label={`Colour ${c}`}
+                aria-pressed={cur}
+                className="pointer-events-auto rounded-full"
+                style={{
+                  width: HIT === 64 ? 44 : 36,
+                  height: HIT === 64 ? 44 : 36,
+                  flex: "0 0 auto",
+                  background: c,
+                  border: `3px solid ${cur ? "var(--ink)" : "var(--calm-border)"}`,
+                  boxSizing: "border-box",
+                  transform: cur ? "translateY(-3px)" : undefined,
+                  transition: "transform 120ms",
+                }}
+              />
+            );
+          })}
+          {pick === "fill" && (
+            <button
+              type="button"
+              onClick={() => {
+                onStyle({ fill: shape.fill === "none" ? "#93c5fd" : "none" });
+                setPick(null);
+              }}
+              aria-pressed={shape.fill === "none"}
+              className="pointer-events-auto rounded-full whitespace-nowrap"
+              style={{
+                height: HIT === 64 ? 44 : 36,
+                padding: "0 12px",
+                border: "2px solid var(--ink)",
+                background: shape.fill === "none" ? "var(--ink)" : "var(--cream)",
+                color: shape.fill === "none" ? "var(--paper)" : "var(--ink)",
+                font: "700 13px var(--font-atkinson)",
+              }}
+            >
+              {shape.fill === "none" ? "Add fill" : "No fill"}
+            </button>
+          )}
+          <label
+            className="pointer-events-auto relative flex cursor-pointer rounded-full"
+            title="Pick any colour"
+            style={{
+              width: HIT === 64 ? 44 : 36,
+              height: HIT === 64 ? 44 : 36,
+              flex: "0 0 auto",
+              border: "3px solid var(--ink)",
+              boxSizing: "border-box",
+              background: "conic-gradient(#bd3f63,#f0b441,#a6c979,#37796f,#8ab9d6,#8b5cf6,#e08a9b,#bd3f63)",
+            }}
+          >
+            <input
+              type="color"
+              value={
+                pick === "fill" ? (shape.fill === "none" ? "#fffdf7" : shape.fill) : shape.stroke
+              }
+              onChange={(e) => onStyle(pick === "fill" ? { fill: e.target.value } : { stroke: e.target.value })}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              aria-label={pick === "fill" ? "Fill colour" : "Line colour"}
+            />
+          </label>
+        </div>
+      )}
 
       {/* The second row is the NUMBERS behind a parameterised shape: a number
           line's segments, start and interval; a grid's columns and rows; a
@@ -5298,7 +5435,7 @@ function ObjectToolbar({
               aria-label={OPERATOR_LABEL[k]}
             >
               <span aria-hidden="true" className="text-2xl font-bold">
-                {k === "add" ? "+" : k === "subtract" ? "−" : k === "multiply" ? "×" : "÷"}
+                {OPERATOR_GLYPH[k]}
               </span>
             </button>
           ))}
@@ -5696,11 +5833,7 @@ function MediaObjectView({
       className={`absolute touch-none ${
         canGrab ? "pointer-events-auto cursor-move" : "pointer-events-none"
       } ${
-        selected || grouped
-          ? "ring-2 ring-brand"
-          : author && o.locked
-            ? "ring-2 ring-amber-400"
-            : ""
+        selected || grouped ? "ring-2 ring-brand" : ""
       }`}
       style={{
         left: o.x * scale,
@@ -5722,25 +5855,31 @@ function MediaObjectView({
           told. Purely decorative: it is offset outside the shape's own box and
           never receives a pointer. */}
       {o.type === "shape" && o.infinite && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{ transform: `translate(${6 * scale}px, ${6 * scale}px)`, opacity: 0.45 }}
-        >
-          <svg viewBox={`0 0 ${o.w} ${o.h}`} width="100%" height="100%" preserveAspectRatio="none" className="block h-full w-full overflow-visible">
-            {shapeParts(o).map((part, i) => (
-              <path
-                key={i}
-                d={part.d}
-                fill={part.role === "detail" || o.fill === "none" ? "none" : o.fill}
-                fillRule={shapeFillRule(o.shape)}
-                stroke={o.stroke}
-                strokeWidth={part.role === "detail" ? detailStrokeWidth(o.strokeWidth) : o.strokeWidth}
-                strokeLinejoin="round"
-              />
-            ))}
-          </svg>
-        </div>
+        <>
+          {/* Two kraft cards behind, offset down and right — the stack the
+              design draws, in the tokens the design draws it in. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10"
+            style={{
+              transform: `translate(${10 * scale}px, ${10 * scale}px)`,
+              border: "3px solid var(--ink)",
+              borderRadius: o.shape === "ellipse" ? 999 : 8,
+              background: "var(--kraft-tag)",
+              opacity: 0.9,
+            }}
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10"
+            style={{
+              transform: `translate(${5 * scale}px, ${5 * scale}px)`,
+              border: "3px solid var(--ink)",
+              borderRadius: o.shape === "ellipse" ? 999 : 8,
+              background: "var(--honey-tint)",
+            }}
+          />
+        </>
       )}
 
       {o.type === "frame" ? (
@@ -5748,15 +5887,13 @@ function MediaObjectView({
           // `data-frame` names the kind and its state on the element that
           // draws it, as `data-shape` does for a shape.
           data-frame={o.src ? "filled" : "empty"}
-          className="pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-lg"
-          style={
-            o.src
-              ? undefined
-              : {
-                  border: `${Math.max(2, 4 * scale)}px dashed #94a3b8`,
-                  background: "rgba(241, 245, 249, 0.7)",
-                }
-          }
+          className="pointer-events-none flex h-full w-full flex-col items-center justify-center overflow-hidden"
+          style={{
+            gap: 12 * scale,
+            borderRadius: 12,
+            border: `3px ${o.src ? "solid" : "dashed"} var(--ink)`,
+            background: o.src ? "var(--cream)" : "var(--paper)",
+          }}
         >
           {o.src ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -5771,24 +5908,22 @@ function MediaObjectView({
             <>
               {/* The teacher's prompt sits at the top, so the child's tap
                   button (centred, in the layer above) never covers it. */}
+              {/* The camera glyph, centred, then the teacher's prompt under it.
+                  A child's cue is the Take a photo button in FrameTapLayer,
+                  which sits over this box in the same place. */}
+              <Icon name="camera" size={40} decorative />
               {o.label && !editing && (
-                <div
-                  className="shrink-0 px-2 pt-1 text-center font-semibold text-slate-600"
+                <p
+                  className="m-0 text-center"
                   style={{
-                    fontFamily: FONT_STACK,
-                    fontSize: Math.min(o.h * 0.12, 30) * scale,
-                    lineHeight: 1.2,
+                    padding: "0 16px",
+                    font: "400 16px var(--font-atkinson)",
+                    color: "var(--ink-soft)",
+                    textWrap: "pretty",
                   }}
                 >
                   {o.label}
-                </div>
-              )}
-              {/* The camera glyph is the teacher's cue only; a child's cue is
-                  the tap button in FrameTapLayer, which sits over this box. */}
-              {author && (
-                <div className="flex flex-1 items-center justify-center text-slate-400">
-                  <Icon name="camera" size={Math.min(64, Math.max(24, o.h * scale * 0.3))} decorative />
-                </div>
+                </p>
               )}
             </>
           )}
@@ -5851,6 +5986,27 @@ function MediaObjectView({
         </svg>
       )}
 
+      {/* Locked, and not the thing in hand: a 28px ink padlock on the corner,
+          so a teacher can see at a glance which pieces a child cannot move. */}
+      {author && o.locked && !selected && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute flex items-center justify-center"
+          style={{
+            right: -8,
+            bottom: -8,
+            width: 28,
+            height: 28,
+            borderRadius: 999,
+            background: "var(--ink)",
+            color: "var(--paper)",
+            ...(unrotate ? { transform: unrotate } : {}),
+          }}
+        >
+          <Icon name="lock-closed" size={14} decorative />
+        </span>
+      )}
+
       {/* A shape's label, locked inside its usable area and auto-fitted. */}
       {label && region && !editing && (
         <div
@@ -5882,7 +6038,7 @@ function MediaObjectView({
           onChange={(e) => onTextChange(o.id, e.target.value)}
           onBlur={onFinishEditing}
           onPointerDown={(e) => e.stopPropagation()}
-          placeholder={o.type === "frame" ? "What should they photograph?" : "Type…"}
+          placeholder={o.type === "frame" ? "Your prompt, e.g. Take a photo of your model" : "Type…"}
           className="pointer-events-auto absolute inset-1 resize-none rounded border-2 border-brand bg-white/80 text-center outline-none"
           style={{
             color: o.type === "shape" ? o.textColor ?? "#1f2430" : "#1f2430",
@@ -5899,9 +6055,6 @@ function MediaObjectView({
           unrotate={unrotate}
           boxW={boxW}
           boxH={boxH}
-          // A picture has no words to change, so it has no pencil. A frame's
-          // words are the teacher's prompt.
-          onEdit={o.type === "shape" || o.type === "frame" ? () => onEditText(o.id) : undefined}
           onDelete={() => onDelete(o.id)}
           startRotate={o.type === "shape" ? startRotate : undefined}
           startResize={startResize}
@@ -5910,6 +6063,8 @@ function MediaObjectView({
           // reach (F50).
           nudgeRotate={o.type === "shape" ? (dir) => turnBy(dir * rotateStep) : undefined}
           nudgeSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
+          // No copy of a photo frame: a child fills the one the teacher placed.
+          onDuplicate={o.type !== "frame" && canDuplicate ? () => onDuplicate(o.id) : undefined}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           noun={o.type === "frame" ? "photo frame" : "shape"}
@@ -5940,6 +6095,9 @@ function MediaObjectView({
         // A picture has no `rot` — the export renderer draws it flat — so it is
         // offered no turn, exactly as it is offered no turn handle.
         onTurn={o.type === "shape" ? (dir) => turnBy(dir * ROTATE_STEP) : undefined}
+        // A picture has no words to change. A frame's words are the teacher's
+        // prompt; a shape's are its label.
+        onEdit={(o.type === "shape" || o.type === "frame") && cap.editable ? () => onEditText(o.id) : undefined}
         onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
         onStyle={(patch) => {
           onChange(o.id, patch);
@@ -5962,12 +6120,12 @@ function ObjectCorners({
   unrotate,
   boxW,
   boxH,
-  onEdit,
   onDelete,
   startRotate,
   startResize,
   nudgeRotate,
   nudgeSize,
+  onDuplicate,
   onPointerMove,
   onPointerUp,
   noun,
@@ -5978,8 +6136,6 @@ function ObjectCorners({
   // of them can be spread apart rather than piled up.
   boxW: number;
   boxH: number;
-  // Undefined where the object has no words to edit — a picture.
-  onEdit?: () => void;
   onDelete: () => void;
   // Undefined where turning is not offered: a picture has no `rot` and the
   // export renderer draws it flat, so a handle there would spin on screen and
@@ -6003,6 +6159,9 @@ function ObjectCorners({
    */
   nudgeRotate?: (dir: -1 | 1) => void;
   nudgeSize?: (dir: -1 | 1) => void;
+  // "Another one": a copy at +40, +40. Absent where a copy makes no sense (a
+  // photo frame, a full page).
+  onDuplicate?: () => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
   // What this object is called in the turn / resize labels a screen reader
@@ -6030,7 +6189,21 @@ function ObjectCorners({
     ...(corner.right ? { right: off - spread.x } : {}),
     ...(unrotate ? { transform: unrotate } : {}),
   });
-  const dot = "block h-5 w-5 rounded-full border-2 border-white shadow";
+  // The design's handle: a 44px cream disc, 3px ink, a flat shadow — the same
+  // face as every other child-touchable control on this canvas. It sits inside
+  // the 64px press, which is what a finger actually has to hit (rule 18).
+  const disc: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    background: "var(--cream)",
+    border: "3px solid var(--ink)",
+    boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+    color: "var(--ink)",
+  };
   // Arrow keys step, Enter and Space step once in the "more" direction. Arrows
   // rather than Enter alone because turning has two directions and a child
   // driving this from a keyboard should not have to go the long way round.
@@ -6048,34 +6221,21 @@ function ObjectCorners({
     };
   return (
     <>
-      {onEdit && (
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={onEdit}
-          style={at({ top: true, left: true })}
-          className={HANDLE_HIT}
-          title="Change the words"
-          aria-label="Edit text"
-        >
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
-            <Icon name="edit" size={14} decorative />
-          </span>
-        </button>
-      )}
+      {/* Top-left: take it away. */}
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={onDelete}
-        style={at({ top: true, right: true })}
+        style={at({ top: true, left: true })}
         className={HANDLE_HIT}
-        title="Remove"
+        title="Take it away"
         aria-label={deleteLabel}
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500 text-white shadow">
-          <Icon name="close" size={14} decorative />
+        <span style={disc}>
+          <Icon name="close" size={20} decorative />
         </span>
       </button>
+      {/* Top-right: turn — drag it round, or tap for a step. */}
       {startRotate && (
         <div
           onPointerDown={startRotate}
@@ -6084,17 +6244,34 @@ function ObjectCorners({
           onKeyDown={nudgeRotate ? stepKeys(nudgeRotate) : undefined}
           // Focusable, because it says it is a button. See `nudgeRotate`.
           tabIndex={nudgeRotate ? 0 : undefined}
-          style={at({ bottom: true, left: true })}
+          style={at({ top: true, right: true })}
           className={`${HANDLE_HIT} cursor-grab`}
           title="Turn"
           role="button"
           aria-label={`Turn ${noun}`}
         >
-          <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
-            <Icon name="rotate" size={11} decorative />
+          <span style={disc}>
+            <Icon name="rotate" size={20} decorative />
           </span>
         </div>
       )}
+      {/* Bottom-left: another one. */}
+      {onDuplicate && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onDuplicate}
+          style={at({ bottom: true, left: true })}
+          className={HANDLE_HIT}
+          title="Another one"
+          aria-label="Another one"
+        >
+          <span style={disc}>
+            <Icon name="duplicate" size={20} decorative />
+          </span>
+        </button>
+      )}
+      {/* Bottom-right: bigger or smaller, the one jam disc. */}
       <div
         onPointerDown={startResize}
         onPointerMove={onPointerMove}
@@ -6107,7 +6284,7 @@ function ObjectCorners({
         role="button"
         aria-label={`Resize ${noun}`}
       >
-        <span className={`${dot} bg-brand`} />
+        <span style={{ ...disc, background: "var(--jam)" }} />
       </div>
     </>
   );
@@ -6366,7 +6543,6 @@ function TextObjectView({
           unrotate={unrotate}
           boxW={box.w}
           boxH={box.h}
-          onEdit={() => onEditText(o.id)}
           onDelete={() => onDelete(o.id)}
           startRotate={startRotate}
           startResize={startResize}
@@ -6401,6 +6577,7 @@ function TextObjectView({
         canDuplicate={canDuplicate}
         onTurn={(dir) => turnBy(dir * ROTATE_STEP)}
         onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
+        onEdit={() => onEditText(o.id)}
         onStyle={() => {}}
       />
     )}
@@ -6448,18 +6625,22 @@ function FrameTapLayer({
               aria-label={againLabel}
               title={againLabel}
               onClick={() => onTap(o.id)}
-              className="pointer-events-auto absolute flex items-center justify-center rounded-xl border-2 border-border bg-white/90 shadow-lg hover:bg-surface"
+              className="pointer-events-auto absolute flex items-center justify-center rounded-full"
               // Bottom-right corner, inside the frame where it fits and
               // overflowing the frame — never the stage — where the frame is
               // drawn smaller than the floor.
               style={{
-                left: Math.max(left, left + w - RETAKE - 4),
-                top: Math.max(top, top + h - RETAKE - 4),
+                left: Math.max(left, left + w - RETAKE - 8),
+                top: Math.max(top, top + h - RETAKE - 8),
                 width: RETAKE,
                 height: RETAKE,
+                background: "var(--cream)",
+                border: "3px solid var(--ink)",
+                color: "var(--ink)",
+                boxShadow: "0 4px 0 rgba(34,48,74,.15)",
               }}
             >
-              <Icon name="camera" size={30} decorative />
+              <Icon name="camera" size={26} decorative />
             </button>
           );
         }
@@ -6470,11 +6651,28 @@ function FrameTapLayer({
             data-frame-tap={o.id}
             aria-label={takeLabel}
             onClick={() => onTap(o.id)}
-            className="pointer-events-auto absolute flex flex-col items-center justify-center gap-1 rounded-lg text-slate-600 hover:bg-brand/5"
-            style={{ left, top, width: Math.max(RETAKE, w), height: Math.max(RETAKE, h) }}
+            // The whole frame is the press (so a child cannot miss it), and
+            // the design's jam pill is what they see, sat in the lower half
+            // under the camera and the teacher's words.
+            className="pointer-events-auto absolute flex flex-col items-center justify-end rounded-xl"
+            style={{ left, top, width: Math.max(RETAKE, w), height: Math.max(RETAKE, h), paddingBottom: Math.max(8, h * 0.12) }}
           >
-            <Icon name="camera" size={Math.min(56, Math.max(28, h * 0.3))} decorative />
-            <span className="font-bold" style={{ fontSize: Math.min(24, Math.max(14, h * 0.1)), fontFamily: FONT_STACK }}>
+            <span
+              className="flex items-center"
+              style={{
+                gap: 10,
+                height: RETAKE,
+                padding: "0 24px",
+                borderRadius: 999,
+                background: "var(--jam)",
+                border: "3px solid var(--ink)",
+                color: "var(--paper)",
+                font: "600 20px var(--font-fredoka)",
+                boxShadow: "0 4px 0 #93304f",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Icon name="camera" size={26} decorative />
               {takeLabel}
             </span>
           </button>
@@ -6711,7 +6909,6 @@ function QuizBoxView({
     drag.current = null;
   }
 
-  const twoCol = q.options.length > 2;
   // The box is a second, equal editing surface for the same question the panel
   // edits — both write through the same mutators, so they mirror per keystroke.
   // Marking the correct answer is deliberately NOT here: it stays in the panel,
@@ -6866,9 +7063,9 @@ function QuizBoxView({
       onPointerDown={author ? startMove : undefined}
       onPointerMove={author ? onPointerMove : undefined}
       onPointerUp={author ? onPointerUp : undefined}
-      className={`absolute rounded-2xl ${
+      className={`absolute ${
         author ? (interactive ? "pointer-events-auto cursor-move" : "pointer-events-none") : "pointer-events-auto"
-      } ${selected ? "ring-2 ring-brand" : ""}`}
+      }`}
       style={{
         left: q.x * scale,
         top: topUnits * scale,
@@ -6883,10 +7080,14 @@ function QuizBoxView({
         ref={cardRef}
         role={editable ? "group" : undefined}
         aria-label={editable ? "Question box" : undefined}
-        className={`flex flex-col overflow-hidden rounded-2xl border-2 shadow-lg ${
-          author ? "border-brand bg-brand/5" : "border-brand/60 bg-white/95"
-        }`}
+        className="flex flex-col overflow-hidden"
         style={{
+          // The design's card: cream, 3px ink, radius 18, a flat shadow. The
+          // selected box's dashed jam outline is drawn round it, not by it.
+          background: "var(--cream)",
+          border: `3px ${selected && author ? "dashed" : "solid"} ${selected && author ? "var(--jam)" : "var(--ink)"}`,
+          borderRadius: 18,
+          boxShadow: "0 4px 0 rgba(34,48,74,.15)",
           width: q.w,
           // A CHILD's card grows to fit answers at the touch floor; a teacher's
           // is exactly the size they drew, because for them the box is a thing
@@ -6895,8 +7096,8 @@ function QuizBoxView({
           ...(grows ? { minHeight: q.h } : { height: q.h }),
           transform: `scale(${scale})`,
           transformOrigin: "top left",
-          padding: px(12),
-          gap: px(8),
+          padding: `${px(12)}px ${px(14)}px`,
+          gap: px(10),
           fontSize: px(16),
         }}
       >
@@ -6904,64 +7105,69 @@ function QuizBoxView({
           <>
             {showSyncHint && (
               <p
-                className="text-center font-bold uppercase tracking-wide text-brand"
-                style={{ fontSize: px(12) }}
+                className="text-center font-bold uppercase tracking-wide"
+                style={{ fontSize: px(11), color: "var(--glass-ink)", letterSpacing: ".08em" }}
               >
-                Edits here also show in the Quiz panel
+                Edits here also show in the Quiz builder
               </p>
             )}
-            <BoxField
-              value={q.prompt}
-              onChange={(v) => onPrompt(q.id, v)}
-              onPointerDown={stopDrag}
-              placeholder="Type your question here"
-              label="Question"
-              className="w-full font-bold leading-tight text-foreground"
-              style={{ fontSize: px(24) }}
-            />
+            {/* The prompt: an inline field with the design's dashed calm
+                border, in Fredoka, smaller once the question runs long. The
+                border and padding are on a WRAPPER, not the field: BoxField
+                sizes itself to its own scrollHeight, and a padded, bordered
+                textarea under border-box sizing can never catch its own tail. */}
+            <div
+              style={{
+                border: `${Math.max(1, px(2))}px dashed var(--calm-border)`,
+                borderRadius: px(12),
+                padding: `${px(6)}px ${px(10)}px`,
+              }}
+            >
+              <BoxField
+                value={q.prompt}
+                onChange={(v) => onPrompt(q.id, v)}
+                onPointerDown={stopDrag}
+                placeholder="Type your question here"
+                label="Question"
+                className="w-full leading-tight text-foreground"
+                style={{
+                  fontSize: px(q.prompt.length > 22 ? 16 : 20),
+                  fontFamily: "var(--font-fredoka)",
+                  fontWeight: 600,
+                }}
+              />
+            </div>
           </>
         ) : (
           // Author mode with a drawing tool picked: the box goes non-interactive
           // so the teacher can draw across it, so echo the placeholder rather
           // than leaving a new question looking like an empty box.
-          <div className="flex items-center justify-center" style={{ gap: px(8) }}>
-            <p
-              className={`text-center font-bold leading-tight ${
-                q.prompt ? "text-foreground" : "text-muted"
-              }`}
-              style={{ fontSize: px(24) }}
-            >
-              {q.prompt || (author ? "Type your question here" : "")}
-            </p>
-            {/* In the register built for children who cannot read yet, the
-                question was the one silent thing on the screen — every other
-                word a young child meets in Storyjar can be heard, and the one
-                they actually have to answer could not. A child who cannot hear
-                the question cannot do the activity.
-
-                THE BUTTON IS CONDITIONAL, AND THAT IS THE SAFEGUARDING PART.
-                This is a teacher's own free text, not Storyjar's fixed copy, so
-                it is spoken only by a voice the platform reports as running on
-                the device (`readAloudOnDevice`, and the 2026-08-19 scope note
-                in SAFEGUARDING.md). Where there is no local voice the button is
-                not rendered at all and the question stays as text beside a
-                teacher — the correct failure, not a degraded one. Nothing is
-                ever sent to a network voice, and it never speaks by itself: a
-                child presses it, every time (WCAG 1.4.2). */}
+          <div className="flex items-center" style={{ gap: px(10) }}>
             {canHear && (
               <button
                 type="button"
                 aria-label={`${hearItLabel}: ${q.prompt}`}
                 onClick={() => readAloudOnDevice(q.prompt)}
-                // The real 64px floor, like the answers below it — this is the
-                // control that exists FOR the children who cannot read the words
-                // beside it (SAFEGUARDING rule 18).
-                className="flex shrink-0 items-center justify-center rounded-full border-2 border-brand/40 bg-white"
-                style={{ minHeight: touch(64), minWidth: touch(64), fontSize: px(22) }}
+                // The real 64px floor — this is the control that exists FOR
+                // the children who cannot read the words beside it (rule 18).
+                className="flex shrink-0 items-center justify-center rounded-full"
+                style={{
+                  minHeight: touch(64),
+                  minWidth: touch(64),
+                  fontSize: px(22),
+                  background: "var(--cream)",
+                  border: "3px solid var(--ink)",
+                }}
               >
                 <span aria-hidden="true">🔊</span>
               </button>
             )}
+            <p
+              className={`flex-1 leading-tight ${q.prompt ? "text-foreground" : "text-muted"}`}
+              style={{ fontSize: px(20), fontFamily: "var(--font-fredoka)", fontWeight: 600, textWrap: "pretty" }}
+            >
+              {q.prompt || (author ? "Type your question here" : "")}
+            </p>
           </div>
         )}
         {/* Which questions to look at again, in WORDS.
@@ -6978,10 +7184,9 @@ function QuizBoxView({
           </p>
         )}
         <div
-          className={`grid ${grows ? "" : "min-h-0 flex-1"}`}
+          className={`flex flex-col ${grows ? "" : "min-h-0 flex-1"}`}
           style={{
-            gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr",
-            gap: px(8),
+            gap: px(6),
             // `flex-1` is `flex: 1 1 0%`: the rows' own height counts for
             // nothing, so they share out whatever is left and a 64px floor is
             // simply clipped. Basing on content instead is what lets the card
@@ -7000,11 +7205,20 @@ function QuizBoxView({
                     // to its intrinsic `cols` width, unlike the span this used to
                     // hold. Without this the two columns refuse to shrink and the
                     // answers overflow the box and get clipped.
-                    className={`flex min-w-0 items-center justify-center rounded-xl border-2 text-center ${
-                      correct ? "border-emerald-500 bg-emerald-50" : "border-brand/25 bg-white"
-                    }`}
-                    style={{ minHeight: touch(64), padding: px(8), gap: px(8) }}
+                    className="flex min-w-0 items-center rounded-full text-left"
+                    style={{
+                      minHeight: touch(44),
+                      padding: `${px(4)}px ${px(14)}px ${px(4)}px ${px(8)}px`,
+                      gap: px(10),
+                      border: `${Math.max(1, px(2))}px solid var(--calm-border)`,
+                      background: "var(--cream)",
+                    }}
                   >
+                    <span
+                      aria-hidden="true"
+                      className="shrink-0 rounded-full"
+                      style={{ width: px(24), height: px(24), border: `${Math.max(1, px(2))}px solid var(--ink)`, background: "var(--cream)" }}
+                    />
                     {o.imagePath && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -7020,15 +7234,15 @@ function QuizBoxView({
                       onPointerDown={stopDrag}
                       placeholder="Type an answer"
                       label="Answer text"
-                      className="min-w-0 flex-1 break-words font-semibold text-foreground"
+                      className="min-w-0 flex-1 break-words font-bold text-foreground"
                       style={{ fontSize: answerFont }}
                       register={(el) => registerAnswer(o.id, el)}
                     />
                     {correct && (
                       <span
-                        title="Correct answer — set this in the Quiz panel"
-                        className="flex shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
-                        style={{ height: px(20), width: px(20), fontSize: px(11) }}
+                        title="Correct answer — set this in the Quiz builder"
+                        className="shrink-0 font-bold"
+                        style={{ color: "var(--glass)", fontSize: px(18) }}
                       >
                         ✓
                       </span>
@@ -7060,17 +7274,35 @@ function QuizBoxView({
                     aria-label={o.text || "Picture answer"}
                     aria-pressed={chosen}
                     onClick={author || locked ? undefined : () => onAnswer(q.id, o.id)}
-                    className={`flex min-w-0 items-center justify-center rounded-xl border-2 text-center transition-colors ${
-                      showCorrect
-                        ? "border-emerald-500 bg-emerald-50"
-                        : wasWrong
-                          ? "border-amber-500 bg-amber-50"
-                          : chosen
-                            ? "border-brand bg-brand/15"
-                            : "border-border bg-white"
-                    } ${author || locked ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
-                    style={{ minHeight: touch(64), padding: px(8), gap: px(8) }}
+                    className={`flex min-w-0 items-center rounded-full text-left transition-colors ${
+                      author || locked ? "cursor-default" : "cursor-pointer"
+                    }`}
+                    style={{
+                      minHeight: touch(64),
+                      padding: `${px(4)}px ${px(14)}px ${px(4)}px ${px(8)}px`,
+                      gap: px(10),
+                      // Picked: honey tint with an ink edge. Right (where a
+                      // child may be shown it): glass tint. Look-again: honey.
+                      border: `${Math.max(1, px(2))}px solid ${
+                        showCorrect ? "var(--glass)" : chosen || wasWrong ? "var(--ink)" : "var(--calm-border)"
+                      }`,
+                      background: showCorrect
+                        ? "var(--glass-light)"
+                        : chosen || wasWrong
+                          ? "var(--honey-tint)"
+                          : "var(--cream)",
+                    }}
                   >
+                    <span
+                      aria-hidden="true"
+                      className="shrink-0 rounded-full"
+                      style={{
+                        width: px(24),
+                        height: px(24),
+                        border: `${Math.max(1, px(2))}px solid var(--ink)`,
+                        background: chosen ? "var(--jam)" : "var(--cream)",
+                      }}
+                    />
                     {o.imagePath && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -7083,14 +7315,14 @@ function QuizBoxView({
                     {o.text && (
                       <span
                         ref={(el) => registerAnswer(o.id, el)}
-                        className="min-w-0 break-words font-semibold text-foreground"
+                        className="min-w-0 flex-1 break-words font-bold text-foreground"
                         style={{ fontSize: answerFont }}
                       >
                         {o.text}
                       </span>
                     )}
                     {showCorrect && (
-                      <span className="text-emerald-600" title="Correct answer">
+                      <span className="shrink-0 font-bold" style={{ color: "var(--glass)", fontSize: px(18) }} title="Correct answer">
                         ✓
                       </span>
                     )}
@@ -7106,18 +7338,39 @@ function QuizBoxView({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onDelete(q.id)}
-            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs text-white shadow"
+            className="pointer-events-auto absolute flex items-center justify-center rounded-full"
+            style={{
+              left: -22,
+              top: -22,
+              width: 44,
+              height: 44,
+              background: "var(--cream)",
+              border: "3px solid var(--ink)",
+              color: "var(--ink)",
+              boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+            }}
             title="Remove question"
             aria-label="Remove question"
           >
-            ✕
+            <Icon name="close" size={20} decorative />
           </button>
           <div
             onPointerDown={startResize}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
+            className="pointer-events-auto absolute cursor-nwse-resize touch-none rounded-full"
+            style={{
+              right: -22,
+              bottom: -22,
+              width: 44,
+              height: 44,
+              background: "var(--jam)",
+              border: "3px solid var(--ink)",
+              boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+            }}
             title="Resize"
+            role="button"
+            aria-label="Bigger or smaller: drag"
           />
         </>
       )}
@@ -7176,7 +7429,8 @@ function QuizPanelBody({
   onClearOptionImage,
   onSetCorrect,
 }: {
-  u: (n: number) => number;
+  // Design px, with a floor in real px for anything a finger has to hit.
+  u: (n: number, floor?: number) => number;
   questions: QuizQuestion[];
   currentPage: number;
   pageCount: number;
@@ -7228,155 +7482,207 @@ function QuizPanelBody({
           <p className="mt-3 px-1 text-xs text-muted">No questions yet. Add one to get started.</p>
         ) : (
           groups.map((g) => (
-            <div key={g.pageIndex}>
-              <div className="mb-1.5 mt-3 flex items-center gap-2">
-                <span
-                  className={`rounded-md px-2 py-0.5 text-xs font-bold ${
-                    g.pageIndex === currentPage
-                      ? "bg-brand text-white"
-                      : "bg-[var(--kraft-tag)] text-foreground"
-                  }`}
-                >
-                  Page {g.pageIndex + 1}
-                </span>
-                {g.pageIndex === currentPage && (
-                  <span className="rounded-md bg-[var(--honey-tint)] px-1.5 py-0.5 text-xs font-semibold text-[var(--honey-ink)]">
-                    you&apos;re here
-                  </span>
-                )}
-                <span className="h-px flex-1 bg-border" />
-              </div>
+            <div key={g.pageIndex} className="flex flex-col" style={{ gap: u(10) }}>
+              <p
+                className="m-0 uppercase"
+                style={{
+                  marginTop: u(6),
+                  font: `700 ${u(13)}px var(--font-atkinson)`,
+                  letterSpacing: ".08em",
+                  color: "var(--glass-ink)",
+                }}
+              >
+                Page {g.pageIndex + 1}
+                {g.pageIndex === currentPage ? " · you're here" : ""}
+              </p>
 
-              {g.items.map((q) => {
+              {g.items.map((q, qi) => {
                 const open = q.id === selectedId;
+                const n = questions.indexOf(q) + 1;
                 return (
+                  // A card per question, always open: the design lists every
+                  // answer so a teacher can see the whole quiz at once, and
+                  // tapping a card selects its box and jumps to its page.
                   <div
                     key={q.id}
-                    className={`mb-2 overflow-hidden rounded-xl border-2 ${
-                      open ? "border-brand bg-surface" : "border-border bg-background"
-                    }`}
+                    id={`quiz-q-${q.id}`}
+                    data-question-card={qi}
+                    onClick={() => onSelectQuestion(q.id)}
+                    className="flex flex-col"
+                    style={{
+                      gap: u(8),
+                      padding: u(10),
+                      borderRadius: u(14),
+                      border: `2px solid ${open ? "var(--ink)" : "var(--calm-border)"}`,
+                      background: open ? "var(--honey-tint)" : "var(--cream)",
+                    }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => onSelectQuestion(open ? null : q.id)}
-                      aria-expanded={open}
-                      // Only while open: the body is unmounted when closed, and
-                      // aria-controls pointing at a missing id is a broken
-                      // reference for a screen reader.
-                      aria-controls={open ? `quiz-q-${q.id}` : undefined}
-                      className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
-                    >
-                      <span className="rounded border border-border bg-surface px-1.5 text-xs font-bold text-muted">
-                        P{q.pageIndex + 1}
+                    <div className="flex items-center" style={{ gap: u(8) }}>
+                      <span style={{ font: `600 ${u(15)}px var(--font-fredoka)`, color: "var(--ink)" }}>
+                        Question {n}
                       </span>
-                      <span className="flex-1 truncate text-sm text-foreground">
-                        {q.prompt || "Untitled question"}
-                      </span>
-                      {/* ▾/▸ sit small inside their em box, so this needs a
-                          bigger size than the label to read as a control. */}
-                      <span aria-hidden className="shrink-0 text-2xl leading-none text-muted">
-                        {open ? "▾" : "▸"}
-                      </span>
-                    </button>
-
-                    {open && (
-                      <div id={`quiz-q-${q.id}`} className="px-2.5 pb-3 pt-0.5">
-                        <label className="text-xs font-semibold text-muted" htmlFor={`quiz-prompt-${q.id}`}>
-                          Question
-                        </label>
-                        <input
-                          id={`quiz-prompt-${q.id}`}
-                          value={q.prompt}
-                          onChange={(e) => onUpdatePrompt(q.id, e.target.value)}
-                          placeholder="What do you want to ask?"
-                          className="input mt-1 w-full text-sm"
-                        />
-
-                        <p className="mt-3 text-xs font-semibold text-muted">Answers</p>
-                        <p className="mb-1.5 text-xs text-muted">Tap the circle to mark the right answer.</p>
-
-                        {q.options.map((o) => {
-                          const correct = q.correctOptionId === o.id;
-                          return (
-                            <div key={o.id}>
-                              <div
-                                className={`flex items-center gap-1.5 rounded-lg border p-1.5 ${
-                                  correct ? "border-emerald-500 bg-emerald-50" : "border-transparent"
-                                }`}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => onSetCorrect(q.id, o.id)}
-                                  title="Mark as the correct answer"
-                                  aria-label={`Mark "${o.text || "this answer"}" as correct`}
-                                  aria-pressed={correct}
-                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs ${
-                                    correct
-                                      ? "border-emerald-500 bg-emerald-500 text-white"
-                                      : "border-border text-transparent"
-                                  }`}
-                                >
-                                  ✓
-                                </button>
-                                <input
-                                  value={o.text ?? ""}
-                                  onChange={(e) => onOptionText(q.id, o.id, e.target.value)}
-                                  placeholder="Type an answer"
-                                  aria-label="Answer text"
-                                  className="input min-w-0 flex-1 text-sm"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    o.imagePath ? onClearOptionImage(q.id, o.id) : onOptionImage(q.id, o.id)
-                                  }
-                                  title={o.imagePath ? "Remove picture" : "Add a picture"}
-                                  aria-label={o.imagePath ? "Remove answer picture" : "Add answer picture"}
-                                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-sm ${
-                                    o.imagePath ? "border-brand bg-brand/10" : "border-border"
-                                  }`}
-                                >
-                                  {o.imagePath ? "🖼️" : "＋🖼️"}
-                                </button>
-                                {q.options.length > MIN_OPTIONS && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onRemoveOption(q.id, o.id)}
-                                    aria-label="Remove answer"
-                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:text-rose-600"
-                                  >
-                                    ✕
-                                  </button>
-                                )}
-                              </div>
-                              {correct && (
-                                <p className="mb-1 ml-9 text-xs font-bold text-[var(--glass-ink)]">
-                                  ✓ correct answer
-                                </p>
-                              )}
-                            </div>
-                          );
-                        })}
-
-                        {q.options.length < MAX_OPTIONS && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteQuestion(q.id);
+                        }}
+                        aria-label="Remove question"
+                        className="ml-auto flex items-center rounded-full"
+                        style={{
+                          gap: u(6),
+                          height: u(36, 44),
+                          padding: `0 ${u(10)}px`,
+                          border: "2px solid var(--calm-border)",
+                          background: "var(--cream)",
+                          color: "var(--ink)",
+                          font: `700 ${u(13)}px var(--font-atkinson)`,
+                        }}
+                      >
+                        <Icon name="delete" size={u(16)} decorative /> Remove
+                      </button>
+                    </div>
+                    <label className="sr-only" htmlFor={`quiz-prompt-${q.id}`}>
+                      Question
+                    </label>
+                    <input
+                      id={`quiz-prompt-${q.id}`}
+                      value={q.prompt}
+                      onChange={(e) => onUpdatePrompt(q.id, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="What do you want to ask?"
+                      className="w-full outline-none"
+                      style={{
+                        padding: `${u(8)}px ${u(12)}px`,
+                        border: "2px solid var(--calm-border)",
+                        borderRadius: u(12),
+                        background: "var(--cream)",
+                        font: `600 ${u(16)}px var(--font-fredoka)`,
+                        color: "var(--ink)",
+                      }}
+                    />
+                    <p className="m-0" style={{ marginTop: u(4), font: `700 ${u(13)}px var(--font-atkinson)`, color: "var(--ink-soft)" }}>
+                      Answers
+                    </p>
+                    <p className="m-0" style={{ marginTop: u(-4), font: `400 ${u(13)}px var(--font-atkinson)`, color: "var(--ink-soft)" }}>
+                      Tap the circle to mark the right answer.
+                    </p>
+                    {q.options.map((o) => {
+                      const correct = q.correctOptionId === o.id;
+                      const cantRemove = q.options.length <= MIN_OPTIONS;
+                      const small: React.CSSProperties = {
+                        flex: "0 0 auto",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: u(36, 44),
+                        height: u(36, 44),
+                        borderRadius: 999,
+                        border: "2px solid var(--calm-border)",
+                        background: "var(--cream)",
+                        color: "var(--ink)",
+                      };
+                      return (
+                        <div key={o.id} className="flex items-center" style={{ gap: u(6) }}>
                           <button
                             type="button"
-                            onClick={() => onAddOption(q.id)}
-                            className="mt-1.5 text-xs font-semibold text-brand"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSetCorrect(q.id, o.id);
+                            }}
+                            title="Mark as the correct answer"
+                            aria-label={`Mark "${o.text || "this answer"}" as correct`}
+                            aria-pressed={correct}
+                            style={{ ...small, border: 0, background: "transparent" }}
                           >
-                            ＋ Add answer
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                display: "block",
+                                width: u(24),
+                                height: u(24),
+                                borderRadius: 999,
+                                border: "2px solid var(--ink)",
+                                background: correct ? "var(--glass)" : "var(--cream)",
+                              }}
+                            />
                           </button>
-                        )}
-                        <div className="mt-3 border-t border-border pt-2">
+                          {o.imagePath && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={o.imagePath}
+                              alt={o.imageAlt ?? ""}
+                              style={{ width: u(40), height: u(30), objectFit: "cover", borderRadius: u(6), border: "2px solid var(--ink)", flex: "0 0 auto" }}
+                            />
+                          )}
+                          <input
+                            value={o.text ?? ""}
+                            onChange={(e) => onOptionText(q.id, o.id, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Type an answer"
+                            aria-label="Answer text"
+                            className="min-w-0 flex-1 outline-none"
+                            style={{
+                              padding: `${u(6)}px ${u(10)}px`,
+                              border: "2px solid var(--calm-border)",
+                              borderRadius: u(10),
+                              background: "var(--cream)",
+                              font: `400 ${u(15)}px var(--font-atkinson)`,
+                              color: "var(--ink)",
+                            }}
+                          />
                           <button
                             type="button"
-                            onClick={() => onDeleteQuestion(q.id)}
-                            className="text-xs font-semibold text-rose-600 hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (o.imagePath) onClearOptionImage(q.id, o.id);
+                              else onOptionImage(q.id, o.id);
+                            }}
+                            title={o.imagePath ? "Remove picture" : "Add a picture"}
+                            aria-label={o.imagePath ? "Remove answer picture" : "Add answer picture"}
+                            aria-pressed={!!o.imagePath}
+                            style={
+                              o.imagePath
+                                ? { ...small, background: "var(--ink)", color: "var(--paper)", borderColor: "var(--ink)" }
+                                : small
+                            }
                           >
-                            Delete this question
+                            <Icon name="add-picture" size={u(18)} decorative />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemoveOption(q.id, o.id);
+                            }}
+                            aria-label="Remove answer"
+                            disabled={cantRemove}
+                            style={{ ...small, opacity: cantRemove ? 0.35 : 1 }}
+                          >
+                            <Icon name="close" size={u(16)} decorative />
                           </button>
                         </div>
-                      </div>
+                      );
+                    })}
+                    {q.options.length < MAX_OPTIONS && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddOption(q.id);
+                        }}
+                        className="self-start flex items-center rounded-full"
+                        style={{
+                          height: u(36, 44),
+                          padding: `0 ${u(14)}px`,
+                          border: "2px solid var(--ink)",
+                          background: "var(--cream)",
+                          color: "var(--ink)",
+                          font: `700 ${u(14)}px var(--font-atkinson)`,
+                        }}
+                      >
+                        ＋ Add answer
+                      </button>
                     )}
                   </div>
                 );

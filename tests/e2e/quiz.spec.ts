@@ -23,10 +23,10 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   // question, so answer fields exist in both — scope to the panel.
   const panel = page.getByRole("region", { name: "Quiz builder" });
 
-  // Question 1 on page 1: correct answer is the first option ("Moo"). A new
-  // question opens expanded in the accordion, ready to type into.
+  // Question 1 on page 1: correct answer is the first option ("Moo"). Every
+  // question is a card that is always open, so a new one is the LAST card.
   await panel.getByRole("button", { name: /Add question to page 1/ }).click();
-  await panel.getByPlaceholder("What do you want to ask?").fill("What does a cow say?");
+  await panel.getByPlaceholder("What do you want to ask?").last().fill("What does a cow say?");
   await panel.getByPlaceholder("Type an answer").nth(0).fill("Moo");
   await panel.getByPlaceholder("Type an answer").nth(1).fill("Woof");
 
@@ -34,11 +34,13 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   await page.locator('button[title="Add page"]').click();
   await page.locator('button[title="Add page"]').click();
   await panel.getByRole("button", { name: /Add question to page 3/ }).click();
-  await panel.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
-  await panel.getByPlaceholder("Type an answer").nth(0).fill("Four");
-  await panel.getByPlaceholder("Type an answer").nth(1).fill("Eight");
+  // Both cards are open, so the second question's fields come after the first's.
+  const card2 = panel.locator("[data-question-card]").last();
+  await card2.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
+  await card2.getByPlaceholder("Type an answer").nth(0).fill("Four");
+  await card2.getByPlaceholder("Type an answer").nth(1).fill("Eight");
   // Mark the SECOND option ("Eight") as correct for this question.
-  await panel.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
+  await card2.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
 
   // Finish the editor and save the template.
   await page.locator('button[title="Done"]').click();
@@ -222,8 +224,6 @@ test("the worksheet box and the quiz panel edit the same question, both ways", a
   await boxPrompt.pressSequentially("Where is Harry?");
   await expect(panelPrompt).toHaveValue("Where is Harry?");
   await expect(boxPrompt).toBeFocused();
-  // The accordion header title tracks the prompt too.
-  await expect(panel.getByRole("button", { name: /Where is Harry\?/ })).toBeVisible();
 
   // Answers mirror both ways as well.
   await panel.getByPlaceholder("Type an answer").nth(0).fill("At the bus stop");
@@ -417,7 +417,7 @@ test("a sent-back quiz says which ones to look at again, without giving the answ
 
     const panel = page.getByRole("region", { name: "Quiz builder" });
     await panel.getByRole("button", { name: /Add question to page 1/ }).click();
-    await panel.getByPlaceholder("What do you want to ask?").fill("What does a cow say?");
+    await panel.getByPlaceholder("What do you want to ask?").last().fill("What does a cow say?");
     await panel.getByPlaceholder("Type an answer").nth(0).fill("Moo");
     await panel.getByPlaceholder("Type an answer").nth(1).fill("Woof");
 
@@ -425,10 +425,12 @@ test("a sent-back quiz says which ones to look at again, without giving the answ
     // other's taps.
     await page.locator('button[title="Add page"]').click();
     await panel.getByRole("button", { name: /Add question to page 2/ }).click();
-    await panel.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
-    await panel.getByPlaceholder("Type an answer").nth(0).fill("Four");
-    await panel.getByPlaceholder("Type an answer").nth(1).fill("Eight");
-    await panel.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
+    // Both cards are open, so scope the second question's fields to its card.
+    const card2 = panel.locator("[data-question-card]").last();
+    await card2.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
+    await card2.getByPlaceholder("Type an answer").nth(0).fill("Four");
+    await card2.getByPlaceholder("Type an answer").nth(1).fill("Eight");
+    await card2.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
 
     await page.locator('button[title="Done"]').click();
     await page.getByRole("button", { name: /Save to library/ }).click();
@@ -547,7 +549,7 @@ test("a picture in an answer is re-encoded and kept small", async ({ page }) => 
 
     const panel = page.getByRole("region", { name: "Quiz builder" });
     await panel.getByRole("button", { name: /Add question to page 1/ }).click();
-    await panel.getByPlaceholder("What do you want to ask?").fill("Which city?");
+    await panel.getByPlaceholder("What do you want to ask?").last().fill("Which city?");
     await panel.getByPlaceholder("Type an answer").nth(0).fill("London");
     await panel.getByPlaceholder("Type an answer").nth(1).fill("Paris");
 

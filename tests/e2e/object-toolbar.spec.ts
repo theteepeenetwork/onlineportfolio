@@ -126,10 +126,13 @@ test("each corner control sits on its own corner", async ({ page }) => {
   };
   const near = (a: number, b: number) => Math.abs(a - b) <= 2;
 
+  // The design's four: take it away top-left, turn top-right, another one
+  // bottom-left, the jam resize disc bottom-right. Changing the words is on
+  // the object bar, not a corner.
   for (const [name, corner] of [
-    ["Edit text", { x: box.x, y: box.y }],
-    ["Remove object", { x: box.x + box.width, y: box.y }],
-    ["Turn shape", { x: box.x, y: box.y + box.height }],
+    ["Remove object", { x: box.x, y: box.y }],
+    ["Turn shape", { x: box.x + box.width, y: box.y }],
+    ["Another one", { x: box.x, y: box.y + box.height }],
     ["Resize shape", { x: box.x + box.width, y: box.y + box.height }],
   ] as const) {
     const c = await centre(name);
@@ -153,7 +156,7 @@ test("each corner control sits on its own corner", async ({ page }) => {
 // The test that existed asked where each control WAS. This asks whether a
 // finger put there reaches it, which is the thing that broke.
 
-const CORNERS = ["Edit text", "Remove object", "Turn shape", "Resize shape"] as const;
+const CORNERS = ["Remove object", "Turn shape", "Another one", "Resize shape"] as const;
 
 // What a tap at the centre of each control would actually hit.
 async function reachable(page: import("@playwright/test").Page, labels: readonly string[]) {
@@ -225,7 +228,7 @@ test("every corner control of a turned text box can still be pressed", async ({ 
   await page.mouse.click(lb.x + lb.width / 2, lb.y + lb.height / 2);
   await expect(page.getByRole("button", { name: "Edit text" })).toBeVisible();
 
-  const labels = ["Edit text", "Remove text", "Turn text", "Resize text"];
+  const labels = ["Remove text", "Turn text", "Resize text"];
   for (const [step, angle] of [
     [0, 0],
     [90, 90],

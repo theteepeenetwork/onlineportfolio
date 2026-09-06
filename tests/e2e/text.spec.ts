@@ -67,8 +67,9 @@ test("text can be placed, re-selected, moved and re-edited", async ({ page }) =>
   const hbox = (await handle.boundingBox())!;
   await page.mouse.move(hbox.x + hbox.width / 2, hbox.y + hbox.height / 2);
   await page.mouse.down();
-  // Swing round to the far side of the box's centre, which is a half turn.
-  await page.mouse.move(tbox.x + tbox.width * 1.5, tbox.y - tbox.height, { steps: 8 });
+  // Swing round to the far side of the box's centre, which is a half turn. The
+  // turn handle is the top-right disc, so the far side is down and to the left.
+  await page.mouse.move(tbox.x - tbox.width * 0.5, tbox.y + tbox.height * 2, { steps: 8 });
   await page.mouse.up();
   const matrix = await wrapper.evaluate((el) => getComputedStyle(el).transform);
   expect(matrix, "the text box should have turned").not.toBe("none");
