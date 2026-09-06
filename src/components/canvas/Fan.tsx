@@ -27,7 +27,6 @@ import {
   BAND_MS,
   COLOUR_ANGLES,
   COLOUR_BAND,
-  CY,
   DISC,
   FAN_COLOURS,
   FADE_MS,
@@ -60,14 +59,14 @@ import {
 } from "@/lib/canvasFan";
 
 /**
- * Design px → screen px.
+ * Design px → screen px, with a floor in real CSS pixels.
  *
- * The second argument is a FLOOR in real CSS pixels, and it is the reason this
- * is a function rather than a multiplication. The frame scales to the viewport,
- * so on a 1024px classroom iPad every design unit is 0.86 of a pixel — which
- * would quietly take a 64px child control down to 55 and put the whole toolbar
- * under SAFEGUARDING rule 18. Positions and radii scale; the things a finger
- * has to hit do not go below their floor.
+ * The chrome is drawn at design size and anchored to the paper's corners, so
+ * this is the identity for the fans — see `penCx` in `canvasFan.ts` for why
+ * scaling them was the wrong answer. It stays a function because the parts that
+ * DO scale with the frame (the empty-state words, the top row's gaps) go
+ * through the same one, and because the floor is what keeps a child's press at
+ * 64px whatever the frame does (SAFEGUARDING rule 18).
  */
 export type Unit = (n: number, floor?: number) => number;
 
@@ -87,6 +86,8 @@ const JAM = "#bd3f63";
 function Band({
   u,
   cx,
+  cy,
+  frame,
   dir,
   r,
   half,
@@ -97,6 +98,8 @@ function Band({
 }: {
   u: Unit;
   cx: number;
+  cy: number;
+  frame: { w: number; h: number };
   dir: 1 | -1;
   r: number;
   half: number;
@@ -110,7 +113,7 @@ function Band({
     return (
       <path
         key={key}
-        d={arcPath(cx * 1, dir, rr, from, to)}
+        d={arcPath(cx, cy, dir, rr, from, to)}
         fill="none"
         stroke={stroke}
         strokeWidth={width}
@@ -129,9 +132,9 @@ function Band({
     <svg
       aria-hidden="true"
       className="pointer-events-none absolute left-0 top-0"
-      width={u(1194)}
-      height={u(834)}
-      viewBox="0 0 1194 834"
+      width={frame.w}
+      height={frame.h}
+      viewBox={`0 0 ${frame.w} ${frame.h}`}
       style={{ zIndex: Z_BAND, overflow: "visible" }}
     >
       {sweep(r, half * 2, fill, "fill")}
@@ -149,6 +152,7 @@ function Band({
 function FanItem({
   u,
   cx,
+  cy,
   dir,
   r,
   deg,
@@ -160,6 +164,7 @@ function FanItem({
 }: {
   u: Unit;
   cx: number;
+  cy: number;
   dir: 1 | -1;
   r: number;
   deg: number;
@@ -171,22 +176,22 @@ function FanItem({
   // `dir` is an HTML attribute too, and ours is a sweep direction.
 } & Omit<React.ComponentPropsWithoutRef<"button">, "style" | "children" | "dir">) {
   const w = width ?? size;
-  const { left, top } = polar(cx, r, deg, dir, size);
+  const { left, top } = polar(cx, cy, r, deg, dir, size);
   const dx = cx - size / 2 - left;
-  const dy = CY - size / 2 - top;
+  const dy = cy - size / 2 - top;
   return (
     <button
       type="button"
       {...rest}
       style={{
         position: "absolute",
-        left: u(left - (w - size) / 2),
-        top: u(top),
+        left: left - (w - size) / 2,
+        top,
         width: u(w, w >= 64 ? 64 : 44),
         height: u(size, size >= 64 ? 64 : 44),
         zIndex: Z_FAN,
-        ["--dx" as string]: `${u(dx)}px`,
-        ["--dy" as string]: `${u(dy)}px`,
+        ["--dx" as string]: `${dx}px`,
+        ["--dy" as string]: `${dy}px`,
         animation: `sj-fan-in ${SPRING_MS}ms ${SPRING} ${delay}ms backwards`,
       }}
     >
@@ -220,6 +225,9 @@ export type PenFanProps = {
   u: Unit;
   hand: Hand;
   cx: number;
+  cy: number;
+  /** The paper's own size, which is what the bands are drawn across. */
+  frame: { w: number; h: number };
   dir: 1 | -1;
   open: boolean;
   /** The canvas's own tool key. */
@@ -239,6 +247,8 @@ export type PenFanProps = {
 export function PenFan({
   u,
   cx,
+  cy,
+  frame,
   dir,
   open,
   tool,
@@ -269,10 +279,10 @@ export function PenFan({
     <>
       {open && (
         <>
-          <Band u={u} cx={cx} dir={dir} r={R_NIBS} half={35} from={NIB_BAND[0]} to={NIB_BAND[1]} fill={KRAFT_TAG} delay={0} />
-          <Band u={u} cx={cx} dir={dir} r={R_TOOLS} half={35} from={TOOL_BAND[0]} to={TOOL_BAND[1]} fill={HONEY_TINT} delay={60} />
+          <Band u={u} cx={cx} cy={cy} frame={frame} dir={dir} r={R_NIBS} half={35} from={NIB_BAND[0]} to={NIB_BAND[1]} fill={KRAFT_TAG} delay={0} />
+          <Band u={u} cx={cx} cy={cy} frame={frame} dir={dir} r={R_TOOLS} half={35} from={TOOL_BAND[0]} to={TOOL_BAND[1]} fill={HONEY_TINT} delay={60} />
           {showColours && (
-            <Band u={u} cx={cx} dir={dir} r={R_COLOUR_BAND} half={72} from={COLOUR_BAND[0]} to={COLOUR_BAND[1]} fill={KRAFT_TAG} delay={120} />
+            <Band u={u} cx={cx} cy={cy} frame={frame} dir={dir} r={R_COLOUR_BAND} half={72} from={COLOUR_BAND[0]} to={COLOUR_BAND[1]} fill={KRAFT_TAG} delay={120} />
           )}
 
           {/* 1 · Nibs, nearest the thumb: the thing changed most often. Each
@@ -285,6 +295,7 @@ export function PenFan({
                 key={nib.size}
                 u={u}
                 cx={cx}
+                cy={cy}
                 dir={dir}
                 r={R_NIBS}
                 deg={NIB_ANGLES[i]}
@@ -330,6 +341,7 @@ export function PenFan({
                 key={t.key}
                 u={u}
                 cx={cx}
+                cy={cy}
                 dir={dir}
                 r={R_TOOLS}
                 deg={toolAngles[i]}
@@ -363,6 +375,7 @@ export function PenFan({
                 key={c.hex}
                 u={u}
                 cx={cx}
+                cy={cy}
                 dir={dir}
                 r={outer ? R_COLOUR_OUT : R_COLOUR_IN}
                 deg={extra ? A_EXTRA : COLOUR_ANGLES[i % 5]}
@@ -410,14 +423,14 @@ export function PenFan({
 
           {/* Anything the ten do not carry. The rainbow ring says "any colour"
               without pretending to be one. */}
-          {showColours && <AnyColour u={u} cx={cx} dir={dir} colour={colour} onColour={onColour} />}
+          {showColours && <AnyColour u={u} cx={cx} cy={cy} dir={dir} colour={colour} onColour={onColour} />}
 
           {heldColour && (
             <span
               role="status"
               className="pointer-events-none absolute"
               style={{
-                ...polarBox(u, cx, R_COLOUR_NAME, A_COLOUR_NAME, dir),
+                ...polarBox(cx, cy, R_COLOUR_NAME, A_COLOUR_NAME, dir),
                 zIndex: Z_FAN + 1,
                 background: INK,
                 color: "#faf6ee",
@@ -449,8 +462,8 @@ export function PenFan({
         title="Pens"
         style={{
           position: "absolute",
-          left: u(cx - DISC / 2),
-          top: u(CY - DISC / 2),
+          left: cx - DISC / 2,
+          top: cy - DISC / 2,
           width: u(DISC, 64),
           height: u(DISC, 64),
           borderRadius: 999,
@@ -469,35 +482,37 @@ export function PenFan({
   );
 }
 
-function polarBox(u: Unit, cx: number, r: number, deg: number, dir: 1 | -1) {
-  const { left, top } = polar(cx, r, deg, dir, 0);
-  return { left: u(left), top: u(top) };
+function polarBox(cx: number, cy: number, r: number, deg: number, dir: 1 | -1) {
+  const { left, top } = polar(cx, cy, r, deg, dir, 0);
+  return { left, top };
 }
 
 function AnyColour({
   u,
   cx,
+  cy,
   dir,
   colour,
   onColour,
 }: {
   u: Unit;
   cx: number;
+  cy: number;
   dir: 1 | -1;
   colour: string;
   onColour: (hex: string) => void;
 }) {
   const size = 64;
-  const { left, top } = polar(cx, R_COLOUR_IN, A_EXTRA, dir, size);
+  const { left, top } = polar(cx, cy, R_COLOUR_IN, A_EXTRA, dir, size);
   const dx = cx - size / 2 - left;
-  const dy = CY - size / 2 - top;
+  const dy = cy - size / 2 - top;
   return (
     <label
       className="absolute"
       title="Pick any colour"
       style={{
-        left: u(left),
-        top: u(top),
+        left,
+        top,
         width: u(size, 64),
         height: u(size, 64),
         zIndex: Z_FAN,
@@ -505,8 +520,8 @@ function AnyColour({
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
-        ["--dx" as string]: `${u(dx)}px`,
-        ["--dy" as string]: `${u(dy)}px`,
+        ["--dx" as string]: `${dx}px`,
+        ["--dy" as string]: `${dy}px`,
         animation: `sj-fan-in ${SPRING_MS}ms ${SPRING} ${120 + 10 * STAGGER_MS}ms backwards`,
       }}
     >
@@ -563,6 +578,8 @@ export type PlusItem = {
 export function PlusFan({
   u,
   cx,
+  cy,
+  frame,
   dir,
   open,
   items,
@@ -573,6 +590,8 @@ export function PlusFan({
 }: {
   u: Unit;
   cx: number;
+  cy: number;
+  frame: { w: number; h: number };
   dir: 1 | -1;
   open: boolean;
   items: PlusItem[];
@@ -592,9 +611,9 @@ export function PlusFan({
     <>
       {open && (
         <>
-          <Band u={u} cx={cx} dir={dir} r={R_PLUS_INNER} half={44} from={-58} to={46} fill={KRAFT_TAG} delay={0} />
+          <Band u={u} cx={cx} cy={cy} frame={frame} dir={dir} r={R_PLUS_INNER} half={44} from={-58} to={46} fill={KRAFT_TAG} delay={0} />
           {outer.length > 0 && (
-            <Band u={u} cx={cx} dir={dir} r={R_PLUS_OUTER} half={44} from={-62} to={32} fill={HONEY_TINT} delay={40} />
+            <Band u={u} cx={cx} cy={cy} frame={frame} dir={dir} r={R_PLUS_OUTER} half={44} from={-62} to={32} fill={HONEY_TINT} delay={40} />
           )}
 
           {[...inner, ...outer].map((item) => {
@@ -609,6 +628,7 @@ export function PlusFan({
                 key={item.key}
                 u={u}
                 cx={cx}
+                cy={cy}
                 dir={dir}
                 r={isOuter ? R_PLUS_OUTER : R_PLUS_INNER}
                 deg={deg}
@@ -639,6 +659,8 @@ export function PlusFan({
               <Band
                 u={u}
                 cx={cx}
+                cy={cy}
+                frame={frame}
                 dir={dir}
                 r={radii[0] + (openItem.options.length > 4 ? 44 : 0)}
                 half={openItem.options.length > 4 ? 88 : 44}
@@ -655,6 +677,7 @@ export function PlusFan({
                     key={opt.key}
                     u={u}
                     cx={cx}
+                    cy={cy}
                     dir={dir}
                     r={place.r}
                     deg={place.deg}
@@ -694,12 +717,12 @@ export function PlusFan({
         // `title="Add"` is the hook a dozen canvas specs already reach for; the
         // accessible name is the words a child hears.
         title={open ? "Close" : "Add"}
-        aria-label={open ? "Close the add menu" : "Add something"}
+        aria-label={open ? "Close add menu" : "Add something"}
         aria-expanded={open}
         style={{
           position: "absolute",
-          left: u(cx - DISC / 2),
-          top: u(CY - DISC / 2),
+          left: cx - DISC / 2,
+          top: cy - DISC / 2,
           width: u(DISC, 64),
           height: u(DISC, 64),
           borderRadius: 999,

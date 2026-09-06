@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "@/components/icons/Icon";
-import { FRAME_H, FRAME_W, SPRING, SPRING_MS, Z_WINDOW } from "@/lib/canvasFan";
+import { SPRING, SPRING_MS, Z_WINDOW } from "@/lib/canvasFan";
 import type { Unit } from "./Fan";
 
 const INK = "#22304a";
@@ -32,27 +32,31 @@ const TOP_MIN = 96;
 export type WindowPos = { x: number; y: number; collapsed: boolean };
 
 /** Where a window opens: to the right of the page, clear of the top chrome. */
-export function defaultWindowPos(offset = 0): WindowPos {
-  return { x: FRAME_W - WINDOW_W - 16 - offset, y: TOP_MIN + offset, collapsed: false };
+export function defaultWindowPos(paper: { w: number; h: number }, offset = 0): WindowPos {
+  return { x: paper.w - WINDOW_W - 16 - offset, y: TOP_MIN + offset, collapsed: false };
 }
 
 /**
- * Park at the nearer horizontal edge and stay inside the frame vertically. A
+ * Park at the nearer horizontal edge and stay inside the paper vertically. A
  * window dropped half off the screen is a window that cannot be grabbed again.
  */
-export function parkWindow(pos: WindowPos, height: number): WindowPos {
+export function parkWindow(
+  pos: WindowPos,
+  height: number,
+  paper: { w: number; h: number },
+): WindowPos {
   const w = pos.collapsed ? WINDOW_PILL_W : WINDOW_W;
   const h = pos.collapsed ? HEADER_H + 6 : height;
   return {
     ...pos,
-    x: pos.x + w / 2 < FRAME_W / 2 ? 16 : FRAME_W - w - 16,
-    y: Math.max(TOP_MIN, Math.min(FRAME_H - TRAY_ROOM - h, pos.y)),
+    x: pos.x + w / 2 < paper.w / 2 ? 16 : paper.w - w - 16,
+    y: Math.max(TOP_MIN, Math.min(Math.max(TOP_MIN, paper.h - TRAY_ROOM - h), pos.y)),
   };
 }
 
 export function FloatingWindow({
   u,
-  scale,
+  paper,
   icon,
   title,
   pos,
@@ -63,8 +67,8 @@ export function FloatingWindow({
   bodyMaxH = 560,
 }: {
   u: Unit;
-  /** Design px per screen px, so a drag in real pixels becomes design units. */
-  scale: number;
+  /** The paper's own size, which is what a window parks against. */
+  paper: { w: number; h: number };
   icon: IconName;
   title: string;
   pos: WindowPos;
@@ -103,8 +107,8 @@ export function FloatingWindow({
   function move(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
-    const dx = (e.clientX - d.x0) / scale;
-    const dy = (e.clientY - d.y0) / scale;
+    const dx = e.clientX - d.x0;
+    const dy = e.clientY - d.y0;
     if (Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
     if (!d.moved) return;
     onPos({ ...pos, x: d.px + dx, y: d.py + dy });
@@ -114,10 +118,10 @@ export function FloatingWindow({
     drag.current = null;
     setDragging(false);
     if (!d) return;
-    const height = ref.current ? ref.current.offsetHeight / scale : bodyMaxH;
+    const height = ref.current ? ref.current.offsetHeight : bodyMaxH;
     // A tap on the pill opens it again; a drag leaves it as it was.
     const next = d.moved ? pos : { ...pos, collapsed: false };
-    onPos(parkWindow(next, height));
+    onPos(parkWindow(next, height, paper));
   }
 
   const collapsed = pos.collapsed;
@@ -130,9 +134,9 @@ export function FloatingWindow({
       aria-label={title}
       className="absolute"
       style={{
-        left: u(pos.x),
-        top: u(pos.y),
-        width: u(collapsed ? WINDOW_PILL_W : WINDOW_W),
+        left: pos.x,
+        top: pos.y,
+        width: collapsed ? WINDOW_PILL_W : WINDOW_W,
         zIndex: Z_WINDOW,
         background: CREAM,
         border: `${Math.max(2, u(3))}px solid ${INK}`,
@@ -172,7 +176,7 @@ export function FloatingWindow({
         <button
           type="button"
           onPointerDown={stop}
-          onClick={() => onPos(parkWindow({ ...pos, collapsed: !collapsed }, bodyMaxH))}
+          onClick={() => onPos(parkWindow({ ...pos, collapsed: !collapsed }, bodyMaxH, paper))}
           title={collapsed ? "Expand" : "Shrink to a pill"}
           aria-label={collapsed ? "Expand" : "Shrink to a pill"}
           aria-expanded={!collapsed}

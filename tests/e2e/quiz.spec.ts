@@ -70,7 +70,7 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   await expect(moo).toBeFocused();
   await moo.click();
   // Jump to page 3 via its thumbnail and answer INCORRECTLY ("Four").
-  await page.locator('img[alt="Page 3"]').click();
+  await page.getByRole("button", { name: "Page 3", exact: true }).click();
   await page.getByRole("button", { name: "Four" }).click();
 
   // Nothing tells the child whether they were right — silent capture.
@@ -449,7 +449,7 @@ test("a sent-back quiz says which ones to look at again, without giving the answ
     await page.getByRole("link", { name: /Second go/ }).click();
     await expect(page.locator("canvas")).toBeVisible();
     await page.getByRole("button", { name: "Moo" }).click();
-    await page.locator('img[alt="Page 2"]').click();
+    await page.getByRole("button", { name: "Page 2", exact: true }).click();
     await page.getByRole("button", { name: "Four" }).click();
     await page.locator('button[title="Done"]').click();
     await page.getByRole("button", { name: /hand it in/i }).click();
@@ -486,7 +486,7 @@ test("a sent-back quiz says which ones to look at again, without giving the answ
 
     // The one they got wrong comes back AS THEY ANSWERED IT, said in words and
     // still tappable — not blanked, which read as "you never did this".
-    await page.locator('img[alt="Page 2"]').click();
+    await page.getByRole("button", { name: "Page 2", exact: true }).click();
     await expect(page.getByText("Have another go at this one")).toBeVisible();
     const four = page.getByRole("button", { name: "Four" });
     await expect(four).toHaveAttribute("aria-pressed", "true");

@@ -50,6 +50,7 @@ export function PageTray({
   onDuplicate,
   onDelete,
   onContextMenu,
+  maxWidth,
 }: {
   u: Unit;
   count: number;
@@ -67,6 +68,10 @@ export function PageTray({
       the hold gives a finger — see CanvasMenu for why it is a menu, not a
       dialog. */
   onContextMenu?: (e: React.MouseEvent, i: number) => void;
+  /** How wide the tray may grow before its strip starts to scroll. The two
+      discs own the bottom corners, and a tray that reached under one of them
+      would put a page card behind the toolbox. */
+  maxWidth: number;
 }) {
   const stripRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<number | null>(null);
@@ -86,7 +91,12 @@ export function PageTray({
     }
   }, [active, u]);
 
-  const stripW = Math.min(count, VISIBLE) * SLOT - GAP + 12;
+  // Five pages' worth, or whatever room there is between the discs — whichever
+  // is less. Past that the strip scrolls, which it already knows how to do.
+  const stripW = Math.min(
+    Math.min(count, VISIBLE) * SLOT - GAP + 12,
+    Math.max(u(SLOT, 64), maxWidth - u(72, 64) - u(GAP) - u(16) - 6),
+  );
 
   function down(e: React.PointerEvent, i: number) {
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);

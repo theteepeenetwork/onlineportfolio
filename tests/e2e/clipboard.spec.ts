@@ -120,7 +120,7 @@ test("the shortcuts keep out of the way of anything being typed into", async ({ 
   // Same for a text box being written in.
   const cbox = (await page.locator("canvas").first().boundingBox())!;
   await page.locator('button[title="Add"]').click();
-  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.getByRole("button", { name: "Words", exact: true }).click();
   await page.mouse.click(cbox.x + cbox.width * 0.3, cbox.y + cbox.height * 0.75);
   await page.locator('textarea[placeholder="Type…"]').waitFor();
   await page.keyboard.type("hello");

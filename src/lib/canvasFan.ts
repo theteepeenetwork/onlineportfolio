@@ -14,23 +14,38 @@
 export const FRAME_W = 1194;
 export const FRAME_H = 834;
 
-// Both discs sit 148px in from their corner, so an arc can climb the screen
-// edge without leaving it, and share one centre line.
+// Both discs sit 148px in from their corner and 72px up from the foot, so an
+// arc can climb the screen edge without leaving it, and share one centre line.
 export const DISC = 96;
-export const CY = 762;
 export const NEAR_X = 148;
-export const FAR_X = FRAME_W - NEAR_X; // 1046
+export const UP_FROM_FOOT = FRAME_H - 762; // 72
+export const CY = 762;
 
 export type Hand = "right" | "left";
 
-/** Where the pen disc's centre sits for this hand. */
-export function penCx(hand: Hand): number {
-  return hand === "right" ? FAR_X : NEAR_X;
+/**
+ * The chrome is drawn at DESIGN SIZE and anchored to the paper's own corners,
+ * rather than scaled with the frame.
+ *
+ * It has to be. Every control a child presses carries a 64px floor
+ * (SAFEGUARDING rule 18), so on a 1024px classroom iPad — where the frame
+ * scales to 0.86 — the buttons would keep their 64px while the arcs they sit on
+ * shrank to 60px apart, and the nibs would overlap. axe calls that
+ * `target-size`, and it is right: two 64px presses 60px apart are one press a
+ * child cannot aim at. So the arcs keep their real size and the paper's edge
+ * clips them, which is what the design already does at its own edge.
+ */
+export function penCx(hand: Hand, paperW: number): number {
+  return hand === "right" ? paperW - NEAR_X : NEAR_X;
 }
 
-/** Where the ＋ disc's centre sits for this hand. */
-export function plusCx(hand: Hand): number {
-  return hand === "right" ? NEAR_X : FAR_X;
+export function plusCx(hand: Hand, paperW: number): number {
+  return hand === "right" ? NEAR_X : paperW - NEAR_X;
+}
+
+/** The discs' shared centre line, measured up from the foot of the paper. */
+export function discCy(paperH: number): number {
+  return paperH - UP_FROM_FOOT;
 }
 
 /**
@@ -66,6 +81,7 @@ export const R_PLUS_OUTER = 226;
 /** A point on a fan's arc, as the top-left of a `size`×`size` button. */
 export function polar(
   cx: number,
+  cy: number,
   r: number,
   deg: number,
   dir: 1 | -1,
@@ -74,20 +90,27 @@ export function polar(
   const a = (deg * Math.PI) / 180;
   return {
     left: Math.round(cx + dir * r * Math.sin(a) - size / 2),
-    top: Math.round(CY - r * Math.cos(a) - size / 2),
+    top: Math.round(cy - r * Math.cos(a) - size / 2),
   };
 }
 
 /** The same point, as a centre rather than a box corner. */
-export function polarPoint(cx: number, r: number, deg: number, dir: 1 | -1) {
+export function polarPoint(cx: number, cy: number, r: number, deg: number, dir: 1 | -1) {
   const a = (deg * Math.PI) / 180;
-  return { x: cx + dir * r * Math.sin(a), y: CY - r * Math.cos(a) };
+  return { x: cx + dir * r * Math.sin(a), y: cy - r * Math.cos(a) };
 }
 
 /** An SVG arc from angle `a` to angle `b` at radius `r` about a disc. */
-export function arcPath(cx: number, dir: 1 | -1, r: number, a: number, b: number): string {
+export function arcPath(
+  cx: number,
+  cy: number,
+  dir: 1 | -1,
+  r: number,
+  a: number,
+  b: number,
+): string {
   const p = (deg: number) => {
-    const { x, y } = polarPoint(cx, r, deg, dir);
+    const { x, y } = polarPoint(cx, cy, r, deg, dir);
     return `${x.toFixed(1)} ${y.toFixed(1)}`;
   };
   return `M ${p(a)} A ${r} ${r} 0 0 ${dir > 0 ? 1 : 0} ${p(b)}`;

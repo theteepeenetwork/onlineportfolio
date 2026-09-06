@@ -68,11 +68,11 @@ test("a child is walked through the pages before they can hand in", async ({ pag
     // Page 1 of 2: the button moves them ON rather than offering to finish.
     const go = page.getByRole("button", { name: "Next page" });
     await expect(go, "a child on page 1 of 2 should be offered Next, not Done").toBeVisible();
-    await expect(page.getByRole("button", { name: "Done" })).toHaveCount(0);
+    await expect(page.locator('button[title="Done"]')).toHaveCount(0);
 
     await go.click();
     // Page 2 of 2 is the end, so now it is a hand-in.
-    await expect(page.getByRole("button", { name: "Done" })).toBeVisible();
+    await expect(page.locator('button[title="Done"]')).toBeVisible();
     await expect(page.getByRole("button", { name: "Next page" })).toHaveCount(0);
   } finally {
     await db.journalItem.deleteMany({ where: { assignmentId: runId } });
@@ -88,7 +88,7 @@ test("handing in waits for every question, and says which one", async ({ page })
     await page.getByRole("button", { name: "Next page" }).click();
 
     // The question on this page is untouched, so the ✓ does not hand in.
-    await page.getByRole("button", { name: "Done" }).click();
+    await page.locator('button[title="Done"]').click();
     const told = page.getByText("There's still a question to answer");
     await expect(told).toBeVisible();
     await expect(page.getByRole("button", { name: /hand it in/i })).toHaveCount(0);
@@ -120,7 +120,7 @@ test("handing in waits for every question, and says which one", async ({ page })
 
     // Answer it and the same button finishes the job.
     await page.getByRole("button", { name: "Eight" }).click();
-    await page.getByRole("button", { name: "Done" }).click();
+    await page.locator('button[title="Done"]').click();
     await expect(page.getByRole("button", { name: /hand it in/i })).toBeVisible();
   } finally {
     await db.journalItem.deleteMany({ where: { assignmentId: runId } });
@@ -135,7 +135,7 @@ test("coming back to unfinished work starts at the first page", async ({ page })
     await openAsChild(page, "Come back");
     // Get to page 2 and leave from there.
     await page.getByRole("button", { name: "Next page" }).click();
-    await expect(page.getByRole("button", { name: "Done" })).toBeVisible();
+    await expect(page.locator('button[title="Done"]')).toBeVisible();
     // Give the local draft a moment to be written before walking away.
     await page.waitForTimeout(1500);
 

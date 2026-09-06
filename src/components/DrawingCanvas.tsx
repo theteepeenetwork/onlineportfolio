@@ -15,10 +15,12 @@ import {
 } from "./canvas/FloatingWindow";
 import { ChromeDone, ChromePill, ChromeRound, StatusChip, Toast } from "./canvas/Chrome";
 import {
+  DISC,
   FAN_COLOURS,
   FRAME_H,
-  FRAME_W,
+  NEAR_X,
   WHITE,
+  discCy,
   penCx,
   penDir,
   Z_BASE,
@@ -812,7 +814,10 @@ export function DrawingCanvas({
   // rather than in the panel so that tucking it away to the launcher and
   // reopening brings it back exactly where the teacher left it.
   // Where the Quiz builder window sits, in design units, for the session.
-  const [quizWindow, setQuizWindow] = useState<WindowPos>(() => defaultWindowPos());
+  // Where the Quiz builder window sits, for the session. It cannot be given a
+  // real default here — the paper has not been measured yet — so it is parked
+  // properly the first time it is opened.
+  const [quizWindow, setQuizWindow] = useState<WindowPos | null>(null);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   // Answer mode: the child's current selection per question, mirrored into the
   // hidden `quizAnswers` input the response form submits. On a "carry on" reopen
@@ -921,6 +926,9 @@ export function DrawingCanvas({
   const drawingTool = tool !== "cursor" && tool !== "text" && SHELF.some((t) => t.key === tool);
   // The hue-bar handle just tracks the current tool's colour.
   const [box, setBox] = useState({ w: 700, h: 490 });
+  // The measured paper, readable from a handler that runs outside the render.
+  const boxRef = useRef(box);
+  boxRef.current = box;
 
   // Which text object (if any) is currently open for typing.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2314,22 +2322,24 @@ export function DrawingCanvas({
   // that varies between palette buttons — size, colours, a preset label — comes
   // off the preset, so a new button is a table entry rather than another branch
   // in here.
-  function addShape(preset: ShapePreset) {
+  function addShape(preset: ShapePreset, cycle = false) {
     pushHistory();
     const id = `o${objIdRef.current++}`;
     const w = preset.w ?? SHAPE_DEFAULTS.w;
     const h = preset.h ?? SHAPE_DEFAULTS.h;
     // Nine landing places in a cycle, so a teacher tapping "Counter 1" four
-    // times gets four counters they can see rather than one they have to peel
-    // apart. Design offsets of ±44 / ±36 px, in model units.
-    const slot = placeCycleRef.current++ % 9;
+    // times out of the kit WINDOW gets four counters they can see rather than
+    // one they have to peel apart. Design offsets of ±44 / ±36 px, in model
+    // units. Only from a window: the ＋ fan folds after each shape, so one tap
+    // is one shape and the middle of the page is where it belongs.
+    const slot = cycle ? placeCycleRef.current++ % 9 : 4;
     const dx = ((slot % 3) - 1) * 37;
     const dy = (Math.floor(slot / 3) - 1) * 30;
     const obj: ShapeObj = {
       id,
       type: "shape",
       shape: preset.kind,
-      x: (W - w) / 2 + dx,
+      x: freeCentreX() - w / 2 + dx,
       y: (H - h) / 2 + dy,
       w,
       h,
@@ -2971,7 +2981,9 @@ export function DrawingCanvas({
   // to do nothing at all.
   function openQuizPanel() {
     setQuizPanelOpen(true);
-    setQuizWindow((w) => ({ ...w, collapsed: false }));
+    setQuizWindow((w) =>
+      w ? { ...w, collapsed: false } : defaultWindowPos({ w: boxRef.current.w, h: boxRef.current.h }),
+    );
   }
 
   // Drop a new question box in the middle of the CURRENT page. Marking a quiz
@@ -2983,7 +2995,10 @@ export function DrawingCanvas({
     const q: QuizQuestion = {
       id: qid,
       pageIndex: currentRef.current,
-      x: (W - QUIZ_W) / 2,
+      // The middle of the room that is LEFT, not the middle of the page: with
+      // the builder parked on the right, a box at page centre put its own
+      // resize corner under the window that made it.
+      x: freeCentreX() - QUIZ_W / 2,
       y: (H - QUIZ_H) / 2,
       w: QUIZ_W,
       h: QUIZ_H,
@@ -3243,6 +3258,43 @@ export function DrawingCanvas({
   // The kits this canvas offers, in registry order.
   const availableKits = kitsToShow(kits);
 
+  // A kit is either a row on the ＋ fan (Shapes: a child taps one and it lands)
+  // or a window (the Maths kit: a teacher places a dozen pieces from it while
+  // building a page). One rule, so a third kit needs no decision.
+  function kitIsWindow(id: KitId) {
+    return id !== "shapes";
+  }
+
+  // The floating windows stay open while a page is built, so they are part of
+  // the room the page HAS rather than something over it. Whatever band they are
+  // parked in is reserved: the object toolbar keeps out of it, and a new piece
+  // or question lands in the middle of what is left rather than under a window.
+  const openWindows: WindowPos[] = [
+    ...availableKits
+      .filter((k) => kitIsWindow(k.id))
+      .map((k) => kitWindows[k.id])
+      .filter((w): w is WindowPos => Boolean(w)),
+    ...(isQuizAuthor && quizPanelOpen && quizWindow ? [quizWindow] : []),
+  ];
+  const windowBand = (w: WindowPos) => ({
+    width: w.collapsed ? WINDOW_PILL_W : WINDOW_W,
+    right: w.x + (w.collapsed ? WINDOW_PILL_W : WINDOW_W) / 2 > box.w / 2,
+  });
+  const reserveRight = Math.max(
+    0,
+    ...openWindows.map((w) => (windowBand(w).right ? box.w - w.x : 0)),
+  );
+  const reserveLeft = Math.max(
+    0,
+    ...openWindows.map((w) => (windowBand(w).right ? 0 : w.x + windowBand(w).width)),
+  );
+  // The middle of the free band, in MODEL units — where something new goes.
+  function freeCentreX(): number {
+    if (!fullScreen || box.w <= 0) return W / 2;
+    const mid = (reserveLeft + (box.w - reserveRight)) / 2;
+    return (mid / box.w) * W;
+  }
+
   const objectLayer = (
     <ObjectLayer
       objects={objects}
@@ -3413,15 +3465,24 @@ export function DrawingCanvas({
     // every measurement in the chrome goes through it. That is what lets the
     // fan geometry be written as the constants it was designed as, rather than
     // as a pile of percentages nobody can check against the drawing.
-    const frameScale = box.w / FRAME_W;
-    // Positions and radii scale with the frame; anything a finger has to hit
-    // carries a floor in real pixels, because a 1024px classroom iPad scales
-    // the frame to 0.86 and would otherwise take every 64px child control down
-    // to 55 (SAFEGUARDING rule 18, F37).
-    const u = (n: number, floor = 0) => Math.max(n * frameScale, floor);
+    // The chrome is drawn at DESIGN SIZE and anchored to the paper's own edges
+    // rather than scaled into it. Scaling it looked right and was wrong: every
+    // control a child presses carries a 64px floor (rule 18), so on a 1024px
+    // classroom iPad the buttons kept their 64px while the arcs they sit on
+    // shrank to 60px apart and the nibs overlapped — which axe calls
+    // `target-size`, and which is a press a child cannot aim at.
+    //
+    // `u` survives as the one place a floor is applied, and so that the few
+    // things that SHOULD track the paper (the empty-state words) are visibly
+    // the exceptions.
+    const u = (n: number, floor = 0) => Math.max(n, floor);
     const teacher = isObjectAuthor || isQuizAuthor;
-    const penX = penCx(hand);
-    const plusX = plusCx(hand);
+    // The two discs are anchored to the PAPER's corners at design size, not
+    // scaled with the frame — see `penCx` in canvasFan.ts.
+    const paper = { w: box.w, h: box.h };
+    const penX = penCx(hand, paper.w);
+    const plusX = plusCx(hand, paper.w);
+    const discY = discCy(paper.h);
 
     // Something is open that a touch on the paper should CLOSE rather than
     // draw through. The floating windows are deliberately not in this list:
@@ -3434,18 +3495,12 @@ export function DrawingCanvas({
       setPlusRow(null);
     }
 
-    // A kit is either a row on the ＋ fan (Shapes: a child taps one and it
-    // lands) or a window (the Maths kit: a teacher places a dozen pieces from
-    // it while building a page). One rule, so a third kit needs no decision.
-    function kitIsWindow(id: KitId) {
-      return id !== "shapes";
-    }
     function toggleKitWindow(id: KitId) {
       setKitWindows((prev) => {
         const open = Object.values(prev).filter(Boolean).length;
         return prev[id]
           ? { ...prev, [id]: undefined }
-          : { ...prev, [id]: defaultWindowPos(open * 24) };
+          : { ...prev, [id]: defaultWindowPos({ w: box.w, h: box.h }, open * 24) };
       });
       setFanOpen(false);
       setPlusRow(null);
@@ -3526,30 +3581,6 @@ export function DrawingCanvas({
       });
     }
 
-    // The floating windows stay open while a page is built, so they are part of
-    // the room the page has rather than something over it. Whatever band they
-    // are parked in is reserved, and anything that floats over the page and
-    // clamps itself to the stage keeps out of it.
-    const openWindows: WindowPos[] = [
-      ...availableKits
-        .filter((k) => kitIsWindow(k.id))
-        .map((k) => kitWindows[k.id])
-        .filter((w): w is WindowPos => Boolean(w)),
-      ...(isQuizAuthor && quizPanelOpen ? [quizWindow] : []),
-    ];
-    const windowBand = (w: WindowPos) => ({
-      width: w.collapsed ? WINDOW_PILL_W : WINDOW_W,
-      right: w.x + (w.collapsed ? WINDOW_PILL_W : WINDOW_W) / 2 > FRAME_W / 2,
-    });
-    const reserveRight = Math.max(
-      0,
-      ...openWindows.map((w) => (windowBand(w).right ? FRAME_W - w.x : 0)),
-    );
-    const reserveLeft = Math.max(
-      0,
-      ...openWindows.map((w) => (windowBand(w).right ? 0 : w.x + windowBand(w).width)),
-    );
-
     // Nothing on this page yet, so the paper says what it is for. Gone the
     // moment there is a stroke, a piece or a template underneath.
     const pageIsBare = !canUndo && objects.length === 0 && !currentTemplate;
@@ -3605,7 +3636,10 @@ export function DrawingCanvas({
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-x-0 text-center"
                   style={{
-                    top: u(470),
+                    // The one measurement that tracks the paper rather than
+                    // the design frame: it is the middle of the page, not a
+                    // piece of furniture on its edge.
+                    top: paper.h * (470 / FRAME_H),
                     font: `600 ${u(28)}px var(--font-fredoka)`,
                     color: "#c9a87c",
                   }}
@@ -3776,6 +3810,8 @@ export function DrawingCanvas({
                 u={u}
                 hand={hand}
                 cx={penX}
+                cy={discY}
+                frame={paper}
                 dir={penDir(hand)}
                 open={toolBarOpen}
                 tool={tool}
@@ -3806,6 +3842,8 @@ export function DrawingCanvas({
               <PlusFan
                 u={u}
                 cx={plusX}
+                cy={discY}
+                frame={paper}
                 dir={plusDir(hand)}
                 open={fanOpen}
                 items={plusItems}
@@ -3826,6 +3864,7 @@ export function DrawingCanvas({
                 u={u}
                 count={pageCount}
                 active={current}
+                maxWidth={Math.max(200, paper.w - 2 * (NEAR_X + DISC / 2 + 10))}
                 thumbs={thumbs}
                 canDelete={allowPageDelete}
                 canStructure={allowPageStructure}
@@ -3861,29 +3900,33 @@ export function DrawingCanvas({
                     <FloatingWindow
                       key={kit.id}
                       u={u}
-                      scale={frameScale}
+                      paper={paper}
                       icon={KIT_ICON[kit.id]}
                       title={kit.label}
                       pos={pos}
                       onPos={(p) => setKitWindows((prev) => ({ ...prev, [kit.id]: p }))}
                       onClose={() => setKitWindows((prev) => ({ ...prev, [kit.id]: undefined }))}
-                      closeLabel={`Close the ${kit.label.toLowerCase()}`}
+                      // "Tuck away", not "Close the maths kit": the window is
+                      // already named by its region, and a button whose name
+                      // CONTAINS the toolbox item's name is two controls a
+                      // screen reader (and a test) cannot tell apart.
+                      closeLabel="Tuck away"
                     >
                       <KitPalette
                         u={u}
                         kit={kit}
                         activeGroupId={openGroup[kit.id] ?? null}
                         onGroup={(id) => setOpenGroup((prev) => ({ ...prev, [kit.id]: id }))}
-                        onPlace={addShape}
+                        onPlace={(preset) => addShape(preset, true)}
                       />
                     </FloatingWindow>
                   );
                 })}
 
-              {isQuizAuthor && quizPanelOpen && (
+              {isQuizAuthor && quizPanelOpen && quizWindow && (
                 <FloatingWindow
                   u={u}
-                  scale={frameScale}
+                  paper={paper}
                   icon="help"
                   title="Quiz builder"
                   pos={quizWindow}
@@ -3977,7 +4020,10 @@ export function DrawingCanvas({
               )}
 
               {withCaption && (
-                <div className="absolute" style={{ left: u(16), bottom: u(112), width: u(300), zIndex: Z_BASE + 4 }}>
+                // Above the ＋ disc, not beside it: the disc owns the bottom
+                // corner, and a caption box overlapping it swallowed the taps
+                // meant for the toolbox.
+                <div className="absolute" style={{ left: u(16), bottom: u(150), width: u(280), zIndex: Z_BASE + 4 }}>
                   <label
                     htmlFor={captionId}
                     className="mb-1 inline-block rounded-full bg-white/90 px-3 py-1 text-sm font-bold text-foreground shadow"

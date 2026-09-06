@@ -289,6 +289,10 @@ test("a child fills the frame under the pen, retakes, draws over it and hands it
   // Under the PEN — the tool a child is holding — the frame is still a button,
   // and one at the child touch floor.
   await page.locator('button[title="Pens"]').click();
+  // The fan springs out of the disc, so for a third of a second its buttons
+  // really are on top of each other. Audit the state it LANDS in — a target
+  // measured mid-flight is measuring the animation, not the control.
+  await page.waitForTimeout(600);
   const take = page.getByRole("button", { name: "Take a photo" });
   await expect(take).toBeVisible();
   const takeBox = (await take.boundingBox())!;
@@ -298,6 +302,10 @@ test("a child fills the frame under the pen, retakes, draws over it and hands it
   await expect(page.locator("[data-frame]").getByText("Your model")).toBeVisible();
   await expectNoSeriousA11y(page, "child canvas with an empty frame");
 
+  // Fold the fan before reaching past it. While one is open the paper is the
+  // way OUT of it and nothing on the paper takes a tap — which is what stops a
+  // child leaving a mark, or opening the camera, by reaching over an open fan.
+  await page.locator('button[title="Pens"]').click();
   await take.click();
   const dialog = page.getByRole("dialog", { name: "Take a photo" });
   await expect(dialog).toBeVisible();
