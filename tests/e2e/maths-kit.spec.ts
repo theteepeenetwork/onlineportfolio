@@ -66,11 +66,10 @@ test.describe("who is offered the kit", () => {
       // Building a worksheet is a teacher's job at every age.
       await expect(page.getByRole("button", { name: "Maths kit" })).toHaveCount(0);
 
-      // Scoped to the fan, because "Text" also names the tool on the shelf.
-      const fan = page.locator("div.w-44");
-      await expect(fan.getByRole("button", { name: "Shapes" })).toBeVisible();
-      await expect(fan.getByRole("button", { name: "Photo / PDF" })).toBeVisible();
-      await expect(fan.getByRole("button", { name: "Text" })).toBeVisible();
+      // The child's inner ring, in full: three things to insert and no more.
+      await expect(page.getByRole("button", { name: "Shapes" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Photo / PDF" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Words" })).toBeVisible();
 
       // The line, the arrow and the ring are not apparatus, so they are here
       // for everyone — a child had no way to draw a straight line at all.

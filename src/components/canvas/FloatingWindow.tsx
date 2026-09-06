@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "@/components/icons/Icon";
-import { FRAME_H, FRAME_W, SPRING, SPRING_MS } from "@/lib/canvasFan";
+import { FRAME_H, FRAME_W, SPRING, SPRING_MS, Z_WINDOW } from "@/lib/canvasFan";
 import type { Unit } from "./Fan";
 
 const INK = "#22304a";
@@ -133,7 +133,7 @@ export function FloatingWindow({
         left: u(pos.x),
         top: u(pos.y),
         width: u(collapsed ? WINDOW_PILL_W : WINDOW_W),
-        zIndex: 4,
+        zIndex: Z_WINDOW,
         background: CREAM,
         border: `${Math.max(2, u(3))}px solid ${INK}`,
         borderRadius: u(20),

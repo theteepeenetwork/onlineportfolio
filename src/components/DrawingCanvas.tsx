@@ -9,15 +9,20 @@ import { KitPalette } from "./canvas/KitPalette";
 import {
   defaultWindowPos,
   FloatingWindow,
+  WINDOW_PILL_W,
+  WINDOW_W,
   type WindowPos,
 } from "./canvas/FloatingWindow";
 import { ChromeDone, ChromePill, ChromeRound, StatusChip, Toast } from "./canvas/Chrome";
 import {
   FAN_COLOURS,
+  FRAME_H,
   FRAME_W,
   WHITE,
   penCx,
   penDir,
+  Z_BASE,
+  Z_CHROME,
   plusCx,
   plusDir,
 } from "@/lib/canvasFan";
@@ -3521,6 +3526,30 @@ export function DrawingCanvas({
       });
     }
 
+    // The floating windows stay open while a page is built, so they are part of
+    // the room the page has rather than something over it. Whatever band they
+    // are parked in is reserved, and anything that floats over the page and
+    // clamps itself to the stage keeps out of it.
+    const openWindows: WindowPos[] = [
+      ...availableKits
+        .filter((k) => kitIsWindow(k.id))
+        .map((k) => kitWindows[k.id])
+        .filter((w): w is WindowPos => Boolean(w)),
+      ...(isQuizAuthor && quizPanelOpen ? [quizWindow] : []),
+    ];
+    const windowBand = (w: WindowPos) => ({
+      width: w.collapsed ? WINDOW_PILL_W : WINDOW_W,
+      right: w.x + (w.collapsed ? WINDOW_PILL_W : WINDOW_W) / 2 > FRAME_W / 2,
+    });
+    const reserveRight = Math.max(
+      0,
+      ...openWindows.map((w) => (windowBand(w).right ? FRAME_W - w.x : 0)),
+    );
+    const reserveLeft = Math.max(
+      0,
+      ...openWindows.map((w) => (windowBand(w).right ? 0 : w.x + windowBand(w).width)),
+    );
+
     // Nothing on this page yet, so the paper says what it is for. Gone the
     // moment there is a stroke, a piece or a template underneath.
     const pageIsBare = !canUndo && objects.length === 0 && !currentTemplate;
@@ -3550,7 +3579,18 @@ export function DrawingCanvas({
                 page exactly as they do in the drawing. */}
             <div
               className="relative select-none overflow-hidden"
-              style={{ width: box.w, height: box.h }}
+              style={{
+                width: box.w,
+                height: box.h,
+                // The bottom band belongs to the chrome: the page tray across
+                // the middle and a disc in each corner. Anything that floats
+                // over the page and clamps itself to the stage — the object
+                // toolbar — reads this and stops short of it, instead of
+                // parking its settings row on top of "new page".
+                ["--sj-chrome-bottom" as string]: `${u(150)}px`,
+                ["--sj-chrome-left" as string]: `${u(reserveLeft)}px`,
+                ["--sj-chrome-right" as string]: `${u(reserveRight)}px`,
+              }}
             >
               {stage}
               {!ready && (
@@ -3595,7 +3635,10 @@ export function DrawingCanvas({
               {anyFanOpen && (
                 <div
                   className="absolute inset-0"
-                  style={{ zIndex: 5 }}
+                  // Above the object layer (whose toolbars are z-30) so a
+                  // touch cannot land on a handle, and BELOW the tray and the
+                  // fans, which are the things the touch is meant to reach.
+                  style={{ zIndex: Z_BASE + 2 }}
                   onPointerDown={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -3616,7 +3659,7 @@ export function DrawingCanvas({
                   (asserted in tests/e2e/child-escape.spec.ts). */}
               <div
                 className="absolute flex items-center"
-                style={{ left: u(16), top: u(16), gap: u(10), zIndex: 9 }}
+                style={{ left: u(16), top: u(16), gap: u(10), zIndex: Z_CHROME }}
               >
                 {onClose && closeLabel && (
                   <ChromePill u={u} label={closeLabel} onClick={onClose}>
@@ -3681,7 +3724,7 @@ export function DrawingCanvas({
               {(subtitle || teacherNote) && (
                 <div
                   className="pointer-events-none absolute"
-                  style={{ left: u(16), top: u(92), width: u(520), zIndex: 9 }}
+                  style={{ left: u(16), top: u(92), width: u(520), zIndex: Z_CHROME }}
                 >
                   {subtitle && (
                     <p style={{ font: `400 ${u(15)}px var(--font-atkinson)`, color: "var(--ink-soft)" }}>
@@ -3699,7 +3742,7 @@ export function DrawingCanvas({
               {/* Top right: the way in to the jar. */}
               <div
                 className="absolute flex items-center"
-                style={{ right: u(16), top: u(16), gap: u(10), zIndex: 9 }}
+                style={{ right: u(16), top: u(16), gap: u(10), zIndex: Z_CHROME }}
               >
                 <ChromeDone
                   u={u}
@@ -3898,7 +3941,7 @@ export function DrawingCanvas({
                   className="pointer-events-none absolute left-1/2 -translate-x-1/2"
                   style={{
                     top: u(96),
-                    zIndex: 9,
+                    zIndex: Z_CHROME,
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
@@ -3926,14 +3969,14 @@ export function DrawingCanvas({
                   className={`absolute left-1/2 -translate-x-1/2 rounded-lg px-3 py-2 text-sm font-semibold shadow-lg ${
                     importError ? "bg-rose-600 text-white" : "bg-white text-foreground"
                   }`}
-                  style={{ top: u(96), zIndex: 9 }}
+                  style={{ top: u(96), zIndex: Z_CHROME }}
                 >
                   {importError ?? "Adding your file…"}
                 </div>
               )}
 
               {withCaption && (
-                <div className="absolute" style={{ left: u(16), bottom: u(112), width: u(300), zIndex: 4 }}>
+                <div className="absolute" style={{ left: u(16), bottom: u(112), width: u(300), zIndex: Z_BASE + 4 }}>
                   <label
                     htmlFor={captionId}
                     className="mb-1 inline-block rounded-full bg-white/90 px-3 py-1 text-sm font-bold text-foreground shadow"
@@ -4549,6 +4592,17 @@ function objCapabilities(o: Obj, author: boolean) {
 // placement is plain screen arithmetic off the turned box (`clear`), and `z-30`
 // resolves against the whole object layer again instead of being trapped in the
 // stacking context that `rotate()` creates.
+/**
+ * How much of the stage's bottom edge is its own furniture rather than page.
+ * Zero on the inline canvas, which has no tray under it.
+ */
+function chromeInset(stage: HTMLElement, side: "bottom" | "left" | "right"): number {
+  const raw = getComputedStyle(stage).getPropertyValue(`--sj-chrome-${side}`);
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+const chromeBottom = (stage: HTMLElement) => chromeInset(stage, "bottom");
+
 function ObjectToolbar({
   o,
   showAuthor,
@@ -4613,8 +4667,16 @@ function ObjectToolbar({
   // Locked, seen by the person who locked it. Everything except the padlock is
   // a way of changing the object, so while it is pinned none of it is offered.
   const pinned = showAuthor && !!o.locked;
+  // An ink pill of round buttons, as the design draws it. A TEACHER's are 44px
+  // — the adult floor — and a child's stay at 64 (rule 18, F37): a child still
+  // gets this bar, because its turn and resize buttons are the only way to turn
+  // or resize anything from a keyboard (F50), and taking it away from them
+  // would take that with it.
+  const HIT = showAuthor ? 44 : 64;
+  const GLYPH = showAuthor ? 22 : 30;
   const btn =
-    "pointer-events-auto flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-background hover:bg-surface";
+    "pointer-events-auto flex items-center justify-center rounded-full text-[var(--paper)] hover:bg-white/15";
+  const btnStyle: React.CSSProperties = { width: HIT, height: HIT, flex: "0 0 auto" };
   // Whether this shape has any numbers to show, and so whether the second row
   // exists. A rectangle has none and gets one row, as it always did.
   const hasNumbers =
@@ -4656,8 +4718,10 @@ function ObjectToolbar({
     // questions below need no trigonometry — the browser has done it.
     const w = wrap.getBoundingClientRect();
     const s = stage.getBoundingClientRect();
+    const insetL = chromeInset(stage, "left");
+    const insetR = chromeInset(stage, "right");
     setMaxW((prev) => {
-      const next = Math.max(160, s.width - 16);
+      const next = Math.max(160, s.width - 16 - insetL - insetR);
       return Math.abs(prev - next) < 0.5 ? prev : next;
     });
     const tw = el.offsetWidth;
@@ -4667,7 +4731,7 @@ function ObjectToolbar({
     const need = HIT_PX / 2 + TOOLBAR_GAP + th;
     // Above if it fits above, otherwise below if it fits below.
     const roomAbove = w.top - s.top >= need;
-    const roomBelow = s.bottom - w.bottom >= need;
+    const roomBelow = s.bottom - chromeBottom(stage) - w.bottom >= need;
     const nextFlip = !roomAbove && roomBelow;
     setFlip((prev) => (prev === nextFlip ? prev : nextFlip));
 
@@ -4685,18 +4749,24 @@ function ObjectToolbar({
     // It is clamped to the stage EDGE and never to the object's middle, tempting
     // as that is: the corners are where the controls are, but the middle is
     // where a child puts a finger to drag the thing.
+    //
+    // The floor is the stage's bottom edge LESS whatever the stage reserves for
+    // its own chrome (`--sj-chrome-bottom`): on the full-screen canvas that is
+    // the page tray and the two fan discs, and a toolbar clamped onto them is a
+    // toolbar that stops a child adding a page.
+    const floor = s.bottom - chromeBottom(stage);
     let dy = 0;
     if (intendedTop < s.top + TOOLBAR_GAP) {
       dy = s.top + TOOLBAR_GAP - intendedTop;
-    } else if (intendedTop + th > s.bottom - TOOLBAR_GAP) {
-      dy = s.bottom - TOOLBAR_GAP - (intendedTop + th);
+    } else if (intendedTop + th > floor - TOOLBAR_GAP) {
+      dy = floor - TOOLBAR_GAP - (intendedTop + th);
     }
     setLift((prev) => (Math.abs(prev - dy) < 0.5 ? prev : dy));
     const margin = 8;
     const naturalCentre = w.left + w.width / 2 - s.left; // canvas-space px
     const half = tw / 2;
-    const lo = margin + half;
-    const hi = s.width - margin - half;
+    const lo = margin + half + insetL;
+    const hi = s.width - margin - half - insetR;
     const clamped = lo > hi ? s.width / 2 : Math.min(hi, Math.max(lo, naturalCentre));
     const next = clamped - naturalCentre;
     setShift((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
@@ -4725,14 +4795,17 @@ function ObjectToolbar({
           flip ? `${lift}px` : `calc(-100% + ${lift}px)`
         })`,
       }}
-      className="pointer-events-auto absolute z-30 flex flex-col items-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg"
+      className="pointer-events-auto absolute z-30 flex flex-col items-center gap-1.5 whitespace-nowrap"
     >
       {/* The top row is what a teacher does TO the object: where it sits in the
           stack, whether it is pinned, whether it is endless, whether there is
           another one — and then how it is filled and lined. The same controls
           in the same order whatever the object is, so the row a hand reaches
           for does not move when the shape does. */}
-      <div className="flex flex-wrap items-center justify-center gap-2">
+      <div
+        className="flex flex-wrap items-center justify-center gap-1.5 rounded-[28px] px-1.5 py-1.5"
+        style={{ background: "var(--ink)", boxShadow: "0 4px 0 rgba(34,48,74,.3)" }}
+      >
       {showAuthor && (
         <>
           {/* Locked pins the object for its author too, so while it is locked
@@ -4741,11 +4814,11 @@ function ObjectToolbar({
               just declared unchangeable. Unlock and they are all back. */}
           {!pinned && (
             <>
-          <button type="button" onClick={() => onSendToBack(o.id)} className={btn} title="Send behind other objects" aria-label="Send to back">
-            <Icon name="send-to-back" size={30} decorative />
+          <button type="button" onClick={() => onSendToBack(o.id)} className={btn} style={btnStyle} title="Send behind other objects" aria-label="Send to back">
+            <Icon name="send-to-back" size={GLYPH} decorative />
           </button>
-          <button type="button" onClick={() => onBringToFront(o.id)} className={btn} title="Bring in front of other objects" aria-label="Bring to front">
-            <Icon name="bring-to-front" size={30} decorative />
+          <button type="button" onClick={() => onBringToFront(o.id)} className={btn} style={btnStyle} title="Bring in front of other objects" aria-label="Bring to front">
+            <Icon name="bring-to-front" size={GLYPH} decorative />
           </button>
             </>
           )}
@@ -4756,6 +4829,7 @@ function ObjectToolbar({
             type="button"
             onClick={() => onToggleLock(o.id)}
             className={btn}
+            style={o.locked ? { ...btnStyle, background: "var(--paper)", color: "var(--ink)" } : btnStyle}
             aria-pressed={!!o.locked}
             aria-label={o.locked ? "Locked in place" : "Unlocked"}
             title={
@@ -4764,7 +4838,7 @@ function ObjectToolbar({
                 : "Unlocked — you and your pupils can move this. Tap to lock it in place."
             }
           >
-            <Icon name={o.locked ? "lock-closed" : "lock-open"} size={30} decorative />
+            <Icon name={o.locked ? "lock-closed" : "lock-open"} size={GLYPH} decorative />
           </button>
           )}
           {/* Make this a source. A child dragging it gets a new one and this
@@ -4783,8 +4857,8 @@ function ObjectToolbar({
               // accessible name both still say "on" or "off" (rule 18).
               style={
                 shape.infinite
-                  ? { background: "var(--honey-tint, #FBEED3)", borderColor: "var(--honey, #F0B441)", color: "var(--honey-ink, #8A5F1E)" }
-                  : undefined
+                  ? { ...btnStyle, background: "var(--honey-tint, #FBEED3)", color: "var(--honey-ink, #8A5F1E)" }
+                  : btnStyle
               }
               aria-pressed={!!shape.infinite}
               aria-label={shape.infinite ? "Endless supply on" : "Endless supply off"}
@@ -4794,7 +4868,7 @@ function ObjectToolbar({
                   : "Tap to make this endless: pupils drag a new one off it."
               }
             >
-              <Icon name="infinite" size={30} decorative />
+              <Icon name="infinite" size={GLYPH} decorative />
             </button>
           )}
         </>
@@ -4807,30 +4881,32 @@ function ObjectToolbar({
             type="button"
             onClick={() => onTurn(-1)}
             className={btn}
+            style={btnStyle}
             title="Turn it left a little"
             aria-label="Turn left"
           >
             <span className="flex items-center" style={{ transform: "scaleX(-1)" }}>
-              <Icon name="rotate" size={30} decorative />
+              <Icon name="rotate" size={GLYPH} decorative />
             </span>
           </button>
           <button
             type="button"
             onClick={() => onTurn(1)}
             className={btn}
+            style={btnStyle}
             title="Turn it right a little"
             aria-label="Turn right"
           >
-            <Icon name="rotate" size={30} decorative />
+            <Icon name="rotate" size={GLYPH} decorative />
           </button>
         </>
       )}
       {!pinned && onSize && (
         <>
-          <button type="button" onClick={() => onSize(-1)} className={`${btn} text-lg font-bold`} title="Make it smaller" aria-label="Make it smaller">
+          <button type="button" onClick={() => onSize(-1)} className={`${btn} text-lg font-bold`} style={btnStyle} title="Make it smaller" aria-label="Make it smaller">
             −
           </button>
-          <button type="button" onClick={() => onSize(1)} className={`${btn} text-lg font-bold`} title="Make it bigger" aria-label="Make it bigger">
+          <button type="button" onClick={() => onSize(1)} className={`${btn} text-lg font-bold`} style={btnStyle} title="Make it bigger" aria-label="Make it bigger">
             +
           </button>
         </>
@@ -4845,22 +4921,24 @@ function ObjectToolbar({
         onClick={() => onDuplicate(o.id)}
         disabled={!canDuplicate}
         className={`${btn} disabled:opacity-40`}
+        style={btnStyle}
         title={canDuplicate ? "Make another one" : "This page is full — no room for another"}
         aria-label="Make another one"
       >
-        <Icon name="duplicate" size={30} decorative />
+        <Icon name="duplicate" size={GLYPH} decorative />
       </button>
       )}
 
-      {showStyle && <span className="mx-0.5 h-9 w-px bg-border" />}
+      {showStyle && <span className="mx-0.5 h-7 w-px bg-white/25" />}
 
       {showStyle && shape && (
         <>
-          <span className="inline-flex items-center font-semibold text-muted"><Icon name="fill" size={28} decorative /></span>
-          {/* 68px, not 64: the border eats 2px a side and the <input> inside is
-              what receives the press, so the box has to be bigger than the
-              floor for the target to reach it. */}
-          <label className="relative block h-[68px] w-[68px] overflow-hidden rounded-full border-2 border-border">
+          {/* The swatch IS the label: a paint-pot glyph beside a colour dot was
+              two things saying one thing, on a bar with no room for either. */}
+          <label
+            className="relative block overflow-hidden rounded-full"
+            style={{ width: HIT, height: HIT, flex: "0 0 auto", border: "2px solid var(--paper)" }}
+          >
             <input
               type="color"
               value={shape.fill === "none" ? "#93c5fd" : shape.fill}
@@ -4881,16 +4959,16 @@ function ObjectToolbar({
           <button
             type="button"
             onClick={() => onStyle({ fill: shape.fill === "none" ? "#93c5fd" : "none" })}
-            className="pointer-events-auto flex min-h-16 min-w-16 items-center justify-center rounded-lg border border-border px-3 text-sm font-semibold text-muted"
+            className="pointer-events-auto flex items-center justify-center rounded-full px-2 text-xs font-bold text-[var(--paper)] hover:bg-white/15"
+            style={{ height: HIT, flex: "0 0 auto" }}
           >
             {shape.fill === "none" ? "Add fill" : "No fill"}
           </button>
 
-          <span className="ml-1 inline-flex items-center font-semibold text-muted"><Icon name="line" size={28} decorative /></span>
-          {/* 68px, not 64: the border eats 2px a side and the <input> inside is
-              what receives the press, so the box has to be bigger than the
-              floor for the target to reach it. */}
-          <label className="relative block h-[68px] w-[68px] overflow-hidden rounded-full border-2 border-border">
+          <label
+            className="relative block overflow-hidden rounded-full"
+            style={{ width: HIT, height: HIT, flex: "0 0 auto", border: "2px dashed var(--paper)" }}
+          >
             <input
               type="color"
               value={shape.stroke}
@@ -4900,18 +4978,29 @@ function ObjectToolbar({
             />
             <span className="block h-full w-full" style={{ background: shape.stroke }} />
           </label>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1">
             {[3, 6, 12].map((sw) => (
               <button
                 key={sw}
                 type="button"
                 onClick={() => onStyle({ strokeWidth: sw })}
-                className={`pointer-events-auto flex h-16 w-16 items-center justify-center rounded-lg border ${
-                  shape.strokeWidth === sw ? "border-brand bg-brand/10" : "border-border"
-                }`}
+                className="pointer-events-auto flex items-center justify-center rounded-full hover:bg-white/15"
+                style={{
+                  width: HIT,
+                  height: HIT,
+                  flex: "0 0 auto",
+                  background: shape.strokeWidth === sw ? "var(--paper)" : undefined,
+                }}
                 aria-label={`Line width ${sw}`}
               >
-                <span className="rounded-full bg-foreground" style={{ width: (sw + 2) * 1.6, height: (sw + 2) * 1.6 }} />
+                <span
+                  className="rounded-full"
+                  style={{
+                    width: 6 + sw,
+                    height: 6 + sw,
+                    background: shape.strokeWidth === sw ? "var(--ink)" : "var(--paper)",
+                  }}
+                />
               </button>
             ))}
           </div>
@@ -4927,7 +5016,10 @@ function ObjectToolbar({
           enough of them to run off both edges of the canvas if they shared the
           top row. So they get a row of their own, under a rule. */}
       {hasNumbers && (
-        <div className="flex w-full flex-wrap items-center justify-center gap-2 border-t border-border pt-2">
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 rounded-full px-3 py-1"
+          style={{ background: "var(--cream)", border: "3px solid var(--ink)" }}
+        >
       {/* The numbers behind a parameterised shape. This is what makes twelve
           fraction buttons unnecessary: halves, quarters and eighths are on the
           palette, and a teacher who wants ninths steps to nine here rather than

@@ -215,11 +215,10 @@ test("every corner control of a turned text box can still be pressed", async ({ 
   // re-select it — the corners only exist on a selected, non-editing box.
   const cbox = (await page.locator("canvas").first().boundingBox())!;
   await page.locator('button[title="Add"]').click();
-  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.getByRole("button", { name: "Words", exact: true }).click();
   await page.mouse.click(cbox.x + cbox.width * 0.45, cbox.y + cbox.height * 0.5);
   await page.locator('textarea[placeholder="Type…"]').waitFor();
   await page.keyboard.type("Hello");
-  await page.locator('button[title="Pens"]').click();
   await pickTool(page, "Move");
   const label = page.getByText("Hello", { exact: true });
   const lb = (await label.boundingBox())!;
@@ -299,13 +298,18 @@ test("a flat shape's four controls do not pile up on each other", async ({ page 
   }
 });
 
-// One menu at a time.
+// One FAN at a time — and a window that is not a fan.
 //
-// The properties toolbar hovers over its object; the add menu and its palette
-// sit down the left. Open together they overlap, and a teacher is left with two
-// sets of controls stacked on each other and no way to tell which one a tap
-// will reach. It happened either way round, so this checks both.
-test("opening one menu closes the other", async ({ page }) => {
+// The object's properties toolbar hovers over its object; the ＋ fan sweeps out
+// of its disc. Open together they overlap, and a teacher is left with two sets
+// of controls stacked on each other and no way to tell which a tap will reach.
+//
+// A kit WINDOW is the deliberate exception. A teacher places a dozen pieces
+// from the maths kit while building one page, and a palette that shut every
+// time they touched what they had just placed made them re-open it every time.
+// So it stays — and the object bar keeps out of the band it is parked in,
+// which is what stops the overlap this test was written about.
+test("opening one fan closes the other, and a kit window stays put", async ({ page }) => {
   await teacherLogin(page);
   await page.goto("/teacher/activities/new");
   await page.locator("#title").fill("Menus");
@@ -324,9 +328,15 @@ test("opening one menu closes the other", async ({ page }) => {
   // Open a palette, then tap the object -> the palette goes. The maths kit,
   // because a one-group kit renders no tabs to look for.
   await page.getByRole("button", { name: "Maths kit" }).click();
-  await expect(page.getByRole("tab", { name: "Signs" })).toBeVisible();
+  const tab = page.getByRole("tab", { name: "Symbols" });
+  await expect(tab).toBeVisible();
   const b = (await page.locator("div[data-object]").first().boundingBox())!;
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
-  await expect(page.getByRole("tab", { name: "Signs" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Send to back" })).toBeVisible();
+  // The window stays; the object bar comes back beside it, not under it.
+  await expect(tab).toBeVisible();
+  const bar = page.getByRole("button", { name: "Send to back" });
+  await expect(bar).toBeVisible();
+  const barBox = (await bar.boundingBox())!;
+  const winBox = (await page.getByRole("region", { name: "Maths kit" }).boundingBox())!;
+  expect(barBox.x + barBox.width).toBeLessThanOrEqual(winBox.x + 1);
 });

@@ -10,7 +10,7 @@
 // `holdUp` note in DrawingCanvas for the time that happened).
 
 import { useEffect, useState, type ReactNode } from "react";
-import { SPRING, SPRING_MS } from "@/lib/canvasFan";
+import { SPRING, SPRING_MS, Z_TOAST } from "@/lib/canvasFan";
 import type { Unit } from "./Fan";
 
 const INK = "#22304a";
@@ -198,7 +198,7 @@ export function Toast({ u, message }: { u: Unit; message: { text: string; at: nu
       style={{
         left: "50%",
         bottom: u(150),
-        zIndex: 8,
+        zIndex: Z_TOAST,
         background: INK,
         color: PAPER,
         borderRadius: 999,

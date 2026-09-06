@@ -18,7 +18,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons/Icon";
-import { SPRING, SPRING_MS } from "@/lib/canvasFan";
+import { SPRING, SPRING_MS, Z_MENU, Z_TRAY } from "@/lib/canvasFan";
 import type { Unit } from "./Fan";
 
 const INK = "#22304a";
@@ -154,7 +154,7 @@ export function PageTray({
         left: "50%",
         transform: "translateX(-50%)",
         bottom: u(12),
-        zIndex: 3,
+        zIndex: Z_TRAY,
         display: "flex",
         alignItems: "flex-end",
         gap: u(GAP),
@@ -414,7 +414,7 @@ function PageMenu({
         left: `calc(50% + ${u(index * SLOT)}px)`,
         transform: "translateX(-50%)",
         bottom: u(118),
-        zIndex: 8,
+        zIndex: Z_MENU,
         width: u(280),
         background: INK,
         borderRadius: u(18),

@@ -196,3 +196,20 @@ export const SPRING_MS = 340;
 export const FADE_MS = 220;
 export const STAGGER_MS = 22;
 export const BAND_MS = 420;
+
+// --- Layers ----------------------------------------------------------------
+//
+// The object layer's own toolbars are Tailwind `z-30`, and because the stage is
+// a fragment they are direct children of the paper rather than of anything with
+// a stacking context of its own. So every piece of chrome has to clear 30 or a
+// shape's settings row wins the hit test against the page tray underneath it —
+// which is exactly how "add a page" became unclickable while a number line was
+// selected.
+export const Z_BASE = 30;
+export const Z_TRAY = Z_BASE + 3;
+export const Z_WINDOW = Z_BASE + 4;
+export const Z_BAND = Z_BASE + 6;
+export const Z_FAN = Z_BASE + 7;
+export const Z_MENU = Z_BASE + 8;
+export const Z_TOAST = Z_BASE + 8;
+export const Z_CHROME = Z_BASE + 9;

@@ -54,6 +54,8 @@ import {
   TOOL_BAND,
   TOOL_RING,
   WHITE,
+  Z_BAND,
+  Z_FAN,
   type Hand,
 } from "@/lib/canvasFan";
 
@@ -130,7 +132,7 @@ function Band({
       width={u(1194)}
       height={u(834)}
       viewBox="0 0 1194 834"
-      style={{ zIndex: 6, overflow: "visible" }}
+      style={{ zIndex: Z_BAND, overflow: "visible" }}
     >
       {sweep(r, half * 2, fill, "fill")}
       {sweep(r + half, 3, INK, "outer")}
@@ -182,7 +184,7 @@ function FanItem({
         top: u(top),
         width: u(w, w >= 64 ? 64 : 44),
         height: u(size, size >= 64 ? 64 : 44),
-        zIndex: 7,
+        zIndex: Z_FAN,
         ["--dx" as string]: `${u(dx)}px`,
         ["--dy" as string]: `${u(dy)}px`,
         animation: `sj-fan-in ${SPRING_MS}ms ${SPRING} ${delay}ms backwards`,
@@ -416,7 +418,7 @@ export function PenFan({
               className="pointer-events-none absolute"
               style={{
                 ...polarBox(u, cx, R_COLOUR_NAME, A_COLOUR_NAME, dir),
-                zIndex: 8,
+                zIndex: Z_FAN + 1,
                 background: INK,
                 color: "#faf6ee",
                 borderRadius: 999,
@@ -458,7 +460,7 @@ export function PenFan({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 7,
+          zIndex: Z_FAN,
         }}
       >
         {art}
@@ -498,7 +500,7 @@ function AnyColour({
         top: u(top),
         width: u(size, 64),
         height: u(size, 64),
-        zIndex: 7,
+        zIndex: Z_FAN,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -710,7 +712,7 @@ export function PlusFan({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 7,
+          zIndex: Z_FAN,
           transform: open ? "rotate(45deg)" : undefined,
           transition: `transform ${SPRING_MS}ms ${SPRING}, background ${FADE_MS}ms`,
         }}
