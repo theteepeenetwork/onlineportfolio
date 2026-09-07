@@ -321,9 +321,13 @@ test("shrinking a question box scales its contents instead of clipping them", as
   const shrunkWidth = await box.evaluate((el) => (el as HTMLElement).offsetWidth);
   expect(shrunkWidth).toBeLessThan(220);
 
-  // …the type came down with it…
+  // …the type came down with it, to the floor and no further. Type has a
+  // minimum (15px): below it a question is small enough to be decoration
+  // rather than something a child reads, and the card grows to fit instead —
+  // which is what the no-clipping check below is really asserting.
   const after = await fontOf(prompt);
-  expect(after).toBeLessThan(before);
+  expect(after).toBeLessThanOrEqual(before);
+  expect(after).toBeGreaterThanOrEqual(15);
 
   // …and everything still fits: no clipped fields, no overflow.
   const state = await box.evaluate((el) => ({
@@ -587,4 +591,61 @@ test("a picture in an answer is re-encoded and kept small", async ({ page }) => 
     await db.activityTemplate.deleteMany({ where: { title: "Picture answers" } });
     await db.$disconnect();
   }
+});
+
+// A question box must reach the foot of the page it is on.
+//
+// The move was clamped to `H - q.h`, the height the question is STORED at,
+// while the card is drawn at the height of its own content. A default box
+// stored 300 units tall but drawn 104 walled itself out of the bottom third of
+// the page — an invisible limit with nothing on screen to explain it — and
+// every resize wrote a bigger `h`, so the wall came further up each time.
+test("a question can be dragged to the foot of the page, and still can after resizing", async ({
+  page,
+}) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Reach the foot");
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+
+  const panel = page.getByRole("region", { name: "Quiz builder" });
+  await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+  await panel.getByPlaceholder("What do you want to ask?").last().fill("What is 10 more than 60?");
+  await page.getByRole("button", { name: "Tuck away" }).click();
+
+  const box = page.getByRole("group", { name: "Question box" });
+  const canvas = (await page.locator("canvas").first().boundingBox())!;
+  const foot = canvas.y + canvas.height;
+
+  const drag = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+  };
+  // How close to the foot the box can be dragged. Grabbed by the card's own
+  // left padding: the answers are buttons and the prompt swallows its pointer,
+  // so neither of those is a drag handle.
+  const gapAtFoot = async () => {
+    const b = (await box.boundingBox())!;
+    await drag({ x: b.x + 6, y: b.y + b.height / 2 }, { x: b.x + 6, y: foot + 300 });
+    const after = (await box.boundingBox())!;
+    return foot - (after.y + after.height);
+  };
+
+  expect(await gapAtFoot(), "a fresh question box cannot reach the foot of its page").toBeLessThan(40);
+
+  // Three resizes. Each used to write a taller `h` and take another slice off
+  // the bottom of the page.
+  for (let i = 0; i < 3; i++) {
+    const handle = (await page.locator('[aria-label="Bigger or smaller: drag"]').boundingBox())!;
+    await drag(
+      { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 },
+      { x: handle.x + 60, y: handle.y + 120 },
+    );
+  }
+  expect(await gapAtFoot(), "resizing walled the question out of the foot of its page").toBeLessThan(40);
 });

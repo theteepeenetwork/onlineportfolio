@@ -408,6 +408,10 @@ function fitTextToBox(
   text: string,
   boxW: number,
   boxH: number,
+  // The largest size to try. A shape's label wants the biggest that fits, so
+  // this is open by default; a question's prompt has a size of its own and
+  // only ever needs wrapping DOWN from it.
+  maxFontPx?: number,
 ): { fontPx: number; lines: string[]; lineHeight: number } {
   const words = text.split(/\s+/).filter(Boolean);
   if (!words.length) return { fontPx: 24, lines: [], lineHeight: 29 };
@@ -432,7 +436,8 @@ function fitTextToBox(
     return lines;
   };
 
-  for (let fontPx = Math.min(140, Math.floor(maxH)); fontPx >= 8; fontPx -= 2) {
+  const start = Math.min(maxFontPx ?? 140, 140, Math.max(8, Math.floor(maxH)));
+  for (let fontPx = start; fontPx >= 8; fontPx -= 2) {
     const lines = wrap(fontPx);
     const lineHeight = fontPx * 1.2;
     mc.font = `600 ${fontPx}px ${FONT_STACK}`;
@@ -1210,56 +1215,73 @@ export function DrawingCanvas({
   function drawQuizForPreview(ec: CanvasRenderingContext2D) {
     const boxes = quizRef.current.filter((q) => q.pageIndex === currentRef.current);
     for (const q of boxes) {
-      const k = Math.min(1, q.w / QUIZ_W, q.h / QUIZ_H);
+      // Scaled by WIDTH alone, and floored the same way the card is. The height
+      // used to be in here too, and once the card started following its content
+      // `q.h` became the answer to a different question: a box 104 tall against
+      // a nominal 300 drew every word at a third of its size. Same rule as the
+      // screen, or the picture stops being a picture of the work.
+      const k = Math.min(1, q.w / QUIZ_W);
       const px = (n: number) => n * k;
-      const pad = px(16);
+      const txt = (n: number) => Math.max(15, px(n));
+      const pad = px(14);
       ec.save();
       // The box.
       ec.beginPath();
-      ec.roundRect(q.x, q.y, q.w, q.h, px(24));
+      ec.roundRect(q.x, q.y, q.w, q.h, px(18));
       ec.fillStyle = "#FFFDF7";
       ec.fill();
       ec.lineWidth = Math.max(1, px(3));
-      ec.strokeStyle = "#E9C0CE";
+      ec.strokeStyle = "#22304A";
       ec.stroke();
 
       // The question, wrapped by the same helper the shape labels use.
-      const promptBox = { w: q.w - pad * 2, h: q.h * 0.3 };
-      const fitted = fitTextToBox(q.prompt || "", promptBox.w, promptBox.h);
-      ec.fillStyle = "#1f2430";
+      const promptPx = txt((q.prompt || "").length > 40 ? 16 : 20);
+      const fitted = fitTextToBox(q.prompt || "", q.w - pad * 2, q.h * 0.5, promptPx);
+      ec.fillStyle = "#22304A";
       ec.textAlign = "center";
       ec.textBaseline = "top";
-      ec.font = `700 ${fitted.fontPx}px ${FONT_STACK}`;
+      ec.font = `600 ${fitted.fontPx}px ${FONT_STACK}`;
       fitted.lines.forEach((line, i) =>
-        ec.fillText(line, q.x + q.w / 2, q.y + pad + i * fitted.lineHeight),
+        ec.fillText(line, q.x + q.w / 2, q.y + px(12) + i * fitted.lineHeight),
       );
 
       // The answers, in the same one- or two-column grid the box uses.
-      const twoCol = q.options.length > 2;
-      const top = q.y + pad + Math.max(fitted.lines.length, 1) * fitted.lineHeight + px(10);
-      const gap = px(8);
-      const cols = twoCol ? 2 : 1;
-      const rows = Math.ceil(q.options.length / cols);
-      const cw = (q.w - pad * 2 - gap * (cols - 1)) / cols;
-      const chB = Math.max(px(28), (q.y + q.h - pad - top - gap * (rows - 1)) / rows);
-      ec.font = `600 ${px(20)}px ${FONT_STACK}`;
+      // One answer a row, as pills — the design's card, and the same shape a
+      // child tapped.
+      const top = q.y + px(12) + Math.max(fitted.lines.length, 1) * fitted.lineHeight + px(10);
+      const gap = px(6);
+      const rows = q.options.length;
+      const cw = q.w - pad * 2;
+      const chB = Math.max(px(64), 44);
+      const dot = px(24);
+      ec.font = `700 ${Math.min(promptPx - 2, txt(18))}px ${FONT_STACK}`;
       ec.textBaseline = "middle";
+      ec.textAlign = "left";
       q.options.forEach((o, i) => {
-        const cx = q.x + pad + (i % cols) * (cw + gap);
-        const cy = top + Math.floor(i / cols) * (chB + gap);
+        const cx = q.x + pad;
+        const cy = top + i * (chB + gap);
         const picked = answersRef.current.get(q.id) === o.id;
         ec.beginPath();
-        ec.roundRect(cx, cy, cw, chB, px(12));
-        ec.fillStyle = picked ? "#F7E6EC" : "#ffffff";
+        ec.roundRect(cx, cy, cw, chB, chB / 2);
+        ec.fillStyle = picked ? "#FBEED3" : "#FFFDF7";
         ec.fill();
         ec.lineWidth = Math.max(1, px(2));
-        ec.strokeStyle = picked ? "#BD3F63" : "#E4DCC8";
+        ec.strokeStyle = picked ? "#22304A" : "#E4DCC8";
+        ec.stroke();
+        // The circle that says which one was picked.
+        ec.beginPath();
+        ec.arc(cx + px(8) + dot / 2, cy + chB / 2, dot / 2, 0, Math.PI * 2);
+        ec.fillStyle = picked ? "#BD3F63" : "#FFFDF7";
+        ec.fill();
+        ec.lineWidth = Math.max(1, px(2));
+        ec.strokeStyle = "#22304A";
         ec.stroke();
         if (o.text) {
-          ec.fillStyle = "#1f2430";
-          ec.fillText(o.text, cx + cw / 2, cy + chB / 2, cw - px(12));
+          ec.fillStyle = "#22304A";
+          ec.fillText(o.text, cx + px(8) + dot + px(10), cy + chB / 2, cw - dot - px(34));
         }
       });
+      ec.textAlign = "center";
       ec.restore();
     }
   }
@@ -6850,14 +6872,20 @@ function QuizBoxView({
       return;
     }
     if (d.mode === "move") {
+      // Clamped by the height the card is actually DRAWN at, not by a stored
+      // one. The card follows its content now, so `q.h` is the answer to a
+      // different question — clamping to it walled the box into the top of the
+      // page, and further up with every resize.
       onMove(q.id, {
         x: Math.max(0, Math.min(W - q.w, (e.clientX - d.ax) / scale)),
-        y: Math.max(0, Math.min(H - q.h, (e.clientY - d.ay) / scale)),
+        y: Math.max(0, Math.min(Math.max(0, H - liveH.current), (e.clientY - d.ay) / scale)),
       });
     } else {
+      // Width only. A question box is as tall as its answers — dragging the
+      // corner down asked for a height the card would not honour, and every
+      // drag left `q.h` further adrift from what was on screen.
       const w = Math.max(QUIZ_MIN_W, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
-      const h = Math.max(QUIZ_MIN_H, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
-      onMove(q.id, { w, h });
+      onMove(q.id, { w });
     }
   }
   function onPointerUp() {
@@ -6904,7 +6932,14 @@ function QuizBoxView({
   // Which is only half of it, because the box does not have room for the answer
   // it now owes. See `grows` below: in answer mode the card grows to fit them
   // instead of clipping them, which is the other half of the same fix.
-  const touch = (n: number) => (author ? px(n) : Math.max(px(n), 64 / scale));
+  //
+  // Rounded up to a whole logical pixel, so that after the scale transform the
+  // result is never a hair UNDER the floor: 64/scale × scale is 64 in
+  // arithmetic and 63.98 once the browser has rounded the transformed box, and
+  // 63.98 is a failed touch target on the gate that exists to catch exactly
+  // this. A logical pixel of slack costs nothing and is always the safe way.
+  const touch = (n: number) =>
+    author ? px(n) : Math.max(px(n), Math.ceil(n / scale));
   // Whether this card is allowed to outgrow the size it was drawn at. Only a
   // child's, and only ever downwards in size terms — it never shrinks below the
   // teacher's box. The alternative, on a question box a teacher drew short, is
@@ -7005,6 +7040,9 @@ function QuizBoxView({
   // away by the crop.
   const cardRef = useRef<HTMLDivElement>(null);
   const [cardH, setCardH] = useState(q.h);
+  // The same number, readable from a pointer handler that runs outside render.
+  const liveH = useRef(q.h);
+  liveH.current = cardH;
   useLayoutEffect(() => {
     if (!grows) return;
     const el = cardRef.current;
@@ -7020,6 +7058,16 @@ function QuizBoxView({
     ro.observe(el);
     return () => ro.disconnect();
   }, [grows]);
+  // Write that height back to the question, so what is stored is what is on
+  // screen: the page-card miniature, the hand-in and the child's own view all
+  // read `h`, and a teacher who has never resized anything should not find
+  // them disagreeing with the box they laid out. Author only — a child's card
+  // has `minHeight: q.h` and syncing there would ratchet it upwards.
+  useEffect(() => {
+    if (!author || !interactive) return;
+    if (Math.abs(cardH - q.h) < 1) return;
+    onMove(q.id, { h: Math.round(cardH) });
+  }, [author, interactive, cardH, q.h, q.id, onMove]);
   const topUnits = grows ? Math.max(0, Math.min(q.y, H - cardH)) : q.y;
 
   return (
