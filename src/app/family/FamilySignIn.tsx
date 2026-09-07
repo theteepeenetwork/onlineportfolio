@@ -21,9 +21,12 @@ export function FamilySignIn({ expired }: { expired?: boolean }) {
 
   return (
     <div className="sj" style={{ minHeight: "100vh", background: "var(--paper)", fontFamily: "var(--font-atkinson)", color: "var(--ink)" }}>
-      <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1.05fr 0.95fr" }}>
+      {/* Two columns on a desk, one on a phone. The stacking rules live in
+          globals.css (.family-signin-*): USER_TESTING recorded this page 345px
+          wider than a 390px screen, which is a door a parent cannot get through. */}
+      <div className="family-signin-grid" style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1.05fr 0.95fr" }}>
         {/* left: sign-in */}
-        <div style={{ padding: "48px 56px", display: "flex", flexDirection: "column" }}>
+        <div className="family-signin-pane" style={{ padding: "48px 56px", display: "flex", flexDirection: "column", minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <JarMark size={34} />
             <span style={{ font: "600 24px var(--font-fredoka)" }}>storyjar</span>
@@ -77,8 +80,8 @@ export function FamilySignIn({ expired }: { expired?: boolean }) {
         </div>
 
         {/* right: warm illustration panel */}
-        <div style={{ background: "#F3E3C3", borderLeft: "3px solid var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
-          <div style={{ transform: "rotate(-3deg)", width: 320, background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: 22, boxShadow: "0 10px 0 rgba(34,48,74,0.14)" }}>
+        <div className="family-signin-art" style={{ background: "#F3E3C3", borderLeft: "3px solid var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", padding: 40, minWidth: 0 }}>
+          <div style={{ transform: "rotate(-3deg)", width: "min(320px, 100%)", background: "var(--cream)", border: "3px solid var(--ink)", borderRadius: 20, padding: 22, boxShadow: "0 10px 0 rgba(34,48,74,0.14)", boxSizing: "border-box" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ width: 44, height: 44, borderRadius: "50%", background: "#E08A9B", display: "flex", alignItems: "center", justifyContent: "center", font: "600 20px var(--font-fredoka)", color: "#FFFDF7" }}>P</span>
               <div>

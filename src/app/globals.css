@@ -298,6 +298,20 @@ html {
   .hero-jar-wrap { zoom: 0.62; }
 }
 
+/* The family sign-in door (/family). Two columns on a desk; below 860px the
+   illustration panel drops beneath the form, and below 640px it goes entirely
+   and the padding comes in, so a 390px phone gets a page that fits it.
+   (USER_TESTING: "The page is 345px wider than the screen".) */
+@media (max-width: 860px) {
+  .family-signin-grid { grid-template-columns: 1fr !important; min-height: 0 !important; }
+  .family-signin-pane { padding: 32px 24px !important; min-height: 100vh; }
+  .family-signin-art { border-left: none !important; border-top: 3px solid var(--ink); }
+}
+@media (max-width: 640px) {
+  .family-signin-pane { padding: 24px 18px !important; }
+  .family-signin-art { display: none !important; }
+}
+
 /* Teacher login redesign ("Teacher Login — 1b"): work tiles drift gently
    around the card and twinkles pulse. Tilt comes in via --r per tile. */
 @keyframes sj-float {
