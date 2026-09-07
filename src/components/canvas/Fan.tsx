@@ -117,6 +117,9 @@ function Band({
         fill="none"
         stroke={stroke}
         strokeWidth={width}
+        // Round caps: a band finishes in a semicircle at each end, the way
+        // the design draws it, rather than being cut square.
+        strokeLinecap="round"
         strokeDasharray={len}
         style={{
           // The keyframe reads --len, so one animation covers every band.
