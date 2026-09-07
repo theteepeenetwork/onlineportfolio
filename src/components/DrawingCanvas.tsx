@@ -6935,9 +6935,11 @@ function QuizBoxView({
   // One size for all of them, the largest that fits every answer — sizing each
   // independently would leave "Red" huge next to a small "It was raining".
   // Capped at the question's size so the question still reads as the question.
-  // Answers fit their 44px row but never pass the prompt's size: an answer
-  // looming over its question reads as the question.
-  const answerCap = Math.max(MIN_TEXT, px(20));
+  // The prompt is the question: 20px, and 16px only once it runs long enough
+  // to need the room. The answers fit their 44px row but stop 2px short of
+  // the prompt, so nothing on the card is bigger than the question.
+  const promptPx = txt(q.prompt.length > 40 ? 16 : 20);
+  const answerCap = Math.max(MIN_TEXT, Math.min(promptPx - 2, px(18)));
   const answerFloor = MIN_TEXT;
   const [answerFont, setAnswerFont] = useState(answerCap);
   const answerEls = useRef<Map<string, HTMLElement>>(new Map());
@@ -7085,7 +7087,7 @@ function QuizBoxView({
                 label="Question"
                 className="w-full leading-tight text-foreground"
                 style={{
-                  fontSize: txt(q.prompt.length > 22 ? 16 : 20),
+                  fontSize: promptPx,
                   fontFamily: "var(--font-fredoka)",
                   fontWeight: 600,
                 }}
@@ -7118,7 +7120,7 @@ function QuizBoxView({
             )}
             <p
               className={`flex-1 leading-tight ${q.prompt ? "text-foreground" : "text-muted"}`}
-              style={{ fontSize: txt(20), fontFamily: "var(--font-fredoka)", fontWeight: 600, textWrap: "pretty" }}
+              style={{ fontSize: promptPx, fontFamily: "var(--font-fredoka)", fontWeight: 600, textWrap: "pretty" }}
             >
               {q.prompt || (author ? "Type your question here" : "")}
             </p>
@@ -7188,8 +7190,8 @@ function QuizBoxView({
                       onPointerDown={stopDrag}
                       placeholder="Type an answer"
                       label="Answer text"
-                      className="min-w-0 flex-1 break-words font-bold text-foreground"
-                      style={{ fontSize: answerFont }}
+                      className="min-w-0 flex-1 break-words text-left font-bold text-foreground"
+                      style={{ fontSize: answerFont, textAlign: "left" }}
                       register={(el) => registerAnswer(o.id, el)}
                     />
                     {correct && (
@@ -7269,8 +7271,8 @@ function QuizBoxView({
                     {o.text && (
                       <span
                         ref={(el) => registerAnswer(o.id, el)}
-                        className="min-w-0 flex-1 break-words font-bold text-foreground"
-                        style={{ fontSize: answerFont }}
+                        className="min-w-0 flex-1 break-words text-left font-bold text-foreground"
+                        style={{ fontSize: answerFont, textAlign: "left" }}
                       >
                         {o.text}
                       </span>
