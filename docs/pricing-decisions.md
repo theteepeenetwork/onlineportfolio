@@ -39,6 +39,35 @@ capping a teacher's classes.
 
 **Decided by:** the founder. **Recorded:** 2026-08-15.
 
+### Amendment, 2026-09-07: parent messaging is a school-plan feature
+
+**Decision:** parent–teacher messages, held to office hours the school sets
+(`SAFEGUARDING.md` rule 21), are on the **School** plan and not on the free
+Teacher plan. This is the first feature that is not in both, and it is recorded
+here rather than implied by the code.
+
+**Why this is not the feature lock the section above forbids.** The Teacher row
+still says exactly what it said — capture, approval queue, parent sharing,
+export, every class, no cap — and none of that has moved. What the School row
+gains is the thing this document already says the school tier sells: *oversight*.
+Messaging without an admin to set the hours is precisely the version of the
+feature the design refuses to be — a teacher reachable at 22:00 with nobody
+holding the line — so it cannot exist on an account that has no school. The
+feature is absent from the free plan structurally, not withheld from it, and
+the answer to a free teacher who asks for it is the school conversation this
+document wants to have anyway.
+
+**What still holds:** every band gets it (rule 3 above is untouched: the band
+buys capacity, never functionality); nothing on the free plan is capped to make
+it happen; and a lapsed school plan keeps every conversation readable and only
+stops new messages.
+
+**What changes elsewhere:** `README.md` no longer says the free plan has "every
+feature", because it would be untrue by one; `COMPETITIVE_POSITIONING.md`'s
+"no DMs" line is rewritten to say what shipped and why it is not a DM channel.
+
+**Decided by:** the founder. **Recorded:** 2026-09-07.
+
 ---
 
 ## 2026-08-15 — The paid Individual plan is retired

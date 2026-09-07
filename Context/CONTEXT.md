@@ -215,9 +215,11 @@ ship is the bloat teachers are tired of.
 **Build:** video, one light from-home reaction that surfaces to the teacher, EAL
 translation, and AI for teacher prep.
 
-**Reject:** two-way parent messaging and DMs (scope creep plus an adult in a
-child's space), behaviour points and rewards, public whole-class feeds, per-pupil
-AI upsells and auto-feedback on children's work.
+**Reject:** behaviour points and rewards, public whole-class feeds, per-pupil
+AI upsells and auto-feedback on children's work. *(Two-way parent messaging was
+on this list until 7 September 2026; it was built as a school-governed channel
+held to office hours the school sets, in neither direction outside them, never
+reaching a child — see `COMPETITIVE_POSITIONING.md` and `SAFEGUARDING.md` rule 21.)*
 
 **Later and conditional:** framework tagging (Development Matters, Birth to 5
 Matters, National Curriculum) is Tapestry's moat, and cohort monitoring pairs

@@ -132,6 +132,76 @@ Each rule is testable. A change that breaks one does not ship.
    code, and the parent decides whether to add an address at all. We send a parent
    only a sign-in link they requested, or notifications they switched on
    themselves. Nothing else, and nothing by default.
+21. **Parent–teacher messages are school-governed, bounded by office hours, and
+   never a channel to a child.** *(Added 2026-09-07; see "Amendments" below. This
+   is the one exception to rule 6's "read-only", and it is bound as tightly as
+   rule 1's PIN exception.)* A family may write to their child's class teacher,
+   and staff may reply, inside a conversation about that one child. The
+   constraints, every one of which is a blocking test, and a change that breaks
+   any one of them does not ship:
+
+   - **Off by default, per school; the school switches it on.** A school ADMIN
+     turns it on and sets the hours on the school console. An individual teacher
+     can neither enable it, disable it, nor change the hours. It exists only on a
+     school plan, because a teacher on their own has nobody to hold the hours
+     (`docs/pricing-decisions.md`, 2026-09-07).
+   - **Nothing is delivered outside the school's office hours, in either
+     direction, and there is no override.** No "send now", no urgent flag. A
+     message written at 21:40 reaches the other side when the school next opens,
+     and the sender is told the day and time at the moment they press send. The
+     school chooses its hours inside StoryJar's caps — **at most ten hours a
+     day, between 06:00 and 20:00** (`src/lib/messaging/officeHours.ts`) — and
+     may not go outside them. Delivery is a stored time checked on every read,
+     not a job; time passing is the only thing that delivers a message, and
+     changing the hours re-times every message still waiting.
+   - **Not an emergency channel, and it says so every time.** Above every box:
+     if a child is unwell or the school is needed now, phone the office. A
+     channel that is shut for most of the day must never be the one a parent
+     reaches for in a crisis, and must never look like it.
+   - **No child ever touches it.** No student session can read or write a
+     message; nothing from a conversation appears in the jar, the student area,
+     or anything a child can reach.
+   - **Text only.** No attachments, no images, no audio. A link in a message is
+     text to read, never a link to press (rule 15, extended from child input to
+     adult input).
+   - **Scoped server-side like any other child data** (rule 4): the child's
+     linked parents on one side; on the other, the class teacher via
+     `Class.teacherId`, a colleague the thread was **shared** with, or the
+     colleague a teacher has **passed** the family to — each only while still
+     staff of that school, and each only if the school has said they may message
+     families (a per-staff switch on the Staff tab; teachers and admins may by
+     default, teaching assistants may not).
+   - **The parent can always see which staff can read the conversation.** The
+     names sit at the top of it. A teacher opting out of one family by passing
+     it to a colleague **never leaves that family unanswered** and **is never
+     announced to the parent**: the reader list simply shows who reads now, and
+     the teacher's reason, if any, is for the school admin and lives on the
+     thread — never in the audit log.
+   - **The school governs the channel, not the conversation.** An admin sees
+     metadata — who is in a conversation, how many messages are waiting and for
+     how long — and can close a conversation, give it to a member of staff or
+     change who holds it, **without reading a word of it** (rule 5). The
+     operator cannot read it either (rule 20): the three message tables are in
+     the blindness gate's strictest class, and only `src/lib/messaging/threads.ts`
+     may query them (`scripts/audit-static.mjs`).
+   - **Audited, never quoted** (rule 16): switched on or off, hours changed,
+     staff permission changed, message sent, shared, unshared, passed, taken
+     back, closed — each recorded with the adult who did it. A message body
+     never reaches an audit row: a log that quotes a message is a second copy of
+     it with a different retention clock.
+   - **Retention line before it ships** (rule 9): `RETENTION.md`, "Parent–teacher
+     messages". A lapsed school plan keeps every conversation readable and stops
+     new messages on both sides; nothing is deleted for non-payment.
+
+   **Not covered by this rule**, and each needing its own amendment: an admin
+   or a designated safeguarding lead reading message content; any notification
+   by email or push (rule 6a governs — nothing is sent, a badge in the family
+   space is the whole notification model); attachments; translation through a
+   third party (a message names a child); read receipts on a personal thread
+   (a parent seeing "read 19:04" manufactures the obligation the hold exists to
+   remove); absence or illness reporting (a reason for absence is health data,
+   and a channel shut overnight must never be where something urgent is
+   reported).
 7. **Uploaded media is access-controlled, not public.** Photos and drawings of
    children **must not** be served from guessable or unauthenticated URLs. Every
    media request is authorised against the same rules as rule 4 before the bytes
@@ -231,7 +301,7 @@ StoryJar must help schools meet, and itself comply with, at least:
 | **Keeping Children Safe in Education (KCSIE)** | The product operates in schools' safeguarding regime: teacher moderation, no unsupervised child-to-child contact, clear reporting routes, filtering/monitoring expectations. |
 | **DfE digital & technology standards** (incl. filtering & monitoring, data protection in schools) | Supports schools' duties; secure by design; clear data-handling. |
 | **PECR** | Cookie/consent rules — we use **essential cookies only** (the session cookie); no marketing/analytics cookies. |
-| **Online Safety Act 2023** | User-to-user content is private and teacher-moderated (not public). Any future parent/public sharing needs a fresh assessment. |
+| **Online Safety Act 2023** | Children's content is private and teacher-moderated (not public). **Assessed afresh on 2026-09-07 when parent–teacher messages were added (rule 21):** the new user-to-user content is a private, one-to-one-household conversation between adults about one child, reachable only by that child's linked parents and named school staff, closable by the school, off by default, with no child able to read or write it and nothing public or searchable. It creates no route by which a child can be contacted by, or contact, anyone. Any *further* widening — child-reachable, public, or cross-family content — needs its own assessment. |
 | **Equality Act 2010** | Accessibility / non-discrimination. |
 
 A **Data Protection Impact Assessment (DPIA)** is required (children's data at
@@ -306,6 +376,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-07 | 6 (exception), 21 (new) | Rule 6 said parents are **read-only**. Rule 21 carves out one write: a conversation with the child's class teacher, held to office hours the **school** sets inside StoryJar's caps (at most ten hours a day, 06:00–20:00), delivered in neither direction outside them, with no override; off by default; school-plan only; text only; never reachable by a child; readers always shown to the parent; a teacher may share a thread with a colleague or pass a family to one, and the parent is not told of a pass; the school sees metadata and closes or reassigns without reading; audited without quoting. | Product owner | `COMPETITIVE_POSITIONING.md` had rejected two-way messaging on two grounds — teachers' evenings, and an adult in a child's space — and both are met structurally rather than by absence: the hold is two-way, so a teacher writing at 22:00 cannot set an out-of-hours expectation either, and the conversation never touches the child's product. The commercial reason is the one `docs/pricing-decisions.md` already gives for the school tier: it sells *oversight*, and school-set office hours are the first feature that makes that concrete. **What was traded away:** rule 6's clean "parents can only look", and the "no DMs" line in the positioning. **What was not:** rule 6a (nothing is emailed), rule 5 (no admin reads a body), rule 20 (the operator reads nothing), and the approval queue, which this does not touch. Data-protection review: the DPIA is amended (R18) and still awaits professional review with the rest. |
 | 2026-08-19 | 10, 11 (scope note) | Read-aloud may speak **a teacher's note on returned work**, and only through a voice the platform reports as running on the device (`SpeechSynthesisVoice.localService === true`). Where there is no local voice the listen button is not rendered and the note stays as text. Storyjar's own fixed copy is unaffected — it is still the only thing `readAloud` will say. | Product owner | Finding F38: a teacher writes the child a note saying what to change, and the child was never shown it. Showing it is not enough for a pre-reader, so it has to be speakable — but `speechSynthesis` is not local on every platform, and the default voice on Android Chrome ships the text to a cloud service with no DPA, which rules 10 and 11 forbid. Naming a local voice explicitly is the narrowest mechanism that reaches the child without the words leaving the tablet. **Deny by default is preserved**: an implementation that does not report `localService` is treated as remote, and says nothing. |
 | 2026-08-17 | 20 (new) | Added when the platform operator console was built. States that the operator can run the service and cannot read a child's work **through the product**, enforced by a blocking gate rather than by memory, and states the limit of that guarantee in the same breath: the operator holds the hosting account, the application does not log infrastructure access, and the circumstances under which it may lawfully touch a child's data are governed by `docs/exceptional-access.md`. | Product owner | One person operating a service that holds children's work needs a limit that survives their own future convenience, and a written statement of the limit's edge so that nobody relies on more than it gives. The gate constrains the product; it cannot constrain the person, and a rule that implied otherwise would fall apart in a school's due-diligence questionnaire, or the first time a court ordered otherwise. |
 | 2026-08-17 | 6a (new) | A parent's contact details come only from that parent, and StoryJar sends only what that parent asked for: a sign-in link they requested, or notifications they switched on themselves. | Product owner | The first draft said StoryJar never messages a parent who did not ask, which was too wide: it would have forbidden notification preferences before they were built. The principle was right and the scope was wrong. This wording bans the thing that actually matters, which is obtaining a parent's address from anyone other than the parent, without banning a feature the parent themselves turns on. It describes what family access already does, where the code travels home on paper and the parent chooses whether to add an address at all. |

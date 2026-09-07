@@ -86,7 +86,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F32 | Medium | Accessibility | In forced-colours mode the entire operator bar vanishes: the header paints background and text as inline colours, so a high-contrast operator loses all four nav links and the sign-out button on the one account that runs the service. Nothing in src/ handles forced-colors. | Open |
 | F33 | Medium | Deploy | railway.json pinned the deprecated NIXPACKS builder while the live service runs RAILPACK, and configuration in code overrides the dashboard. The next deploy would have moved the builder backwards. | Fixed |
 | **F34** | **High** | **Resilience / data loss** | Saved work was withheld from the person who made it. The restore prompt awaited the local draft and a cross-device server lookup **together**, and the lookup had no deadline, so a request that was accepted and never answered suppressed the prompt entirely, and a teacher's or a child's work sat safe in their own browser while they were told nothing. The same shape was found a second time on `loadImage`, where a stalled template background left a child on a permanent "Loading…" overlay. Both are now bounded. | **Fixed** | `e2e/drafts.spec.ts`: "the restore prompt still arrives when the cross-device lookup never answers" and "a stalled template background still lets a child draw and restore" |
-| F35 | **High** | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits StoryJar to UK or EU storage. The claim that backups stay in Amsterdam has been removed from RETENTION.md rather than repeated. | Open |
+| F35 | ~~High~~ | Data residency | Volume backups were switched on 2026-08-17, and Railway's own DPA says its primary processing is in the United States, with backups "across multiple sites and regions" and none named. A backup is a complete copy of every child's photograph, drawing and voice note, and SAFEGUARDING rule 10 commits StoryJar to UK or EU storage. **Resolved 2026-09-07: Railway confirmed to the owner that volume backups are stored in the same region as the service, EU West (Amsterdam).** Recorded in RETENTION.md and DPIA R6. | **Resolved** 2026-09-07 |
 | F36 | **Medium** | Test correctness | Every post-reload click in `drafts.spec.ts` raced hydration. Playwright's actionability checks pass on server-rendered HTML, so the click landed before React attached its handler, was swallowed without error, and the test failed one line later on a missing canvas that looked like a product fault. **Measured on 2026-08-18: F36 caused the one-in-two CI flake.** With it fixed the prompt appears in 38ms and all 133 functional tests pass; without it `main` failed at 33.9s. Raised from Low because a fault that fails a blocking gate every other run, and was twice misdiagnosed as a product defect, is not a low-severity test nit. | **Fixed** | `e2e/helpers.ts` `clickHydrated`, used at both post-reload click sites |
 | **F37** | **High** | A11y (child-facing) | The blocking 64px child touch-target gate covered neither **canvas** — `/student/new/drawing` or an activity response — nor the **EYFS jar**, a different shell for the youngest children in the product. Every tool on them was under the floor: pens 58 wide, undo/redo/clear/close at 44×44, Done and ＋ at 56×56, the Text tool at 48×48, page tiles at 57, and the colour slider **24px wide**. The quiz answers a pre-reader taps measured 57 because the canvas sized them in MODEL units and scaled them down — a floor in the wrong coordinate space is not a floor. Same shape as F18: a gate reading as "child touch targets are covered" while the busiest child screens sat outside its list of URLs | **Fixed** | `a11y/child-touch-targets.spec.ts` (both canvases and the EYFS jar now in the blocking gate) |
 | **F38** | **Medium** | Feedback loop / child-facing | A teacher sent work back with a note — the queue asks for one and gives an example — and the child was never shown it. `/student` rendered a returned moment with a fixed status line ("Have another go") and nothing else; `teacherNote` was rendered by one component, on the teacher's own view. The child was told something came back and left to guess which part | **Fixed** | `e2e/journal.spec.ts` ("the teacher's note reaches the child…") |
@@ -1097,7 +1097,18 @@ starts.
 **Fixed** by deleting the `build` block entirely rather than setting it to
 RAILPACK, so the service keeps using whatever Railway selects and the repository
 stops asserting a fact it was wrong about.
-## F35 · Backups exist now, and the written evidence points at the United States · High → Open
+## F35 · Backups exist now, and the written evidence points at the United States · High → Resolved 2026-09-07
+
+**Resolved 2026-09-07.** The owner put the direct question below to Railway and
+received the answer this finding said was the only thing that could close it:
+**volume backups for this service are stored in the same location as the
+service itself, EU West (Amsterdam).** That is a written answer from the
+provider about backups specifically, not an inference from where the service
+runs, and it is recorded in `RETENTION.md` (the backups row) and `docs/DPIA.md`
+(R6). Rule 10 holds for backups as it does for the volume. The section below is
+kept as written, because the reasoning about why inference was not enough is
+the part worth keeping.
+
 Raised 2026-08-17, the same day backups were switched on, because turning them
 on created this question rather than answering it.
 

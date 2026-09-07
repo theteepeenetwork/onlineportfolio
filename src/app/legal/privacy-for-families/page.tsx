@@ -19,6 +19,17 @@ export default function PrivacyForFamilies() {
       </ul>
       <p>Nothing your child makes is shown to anyone until their <strong>teacher has checked and approved it</strong>. It is never public. Other families cannot see your child.</p>
 
+      <h2>Can I message the teacher?</h2>
+      <p>If your school has switched it on, yes. Under your child&apos;s jar there is a box where you can write to their class teacher, and the teacher can write back. A few things to know:</p>
+      <ul>
+        <li><strong>Messages only travel in school hours</strong>, and the school chooses those hours. If you write at nine in the evening, we tell you the day and time the teacher will get it. The teacher&apos;s replies are held to the same hours, so nobody is expected to answer at night.</li>
+        <li><strong>It is not for emergencies.</strong> If your child is unwell or you need the school now, phone the school office. It says so above the box every time.</li>
+        <li><strong>You can always see who can read it.</strong> The names of the staff who can see the conversation are at the top of it. Sometimes that is more than one person — a job-share teacher, say — and the school decides who.</li>
+        <li><strong>Your child never sees it.</strong> It is between you and the school, and nothing from it goes in the jar.</li>
+        <li><strong>We do not email you about it.</strong> New replies show up in your family space, with a count on your child&apos;s name. Nothing is sent to your inbox or your phone.</li>
+        <li>What you write is kept with your child&apos;s record at the school, for as long as that is, and the school can close a conversation if it needs to.</li>
+      </ul>
+
       <h2>How do I get in, and what does StoryJar know about me?</h2>
       <p>The school sends home a letter with a <strong>family code</strong>. You type that code at <a href="/family">the family page</a> and you are in. There is no password and nothing to pay.</p>
       <p>We ask the school for your code, not for you. <strong>StoryJar is not told your name, your email address or your phone number</strong>, and your child&apos;s teacher has nowhere to type them even if they wanted to. So unless you tell us yourself, all we hold about you is that somebody in your household has a code for your child.</p>

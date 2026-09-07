@@ -26,7 +26,8 @@ export default function Privacy() {
         <tbody>
           <tr><td>Children (3–11)</td><td>First name only; the &ldquo;moments&rdquo; they create (photos, drawings, typed words); optional teacher-added skill tags and dates</td><td>To build the child&apos;s class journal / portfolio for the school</td></tr>
           <tr><td>Teachers / staff</td><td>Name, title, school email, hashed password, role, class assignment</td><td>To create and secure staff accounts and moderate content</td></tr>
-          <tr><td>Parents / carers</td><td>Name, email, family code, link to their child(ren)</td><td>To give a read-only family view of approved moments</td></tr>
+          <tr><td>Parents / carers</td><td>Name, email, family code, link to their child(ren)</td><td>To give a read-only family view of approved moments, and, where the school has switched it on, to let a family write to their child&apos;s class teacher</td></tr>
+          <tr><td>Children (as the subject), written by parents/carers and school staff</td><td>Messages between a child&apos;s family and their class teacher — text only, about that child, delivered only inside office hours the school sets, and readable only by that family and the school staff the school allows</td><td>To let the family and the school talk about the child, with the school governing the hours and who may read. Never emailed; never shown to the child; kept with the child&apos;s record</td></tr>
         </tbody>
       </table>
       <p>

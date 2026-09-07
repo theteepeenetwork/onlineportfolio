@@ -20,7 +20,7 @@ Legend — ✅ has it · ⚠️ partial/weak · ❌ none. Verdict is StoryJar's 
 | Typed words / notes | ✅ | ✅ | ✅ | ✅ | Table stakes — have it |
 | Parent views approved work | ✅ | ✅ | ✅ | ✅ (read-only) | Table stakes — have it |
 | Parent reaction (a "like") | ✅ | ✅ | ✅ | ❌ | **BUILD** (light: "❤️ from home" → teacher) |
-| Two-way parent messaging / DMs | ✅ | ✅ | ✅ | ❌ | **REJECT** → positioning |
+| Two-way parent messaging / DMs | ✅ | ✅ | ✅ | ✅ *held to school-set office hours* | **BUILT, on our terms** (2026-09-07; was REJECT — see below) |
 | Behaviour points / rewards | ❌ | ❌ | ✅ | ❌ | **REJECT** → positioning |
 | Public whole-class feed | ✅ | ⚠️ | ✅ | ❌ | **REJECT** → positioning |
 | AI — per-pupil upsell / auto-feedback on kids' work | ✅ | ⚠️ | ⚠️ | ❌ | **REJECT** the fluff → positioning |
@@ -38,22 +38,38 @@ Legend — ✅ has it · ⚠️ partial/weak · ❌ none. Verdict is StoryJar's 
 
 **BUILD — gaps that make the core loop work.** Video (the first thing a switcher
 asks for; audio covers pre-readers for launch, video is next). A single from-home
-reaction that surfaces to the teacher (the payoff moment, no chat channel).
+reaction that surfaces to the teacher (the payoff moment).
 Translation for EAL families (serves parents, doesn't surveil children — fits the
 brand). Framework/cohort tagging is *conditional* — build it only if we decide to
 fight Tapestry for EYFS assessment; our launch targets Seesaw-fatigued KS1/KS2, so
 it's a later wedge, not a launch gap.
 
 **REJECT — parity that would betray the pitch.** Behaviour points (public
-gamification of children — against our no-profiling safeguarding stance). Two-way
-messaging / DMs (scope creep + an adult-in-a-child's-space safeguarding minefield).
-Public class feeds. **AI *theatre*** — per-pupil AI upsells, auto-generated
+gamification of children — against our no-profiling safeguarding stance). Public
+class feeds.
+
+> **Messaging, reversed on 2026-09-07 — and why that is not a betrayal.** This
+> document rejected two-way messaging on two grounds: scope creep and "an adult
+> in a child's space". What shipped answers both structurally rather than by
+> absence. **The school, not the teacher, sets office hours inside StoryJar's caps
+> (at most ten hours a day, 06:00–20:00), and nothing is delivered outside them in
+> either direction** — a parent writing at 21:40 is told it reaches the teacher at
+> 8:00am, and a teacher replying at 22:00 is held the same way, so "your evenings
+> stay yours" is now enforced rather than promised. **No child can read or write a
+> message, and nothing from a conversation appears in the jar**, so it is not an
+> adult in the child's space; it is two adults in a room the child is not in. It
+> is off by default, school-plan only, text only, closable by the school, and the
+> parent can always see which staff can read it. The commercial reason is the one
+> `docs/pricing-decisions.md` already gave for the school tier — it sells
+> *oversight* — and this is the first feature that makes that concrete. Recorded
+> in `SAFEGUARDING.md` (rule 21 and the amendment) and `docs/DPIA.md` (R18). **AI *theatre*** — per-pupil AI upsells, auto-generated
 feedback on a child's work, anything that profiles children or runs their data
 through a model. These are exactly the "drift" and "bloat" our positioning attacks
 — adding them makes us the thing teachers are leaving.
 
 **POSITIONING — limitations sold as virtues.** "No AI *fluff*, no bloat." "No
-behaviour scores." "No DMs — just the work." "UK-built, your data never leaves
+behaviour scores." "Messages only in school hours — the school sets them, not the
+app." "UK-built, your data never leaves
 Europe, and no child data ever goes to a payment processor." Our safeguarding rules
 are a product *philosophy*, not just compliance — say so out loud.
 
@@ -96,9 +112,10 @@ is no upsell and no fluff, **not** no intelligence. Better slogan than "no AI":
 
 ## The differentiation, in one line each
 
-1. **The calm one** — no points, no feeds, no AI, no DMs. In a market gamifying
-   behaviour and upselling AI, "we just capture the work, beautifully, and keep it
-   private" is ownable.
+1. **The calm one** — no points, no feeds, no AI, and the only parent channel
+   your staff cannot be reached through at 10pm. In a market gamifying behaviour
+   and upselling AI, "we just capture the work, beautifully, and keep it private"
+   is ownable.
 2. **It's the child's jar, not the teacher's evidence file** — competitors are
    built around the adult observing the child; ours around the child making the
    work in their own space. The canvas and the approval-reward loop make that real.
@@ -107,11 +124,14 @@ is no upsell and no fluff, **not** no intelligence. Better slogan than "no AI":
 ## "Why we don't have X" — scripts for when teachers ask
 
 **"Can parents message me?"**
-> No — and that's deliberate. StoryJar isn't another inbox. Parents see their
-> child's approved work and can send a heart; they can't start a chat. Your
-> evenings stay yours, and a child's journal stays about the child's work, not a
-> messaging thread. If you need to message families, your school already has a tool
-> for that.
+> Only in school hours — and your school sets those, not you and not the app.
+> A parent who writes at nine at night is told their message reaches you when
+> the school opens; if you reply at ten, it's held the same way. So yes, families
+> can message you, and no, your evenings don't change. It's off until your school
+> switches it on, it never shows a child anything, and there are no attachments —
+> a child's journal stays about the child's work. On the free plan there's no
+> school to set the hours, so there's no messaging; that's the school-plan
+> conversation.
 
 **"Does it have behaviour points / dojo points?"**
 > No. We don't score or rank children, publicly or privately — our safeguarding
