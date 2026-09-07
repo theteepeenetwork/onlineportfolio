@@ -26,7 +26,8 @@ title.
 
 Positioning in three lines:
 
-1. The calm one. No behaviour points, no public feeds, no DMs, no AI upsell.
+1. The calm one. No behaviour points, no public feeds, no AI upsell — and the
+   only parent channel that keeps the school's own hours, in both directions.
 2. It is the child's jar, not the teacher's evidence file. Rivals are built
    around an adult observing a child. StoryJar is built around the child making
    the work in their own space.
@@ -215,9 +216,11 @@ ship is the bloat teachers are tired of.
 **Build:** video, one light from-home reaction that surfaces to the teacher, EAL
 translation, and AI for teacher prep.
 
-**Reject:** two-way parent messaging and DMs (scope creep plus an adult in a
-child's space), behaviour points and rewards, public whole-class feeds, per-pupil
-AI upsells and auto-feedback on children's work.
+**Reject:** behaviour points and rewards, public whole-class feeds, per-pupil
+AI upsells and auto-feedback on children's work. *(Two-way parent messaging was
+on this list until 7 September 2026; it was built as a school-governed channel
+held to office hours the school sets, in neither direction outside them, never
+reaching a child — see `COMPETITIVE_POSITIONING.md` and `SAFEGUARDING.md` rule 21.)*
 
 **Later and conditional:** framework tagging (Development Matters, Birth to 5
 Matters, National Curriculum) is Tapestry's moat, and cohort monitoring pairs

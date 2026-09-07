@@ -9,6 +9,10 @@
 term (starts ~Tue 1 Sept 2026, pupils in by 2–3 Sept).
 **Wedge:** Individual teachers, bottom-up. **Budget:** £0–500, solo.
 **Product status:** Beta. Feature-frozen as of 15 Aug — nothing new before launch.
+*(Freeze lifted once, by owner decision on 7 Sept, for parent–teacher messages
+held to school-set office hours: the school-tier feature the October–November
+subscription reviews are sold on. `SAFEGUARDING.md` rule 21,
+`docs/pricing-decisions.md` amendment.)*
 
 ---
 

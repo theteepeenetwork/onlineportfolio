@@ -1,0 +1,11 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-MODEL-METHOD
+import "server-only";
+import { db } from "@/lib/db";
+
+// A parent–teacher message is about a named child (SAFEGUARDING rule 21), and
+// MessageThread / Message / MessageThreadShare sit in CREDENTIAL_NEVER: no read
+// of any shape, not even a count that could confirm a thread exists.
+export async function unansweredThreads() {
+  return db.messageThread.findMany({ where: { lastMessageAt: { not: null } }, take: 20 });
+}

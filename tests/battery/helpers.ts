@@ -19,6 +19,10 @@ export const SCHOOL_B = {
   name: "Oakfield Primary",
   admin: { email: "admin@oakfield.sch.uk", password: "password" },
   teacher: { email: "teacher@oakfield.sch.uk", password: "password" }, // owns Acorn
+  // Parent messaging fixtures (SAFEGUARDING rule 21). Oakfield's office hours
+  // fall on TOMORROW's weekday only, so a message sent here is always held.
+  ta: { email: "ta@oakfield.sch.uk", password: "password", displayName: "Mrs Shah" }, // may not message families by default
+  secondTeacher: { email: "teacher2@oakfield.sch.uk", password: "password", displayName: "Mr Okoro" }, // no class; eligible to share with / pass to
   classCode: "ACRN22",
   student: "Zara",
   parentFamilyCode: "OAKFAM1",

@@ -33,12 +33,23 @@ const ADMIN_JOBS: Item[] = [
   // moved a colleague between them believed they had limited someone they had
   // not. Logged as F47. What actually decides access is which classes you hold,
   // so that is what the guide now says.
+  //
+  // AMENDED 2026-09-07, and the amendment is the whole reason to re-read this
+  // comment: parent messaging (SAFEGUARDING rule 21) is the FIRST place the
+  // role has an effect of its own. A teacher may message families by default
+  // and a teaching assistant may not. That is deliberately NOT F47's deferred
+  // "make TA restricted" work: nothing a TA could already do has been taken
+  // away, a brand-new channel simply does not open for them by default, and an
+  // admin can set it either way per person on the same menu. But it does mean
+  // "the same as each other" is no longer true, and the card below says so
+  // rather than leaving a school to find the exception by pressing things.
   {
     title: "Record what a colleague's job is",
     what:
       "Marks somebody as an admin, a teacher or a teaching assistant. Admin is the one that changes " +
-      "what they can do: it opens this console. Teacher and teaching assistant are the same as each " +
-      "other in what StoryJar lets them do — the difference is your record of who they are.",
+      "most: it opens this console. Teacher and teaching assistant are otherwise the same in what " +
+      "StoryJar lets them do with a class they hold — with one exception. Teachers may message " +
+      "families and teaching assistants may not, until you say otherwise on the same menu.",
     how: "Staff → the ⋯ menu on their row → Edit role. The change is recorded in the audit log with your name against it.",
     goTo: "staff",
   },

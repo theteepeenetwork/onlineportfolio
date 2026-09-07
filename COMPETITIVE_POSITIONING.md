@@ -20,7 +20,7 @@ Legend — ✅ has it · ⚠️ partial/weak · ❌ none. Verdict is StoryJar's 
 | Typed words / notes | ✅ | ✅ | ✅ | ✅ | Table stakes — have it |
 | Parent views approved work | ✅ | ✅ | ✅ | ✅ (read-only) | Table stakes — have it |
 | Parent reaction (a "like") | ✅ | ✅ | ✅ | ❌ | **REJECT** → positioning |
-| Two-way parent messaging / DMs | ✅ | ✅ | ✅ | ⏳ | **BUILD (autumn)** — school-switched, office-hours only, text only, SAFEGUARDING rule 21 |
+| Two-way parent messaging / DMs | ✅ | ✅ | ✅ | ✅ *held to school-set office hours* | **BUILT** — the shape decided on 2026-08-24: school-switched, office-hours only in both directions, text only, no child can reach it. SAFEGUARDING rule 21 |
 | Behaviour points / rewards | ❌ | ❌ | ✅ | ❌ | **REJECT** → positioning |
 | Public whole-class feed | ✅ | ⚠️ | ✅ | ❌ | **REJECT** → positioning |
 | AI — per-pupil upsell / auto-feedback on kids' work | ✅ | ⚠️ | ⚠️ | ❌ | **REJECT** the fluff → positioning |
@@ -37,8 +37,7 @@ Legend — ✅ has it · ⚠️ partial/weak · ❌ none. Verdict is StoryJar's 
 ## The three verdict buckets
 
 **BUILD — gaps that make the core loop work.** Video (the first thing a switcher
-asks for; audio covers pre-readers for launch, video is next). A single from-home
-reaction that surfaces to the teacher (the payoff moment, no chat channel).
+asks for; audio covers pre-readers for launch, video is next).
 Translation for EAL families (serves parents, doesn't surveil children — fits the
 brand). Framework/cohort tagging is *conditional* — build it only if we decide to
 fight Tapestry for EYFS assessment; our launch targets Seesaw-fatigued KS1/KS2, so
@@ -60,6 +59,12 @@ positioning attacks: adding them makes us the thing teachers are leaving.
 > child can reach, and that a teacher can escalate to the safeguarding lead, is a
 > different feature wearing a similar name. Governed by SAFEGUARDING rule 21,
 > which was written before a line of it was built.
+>
+> **Shipped 2026-09-07**, in the shape this note describes, with one part of it
+> deferred and named rather than quietly dropped: a teacher can hand a family's
+> conversation to a colleague and a school can close it, but **escalation to a
+> named safeguarding lead is not built yet** — it needs a DSL role and its own
+> amendment. Do not promise it to a school until it exists.
 
 > **Replies to feedback, from either direction: rejected 2026-08-24.** A parent
 > sees their child's approved work and that is the whole of it. A child sees the
@@ -126,13 +131,17 @@ is no upsell and no fluff, **not** no intelligence. Better slogan than "no AI":
 ## "Why we don't have X" — scripts for when teachers ask
 
 **"Can parents message me?"**
-> Not today, and a parent's view stays a view. They see their child's approved
-> work, which keeps a family close to what their child is making while your
-> evenings stay yours. A school-governed message thread is designed and written
-> up: your head would switch it on, it would run to your office hours, and it
-> would hold anything sent outside them until the next morning. Text only, one
-> thread per child, and anything about a child's welfare goes straight to your
-> safeguarding lead. It ships when it is right rather than to hit a date.
+> Yes, but only in school hours — and your school sets those, not you and not
+> the app. A parent who writes at nine at night is told their message reaches
+> you when the school next opens; if you reply at ten, it is held the same way.
+> So families can message you, and your evenings do not change. It is off until
+> your head switches it on, it is text only, one thread per child, and no child
+> can see any of it. If you would rather not be the one talking to a particular
+> family, you can hand that conversation to a colleague, and your school can
+> close one. Anything about a child's welfare still goes through your school's
+> own safeguarding route, exactly as it does now — StoryJar does not replace
+> that. On the free teacher plan there is no school to set the hours, so there
+> is no messaging; that is the school-plan conversation.
 
 **"Does it have behaviour points / dojo points?"**
 > No. We don't score or rank children, publicly or privately — our safeguarding

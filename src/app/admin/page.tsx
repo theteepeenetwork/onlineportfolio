@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accountStateForTeacher, governingSubscription, planLabel } from "@/lib/billing";
 import { stripeConfigured } from "@/lib/stripe";
+import { messagingStaffForSchool, resolveMayMessageParents, schoolMessaging } from "@/lib/messaging/policy";
+import { oversightForSchool } from "@/lib/messaging/threads";
 import { readSchoolMailHealth } from "@/lib/schoolMailHealth";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
@@ -102,6 +104,10 @@ export default async function AdminPage({
       isYou: s.id === user.teacher.id,
       classes: s.classes.map((c) => c.name),
       invitationId: null,
+      // Parent messaging (SAFEGUARDING rule 21): the stored override and what
+      // it resolves to for this person's role.
+      mayMessage: s.mayMessageParents,
+      mayMessageResolved: resolveMayMessageParents(s),
       sortAt: s.createdAt.getTime(),
     })),
     ...invitations.map((inv) => ({
@@ -117,6 +123,11 @@ export default async function AdminPage({
       // teacher is not in this school yet.
       classes: [] as string[],
       invitationId: inv.id,
+      // Nobody who has not accepted can message a family: they are not staff of
+      // this school yet, so there is no per-staff switch to show and nothing to
+      // resolve. The row's own menu (invitationId non-null) does not offer one.
+      mayMessage: null,
+      mayMessageResolved: false,
       sortAt: inv.createdAt.getTime(),
     })),
   ]
@@ -153,6 +164,24 @@ export default async function AdminPage({
       inheritedOnRemoval.set(row.subjectId, row.detail);
     }
   }
+
+  // The school's parent-messaging settings (SAFEGUARDING rule 21): the switch,
+  // the office hours and the closed days. Settings only — no conversation and
+  // no message body is loaded anywhere in this console (rule 5).
+  const [messagingState, oversight, messagingStaff] = await Promise.all([
+    schoolMessaging(school.id),
+    oversightForSchool(school.id),
+    messagingStaffForSchool(school.id),
+  ]);
+  const messaging = {
+    onSchoolPlan: messagingState.onSchoolPlan,
+    frozen: account.status === "FROZEN",
+    enabled: messagingState.enabled,
+    windows: messagingState.policy.windows,
+    closures: messagingState.closures,
+    oversight,
+    messagingStaff,
+  };
 
   // School-wide classes (for the Classes tab and the "assign classes" picker).
   const classes: SchoolClass[] = school.staff.flatMap((s) =>
@@ -259,6 +288,7 @@ export default async function AdminPage({
       classes={classes}
       childrenCount={childrenCount}
       audit={audit}
+      messaging={messaging}
     />
   );
 }

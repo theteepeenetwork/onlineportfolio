@@ -180,11 +180,16 @@ extra code and no Stripe.js on any page. **No child data is ever sent to Stripe.
 
 Plans (GBP, VAT-inclusive):
 
-- **Teacher** — **free, permanently**. One teacher, *all* of their own classes,
-  every feature. No card and no trial clock, so nothing ever expires mid-term.
-  A free plan never reaches Stripe at all.
+- **Teacher** — **free, permanently**. One teacher, *all* of their own classes:
+  capture, the approval queue, activities, the family view and export, with no
+  cap on any of it. No card and no trial clock, so nothing ever expires
+  mid-term. A free plan never reaches Stripe at all. The one thing it does not
+  have is parent messaging, because that needs a school to set the office hours
+  (`docs/pricing-decisions.md`, 2026-09-07).
 - **School** — **£199–£649/year, banded by pupils on roll** (£199 up to 105 ·
-  £299 up to 210 · £449 up to 420 · £649 over 420). Every feature is in every
+  £299 up to 210 · £449 up to 420 · £649 over 420). Everything above for every
+  teacher in the school, plus admin oversight and **parent messages held to
+  office hours the school sets**. Every feature is in every
   band; the band is set once at purchase and fixed for the year, so growing
   mid-year costs nothing extra. No seats and no per-pupil metering. Card or
   invoice/PO (BACS).

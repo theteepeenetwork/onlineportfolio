@@ -101,6 +101,15 @@ async function main() {
   // lose class reassignment, staff removal and admin promotion, and the failure
   // would surface three suites away from the seed that caused it.
   const school = await db.school.create({ data: { name: "Bramblewood Primary", verifiedAt: new Date() } });
+  // Parent messages are on at Bramblewood, Monday–Friday 08:00–16:00, so the
+  // parent persona can write at nine at night and see what she is told.
+  await db.messagingPolicy.create({
+    data: {
+      schoolId: school.id,
+      enabled: true,
+      windows: { create: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, openMinute: 8 * 60, closeMinute: 16 * 60 })) },
+    },
+  });
 
   // A live, paid, whole-school subscription. The personas need an account where
   // nothing is blocked by billing, because "frozen" already has a fixture of its

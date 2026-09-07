@@ -157,3 +157,91 @@ test("a parent who mistypes the code is told what to do next", async ({ page, te
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// The same parent, later the same evening, with something to tell the teacher.
+//
+// Bramblewood has switched messages on, Monday to Friday 08:00–16:00. It is
+// evening, or a weekend, when she does this — so the interesting question is
+// not whether the message goes, but whether what she is told about WHEN it
+// goes reads as an explanation or as a brush-off. During the day the same
+// journey simply sends, and she should be told that plainly instead.
+// ---------------------------------------------------------------------------
+
+test("a parent writes to the teacher at nine at night", async ({ page, tester: t }) => {
+  await t.open("/family", "the family sign-in page");
+  await carryOn(async () => {
+    await t.act("open the family-code form", async () => {
+      await page.getByRole("button", { name: /family code from your letter/i }).click();
+    });
+    await t.act("sign in with the code from the letter", async () => {
+      await page.getByLabel(/family code from your letter/i).fill(ACADEMY.parents.siblings.code);
+      await page.getByRole("button", { name: /^sign in$/i }).click();
+    });
+    await t.sees(page.getByRole("heading", { name: /grown-?ups/i }));
+  });
+
+  await carryOn(async () => {
+    // Is there anywhere to write at all, and can she tell who will read it?
+    const box = page.getByLabel("Your message");
+    const found = await t.sees(box);
+    t.expects(
+      found,
+      "major",
+      "stuck",
+      "I have something to tell the teacher and there is nowhere on my child's page to say it. If the school has switched messages on, I cannot find the box.",
+    );
+    if (!found) return;
+
+    const whoReads = await t.seesText(/who can see this/i);
+    t.expects(whoReads, "major", "confusing", "I cannot tell who will read what I write. A parent needs the names before typing anything about their child.");
+
+    const emergency = await t.seesText(/not for emergencies|phone the school office/i);
+    t.expects(
+      emergency,
+      "major",
+      "confusing",
+      "Nothing tells me this is not the place for something urgent. If my child were unwell I might have typed it here and waited.",
+    );
+
+    await t.act("write to the teacher", async () => {
+      await box.fill("Nell has been talking about the minibeast hunt all evening. Is there anything she should bring in?");
+    });
+    await t.act("send it", async () => {
+      await page.getByRole("button", { name: /^send$/i }).click();
+    });
+
+    const status = page.getByRole("status").first();
+    const sent = await t.sees(status);
+    const said = sent ? (await status.innerText().catch(() => "")) : "";
+    t.expects(sent && /sent/i.test(said), "blocker", "stuck", "I pressed send and nothing told me whether it went.", said.slice(0, 160));
+
+    if (/outside school hours/i.test(said)) {
+      // Held. Does the explanation tell her a DAY and a TIME, in words she would
+      // use, rather than a countdown or a system word?
+      t.expects(
+        /\d{1,2}:\d{2}(am|pm)/i.test(said) && /(today|tomorrow|monday|tuesday|wednesday|thursday|friday)/i.test(said),
+        "major",
+        "confusing",
+        "It says my message is waiting but not when it will actually reach the teacher. “At 8:00am tomorrow” is an answer; anything less is a worry.",
+        said.slice(0, 200),
+      );
+      t.expects(
+        !/queue|deliver(y|ed) window|pending|scheduled/i.test(said),
+        "minor",
+        "confusing",
+        "The message about waiting uses system words. A parent understands “school hours”, not “queued” or “delivery window”.",
+        said.slice(0, 200),
+      );
+      // Her own message is still on the page, so she can see it went in.
+      const mineShown = await t.seesText(/minibeast hunt all evening/i);
+      t.expects(mineShown, "major", "confusing", "After sending, my message vanished. I cannot tell whether it is waiting or lost.");
+    } else {
+      const plain = /sent\.?\s*$/i.test(said.trim()) || /^✓?\s*sent/i.test(said.trim());
+      t.expects(plain, "minor", "confusing", "During school hours the message should simply say it was sent, without a warning about waiting.", said.slice(0, 160));
+    }
+
+    await t.sweep("my child's page after writing to the teacher");
+    t.budget(5, "Telling the teacher something in the evening");
+  });
+});

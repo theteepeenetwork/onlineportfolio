@@ -14,8 +14,8 @@ export default function DPA() {
       <ul>
         <li><strong>Subject-matter:</strong> providing a class journal/portfolio service.</li>
         <li><strong>Duration:</strong> the term of the subscription.</li>
-        <li><strong>Nature &amp; purpose:</strong> storing and displaying children&apos;s learning moments under teacher moderation.</li>
-        <li><strong>Data types:</strong> children&apos;s first names and their work (incl. images); staff account data; parent contact data and child links.</li>
+        <li><strong>Nature &amp; purpose:</strong> storing and displaying children&apos;s learning moments under teacher moderation; and, where the school switches it on, carrying messages between a child&apos;s family and the school&apos;s staff about that child, delivered only inside office hours the school sets.</li>
+        <li><strong>Data types:</strong> children&apos;s first names and their work (incl. images); staff account data; parent contact data and child links; text messages about a child written by their family and by school staff, together with who wrote each and when it was delivered.</li>
         <li><strong>Data subjects:</strong> pupils (aged 3–11), school staff, parents/carers.</li>
       </ul>
 
