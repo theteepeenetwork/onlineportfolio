@@ -9,10 +9,12 @@ import {
   resendInvite,
   setStaffRole,
 } from "@/app/actions/admin";
+import { setStaffMessaging } from "@/app/actions/messaging";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { ImportClassForm } from "@/components/ImportClassForm";
 import { BillingPane } from "./BillingPane";
 import { Guide } from "./Guide";
+import { MessagesPane, type MessagingPaneProps } from "./MessagesPane";
 import { Promises } from "./Promises";
 import { CARD, TABS, TAB_HEADING, type Tab } from "./tabs";
 
@@ -24,7 +26,13 @@ export type StaffRow = {
   status: string; // ACTIVE | INVITED
   isYou: boolean;
   classes: string[];
+  /** The stored override for parent messaging: NULL = the default for the role. */
+  mayMessage: boolean | null;
+  /** What that resolves to (src/lib/messaging/policy.ts). */
+  mayMessageResolved: boolean;
 };
+
+type Submenu = "role" | "classes" | "messaging" | null;
 
 export type SchoolClass = { id: string; name: string; teacherId: string; teacherName: string; children: number };
 
@@ -57,6 +65,18 @@ const ACTION_LABEL: Record<string, string> = {
   BILLING_FROZEN: "Plan paused",
   BILLING_UPDATED: "Plan updated",
   BILLING_JOINED_SCHOOL: "Joined the school plan",
+  OFFICE_HOURS_SAVED: "Set office hours",
+  MESSAGING_SWITCHED_OFF: "Switched parent messages off",
+  OFFICE_HOURS_CLOSURE_ADDED: "Added a closed day",
+  OFFICE_HOURS_CLOSURE_REMOVED: "Removed a closed day",
+  STAFF_MESSAGING_CHANGED: "Changed who may message parents",
+  THREAD_CLOSED: "Closed a family conversation",
+  THREAD_REOPENED: "Reopened a family conversation",
+  THREAD_SHARED: "Shared a family conversation",
+  THREAD_UNSHARED: "Stopped sharing a conversation",
+  THREAD_PASSED: "Passed a family to a colleague",
+  THREAD_TAKEN_BACK: "Took a family back",
+  MESSAGE_SENT: "Sent a message to a family",
 };
 
 const AVATAR_PALETTE = ["#E08A9B", "#8AB9D6", "#A6C979", "#F0B441", "#B99CD6", "#37796f", "#E8A06A", "#C2476B"];
@@ -108,6 +128,7 @@ export function AdminConsole({
   classes,
   childrenCount,
   audit,
+  messaging,
 }: {
   schoolName: string;
   plan: string;
@@ -117,10 +138,11 @@ export function AdminConsole({
   classes: SchoolClass[];
   childrenCount: number;
   audit: AuditEntry[];
+  messaging: MessagingPaneProps;
 }) {
   const [tab, setTab] = useState<Tab>("staff");
   const [menuId, setMenuId] = useState<string | null>(null);
-  const [submenu, setSubmenu] = useState<"role" | "classes" | null>(null);
+  const [submenu, setSubmenu] = useState<Submenu>(null);
   const [inviting, setInviting] = useState(false);
   const [importing, setImporting] = useState(false);
 
@@ -311,6 +333,8 @@ export function AdminConsole({
             <BillingPane {...billing} invoiceRequested={false} />
           </div>
         )}
+
+        {tab === "messages" && <MessagesPane messaging={messaging} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
       </main>
     </div>
   );
@@ -439,9 +463,9 @@ function StaffTable({
   staff: StaffRow[];
   classes: SchoolClass[];
   menuId: string | null;
-  submenu: "role" | "classes" | null;
+  submenu: Submenu;
   onToggleMenu: (id: string) => void;
-  onSubmenu: (s: "role" | "classes" | null) => void;
+  onSubmenu: (s: Submenu) => void;
 }) {
   const cols = "2.2fr 1.4fr 1.6fr 1fr 44px";
   return (
@@ -462,7 +486,16 @@ function StaffTable({
                 <p style={{ margin: "1px 0 0", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.email}</p>
               </div>
             </div>
-            <span style={{ font: "700 13px var(--font-atkinson)", color: rs.color, background: rs.bg, border: `1px solid ${rs.border}`, borderRadius: 999, padding: "5px 12px", justifySelf: "start", whiteSpace: "nowrap" }}>{rs.label}</span>
+            <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+              <span style={{ font: "700 13px var(--font-atkinson)", color: rs.color, background: rs.bg, border: `1px solid ${rs.border}`, borderRadius: 999, padding: "5px 12px", whiteSpace: "nowrap" }}>{rs.label}</span>
+              {/* Only the unusual case is labelled: a teacher who may not message
+                  families, or a TA who may. The default says nothing. */}
+              {p.mayMessage !== null && (
+                <span style={{ font: "700 11px var(--font-atkinson)", color: p.mayMessageResolved ? "#2E6B64" : "#B07A1E", whiteSpace: "nowrap" }}>
+                  {p.mayMessageResolved ? "May message families" : "No parent messages"}
+                </span>
+              )}
+            </span>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {p.classes.length === 0 ? (
                 <span style={{ font: "400 13px var(--font-atkinson)", color: "#B0B7C6" }}>—</span>
@@ -492,10 +525,13 @@ function StaffTable({
                     <RoleSubmenu staff={p} onBack={() => onSubmenu(null)} />
                   ) : submenu === "classes" ? (
                     <ClassesSubmenu staff={p} classes={classes} onBack={() => onSubmenu(null)} />
+                  ) : submenu === "messaging" ? (
+                    <MessagingSubmenu staff={p} onBack={() => onSubmenu(null)} />
                   ) : (
                     <>
                       <MenuButton icon="edit" label="Edit role" onClick={() => onSubmenu("role")} />
                       <MenuButton icon="class" label="Assign classes" onClick={() => onSubmenu("classes")} />
+                      <MenuButton icon="share" label="Parent messages" onClick={() => onSubmenu("messaging")} />
                       {invited && <MenuForm action={resendInvite} staffId={p.id} icon="share" label="Resend invite" />}
                       {!p.isYou && <MenuForm action={removeStaff} staffId={p.id} icon="delete" label="Remove from school" danger />}
                     </>
@@ -558,6 +594,36 @@ function RoleSubmenu({ staff, onBack }: { staff: StaffRow; onBack: () => void })
           <button role="menuitem" type="submit" disabled={staff.role === r} style={{ ...MENU_ITEM, opacity: staff.role === r ? 0.5 : 1 }}>
             <span style={{ width: 18, textAlign: "center" }} aria-hidden>{roleStyle(r).label === "Admin" ? "★" : "•"}</span>
             {roleStyle(r).label}
+          </button>
+        </form>
+      ))}
+    </>
+  );
+}
+
+// Who may reply to families is the SCHOOL's decision, per member of staff
+// (SAFEGUARDING rule 21). "Default" is the role's answer — teachers and admins
+// may, teaching assistants may not — and the two overrides sit beside it. A
+// member of staff cannot set their own; there is no action for it anywhere.
+function MessagingSubmenu({ staff, onBack }: { staff: StaffRow; onBack: () => void }) {
+  const roleDefault = staff.role === "TA" ? "no" : "yes";
+  const current = staff.mayMessage === null ? "default" : staff.mayMessage ? "yes" : "no";
+  const options: Array<{ value: "default" | "yes" | "no"; label: string }> = [
+    { value: "default", label: `Default for a ${roleStyle(staff.role).label.toLowerCase()} (${roleDefault})` },
+    { value: "yes", label: "May message families" },
+    { value: "no", label: "May not message families" },
+  ];
+  return (
+    <>
+      <button onClick={onBack} style={{ ...MENU_ITEM, color: "#43506B", font: "700 13px var(--font-atkinson)" }}>← Parent messages</button>
+      <div style={{ height: 1, background: "#F0EADD", margin: "4px 0" }} />
+      {options.map((o) => (
+        <form key={o.value} action={setStaffMessaging}>
+          <input type="hidden" name="staffId" value={staff.id} />
+          <input type="hidden" name="value" value={o.value} />
+          <button role="menuitem" type="submit" disabled={current === o.value} style={{ ...MENU_ITEM, opacity: current === o.value ? 0.5 : 1 }}>
+            <span style={{ width: 18, textAlign: "center" }} aria-hidden>{current === o.value ? "✓" : "•"}</span>
+            {o.label}
           </button>
         </form>
       ))}

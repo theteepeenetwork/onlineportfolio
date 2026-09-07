@@ -8,14 +8,9 @@ import { deriveTeacherName } from "@/lib/teacherName";
 import { recordAudit } from "@/lib/audit";
 
 // Resolve the current user as a school admin, or bounce them out. Every admin
-// mutation goes through this, so a non-admin (or a teacher with no school) can
-// never touch staff/class assignment.
-async function requireAdmin(): Promise<{ teacherId: string; schoolId: string; actorName: string }> {
-  const user = await getCurrentUser();
-  if (user?.role !== "TEACHER") redirect("/");
-  if (user.teacher.staffRole !== "ADMIN" || !user.teacher.schoolId) redirect("/teacher");
-  return { teacherId: user.teacher.id, schoolId: user.teacher.schoolId, actorName: user.teacher.displayName };
-}
+// mutation goes through this (src/lib/adminAuth.ts), so a non-admin (or a
+// teacher with no school) can never touch staff/class assignment.
+import { requireAdmin } from "@/lib/adminAuth";
 
 const ROLES = ["ADMIN", "TEACHER", "TA"];
 
