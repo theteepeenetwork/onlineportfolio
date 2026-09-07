@@ -6912,7 +6912,15 @@ function QuizBoxView({
   // card: a target too small traded for one a child cannot see at all, which is
   // the worse of the two. A quiz card is opaque, so what it grows over is the
   // worksheet behind it, and the child still has every answer.
-  const grows = !author;
+  // Both cards follow their content. A child's may only outgrow the size it
+  // was drawn at (the touch floor below needs the room); a teacher's takes its
+  // content height either way, so there is never a band of empty card under
+  // the last answer — the design's box is exactly as tall as what is in it.
+  const grows = true;
+  // Type never goes below the design's small size, however the box is scaled:
+  // a question a teacher shrank to an aside still has to be readable.
+  const MIN_TEXT = 15;
+  const txt = (n: number) => Math.max(MIN_TEXT, px(n));
   // A listen button on the question is offered only when the caller asked for
   // one (a child, in a register that cannot read yet) AND the platform has an
   // on-device voice to say it with. Both, or nothing.
@@ -6927,8 +6935,10 @@ function QuizBoxView({
   // One size for all of them, the largest that fits every answer — sizing each
   // independently would leave "Red" huge next to a small "It was raining".
   // Capped at the question's size so the question still reads as the question.
-  const answerCap = px(24);
-  const answerFloor = Math.min(8, answerCap);
+  // Answers fit their 44px row but never pass the prompt's size: an answer
+  // looming over its question reads as the question.
+  const answerCap = Math.max(MIN_TEXT, px(20));
+  const answerFloor = MIN_TEXT;
   const [answerFont, setAnswerFont] = useState(answerCap);
   const answerEls = useRef<Map<string, HTMLElement>>(new Map());
   const registerAnswer = useCallback((id: string, el: HTMLElement | null) => {
@@ -7045,7 +7055,7 @@ function QuizBoxView({
           // is exactly the size they drew, because for them the box is a thing
           // being laid out on a worksheet. The transform does not affect layout,
           // so this height is in logical units either way.
-          ...(grows ? { minHeight: q.h } : { height: q.h }),
+          ...(author ? {} : { minHeight: q.h }),
           transform: `scale(${scale})`,
           transformOrigin: "top left",
           padding: `${px(12)}px ${px(14)}px`,
@@ -7075,7 +7085,7 @@ function QuizBoxView({
                 label="Question"
                 className="w-full leading-tight text-foreground"
                 style={{
-                  fontSize: px(q.prompt.length > 22 ? 16 : 20),
+                  fontSize: txt(q.prompt.length > 22 ? 16 : 20),
                   fontFamily: "var(--font-fredoka)",
                   fontWeight: 600,
                 }}
@@ -7108,7 +7118,7 @@ function QuizBoxView({
             )}
             <p
               className={`flex-1 leading-tight ${q.prompt ? "text-foreground" : "text-muted"}`}
-              style={{ fontSize: px(20), fontFamily: "var(--font-fredoka)", fontWeight: 600, textWrap: "pretty" }}
+              style={{ fontSize: txt(20), fontFamily: "var(--font-fredoka)", fontWeight: 600, textWrap: "pretty" }}
             >
               {q.prompt || (author ? "Type your question here" : "")}
             </p>
