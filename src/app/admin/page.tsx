@@ -5,12 +5,21 @@ import { accountStateForTeacher, governingSubscription, planLabel } from "@/lib/
 import { stripeConfigured } from "@/lib/stripe";
 import { messagingStaffForSchool, resolveMayMessageParents, schoolMessaging } from "@/lib/messaging/policy";
 import { oversightForSchool } from "@/lib/messaging/threads";
+import { readSchoolMailHealth } from "@/lib/schoolMailHealth";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
 // else is bounced back to their own teacher view. Nothing here exposes any
 // child's work; that stays scoped to whoever teaches the class.
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  // Async in this version of Next — a page that reads a search parameter is
+  // dynamically rendered, and the prop is a Promise rather than the plain
+  // object older code (and older training data) expects. See
+  // node_modules/next/dist/docs/01-app/01-getting-started/03-layouts-and-pages.md.
+  searchParams: Promise<{ blocked?: string }>;
+}) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
   if (user.teacher.staffRole !== "ADMIN" || !user.teacher.schoolId) redirect("/teacher");
@@ -40,17 +49,121 @@ export default async function AdminPage() {
   // data is stored here or anywhere — only Stripe ids.
   const sub = await governingSubscription(teacherCtx);
 
-  const staff: StaffRow[] = school.staff.map((s) => ({
-    id: s.id,
-    name: s.name,
-    email: s.email,
-    role: s.role,
-    status: s.status,
-    isYou: s.id === user.teacher.id,
-    classes: s.classes.map((c) => c.name),
-    mayMessage: s.mayMessageParents,
-    mayMessageResolved: resolveMayMessageParents(s),
-  }));
+  // PENDING, UNEXPIRED INVITATIONS TO TEACHERS WHO ALREADY HAVE AN ACCOUNT.
+  //
+  // ============ THE DISCLOSURE DECISION OF THIS SCREEN ============
+  //
+  // `teacher.email` IS THE ONLY THING SELECTED FROM THE INVITEE'S ACCOUNT.
+  // Not her name, not her display name, not her school name, not her class
+  // count, not her id — nothing else about that adult crosses to the browser.
+  // The address is here for two reasons and no others: it is what this admin
+  // typed, and it is where a re-invitation would go. Everything else on the row
+  // comes from the invitation itself, which holds only what this school wrote.
+  //
+  // The name shown is `invitedName` — WHAT THE ADMIN TYPED, never the account's
+  // own. Rendering `teacher.name` would tell an admin what a stranger is
+  // called, in exchange for an email address they guessed; see the column's
+  // comment in prisma/schema.prisma.
+  //
+  // EXPIRY IS READ HERE AS A DATE, not looked up as a state. There is no
+  // EXPIRED value in the vocabulary on purpose — a state would have to be
+  // written by a sweep, and a sweep that stops running leaves lapsed offers
+  // looking open (src/lib/schoolInvitationPolicy.ts).
+  const invitations = await db.schoolInvitation.findMany({
+    where: { schoolId: school.id, state: "PENDING", expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      role: true,
+      invitedName: true,
+      createdAt: true,
+      teacher: { select: { email: true } },
+    },
+  });
+
+  // ONE LIST, MERGED AND SORTED BY WHEN EACH WAS CREATED — NOT TWO SECTIONS.
+  //
+  // A separate "waiting to accept" list would be exactly the signal the
+  // four-case branch in src/app/actions/admin.ts just removed: it would tell an
+  // admin which of the addresses they typed already had a StoryJar account.
+  // Sorted together for the same reason — an invitation always appearing last
+  // would be a positional tell even with an identical label.
+  //
+  // A pending invitation is NOT a `Teacher` row in this school, and everything
+  // that follows from that is handled by `invitationId` being non-null:
+  // AdminConsole filters these rows out of the class-owner pickers (there is
+  // nothing here to assign a class to) and gives them a menu of their own.
+  // THE LABEL AND THE COLOUR ARE THE SAME AS A FRESH INVITED ROW ON PURPOSE.
+  const staff: StaffRow[] = [
+    ...school.staff.map((s) => ({
+      id: s.id,
+      name: s.name,
+      email: s.email,
+      role: s.role,
+      status: s.status,
+      isYou: s.id === user.teacher.id,
+      classes: s.classes.map((c) => c.name),
+      invitationId: null,
+      // Parent messaging (SAFEGUARDING rule 21): the stored override and what
+      // it resolves to for this person's role.
+      mayMessage: s.mayMessageParents,
+      mayMessageResolved: resolveMayMessageParents(s),
+      sortAt: s.createdAt.getTime(),
+    })),
+    ...invitations.map((inv) => ({
+      id: inv.id,
+      name: inv.invitedName,
+      email: inv.teacher.email,
+      role: inv.role,
+      // The same word the table turns into the same badge. An invitation that
+      // said anything else here would be the separate section by another means.
+      status: "INVITED",
+      isYou: false,
+      // No classes: a class belongs to a school through its teacher, and this
+      // teacher is not in this school yet.
+      classes: [] as string[],
+      invitationId: inv.id,
+      // Nobody who has not accepted can message a family: they are not staff of
+      // this school yet, so there is no per-staff switch to show and nothing to
+      // resolve. The row's own menu (invitationId non-null) does not offer one.
+      mayMessage: null,
+      mayMessageResolved: false,
+      sortAt: inv.createdAt.getTime(),
+    })),
+  ]
+    .sort((a, b) => a.sortAt - b.sortAt)
+    // `sortAt` is dropped here rather than sent: the ordering is the server's
+    // decision, and a creation timestamp per staff row is data the browser has
+    // no use for.
+    .map(({ sortAt: _sortAt, ...row }) => row);
+
+  // WHICH CLASSES ARRIVED HERE BECAUSE SOMEBODY WAS REMOVED.
+  //
+  // This flag is load-bearing rather than decorative, and that is why it ships
+  // in the same change as the thing it describes. Removing a member of staff
+  // moves their classes to the admin who pressed the button, which hands a
+  // non-teaching adult a class of children's journals and approval queues — a
+  // widening of SAFEGUARDING rule 5, accepted as an owner decision on 29 August
+  // 2026 (docs/dpo-decisions.md) on the condition that the holding is visibly
+  // TEMPORARY. A silent dump of thirty classes is a permanent widening that
+  // nobody ever looks at; a flagged one is a to-do list.
+  //
+  // Read from the AUDIT LOG rather than a new column, because the audit is
+  // already the authoritative custody history: removal writes one CLASS_ASSIGNED
+  // row per moved class, and so does ordinary reassignment. No migration, and
+  // the flag cannot drift from the record a school would be shown if it asked.
+  const custody = await db.auditLog.findMany({
+    where: { schoolId: school.id, action: "CLASS_ASSIGNED", subjectType: "CLASS" },
+    orderBy: { at: "desc" },
+    select: { subjectId: true, detail: true, at: true },
+  });
+  const inheritedOnRemoval = new Map<string, string>();
+  for (const row of custody) {
+    if (!row.subjectId || inheritedOnRemoval.has(row.subjectId)) continue; // newest wins
+    if (row.detail?.includes("was removed from the school")) {
+      inheritedOnRemoval.set(row.subjectId, row.detail);
+    }
+  }
 
   // The school's parent-messaging settings (SAFEGUARDING rule 21): the switch,
   // the office hours and the closed days. Settings only — no conversation and
@@ -72,7 +185,14 @@ export default async function AdminPage() {
 
   // School-wide classes (for the Classes tab and the "assign classes" picker).
   const classes: SchoolClass[] = school.staff.flatMap((s) =>
-    s.classes.map((c) => ({ id: c.id, name: c.name, teacherId: s.id, teacherName: s.name, children: c._count.students })),
+    s.classes.map((c) => ({
+      id: c.id,
+      name: c.name,
+      teacherId: s.id,
+      teacherName: s.name,
+      children: c._count.students,
+      inherited: inheritedOnRemoval.get(c.id) ?? null,
+    })),
   );
 
   const childrenCount = classes.reduce((a, c) => a + c.children, 0);
@@ -94,6 +214,19 @@ export default async function AdminPage() {
   // travel to a browser that isn't entitled to it. Deny by default — anything
   // recorded against a child's work is treated as naming them, including audit
   // actions added later.
+  // WHY THE ADMIN LANDED BACK HERE, when they landed here from a refusal.
+  //
+  // The three verification gates in `src/app/actions/admin.ts` return void and
+  // have no error channel, so they refuse with `redirect("/admin?blocked=verify")`
+  // — the shape those actions already used for a refusal, plus a reason. This is
+  // where the reason is read.
+  //
+  // NARROWED TO A KNOWN VALUE rather than passed through. It is caller-supplied
+  // text on its way to a rendered screen, and the client component needs a flag,
+  // not a string. Anything else is treated as no reason at all.
+  const { blocked: blockedRaw } = await searchParams;
+  const blocked = blockedRaw === "verify" ? "verify" : null;
+
   const CHILD_SUBJECTS = new Set(["JOURNAL_ITEM", "STUDENT"]);
   const audit: AuditEntry[] = auditRows.map((a) => {
     const aboutAChild = CHILD_SUBJECTS.has(a.subjectType ?? "");
@@ -110,6 +243,13 @@ export default async function AdminPage() {
 
   const billing = {
     schoolName: school.name,
+    // HAS THE MONEY ARRIVED? A different fact from `status`, read by different
+    // code, and the two disagree on purpose: a school on 30-day invoice terms is
+    // ACTIVE (finance holding a PO must not freeze anybody) and unverified (the
+    // payment has not landed). `status` decides who may write; this decides
+    // whether the three admin powers that move children's work between adults
+    // are open. See docs/dpo-decisions.md, 30 August and 1 September 2026.
+    verified: Boolean(school.verifiedAt),
     status: account.status,
     kind: account.kind,
     trialDaysLeft: account.trialDaysLeft,
@@ -128,6 +268,13 @@ export default async function AdminPage() {
     configured: stripeConfigured(),
     billingEmail: user.teacher.email,
     pupilsOnRoll: childrenCount,
+    // "Is our email arriving?" — the question the business manager is rung
+    // about. Read here rather than in the client, and deliberately NOT wrapped
+    // in a try/catch: a failed read must break the page rather than render as
+    // "no emails were sent", which would be a problem that looks like
+    // everything being fine. The object holds no address, domain, school or
+    // child, which is why it may cross to the browser at all.
+    mailHealth: await readSchoolMailHealth(),
   };
 
   return (
@@ -135,6 +282,7 @@ export default async function AdminPage() {
       schoolName={school.name}
       plan={planLabel(account)}
       billing={billing}
+      blocked={blocked}
       meId={user.teacher.id}
       staff={staff}
       classes={classes}

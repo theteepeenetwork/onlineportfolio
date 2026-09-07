@@ -1,3 +1,4 @@
+import { BATTERY_STRIPE_KEY } from "./tests/battery/stripeFixtureKey";
 import { defineConfig } from "@playwright/test";
 
 // The app runs on port 3000 by default, but that port is often taken. Set
@@ -22,6 +23,14 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: BASE_URL,
+    // The classroom iPad in landscape, at CSS px — the device the canvas is
+    // designed for (the design frame is 1194 × 834), and the one the a11y gate
+    // already measures against. Playwright's default is 1280 × 720, which is a
+    // laptop window: 114px shorter than any tablet a child uses, and short
+    // enough that a tall piece plus its handles, the object bar and the page
+    // tray genuinely do not all fit. A test that wants a different screen
+    // still sets its own — child-escape's 768px portrait, for one.
+    viewport: { width: 1194, height: 834 },
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -31,5 +40,34 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: true,
     timeout: 120_000,
+    // Same reason as playwright.battery.config.ts: this suite also runs
+    // `next dev`, so it meets the same dev-tools badge at bottom-left, whose
+    // portal subtree intercepts pointer events over whatever is under it. Set
+    // here as well because the artefact is a property of running dev, not of
+    // which suite is running. `npm run dev` is unaffected. See next.config.ts.
+    env: {
+      PW_HIDE_DEV_INDICATOR: "1",
+      // A FICTIONAL TEST-MODE KEY, SO THE PURCHASE SCREEN IS REACHABLE AT ALL.
+      //
+      // `SchoolPlanPurchase` disables both buy buttons on `!configured`, which
+      // is `stripeConfigured()` — a bare check for STRIPE_SECRET_KEY. A
+      // developer's `.env` has one and CI has none, so a spec that clicks
+      // either button passes locally and hangs for the full timeout on a
+      // runner, waiting on a control that can never enable. That is exactly how
+      // `school-purchase.spec.ts` reached `main` red: 114 retries against
+      // `element is not enabled`, on a machine with nothing wrong with it.
+      //
+      // The key is never spent. Every spec that clicks those buttons asserts a
+      // refusal — a URN already claimed, an address not yet proved — and each of
+      // those returns before the first Stripe call, so nothing here reaches the
+      // network. `playwright.battery.config.ts` sets the same constant for the
+      // same reason; its comment explains the shape.
+      //
+      // If a spec is ever written that DOES cross the Stripe boundary, this key
+      // makes the call fail rather than succeed, and that is the correct
+      // outcome: a suite must not transact against anybody's Stripe account,
+      // test mode or otherwise.
+      STRIPE_SECRET_KEY: BATTERY_STRIPE_KEY,
+    },
   },
 });

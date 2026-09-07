@@ -101,6 +101,9 @@ tenant, used to prove School B can never reach School A's anything.
 | Mr Okafor | `teacher@oakfield.sch.uk` | `password` | TEACHER, owns Acorn |
 
 - Class **Acorn**, code `ACRN22`, children Zara, Yusuf, Willow.
+- **Claimed as URN `900200`**, with a matching fictional `Establishment` row of
+  the same name. Oakfield is the school that is *already on StoryJar*, so the
+  duplicate-URN refusal has something real to refuse.
 - Parent **Nadia Rahman**, family code `OAKFAM1`, linked to Zara only. Her
   address is on the mail suppression list as a BOUNCE, so the delivery line on
   an adult record has something to say.
@@ -117,6 +120,45 @@ while every write is blocked server-side.
 - The only fixture with Stripe ids (`cus_seedlarchwood0001`,
   `sub_seedlarchwood0001`), so the operator billing screen has a link to build.
   St Bede's has none, which is the negative control on the same render.
+
+**School E, Pennyfields Primary** (ACTIVE but **UNVERIFIED**). Arranged on the
+invoice / PO route and not paid for yet, so the subscription is ACTIVE — finance
+holding an invoice for thirty days must not freeze a school — while
+`School.verifiedAt` is null. Use it to check the three admin powers an unpaid
+school does not have: moving a class to another member of staff, removing a
+colleague who has already joined, and making somebody else an admin. Everything
+else, including inviting staff and removing an INVITED row, stays open.
+
+| Account | Email | Password | Role |
+| --- | --- | --- | --- |
+| Mrs Okonkwo | `admin@pennyfields.sch.uk` | `password` | ADMIN |
+| Mr Vaughan | `teacher@pennyfields.sch.uk` | `password` | TEACHER, owns Kestrel |
+
+- Class **Kestrel**, code `PENN44`, no children — nothing in the unverified gates
+  reads a child.
+- It is the mirror image of School C: Larchwood is **frozen but verified** (it
+  paid once and lapsed), Pennyfields is **unfrozen but unverified**. Billing
+  status and verification are separate facts read by different code.
+
+**No school at all: a free teacher with her own class.** The account phase 2 is
+about. `inviteStaff` refuses an email that already belongs to a teacher, so a
+teacher who signed up free in September cannot be brought into their school when
+it buys in January; she is the person that refusal happens to.
+
+| Account | Email | Password | Role |
+| --- | --- | --- | --- |
+| Miss Brookfield | `free.teacher@example.test` | `password` | TEACHER, **no school** |
+
+- `schoolId` is null, and she has her **own FREE plan** — the row
+  `createTeacherAccount` writes for every free signup, and the row
+  `removed-staff-keep-a-free-plan.spec.ts` sweeps the whole table for.
+- Class **Bluebell**, code `BLUE33`, children Elsie, Kofi, Marnie. The pupils are
+  the point: accepting an invitation is what makes her classes *and the children
+  in them* a school's, so an empty class could not prove anything moved. No
+  journal items — children's work through a handover is `class-handover.spec.ts`.
+- `schoolName` reads "Thornbury Lane Primary", free text and unchecked, with no
+  `urn`. Thornbury Lane is deliberately not in the fictional establishment
+  register, so nothing about her looks like a register claim.
 
 **Platform operator fixture**
 
@@ -158,6 +200,12 @@ so restarting does not clear it.
 **Storyjar library fixtures**: `seed-autumn-walk` (published) and
 `seed-not-published-yet` (unpublished, must be invisible to every teacher).
 
+**School D, StoryJar Studio** (`publisher@studio.storyjar.co.uk` / `password`):
+the only fixture school with `canPublishToLibrary`. It stands in for the Academy,
+which is far too large to be a fixture, and it exists so the cross-tenant publish
+refusals in `shared-activities.spec.ts` are a real test rather than a test of an
+empty table.
+
 ---
 
 ## 3. Storyjar Academy (the production sandbox)
@@ -176,6 +224,18 @@ rolls, price bands and revenue lines. It is the only school with
 Class codes are `ACD` + two-digit year index + form number, so Nursery Oak is
 `ACD011`, Nursery Elm `ACD012`, Year 1 Oak `ACD031`, and so on down the list in
 the script.
+
+**These accounts can publish to the shared library, and no other account can.**
+`School.canPublishToLibrary` is true here alone. Sign in as any class teacher,
+build on the real canvas, and publish from the activity's ⋯ menu; the Publishing
+screen at `/teacher/activities/library` is where it is made visible or
+withdrawn. See [`library-publishing.md`](./library-publishing.md).
+
+**The addresses and codes above are also in the product**, at `/ops/academy` in
+the operator console, derived from the same scheme rather than read from the
+database. This document stays the source of truth for the wording, and
+`tests/battery/security/ops-academy.spec.ts` fails the build if the screen and
+the seed script drift apart.
 
 **The password is not in this document and not in the repository.** It is set
 once when the script is run and lives in the password manager:
@@ -220,11 +280,22 @@ Have ready, before you run anything:
 
 ### The steps
 
-**1. Run the script once, against production.**
+**1. Run the script once, against production — inside the container.**
 
 ```bash
-railway run npx tsx scripts/seed-operator.ts you@example.com
+railway ssh
 ```
+
+Then, at the container prompt:
+
+```bash
+npx tsx scripts/seed-operator.ts you@example.com
+```
+
+**Not `railway run`.** That injects the production variables into a process on
+your own Mac, and `DATABASE_URL` is `file:/data/prod.db`, a path on the Railway
+volume that is not mounted there. The variables travel; the file does not. You
+get SQLite error 14 and no account (F44).
 
 Use an address you will still control in two years. It is only an identifier
 for sign-in; the script sends no email.
@@ -251,7 +322,8 @@ together. A drawer is the correct answer and is not a joke.
 
 ### For a local operator account
 
-Same script, no `railway run`, and start the dev server with the switch on:
+Same script, run straight on your own machine against your own database, and
+start the dev server with the switch on:
 
 ```bash
 npx tsx scripts/seed-operator.ts you@example.com

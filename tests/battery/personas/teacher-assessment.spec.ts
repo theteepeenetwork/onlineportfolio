@@ -181,7 +181,7 @@ test("send a piece of work back and watch the child pick it up", async ({ page, 
   await signInChild(t, page, ACADEMY.classes.ks2.code, ACADEMY.returned.child);
 
   await carryOn(async () => {
-    const flagged = await t.seesText(/again|back|another go|have another/i, 4000);
+    const flagged = await t.seesText(/again|\bback\b|another go|have another/i, 4000);
     t.expects(
       flagged,
       "major",

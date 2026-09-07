@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+
+  "teammateMode": "in-process",
+
+  "permissions": {
+    "allow": [
+      "Bash(npm run check)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run lint)",
+      "Bash(npm run test:changed)",
+      "Bash(npm run test:changed -- --all)",
+      "Bash(npm run test:gate)",
+      "Bash(npm run test:e2e)",
+      "Bash(npm run test:a11y)",
+      "Bash(npm run test:security)",
+      "Bash(npm run test:ux)",
+      "Bash(npm run test:personas)",
+      "Bash(npx playwright test:*)",
+      "Bash(node scripts/:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(rg:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(git push --force:*)",
+      "Bash(npx prisma migrate reset:*)",
+      "Bash(npm run db:reset)"
+    ]
+  },
+
+  "hooks": {
+    "TeammateIdle": [
+      {
+        "matcher": "ops-lead|teacher-lead|child-lead|platform-lead",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/teammate-gate.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

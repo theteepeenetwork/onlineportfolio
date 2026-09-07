@@ -32,6 +32,44 @@ drawer, is the correct answer here and is not a joke.
 
 ---
 
+## How to run any command on this page
+
+Every database command below runs **inside the container**, because that is the
+only place the database exists. Open a shell on the running service:
+
+```bash
+railway ssh
+```
+
+Then type the command at the container prompt. Before you type anything else,
+run `ls` and check you can see `package.json`, `prisma/` and `scripts/`; if you
+cannot, `cd /app`.
+
+The commands are given as two steps rather than as `railway ssh node -e "..."`
+on one line on purpose. The one-liners contain double quotes and `$`, and
+passing them through your own shell as well as the container's is how you end up
+debugging quoting instead of getting back into your account.
+
+**Why not `railway run`. The variables come to your machine; the file does
+not.** `railway run` fetches the production environment variables and runs the
+command **on your Mac** with those variables set. `DATABASE_URL` is
+`file:/data/prod.db` — a path on the Railway volume, and the volume is not
+mounted on your Mac. So Prisma opens nothing and fails with SQLite error 14,
+"unable to open database file". Every command on this page said `railway run`
+until 23 August 2026, and not one of them had ever worked; see F44 in
+`FINDINGS.md`.
+
+`railway run` is still right for the scripts that only speak to Mailjet over
+HTTPS and never open the database — `scripts/verify-mail.ts` and
+`scripts/mail-events.mjs`. The test is not which command is newer. It is whether
+what you are running needs the file on the volume.
+
+**Which container you get.** `railway ssh` attaches to the deployment that is
+*running*. If the service is crash-looping there is nothing to attach to, and no
+command on this page will help until the boot is fixed.
+
+---
+
 ## Situation 1: you have the password and the phone
 
 Sign in normally. Email, password, then the six-digit code.
@@ -49,7 +87,13 @@ lock is a column on the row rather than something held in memory, so restarting
 the service does not clear it. Wait it out, or clear it deliberately:
 
 ```bash
-railway run node -e "const{PrismaClient}=require('@prisma/client');const d=new PrismaClient();d.operator.updateMany({data:{failedAttempts:0,lockedUntil:null}}).then(r=>console.log('cleared',r)).finally(()=>d.\$disconnect())"
+railway ssh
+```
+
+Then, at the container prompt:
+
+```bash
+node -e "const{PrismaClient}=require('@prisma/client');const d=new PrismaClient();d.operator.updateMany({data:{failedAttempts:0,lockedUntil:null}}).then(r=>console.log('cleared',r)).finally(()=>d.\$disconnect())"
 ```
 
 The message on screen never says "locked", on purpose: it is the same sentence
@@ -76,10 +120,20 @@ You need Railway shell access to the production service. If you have that, you
 already have more power than the operator area gives you: see "the honest
 limit" at the end.
 
+One `railway ssh` shell serves steps 1 to 3 — stay in it rather than opening
+three. It is repeated in each block below so that a block copied on its own is
+still correct.
+
 **Step 1. Confirm what you are about to delete.**
 
 ```bash
-railway run node -e "const{PrismaClient}=require('@prisma/client');const d=new PrismaClient();d.operator.findMany({select:{id:true,email:true,role:true,status:true,createdAt:true,lastSignInAt:true}}).then(r=>console.log(r)).finally(()=>d.\$disconnect())"
+railway ssh
+```
+
+Then, at the container prompt:
+
+```bash
+node -e "const{PrismaClient}=require('@prisma/client');const d=new PrismaClient();d.operator.findMany({select:{id:true,email:true,role:true,status:true,createdAt:true,lastSignInAt:true}}).then(r=>console.log(r)).finally(()=>d.\$disconnect())"
 ```
 
 **Step 2. Delete the operator row.** Its sessions go with it, because
@@ -87,14 +141,30 @@ railway run node -e "const{PrismaClient}=require('@prisma/client');const d=new P
 an operator, so no school, teacher, child or family record is touched by this.
 
 ```bash
-railway run node -e "const{PrismaClient}=require('@prisma/client');const d=new PrismaClient();d.operator.deleteMany().then(r=>console.log('deleted',r)).finally(()=>d.\$disconnect())"
+railway ssh
+```
+
+Then, at the container prompt:
+
+```bash
+node -e "const{PrismaClient}=require('@prisma/client');const d=new PrismaClient();d.operator.deleteMany().then(r=>console.log('deleted',r)).finally(()=>d.\$disconnect())"
 ```
 
 **Step 3. Create a new account and print the new credentials.**
 
 ```bash
-railway run npx tsx scripts/seed-operator.ts you@example.com
+railway ssh
 ```
+
+Then, at the container prompt:
+
+```bash
+npx tsx scripts/seed-operator.ts you@example.com
+```
+
+`tsx` is a runtime dependency rather than a dev one, and the container carries
+the repository (its start command is `bash scripts/railway-start.sh`, which
+reads `prisma/schema.prisma`), so this resolves locally and fetches nothing.
 
 The script refuses to run while an operator row exists, which is why step 2 has
 to happen first and cannot be skipped by adding a flag. There is no flag.
@@ -109,7 +179,13 @@ account did survives the rebuild. That is deliberate: an account rebuild must
 not be a way to erase the trail behind it.
 
 ```bash
-railway run node -e "const{PrismaClient}=require('@prisma/client');const d=new PrismaClient();d.opsAuditLog.findMany({orderBy:{at:'desc'},take:50}).then(r=>console.table(r)).finally(()=>d.\$disconnect())"
+railway ssh
+```
+
+Then, at the container prompt:
+
+```bash
+node -e "const{PrismaClient}=require('@prisma/client');const d=new PrismaClient();d.opsAuditLog.findMany({orderBy:{at:'desc'},take:50}).then(r=>console.table(r)).finally(()=>d.\$disconnect())"
 ```
 
 ---
@@ -136,18 +212,51 @@ The sign-in, enrolment, recovery-code and sign-out halves are exercised on every
 battery run by `tests/battery/security/ops-auth.spec.ts`, against real
 credentials and a real code.
 
-**Not yet rehearsed:** the `railway run` wrapper, against a real Railway
-environment. There isn't a non-production one to try it on, and doing it against
-production would mean deleting the live operator account to see what happens.
-Paying for a non-production environment is owner decision **D12**, still open.
-So the commands are known to work against the same Prisma client and the same
-schema the service uses; the wrapper around them is not yet proved.
+**The wrapper was wrong, and being unrehearsed is how it stayed wrong.** Until
+23 August 2026 every command above said `railway run`, and the paragraph here
+said only that the wrapper was "not yet proved". It was not unproved. It could
+not work, for a reason that was already written down two sections up: the
+database is a file on the volume. Mark found it for real on 23 August, trying to
+seed the operator account, and got SQLite error 14. Logged as **F44**.
 
-Rehearse the Railway half once, on a day nothing is wrong, before the pilot, and
-write the date here when you do:
+The commands themselves were rehearsed and are unchanged. What was never
+executed was the one word in front of them.
+
+**Still not rehearsed:** the `railway ssh` half, end to end, against the real
+service. There is no non-production environment to try it on — paying for one is
+owner decision **D12**, still open — and a full break-glass rehearsal against
+production would mean deleting the live operator account to see what happens.
+What can be rehearsed without that, and should be before the pilot, is narrow
+and cheap: that `railway ssh` reaches a shell in the running container, that the
+container has `prisma/` and `scripts/` in it, and that the *read-only* command in
+situation 4 step 1 lists the operator rows. Steps 2 and 3 are the destructive
+ones and stay unrehearsed by choice.
+
+Rehearse that much once, on a day nothing is wrong, and write the date here:
 
 - Rehearsed against a throwaway local database: **2026-08-17**
-- Rehearsed against Railway: *(not yet, D12)*
+- `railway ssh` reaches the container, and the read-only operator list runs
+  there: **2026-08-23 — PASSED.** See below.
+- Full break-glass against Railway: *(not planned; needs D12)*
+
+**What the 2026-08-23 rehearsal actually covered**, so nobody has to guess later:
+
+- `railway ssh` reached a shell on the running service.
+- The prompt starts in **`/app`**, with the repository there. The "if `ls` does
+  not show `package.json`, `cd /app`" hedge above is now a confirmed fact rather
+  than an assumption, and can be relied on.
+- It is genuinely the container and not the operator's own machine — checked
+  deliberately, because a first `ls` can look enough like a local checkout to be
+  worth distrusting. `/data` is mounted and holds `media/` and `media-shared/`;
+  the hostname is a container id.
+- The **read-only** command from situation 4 step 1 ran there and returned one
+  operator row, `role: OWNER`, `status: ACTIVE`.
+
+So the wrapper, the working directory, the availability of `node` and `npx`, and
+Prisma's path to the database are proved end to end. **The destructive steps —
+situation 4 steps 2 and 3, which delete and recreate the live operator account —
+remain unrehearsed by choice**, and that is not a gap to close: rehearsing them
+against production means deleting the live account to watch what happens.
 
 ---
 

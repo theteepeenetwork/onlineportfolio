@@ -9,6 +9,7 @@ import {
   formatAgo,
   formatDay,
   formatDayAndTime,
+  formatIsoDay,
   headcount,
   maskEmail,
   type AdultRecordDto,
@@ -21,7 +22,9 @@ import {
   type MailSuppressionSummaryDto,
   type MailTemplateTotalsDto,
   type MailWindowDto,
+  type RegisterStatusDto,
   type SchoolRowDto,
+  type SharedLibraryRowDto,
 } from "@/lib/ops/dto";
 import {
   MAIL_STATUS_CLASS_LABEL,
@@ -36,7 +39,11 @@ import {
   utcDayBefore,
   type MailStatusClass,
 } from "@/lib/mailStatus";
-import { mailAddressHmac, mailHmacConfigured } from "@/lib/ops/mailHmac";
+import { mailAddressHmac, mailHmacConfigured } from "@/lib/mailHmac";
+import {
+  GIAS_IMPORT_JOB,
+  parseImportDetail,
+} from "@/lib/establishmentRegister";
 
 // ---------------------------------------------------------------------------
 // The operator read chokepoint (PR2).
@@ -671,4 +678,137 @@ export async function databaseAnswerTime(): Promise<number> {
   const started = performance.now();
   await db.operator.count();
   return performance.now() - started;
+}
+
+/**
+ * The establishment register: how many schools are in it, and how old they are.
+ *
+ * A READ, and only a read. There is no operation behind it, no button on the
+ * tile it feeds, and no way from here to change a row: the register is
+ * classified PUBLIC_REFERENCE in the blindness gate, which permits no write of
+ * any shape, and rows arrive only through scripts/gias-import.ts run by a
+ * person. This function is the whole of ops's relationship with the register.
+ *
+ * WHY A COUNT AND NOT A LIST. Nothing here needs one. "Is this teacher's school
+ * in the register?" is answered by the count being right and the refresh being
+ * recent; the picker on the signup page is where the register is read row by
+ * row, and that is a teacher-facing search, not an operator screen. A browse
+ * surface in /ops would be a browse surface nobody asked for.
+ *
+ * WHY NEVER-IMPORTED IS ITS OWN ANSWER. A register that has never been imported
+ * has a count of zero, and so does a register whose import wiped everything. On
+ * a status screen those must not look alike: the whole reason this tile exists
+ * is that staleness should be visible rather than remembered, and a calm-looking
+ * zero is exactly the "tile that looks fine because its feed is missing" that
+ * the rest of this screen is built against.
+ */
+export async function readRegisterStatus(): Promise<RegisterStatusDto> {
+  await requireOperator();
+
+  const now = new Date();
+  const [total, run] = await Promise.all([
+    db.establishment.count(),
+    db.jobRun.findFirst({
+      where: { job: GIAS_IMPORT_JOB },
+      orderBy: [{ startedAt: "desc" }],
+      // Named one at a time like every other read in this file.
+      select: {
+        job: true,
+        startedAt: true,
+        outcome: true,
+        itemsAffected: true,
+        outcomeDetail: true,
+      },
+    }),
+  ]);
+
+  const lastRefresh: JobRunDto | null = run
+    ? {
+        job: run.job,
+        label: "Refresh of the school register from the DfE's published extract",
+        startedAt: formatDayAndTime(run.startedAt) ?? "",
+        outcomeLabel:
+          run.outcome === "SUCCESS" ? "Finished successfully" : "Did not finish successfully",
+        itemsAffected: run.itemsAffected,
+        note: run.outcomeDetail,
+        ageLabel: formatAgo(run.startedAt, now),
+      }
+    : null;
+
+  let statement: string;
+  if (run === null) {
+    statement =
+      "The school register has never been imported in this environment. That is not an empty register, it is no register: the school picker on signup will find nothing, and every teacher signing up here falls back to typing their school's name as free text. Run the import by hand — npm run gias:import — from inside the container.";
+  } else if (total === 0) {
+    statement =
+      "The register was imported but holds no schools, which should not be possible: the import refuses to replace the register with an implausibly short list. Something has emptied the table since. Re-run the import before anybody signs up.";
+  } else {
+    statement =
+      "Schools in England, from the DfE's Get Information about Schools extract, imported by hand and never called at runtime. This is a snapshot: schools open, close and merge constantly, so the date below is the honest measure of how good the school picker is today. A school missing from it can still sign up by typing its name.";
+  }
+
+  return {
+    imported: run !== null,
+    total,
+    lastRefresh,
+    sourceFileDate: formatIsoDay(parseImportDetail(run?.outcomeDetail ?? null)),
+    statement,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// StoryJar's own activity library
+// ---------------------------------------------------------------------------
+//
+// The one table in the schema that holds StoryJar's content rather than a
+// school's, which is why the blindness gate classifies it PLATFORM_CONTENT and
+// permits reads of it at all. It is still read-only there, and this function
+// changes nothing about that: publishing and withdrawing happen in the Academy,
+// in an ordinary teacher account, on the real canvas.
+//
+// WHY AN OPERATOR IS SHOWN THIS AT ALL
+//
+// Because "is the library actually being used" is a platform question and
+// there is nowhere else to ask it. The uptake figure is a COUNT of the copies
+// relation, which is the single place a child-reaching relation name may
+// appear under these roots: it answers which activities teachers are taking
+// without opening one template. Selecting `copies` itself is refused
+// (OPS-CHILD-RELATION) and must stay refused — the fixture proving it is
+// tests/fixtures/ops-blindness/bad-ops-reads-template-through-shared.txt.
+//
+// The projection below is explicit for a second reason as well as the gate's:
+// a bare read returns templatePathsJson, quizJson and objectsJson, and those
+// are teacher-authored content that can quote a child.
+
+/**
+ * Every activity in the shared library, in the order teachers see it, with how
+ * many schools have taken a copy.
+ *
+ * Unpublished rows are included on purpose. This screen is the one place an
+ * operator can tell that something was promoted and never made visible, which
+ * is a state a teacher's library cannot show and a support call can turn on.
+ */
+export async function listLibrary(): Promise<SharedLibraryRowDto[]> {
+  await requireOperator();
+
+  const rows = await db.sharedActivity.findMany({
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      published: true,
+      sortOrder: true,
+      _count: { select: { copies: true } },
+    },
+    orderBy: [{ sortOrder: "asc" }, { slug: "asc" }],
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    published: row.published,
+    sortOrder: row.sortOrder,
+    copyCount: row._count.copies,
+  }));
 }

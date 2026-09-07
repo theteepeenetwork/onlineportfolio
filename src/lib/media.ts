@@ -28,14 +28,56 @@ const ALLOWED_AUDIO_TYPES: Record<string, string> = {
 
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB — plenty for a photo, drawing or short voice note
 
-async function writeBytes(bytes: Buffer, ext: string): Promise<string> {
+// A picture's pixel size, recorded in its own filename as "-<w>x<h>".
+//
+// WHY IN THE NAME. The canvas draws an image object at the width and height the
+// object carries, with objectFit: "fill" — so a picture placed in a box of the
+// wrong shape is STRETCHED, not letterboxed. That is invisible for a photograph
+// and ruinous for a worksheet: the connector's picture slot is 4:3, and a
+// cropped part-whole model dropped into it comes out as ovals where the child
+// is being asked about circles.
+//
+// So whatever places a picture has to know its shape. The path is the only thing
+// that survives the round trip — the connector hands an asset id to the model
+// and the model hands it back — and re-reading the file to measure it would
+// mean reading a stored upload back on a caller's say-so, which is a door this
+// code does not otherwise open. Putting the size in the name costs nothing,
+// leaks nothing (the bytes are already the caller's own), and is readable
+// without touching the disk. The /uploads route's SAFE_NAME already permits it.
+function sizeTag(size?: { width: number; height: number }): string {
+  return size && size.width > 0 && size.height > 0 ? `-${size.width}x${size.height}` : "";
+}
+
+// The pixel size recorded in an /uploads path, or null when there is none —
+// which is every picture stored before this existed, and every picture whose
+// format we cannot measure. Callers treat null as "place it however you would
+// have placed it before".
+export function sizeFromPath(urlPath: string): { width: number; height: number } | null {
+  const m = /-(\d{1,5})x(\d{1,5})\.[a-z0-9]+$/i.exec(urlPath);
+  if (!m) return null;
+  const width = Number(m[1]);
+  const height = Number(m[2]);
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+async function writeBytes(bytes: Buffer, ext: string, size?: { width: number; height: number }): Promise<string> {
   if (bytes.length > MAX_BYTES) {
     throw new Error("That file is too big (max 15 MB).");
   }
   await mkdir(UPLOAD_DIR, { recursive: true });
-  const name = `${randomBytes(12).toString("hex")}.${ext}`;
+  const name = `${randomBytes(12).toString("hex")}${sizeTag(size)}.${ext}`;
   await writeFile(path.join(UPLOAD_DIR, name), bytes);
   return `/uploads/${name}`;
+}
+
+// Save bytes we have already decoded and measured — a cropped region of a
+// worksheet, for instance. The size is recorded in the name; see sizeTag.
+export async function saveSizedImage(
+  bytes: Buffer,
+  ext: "png" | "jpg" | "webp",
+  size: { width: number; height: number },
+): Promise<string> {
+  return writeBytes(bytes, ext, size);
 }
 
 // Save an uploaded photo (a File from a form) and return its public path.
@@ -63,13 +105,16 @@ export async function saveAudio(file: File): Promise<string> {
 
 // Save an image supplied as a data URL (from the drawing canvas or a live
 // camera capture) and return its public path. Accepts png / jpeg / webp.
-export async function saveImageDataUrl(dataUrl: string): Promise<string> {
+export async function saveImageDataUrl(
+  dataUrl: string,
+  size?: { width: number; height: number },
+): Promise<string> {
   const match = /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/.exec(dataUrl);
   if (!match) {
     throw new Error("That image couldn't be read.");
   }
   const ext = match[1] === "jpeg" ? "jpg" : match[1];
-  return writeBytes(Buffer.from(match[2], "base64"), ext);
+  return writeBytes(Buffer.from(match[2], "base64"), ext, size);
 }
 
 // Save an ordered set of drawing pages (each a PNG data URL) and return their

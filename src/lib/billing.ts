@@ -1,8 +1,9 @@
 import "server-only";
-import type { Subscription } from "@prisma/client";
+import type { Prisma, Subscription } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
+import { releaseUrnIfUnverified } from "@/lib/urnRelease";
 
 // ---------------------------------------------------------------------------
 // Billing state + the single server-side write gate.
@@ -22,9 +23,11 @@ import { recordAudit } from "@/lib/audit";
 // StoryJar has two plans (docs/pricing-decisions.md): a permanently free teacher
 // plan covering all of that teacher's own classes, and a flat £299/yr school
 // plan. A FREE plan is ACTIVE from signup and has NOTHING TO LAPSE — no trial
-// clock, no payment, so no route to FROZEN. Only a SCHOOL plan can be evaluated
-// on trial and only a SCHOOL plan can freeze. That means children's work in a
-// free teacher account is never on a billing deletion clock (RETENTION.md).
+// clock, no payment, so no route to FROZEN. Only a SCHOOL plan can freeze, which
+// is the load-bearing half; being evaluated on trial is no longer how a SCHOOL
+// plan starts (docs/pricing-decisions.md, 1 September 2026). That means
+// children's work in a free teacher account is never on a billing deletion clock
+// (RETENTION.md).
 // ---------------------------------------------------------------------------
 
 export type AccountStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "FROZEN";
@@ -39,13 +42,37 @@ export function planKindOf(kind: string): PlanKind {
   return kind === "SCHOOL" ? "SCHOOL" : "FREE";
 }
 
-// The free "half term" a SCHOOL gets to evaluate StoryJar before raising a PO.
-// Tracked locally — we do NOT use Stripe trials (the Stripe subscription is
+// How long a row that is ALREADY on TRIAL has left to run. It is not how a new
+// purchase starts: since 1 September 2026 no purchase produces a TRIAL row and no
+// school is evaluated on a countdown (docs/pricing-decisions.md). The purchase
+// completes ACTIVE either way — the card route's webhook creates the row ACTIVE
+// outright, and the invoice route writes ACTIVE immediately so finance sitting on
+// a PO cannot freeze a school.
+//
+// `ensureSchoolSubscription` DOES still open a TRIAL row, on purpose, and that is
+// not a contradiction: it is not the purchase. It is the pre-payment holding row
+// for a school that exists with no subscription, and TRIAL is the only status
+// that keeps every teacher writable in the gap while still leaving a route to
+// FROZEN if the money never arrives — `settleStatus` can only freeze a TRIAL row
+// with a null `stripeSubscriptionId`, so opening it ACTIVE would mint a
+// free-forever school. That line is load-bearing. Do not tidy it.
+//
+// What is otherwise left for this constant to govern is the rows that already
+// carry the status — `prisma/seed.ts`, `seed-test.ts`, the frozen-school persona
+// — and the `scripts/freeze-expired.mjs` backstop that settles one of them once
+// it lapses. Tracked locally, never as a Stripe trial (the Stripe subscription is
 // created only at first payment). See RETENTION.md.
 //
-// This is deliberately NOT applied to a teacher's free plan: a teacher account is
-// never on a countdown, because a trial expiring mid-October is the single most
-// avoidable way to lose a September adopter (docs/pricing-decisions.md).
+// It was never applied to a teacher's free plan: a teacher account is never on a
+// countdown, because a trial expiring mid-October is the single most avoidable
+// way to lose a September adopter (docs/pricing-decisions.md).
+//
+// 42 is ALSO the refund window — a school may ask for a full refund within 42
+// days of the start of the paid year. They are two different numbers that happen
+// to coincide, not one number used twice. Changing this constant must NOT
+// silently move the refund window, and moving the refund window must not be done
+// by editing this line: the refund promise lives in customer-facing copy
+// (src/app/legal/terms/page.tsx, src/app/page.tsx) and is a pricing decision.
 export const TRIAL_DAYS = 42;
 
 export function trialEndFromNow(now: number = Date.now()): Date {
@@ -80,9 +107,103 @@ export async function governingSubscription(teacher: TeacherContext): Promise<Su
   return db.subscription.findUnique({ where: { teacherId: teacher.id } });
 }
 
+// --- Giving a teacher their own free plan -----------------------------------
+//
+// The exact row `createTeacherAccount` writes at signup: FREE, ACTIVE, and a
+// NULL `trialEndsAt`, which is what encodes "nothing to lapse" (see the module
+// header and `settleStatus`). It is one object rather than three literals
+// scattered across the callers, because "what a new free teacher plan is" is a
+// definition and definitions drift when they are copied.
+const FREE_TEACHER_PLAN = {
+  kind: "FREE",
+  status: "ACTIVE",
+  trialEndsAt: null,
+  // Cleared as well as the status: `frozenAt` is what starts RETENTION.md's
+  // 12-month deletion clock, so an account that is writable again must not
+  // still be counting down towards erasure.
+  frozenAt: null,
+} as const;
+
+/**
+ * Give a teacher the permanently free plan that governs their own classes.
+ *
+ * WHY THIS EXISTS. `Subscription` is the only thing that answers "may this
+ * account write". A teacher whose `schoolId` is set to NULL without one has no
+ * governing subscription at all, and the consequences compound in the wrong
+ * direction: `requireWritableAccountForTeacher` denies by default (rule 8,
+ * correctly), but `accountStateForTeacher` reports status "NONE", so the frozen
+ * banner — which tests for "FROZEN" — never renders, and `planLabel` says "No
+ * plan yet". The teacher sees a working app in which every save fails and
+ * nothing on screen explains why. That is worse than being frozen, and it is
+ * the bug this closes.
+ *
+ * TAKES A TRANSACTION CLIENT AND MUST BE CALLED INSIDE ONE, for the same reason
+ * `handOverClasses` (src/lib/classHandover.ts) does: it has to commit with the
+ * detach that made it necessary. If the `schoolId` update commits and this does
+ * not, the state left behind is worse than the state before. Use
+ * `restoreFreePlanFor` when there is no surrounding transaction to join.
+ *
+ * IDEMPOTENT BY `upsert` ON `Subscription.teacherId`'s UNIQUE INDEX, not by
+ * reading first and then writing. A read-then-write is a race: two callers can
+ * both see no row and both create one, and the loser fails on the constraint
+ * mid-transaction. The unique index is the whole guarantee and it holds against
+ * any caller, present or future. The shape was chosen with one PLANNED caller in
+ * mind — the refund detach in `docs/paid-tier-plan.md`'s runway, which is
+ * webhook-driven and therefore redelivered — but that path is NOT BUILT in this
+ * tree today, and the idempotence does not depend on it existing.
+ *
+ * The update branch writes the free-plan values rather than doing nothing,
+ * because a row in any other state is not yet a working free plan. It leaves
+ * `stripeCustomerId` / `stripeSubscriptionId` alone: those name something that
+ * exists on Stripe's side, and this function has no standing to orphan it.
+ *
+ * IT DOES NOT AUDIT, deliberately. The caller does, because the reason differs:
+ * signing up and being removed from a school are two different sentences in a
+ * school's audit log — a refunded purchase would be a third — and only the
+ * caller knows which.
+ */
+export async function restoreFreePlan(
+  tx: Prisma.TransactionClient,
+  teacherId: string,
+): Promise<void> {
+  await tx.subscription.upsert({
+    where: { teacherId },
+    create: { ...FREE_TEACHER_PLAN, teacherId },
+    update: { ...FREE_TEACHER_PLAN },
+  });
+}
+
+/**
+ * `restoreFreePlan` for a caller that has no transaction of its own.
+ *
+ * A single `upsert` is already one atomic statement, so this does not open a
+ * transaction just to wrap it — `db` satisfies `Prisma.TransactionClient`. Use
+ * this only when nothing else has to commit alongside the row; if a `schoolId`
+ * is changing in the same breath, that is `restoreFreePlan` inside the caller's
+ * own transaction and the distinction is the whole point of having two.
+ */
+export async function restoreFreePlanFor(teacherId: string): Promise<void> {
+  await restoreFreePlan(db, teacherId);
+}
+
 // Freeze a subscription (make the account read-only) exactly once, and audit it.
 // The guarded updateMany means a redelivered webhook or a second concurrent
 // request won't double-stamp frozenAt or double-log. Auditing never throws.
+//
+// AND IT RELEASES A SQUATTED REGISTER CLAIM. This is the shared freeze — the
+// lazy trial lapse in `settleStatus` and both of the Stripe webhook's freezing
+// events (`customer.subscription.updated` mapping to FROZEN, and
+// `customer.subscription.deleted`) all arrive here — so it is the one place
+// that sees every freeze the app itself performs. An unverified school gives up
+// its `School.urn` at that moment (docs/dpo-decisions.md, 2 Sep 2026); a school
+// that paid and later lapsed keeps it. See src/lib/urnRelease.ts for the guard,
+// and `scripts/freeze-expired.mjs` for the by-state sweep that catches any path
+// that does not come through this function.
+//
+// INSIDE THE `count > 0` BRANCH, so the release happens on the freeze rather
+// than on every redelivery of one. `releaseUrnIfUnverified` is idempotent
+// anyway, but a release that ran on every webhook retry would be one more thing
+// asserting itself against a paying school's row for no reason.
 export async function freezeSubscription(
   sub: Pick<Subscription, "id" | "schoolId">,
   reason: string,
@@ -103,6 +224,10 @@ export async function freezeSubscription(
       subjectId: sub.id,
       detail: `Account frozen (read-only): ${reason}`,
     });
+    // A FREE teacher plan has no `schoolId` and no claim to give up. It also has
+    // no route to FROZEN at all (see the module header) — this is belt and
+    // braces on a branch that should never be reached with a null.
+    if (sub.schoolId) await releaseUrnIfUnverified(db, sub.schoolId, reason);
   }
 }
 
@@ -127,6 +252,53 @@ export async function settleStatus(sub: Subscription): Promise<AccountStatus> {
     return "FROZEN";
   }
   return status;
+}
+
+// ---------------------------------------------------------------------------
+// THE SAME QUESTION, ASKED IN SQL: is this school's plan one a teacher can be
+// handed to?
+//
+// `settleStatus` above is the answer at the moment of decision, and it is the
+// one `joinSchoolPlan` uses, because that is where a write is both allowed and
+// wanted. This is its read-only twin, for the three screens that must stop
+// ADVERTISING a school the action would refuse: the teacher-area banner, the
+// account page's invitation card, and the acceptance screen itself. All three
+// are renders. A render must not lazily freeze another school's row — that
+// would make a stranger's page view write a `BILLING_FROZEN` audit line into a
+// school she does not belong to — so the lapse is expressed as a filter rather
+// than performed.
+//
+// THE TWO MUST AGREE, AND THAT IS THE WHOLE MAINTENANCE BURDEN OF THIS
+// FUNCTION. A school this returns but `settleStatus` refuses is a banner
+// naming a school the page below it will not join, which is exactly the defect
+// the `verifiedAt` clause was added for. So it is derived from
+// `WRITABLE_STATUSES` rather than repeating a list of statuses, and the one
+// thing it does spell out — the lapsed trial — is `settleStatus`'s `trialLapsed`
+// turned inside out. If that condition changes, change this in the same commit.
+//
+// WRITTEN AS A POSITIVE `OR` RATHER THAN A `NOT`, deliberately. The negated
+// form (`NOT (TRIAL AND no stripe id AND trialEndsAt <= now)`) is correct in
+// TypeScript and wrong in SQL: `trialEndsAt <= now` is NULL for a row with no
+// trial end, so `NOT (… AND NULL)` is NULL, and a perfectly writable ACTIVE
+// school would be filtered out by three-valued logic. Every term below compares
+// a value that is either non-null or explicitly matched against null.
+//
+// `kind: "SCHOOL"` IS PART OF IT, not a separate check, because the failure it
+// prevents is the same failure: after `joinSchoolPlan` deletes her own FREE
+// row, a school with no SCHOOL plan would leave her governed by nothing at all.
+// A school with no subscription row at all is excluded too — a relation filter
+// on a to-one relation does not match a missing row.
+export function writableSchoolPlanWhere(now: Date = new Date()): Prisma.SubscriptionWhereInput {
+  return {
+    kind: "SCHOOL",
+    status: { in: [...WRITABLE_STATUSES] },
+    OR: [
+      { status: { not: "TRIAL" } },
+      { stripeSubscriptionId: { not: null } },
+      { trialEndsAt: null },
+      { trialEndsAt: { gt: now } },
+    ],
+  };
 }
 
 export type WriteGate =
@@ -183,7 +355,7 @@ export async function requireWritableAccount(): Promise<
 export type AccountState = {
   status: AccountStatus | "NONE";
   kind: PlanKind | null;
-  trialDaysLeft: number | null; // whole days remaining while a SCHOOL evaluates
+  trialDaysLeft: number | null; // whole days remaining on a SCHOOL plan still on TRIAL
   frozenAt: Date | null;
   currentPeriodEnd: Date | null;
   writable: boolean;

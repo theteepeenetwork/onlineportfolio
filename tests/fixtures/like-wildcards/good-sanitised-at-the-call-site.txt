@@ -1,0 +1,15 @@
+// @path: src/app/actions/somewhere.ts
+// The shape the gate exists to require.
+import { db } from "@/lib/db";
+import { likeSafe } from "@/lib/likeSafe";
+
+export async function searchSchools(query: string) {
+  return db.establishment.findMany({
+    where: {
+      OR: [
+        { name: { startsWith: likeSafe(query) } },
+        { name: { contains: ` ${likeSafe(query)}` } },
+      ],
+    },
+  });
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { teacherLogin } from "@/app/actions/auth";
 
 // `next` is set only by the OAuth consent page, which sends a teacher here to
@@ -49,6 +50,16 @@ export function TeacherLoginForm({ next }: { next?: string }) {
       <button className="btn-brand w-full" type="submit" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </button>
+
+      {/* The way out, where the failure happens. A reset flow reachable only
+          from a help page is a reset flow a teacher rings the office about
+          instead — and on a Monday morning the office is the point at which
+          this stops being a software problem. */}
+      <p className="pt-1 text-center text-sm">
+        <Link href="/login/teacher/forgotten" className="font-bold text-brand hover:underline">
+          Forgotten your password?
+        </Link>
+      </p>
     </form>
   );
 }

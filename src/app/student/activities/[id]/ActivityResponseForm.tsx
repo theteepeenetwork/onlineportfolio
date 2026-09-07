@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { createJournalItem } from "@/app/actions/journal";
 import { DrawingCanvas } from "@/components/DrawingCanvas";
+import { studentCopy } from "@/lib/copy/student";
+import type { AgeMode } from "@/lib/ageMode";
 import type { QuizPayload, QuizAnswer } from "@/lib/quiz";
 import type { CanvasObj } from "@/lib/canvasObjects";
 
@@ -12,6 +14,7 @@ import type { CanvasObj } from "@/lib/canvasObjects";
 export function ActivityResponseForm({
   assignmentId,
   studentId,
+  mode,
   title,
   instructions,
   template,
@@ -25,6 +28,8 @@ export function ActivityResponseForm({
 }: {
   assignmentId: string;
   studentId: string;
+  /** The child's register, for the words on the way out. */
+  mode: AgeMode;
   title: string;
   instructions?: string;
   template: string[];
@@ -45,6 +50,7 @@ export function ActivityResponseForm({
 }) {
   const [state, action] = useActionState(createJournalItem, {});
   const router = useRouter();
+  const c = studentCopy(mode).add;
 
   return (
     <form action={action}>
@@ -72,7 +78,20 @@ export function ActivityResponseForm({
         ownerId={studentId}
         confirmSubmit
         allowPageDelete={false}
-        onClose={() => router.push("/student/activities")}
+        // Every way out of a child screen lands on the jar, in the words of
+        // their own register: the one landmark a non-reader navigates by, and
+        // the place the complaint asked for. The activities list is one tap
+        // from there. An unlabelled ✕ to the list was not a way back that a
+        // four-year-old could see.
+        captionLabel={c.captionLabel}
+        // The registers that cannot read yet get a listen button on the
+        // question. KS2 does not — the same line CaptureSurface already draws
+        // between "shown a speaker" and "reads it themselves". Whether the
+        // button actually appears is decided again inside, on whether the
+        // platform has an on-device voice to say it with.
+        hearItLabel={mode === "KS2" ? undefined : studentCopy(mode).status.hearIt}
+        closeLabel={c.backToJar}
+        onClose={() => router.push("/student")}
       />
 
       {state?.error && (

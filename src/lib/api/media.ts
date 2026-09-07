@@ -1,8 +1,9 @@
 import "server-only";
-import { saveImageDataUrl } from "@/lib/media";
+import { saveImageDataUrl, saveSizedImage, sizeFromPath } from "@/lib/media";
+import { PngError, cropPng, pngSize, type Region } from "./png";
 import { MAX_LABEL_LEN } from "@/lib/canvasObjects";
 import { ActivityInputError } from "./errors";
-import { asRecord, checkKeys } from "./shapes";
+import { asList, asRecord, checkKeys, describe } from "./shapes";
 
 // Taking a picture from the connector and putting it on a page.
 //
@@ -35,7 +36,11 @@ export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 // is not one oversized file but a loop that writes a hundred reasonable ones.
 export const MAX_ACTIVITY_IMAGE_BYTES = 10 * 1024 * 1024;
 
-export type PersistedImage = { src: string; alt: string };
+// A stored picture. `width`/`height` are the picture's own pixel size, when we
+// were able to measure it (PNG, or a region this module cropped itself). They
+// are what stops the page layout from stretching a picture into the shape of
+// the box it happens to be putting it in — see quizLayout's fitPicture.
+export type PersistedImage = { src: string; alt: string; width?: number; height?: number };
 
 // A spend counter for a single call. Passed down through page content, question
 // images and answer images so the cap is on the ACTIVITY, not on each picture
@@ -78,6 +83,17 @@ function base64Bytes(dataUrl: string): number {
   return Math.max(0, Math.floor((b64.length * 3) / 4) - padding);
 }
 
+// A PNG's pixel size without decoding the picture. The header is the first 33
+// bytes, so only the first 64 base64 characters are decoded — measuring a 2 MB
+// page costs a few dozen bytes of work. Anything that is not a PNG returns null
+// and is placed the way it always was.
+function sizeOfDataUrl(dataUrl: string): { width: number; height: number } | null {
+  if (!/^data:image\/png;base64,/i.test(dataUrl)) return null;
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) return null;
+  return pngSize(Buffer.from(dataUrl.slice(comma + 1, comma + 65), "base64"));
+}
+
 function readAlt(value: unknown, where: string): string {
   const alt = String(value ?? "").trim();
   if (!alt) {
@@ -86,6 +102,28 @@ function readAlt(value: unknown, where: string): string {
     );
   }
   return alt.slice(0, MAX_LABEL_LEN);
+}
+
+// The bytes of a picture, checked. Shared by persistImage and persistAsset so a
+// caller gets the same sentence back whichever door they came through.
+function readSource(value: unknown, where: string, orAssetId: boolean): string {
+  const source = typeof value === "string" ? value.trim() : "";
+  if (!source) {
+    throw new ActivityInputError(
+      orAssetId
+        ? `${where} needs either "source" (the picture itself) or "asset_id" (one you uploaded already).`
+        : `${where} needs "source" — the picture itself, as a data:image URL.`,
+    );
+  }
+  if (/^https?:/i.test(source)) {
+    throw new ActivityInputError(
+      `${where} gave a web address. StoryJar does not fetch pictures from the web — send the picture itself as a data:image URL, which is what you have if you just made or cropped it.`,
+    );
+  }
+  if (!source.startsWith("data:image")) {
+    throw new ActivityInputError(`${where} isn't a picture. Send a data:image URL — PNG, JPEG or WebP.`);
+  }
+  return source;
 }
 
 // Turn one image input into something storable. Accepts either freshly-supplied
@@ -117,31 +155,124 @@ export async function persistImage(value: unknown, where: string, budget: ImageB
     if (!/^\/uploads\/[A-Za-z0-9._-]+$/.test(assetId)) {
       throw new ActivityInputError(`${where} has an asset_id that isn't one of ours. Use the id upload_asset gave you.`);
     }
-    return { src: assetId, alt: existingAlt };
+    return { src: assetId, alt: existingAlt, ...(sizeFromPath(assetId) ?? {}) };
   }
 
   const alt = readAlt(input.alt, where);
 
-  const source = typeof input.source === "string" ? input.source.trim() : "";
-  if (!source) {
-    throw new ActivityInputError(`${where} needs either "source" (the picture itself) or "asset_id" (one you uploaded already).`);
-  }
-  if (/^https?:/i.test(source)) {
-    throw new ActivityInputError(
-      `${where} gave a web address. StoryJar does not fetch pictures from the web — send the picture itself as a data:image URL, which is what you have if you just made or cropped it.`,
-    );
-  }
-  if (!source.startsWith("data:image")) {
-    throw new ActivityInputError(`${where} isn't a picture. Send a data:image URL — PNG, JPEG or WebP.`);
-  }
+  const source = readSource(input.source, where, true);
 
   budget.take(base64Bytes(source));
+  const size = sizeOfDataUrl(source);
   try {
-    return { src: await saveImageDataUrl(source), alt };
+    return { src: await saveImageDataUrl(source, size ?? undefined), alt, ...(size ?? {}) };
   } catch (err) {
     // saveImageDataUrl's own refusals are already written for a person ("That
     // file type isn't supported…"), so they are passed through rather than
     // replaced with something vaguer.
     throw new ActivityInputError(err instanceof Error ? err.message : `${where} couldn't be saved.`);
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// Storing a worksheet, and cutting it up
+// ---------------------------------------------------------------------------
+//
+// The job this exists for: a teacher shows Claude an A4 worksheet with four
+// number-bond models on it and asks for a four-page activity. Claude can see
+// which quarter of the page each model is in. It generally CANNOT produce four
+// cropped PNGs — an MCP client is a conversation, not an image editor — and
+// sending the whole page four times would spend four times the budget to put
+// the same picture behind four questions.
+//
+// So the page is sent ONCE and the parts are NAMED, as fractions of the page.
+// The cutting happens here, on bytes the caller has just handed over in this
+// same call. Nothing is read back off the disk to do it, which matters: an
+// asset id is not proof of ownership (see persistImage), so a crop that re-read
+// a stored file on a caller's say-so would be a way to lift a picture out of
+// another teacher's library. Cropping only what was just uploaded closes that
+// off by construction rather than by a check somebody could later remove.
+
+export const ASSET_FIELDS = ["source", "alt", "regions"] as const;
+export const REGION_FIELDS = ["x", "y", "w", "h", "alt"] as const;
+
+// One page cut into at most this many parts. Not a safeguarding limit — a bound
+// on how many files one call can write, and comfortably above MAX_PAGES.
+export const MAX_REGIONS = 30;
+
+function fraction(value: unknown, name: string, where: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0 || n > 1) {
+    throw new ActivityInputError(
+      `${where} needs \`${name}\` to be a fraction of the whole picture, between 0 and 1. I received ${describe(value)}. ` +
+        `The top-left quarter of a page is x: 0, y: 0, w: 0.5, h: 0.5.`,
+    );
+  }
+  return n;
+}
+
+// Store one uploaded picture, or — when `regions` is given — the named parts of
+// it. Always returns a list, so the caller has one shape to report.
+export async function persistAsset(value: unknown): Promise<PersistedImage[]> {
+  const input = asRecord(value, "The picture");
+  checkKeys(input, ASSET_FIELDS, "The picture");
+
+  const alt = readAlt(input.alt, "The picture");
+  const source = readSource(input.source, "The picture", false);
+
+  // One budget for the call. The bytes are charged ONCE, on the way in —
+  // cutting a page into six parts is six files but it is not six uploads, and
+  // charging per region would make splitting a worksheet cost more than
+  // sending it whole, which is exactly backwards.
+  const budget = new ImageBudget(MAX_IMAGE_BYTES);
+  budget.take(base64Bytes(source));
+
+  if (input.regions === undefined) {
+    const size = sizeOfDataUrl(source);
+    return [{ src: await saveImageDataUrl(source, size ?? undefined), alt, ...(size ?? {}) }];
+  }
+
+  const list = asList(input.regions, "regions", "one entry per part of the picture you want");
+  if (!list.length) {
+    throw new ActivityInputError(
+      "`regions` was empty. Leave it out altogether to store the picture whole, or name the parts you want as fractions of it.",
+    );
+  }
+  if (list.length > MAX_REGIONS) {
+    throw new ActivityInputError(`A picture can be cut into at most ${MAX_REGIONS} parts; that asked for ${list.length}.`);
+  }
+  if (!/^data:image\/png;base64,/i.test(source)) {
+    throw new ActivityInputError(
+      "Only a PNG can be cut into regions. Send the page as a PNG — which is what a rasterised PDF page already is — or leave `regions` out and store it whole.",
+    );
+  }
+
+  const bytes = Buffer.from(source.slice(source.indexOf(",") + 1), "base64");
+  const stored: PersistedImage[] = [];
+  for (const [i, raw] of list.entries()) {
+    const where = `Region ${i + 1}`;
+    const entry = asRecord(raw, where);
+    checkKeys(entry, REGION_FIELDS, where);
+    const region: Region = {
+      x: fraction(entry.x, "x", where),
+      y: fraction(entry.y, "y", where),
+      w: fraction(entry.w, "w", where),
+      h: fraction(entry.h, "h", where),
+    };
+    if (region.w === 0 || region.h === 0) {
+      throw new ActivityInputError(`${where} has no size — \`w\` and \`h\` are how WIDE and how TALL the part is, as fractions of the whole picture.`);
+    }
+    const regionAlt = readAlt(entry.alt, where);
+    try {
+      const { png, width, height } = cropPng(bytes, region, where);
+      stored.push({ src: await saveSizedImage(png, "png", { width, height }), alt: regionAlt, width, height });
+    } catch (err) {
+      // A PngError is about the picture the caller sent, so it is theirs to
+      // read. Anything else is a fault and is left to the layer above.
+      if (err instanceof PngError) throw new ActivityInputError(`${where} couldn't be cut out: ${err.message}.`);
+      throw err;
+    }
+  }
+  return stored;
 }

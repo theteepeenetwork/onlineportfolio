@@ -1,0 +1,26 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-FILESYSTEM
+// THIS FIXTURE IS A GUARD ON THE SPECIFIER CLASS, NOT A TEST OF THE FILESYSTEM
+// RULE. Do not delete it as duplicating bad-filesystem-media.txt.
+//
+// `OPS-FILESYSTEM` fires on `FS_IMPORT_SPECS.includes(spec)` — it consumes the
+// CAPTURED specifier. So the rule is only as alive as the scanner's ability to
+// capture `node:fs`, and a specifier that is never captured is a rule that never
+// runs. Not a rejected import: no import at all, and nothing goes red.
+//
+// That very nearly shipped on 2026-08-24. A candidate class of
+// `[A-Za-z0-9@._~/$-]` — offered as a tightening, which is what makes it
+// dangerous — omitted the colon and would have stopped capturing `node:fs`,
+// `node:fs/promises` and `node:crypto`: 108 real specifiers across the tree, and
+// with them the check standing between an ops file and the volume holding every
+// child's photograph, drawing and voice note (SAFEGUARDING rule 7). It was
+// caught by running the candidate against 506 files, not by reading it.
+//
+// So: this fixture fails the moment the class stops admitting a `node:`
+// specifier. It is the alarm on a tightening, and the next person narrowing that
+// class needs it to go red rather than to find a comment and believe it.
+import { readFile } from "node:fs/promises";
+
+export async function readSomethingItMayNot(p) {
+  return readFile(p, "utf8");
+}

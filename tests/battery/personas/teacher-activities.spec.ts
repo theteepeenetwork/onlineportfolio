@@ -257,7 +257,7 @@ test("set a quiz, watch a child take it, and mark it", async ({ page, tester: t 
     t.newJob();
     await signInChild(t, page, ACADEMY.classes.ks1.code, ACADEMY.waiting.child);
 
-    const toldSomething = await t.seesText(/again|look|back|nearly|teacher/i, 4000);
+    const toldSomething = await t.seesText(/again|\blook\b|\bback\b|nearly|teacher/i, 4000);
     t.expects(
       toldSomething,
       "major",
@@ -316,7 +316,7 @@ test("edit an activity that a class is already working on", async ({ page, teste
     // The question a teacher actually has, and the one the screen must answer:
     // does fixing this change what the children in front of me are looking at?
     t.expects(
-      await t.seesText(/live|already|class(es)? (are|is) working|will (also )?(change|update)/i, 1500),
+      await t.seesText(/\blive\b|already|class(es)? (are|is) working|will (also )?(change|update)/i, 1500),
       "major",
       "confusing",
       "Nothing here tells me whether editing this changes the version the class is working on RIGHT NOW, or only future ones. That is the only thing I need to know before I touch it.",

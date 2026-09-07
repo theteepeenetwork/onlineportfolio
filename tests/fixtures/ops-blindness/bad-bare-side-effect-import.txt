@@ -1,0 +1,34 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// The bare side-effect import, `import "x"` with no binding, of something that
+// is not on the ops allowlist.
+//
+// This fixture exists because of what the scanner had to be narrowed to on
+// 2026-08-24. The bare-import pattern used to be anchored to a word boundary
+// alone, which made the word `import` at the tail of ANY string literal look
+// like an import statement (see good-string-literal-ending-in-import.txt). It is
+// now anchored to a statement position instead — start of line, or after `;`,
+// `{` or `}`.
+//
+// DO NOT DELETE THIS AS REDUNDANT WITH THE OTHER FIFTY-EIGHT.
+//
+// Fifty-eight fixtures in this corpus already contain `import "server-only";`,
+// so the bare form is exercised constantly and this one looks like more of the
+// same. It is not. `server-only` is on the allowlist, so all fifty-eight pass
+// whether the scanner reads their bare import or not — remove the pattern
+// entirely and every one of them still goes green.
+//
+// A canary that cannot fail is not a canary. This is the only fixture in the
+// corpus where a bare import must be REFUSED, so it is the only one that would
+// notice if the bare-import pattern were narrowed too far, mistyped, or dropped.
+// Deleting it takes the coverage with it and leaves fifty-eight files that look
+// like coverage and are not.
+//
+// A side-effect import is worth catching in its own right. It runs a module for
+// what it does on load rather than for anything it returns, which is precisely
+// the shape that reads as harmless in review.
+import "@/lib/mailer";
+
+export async function nothingToSeeHere() {
+  return true;
+}

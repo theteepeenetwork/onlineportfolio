@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// The shape the PR5 widening permits: the HMAC helper only. No Prisma, no
+// credentials, no address written or read. The function reads one environment
+// variable and returns a hex string; it is the same category as mailStatus.
+import { mailAddressHmac, mailHmacConfigured } from "@/lib/mailHmac";
+
+export function isConfigured(): boolean {
+  return mailHmacConfigured();
+}
+
+export function hmacFor(address: string): string | null {
+  return mailAddressHmac(address);
+}

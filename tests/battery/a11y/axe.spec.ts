@@ -1,6 +1,14 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { SCHOOL_A, SCHOOL_B, loginTeacher, loginStudent, loginParent } from "../helpers";
+import {
+  SCHOOL_A,
+  SCHOOL_B,
+  SCHOOL_D,
+  SCHOOL_E,
+  loginTeacher,
+  loginStudent,
+  loginParent,
+} from "../helpers";
 
 // ===========================================================================
 // B1 — Accessibility (axe-core), gated at WCAG 2.2 AA
@@ -57,6 +65,15 @@ const PUBLIC_PAGES = [
   ["/legal", "legal index"],
   ["/legal/privacy", "privacy policy"],
   ["/legal/accessibility", "accessibility statement"],
+  // F61's two new public pages. Both are reached by somebody who is already
+  // stuck — a teacher who cannot get in, or a colleague opening an invitation —
+  // which is the worst moment to meet an unlabelled field or a heading order
+  // that a screen reader cannot follow.
+  ["/login/teacher/forgotten", "forgotten password (request)"],
+  // With a token that is not real: the page deliberately does no database read,
+  // so it renders the same form either way and this scans what a real
+  // recipient sees.
+  ["/set-password?token=not-a-real-token", "set password"],
 ] as const;
 
 for (const [url, label] of PUBLIC_PAGES) {
@@ -103,11 +120,32 @@ test("a11y (AA): quiz builder in the template editor", async ({ page }) => {
   await expect(prompt).toBeVisible();
   assertNoSeriousViolations(await scan(page), "quiz builder (question open)");
 
-  // And again collapsed: the accordion's two states have different markup, and
-  // a reference to the unmounted body would only show up here.
-  await panel.getByRole("button", { name: /Untitled question/ }).click();
+  // And again shrunk to a pill: the window's two states have different markup
+  // (the body is unmounted), and a reference into it would only show up here.
+  await panel.getByRole("button", { name: "Shrink to a pill" }).click();
   await expect(prompt).toBeHidden();
-  assertNoSeriousViolations(await scan(page), "quiz builder (question closed)");
+  assertNoSeriousViolations(await scan(page), "quiz builder (shrunk to a pill)");
+});
+
+// A photo frame in the template editor: the frame itself (a dashed box with
+// the teacher's prompt), its corner controls and toolbar, and the prompt
+// editor. The child's side of it is scanned in tests/e2e/photo-frame.spec.ts,
+// where the camera is stubbed.
+test("a11y (AA): a photo frame in the template editor", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities/new");
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Photo frame" }).click();
+  await expect(page.locator('div[data-frame="empty"]')).toHaveCount(1);
+  // Placed selected, so the toolbar and corner controls are in the tree.
+  await expect(page.getByRole("button", { name: "Remove object" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "photo frame (selected)");
+
+  // With the prompt editor open.
+  await page.locator("div[data-object]").filter({ has: page.locator("[data-frame]") }).dblclick();
+  await expect(page.getByPlaceholder(/Your prompt/)).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "photo frame (prompt open)");
 });
 
 test("a11y (AA): class manager", async ({ page }) => {
@@ -161,6 +199,17 @@ test("a11y (AA): the StoryJar shared library", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "shared activity library");
 });
 
+test("a11y (AA): the publishing desk", async ({ page }) => {
+  // StoryJar staff only, so no child ever sees it — but it is a teacher screen
+  // with a form, a select and two kinds of button, which is where a missing
+  // label shows up first. Signed in as School D, the one fixture school that
+  // can publish; every other teacher gets a 404 here by design.
+  await loginTeacher(page, SCHOOL_D.teacher);
+  await page.goto("/teacher/activities/library");
+  await expect(page.getByRole("heading", { name: "Publishing" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "publishing desk");
+});
+
 test("a11y (AA): admin console", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/admin");
@@ -183,6 +232,118 @@ test("a11y (AA): admin console", async ({ page }) => {
   await page.locator("details", { hasText: "Break glass" }).first().locator("summary").click();
   await expect(page.getByRole("heading", { name: /You are told before we look/ })).toBeVisible();
   assertNoSeriousViolations(await scan(page), "admin promises (procedure open)");
+
+  // THE STAFF-ROW MENUS, WHICH NOTHING HAD EVER OPENED AND SCANNED. Everything
+  // an admin does to a colleague lives behind these three panels — change a
+  // role, hand over a class, remove somebody — and each of them is a
+  // `role="menu"` carrying explanatory prose as well as controls. Scanning the
+  // console with every menu shut said nothing about any of it, and the first
+  // scan that opened one found a critical `aria-required-children`: a menu may
+  // own only menu items and groups, and these panels put a paragraph and an
+  // unrolled "back" button straight inside one. Fixed in AdminConsole.tsx in the
+  // same change; this is the half that keeps it fixed.
+  //
+  // A ROW WITH A ROW BENEATH IT, AND THAT CHOICE IS THE ASSERTION THAT F69 IS
+  // FIXED. This opened the LAST row's menu until 3 September 2026, for a reason
+  // that was a fault rather than a preference: the panel was positioned under
+  // the ⋯ button, so on every row but the last it covered the NEXT row's
+  // "Actions for …" button and axe called it a serious `target-size`
+  // ("partially obscured … smallest space is 32px by 14px"). The last row was
+  // the one place nothing sat beneath to be obscured.
+  //
+  // The panels now open SIDEWAYS, into the band of the table where no control
+  // lives, and they cannot reach another row's ⋯ button at any height, on any
+  // row, at any viewport (AdminConsole.tsx says how). So this scans a row that
+  // HAS a row under it, which is strictly more than the last row ever proved:
+  // if `target-size` comes back here, the panel has been moved back over the
+  // rows beneath it, whatever the code looks like.
+  await page.getByRole("button", { name: "Staff", exact: true }).click();
+  const triggers = page.getByRole("button", { name: /^actions for /i });
+  // The guard on that choice. A scan of the last row's menu would go green
+  // while F69 was wide open, so the "is there a row beneath" part fails HERE,
+  // loudly, rather than quietly passing below.
+  expect(
+    await triggers.count(),
+    "this scan needs a staff row with another staff row beneath it",
+  ).toBeGreaterThan(2);
+  // The SECOND row, so: not the last (nothing beneath it to obscure) and not
+  // the first, which is the admin's own row — their menu has no removal item
+  // and the last scan below needs one.
+  const rowMenu = triggers.nth(1);
+  await rowMenu.click();
+  await expect(page.getByRole("menuitem", { name: /remove from school/i })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "admin staff row menu");
+
+  await page.getByRole("menuitem", { name: /edit role/i }).click();
+  assertNoSeriousViolations(await scan(page), "admin role submenu");
+
+  await page.getByRole("menuitem", { name: /← Edit role/i }).click();
+  await page.getByRole("menuitem", { name: /assign classes/i }).click();
+  assertNoSeriousViolations(await scan(page), "admin classes submenu");
+
+  await page.getByRole("menuitem", { name: /← Assign classes/i }).click();
+  await page.getByRole("menuitem", { name: /remove from school/i }).click();
+  assertNoSeriousViolations(await scan(page), "admin remove confirmation");
+
+  // The invite form, which is the other place a role is chosen and which no
+  // scan had opened either.
+  await page.goto("/admin");
+  await page.getByRole("button", { name: /invite staff/i }).click();
+  await expect(page.locator('#inv-role option[value="ADMIN"]')).toBeEnabled();
+  assertNoSeriousViolations(await scan(page), "admin invite form");
+});
+
+// The same console on a school whose plan has not been paid for. It is a
+// DIFFERENT SCREEN, not the same one with a line added: a status banner appears
+// above everything, one control is disabled with its reason beside it, and two
+// panels are replaced by prose. All of that is new markup on the surface a
+// school business manager uses, and the person most likely to be reading it with
+// a screen reader is the one being told why a control will not work.
+test("a11y (AA): admin console, unpaid school", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_E.admin);
+  await page.goto("/admin");
+  await expect(page.getByRole("status")).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "admin console (unpaid)");
+
+  // The same page as reached by a refused action, which adds a sentence inside
+  // the live region. A refusal that lands on an inaccessible explanation is a
+  // refusal with no explanation.
+  await page.goto("/admin?blocked=verify");
+  await expect(page.getByRole("status")).toContainText("didn’t happen");
+  assertNoSeriousViolations(await scan(page), "admin console (unpaid, after a refusal)");
+
+  // The withheld controls themselves, each of which is inside a menu and so is
+  // never scanned by the test above.
+  const menu = page.getByRole("button", { name: /actions for Idris Vaughan/i });
+  await menu.click();
+  await page.getByRole("menuitem", { name: /edit role/i }).click();
+  await expect(page.getByRole("menuitem", { name: "Admin" })).toBeDisabled();
+  assertNoSeriousViolations(await scan(page), "admin role submenu (unpaid)");
+
+  await page.goto("/admin");
+  await menu.click();
+  await page.getByRole("menuitem", { name: /assign classes/i }).click();
+  assertNoSeriousViolations(await scan(page), "admin classes submenu (unpaid)");
+
+  await page.goto("/admin");
+  await menu.click();
+  await page.getByRole("menuitem", { name: /remove from school/i }).click();
+  await expect(page.getByText(/waits until the school plan is paid for/i).first()).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "admin remove panel (unpaid)");
+
+  // THE SECOND WITHHELD CONTROL, and it is a `<option disabled>` rather than a
+  // button: an unpaid school may not invite a new admin any more than it may
+  // promote one. A disabled option cannot be focused and cannot carry its own
+  // description, so the reason is a paragraph beside the select and the select
+  // points at it — which is the thing axe can check and a person can hear.
+  await page.goto("/admin");
+  await page.getByRole("button", { name: /invite staff/i }).click();
+  await expect(page.locator('#inv-role option[value="ADMIN"]')).toBeDisabled();
+  await expect(page.locator("#inv-role")).toHaveAttribute(
+    "aria-describedby",
+    /inv-role-unpaid/,
+  );
+  assertNoSeriousViolations(await scan(page), "admin invite form (unpaid)");
 });
 
 test("a11y (AA): student home", async ({ page }) => {
@@ -264,4 +425,29 @@ test("a11y (AA): a teaching assistant told what they may do", async ({ page }) =
   await page.goto("/teacher/messages");
   await expect(page.getByText(/aren’t set up to message families/i)).toBeVisible();
   assertNoSeriousViolations(await scan(page), "messages inbox for a TA");
+});
+
+// ---------------------------------------------------------------------------
+// 1.4.10 Reflow, at the 320 CSS pixels the criterion names.
+//
+// axe cannot see this one: reflow is about whether the LAYOUT holds, and a page
+// that scrolls in two dimensions is AA-failing while every rule axe runs comes
+// back green. It is asserted here rather than in the ux project because that
+// project is report-only and off the PR path — and a signal that exists and
+// cannot stop a regression is the failure this whole battery keeps finding.
+//
+// `/family` is the page it exists for: the screen every parent meets first, and
+// the one that shipped 345px wider than a 390px phone because the responsive
+// spec's narrowest viewport was 768. 320 is stricter than the phone that found
+// it, which is the point — the criterion names 320, not "a phone I own".
+// ---------------------------------------------------------------------------
+test("a11y (AA 1.4.10): the parent sign-in reflows to 320px without a sideways scroll", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/family");
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow, "content must not require scrolling in two dimensions").toBeLessThanOrEqual(1);
 });

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
   assignClassToStaff,
+  cancelSchoolInvitation,
   inviteStaff,
   removeStaff,
   resendInvite,
@@ -26,6 +27,28 @@ export type StaffRow = {
   status: string; // ACTIVE | INVITED
   isYou: boolean;
   classes: string[];
+  /**
+   * Set when this row is a PENDING `SchoolInvitation` rather than a `Teacher`
+   * in this school — an offer made to somebody who already had a StoryJar
+   * account, which they answer in their own area (docs/dpo-decisions.md, 2
+   * September 2026).
+   *
+   * IT CHANGES NOTHING ABOUT HOW THE ROW LOOKS, and that is the point. Same
+   * "Invited" word, same amber dot, same avatar, same place in the list. A
+   * fresh INVITED `Teacher` row and a pending invitation must be
+   * indistinguishable here, or the staff table becomes the account-existence
+   * oracle that `inviteStaff`'s four-case branch exists to close. Do not add a
+   * badge, a section, a sort order or a tooltip that tells them apart.
+   *
+   * What it DOES change is the ⋯ menu (there is no Teacher row in this school
+   * to assign a class to or to change a role on) and whether the row appears in
+   * the class-owner pickers (it must not).
+   *
+   * Nullable and required rather than optional, so a new caller has to say
+   * which kind of row it is building instead of getting the quiet answer by
+   * leaving it out.
+   */
+  invitationId: string | null;
   /** The stored override for parent messaging: NULL = the default for the role. */
   mayMessage: boolean | null;
   /** What that resolves to (src/lib/messaging/policy.ts). */
@@ -34,7 +57,24 @@ export type StaffRow = {
 
 type Submenu = "role" | "classes" | "messaging" | null;
 
-export type SchoolClass = { id: string; name: string; teacherId: string; teacherName: string; children: number };
+export type SchoolClass = {
+  id: string;
+  name: string;
+  teacherId: string;
+  teacherName: string;
+  children: number;
+  /**
+   * Set when this class arrived with its current holder because somebody was
+   * REMOVED from the school, carrying the audit row's own words. Null for a
+   * class that has always been theirs or that arrived by ordinary reassignment.
+   *
+   * The point of surfacing it is that the holding is meant to be temporary: an
+   * admin who removed a colleague now holds that colleague's children's work,
+   * and rule 5 says admins are not all-seeing. A flag makes that a thing they
+   * can see and act on rather than a silent dump.
+   */
+  inherited: string | null;
+};
 
 export type AuditEntry = {
   id: string;
@@ -65,6 +105,31 @@ const ACTION_LABEL: Record<string, string> = {
   BILLING_FROZEN: "Plan paused",
   BILLING_UPDATED: "Plan updated",
   BILLING_JOINED_SCHOOL: "Joined the school plan",
+  // The school-claim rows. Every one of these is written by the system rather
+  // than by a person, and an unlabelled action renders as its own raw constant
+  // in the "Who & what" column — SCREAMING_SNAKE_CASE in a log a head teacher
+  // reads. `BILLING_SCHOOL_PLAN_STARTED` has done exactly that since the
+  // billing tab shipped; it is a pre-existing gap closed here rather than a new
+  // one avoided.
+  BILLING_SCHOOL_PLAN_STARTED: "Started the school plan",
+  SCHOOL_CLAIMED: "Set the school up",
+  SCHOOL_VERIFIED: "Payment confirmed",
+  SCHOOL_CLAIM_REFUSED: "Couldn’t set the school up",
+  BILLING_DETACHED_ON_REFUND: "Refunded and left the school",
+  // Cancelling an offer made to a teacher who already has an account. There is
+  // deliberately NO label for a "school invitation sent" action, because there
+  // is no such action: inviting an existing account writes `STAFF_INVITED` with
+  // the same detail as inviting a new one, so that the audit tab does not tell
+  // an admin which of the two happened. See src/app/actions/admin.ts.
+  SCHOOL_INVITATION_CANCELLED: "Cancelled an invitation",
+  // The three an ACCEPTANCE writes. Added with the teacher's side of
+  // invitations, and they belong here for the reason the claim rows do: an
+  // unlabelled action renders as raw SCREAMING_SNAKE_CASE in the tab a head
+  // teacher reads, which is the one place this school's own record of who
+  // joined it and what came with them is supposed to be legible.
+  SCHOOL_INVITATION_ACCEPTED: "Joined the school",
+  SCHOOL_INVITATION_DECLINED: "Declined an invitation",
+  CLASS_JOINED_SCHOOL: "Class came to the school",
   OFFICE_HOURS_SAVED: "Set office hours",
   MESSAGING_SWITCHED_OFF: "Switched parent messages off",
   OFFICE_HOURS_CLOSURE_ADDED: "Added a closed day",
@@ -123,6 +188,7 @@ export function AdminConsole({
   schoolName,
   plan,
   billing,
+  blocked,
   meId,
   staff,
   classes,
@@ -132,7 +198,16 @@ export function AdminConsole({
 }: {
   schoolName: string;
   plan: string;
-  billing: Omit<BillingProps, "invoiceRequested">;
+  /**
+   * `verified` rides with the billing facts because that is what it is: whether
+   * the money for this school has actually arrived. It is NOT the same question
+   * as `status` — a school on 30-day invoice terms is ACTIVE and unverified at
+   * the same time, on purpose — and the three controls it withholds are named
+   * one by one below rather than hidden behind a general "unavailable".
+   */
+  billing: Omit<BillingProps, "invoiceRequested"> & { verified: boolean };
+  /** Why the admin arrived back here from an action that refused them, if they did. */
+  blocked: "verify" | null;
   meId: string;
   staff: StaffRow[];
   classes: SchoolClass[];
@@ -146,7 +221,22 @@ export function AdminConsole({
   const [inviting, setInviting] = useState(false);
   const [importing, setImporting] = useState(false);
 
+  // Counts every row the table shows, invitations included, for the reason the
+  // `invitationId` doc gives: a stats card or a to-do line that moved for a
+  // fresh INVITED teacher and not for a pending invitation would tell an admin
+  // which kind of address they had just typed.
   const invited = staff.filter((s) => s.status === "INVITED").length;
+
+  // WHO A CLASS MAY BE HANDED TO: real `Teacher` rows in this school, and never
+  // a pending invitation. A class belongs to a school through its teacher, so
+  // there is nothing behind an invitation row to hold one — `assignClassToStaff`
+  // resolves its target with `{ id, schoolId }` and would find nothing, which
+  // is a picker entry that silently does nothing when pressed.
+  //
+  // This is the one place the two kinds of row are treated differently in a way
+  // an admin could notice without opening a menu, and it is unavoidable: the
+  // alternative is a name in a dropdown that cannot be given a class.
+  const assignable = staff.filter((s) => s.invitationId === null);
   const closeMenus = () => { setMenuId(null); setSubmenu(null); };
 
   // Keyed by `id`, not by `label`: two of these read "Staff" once a school has
@@ -164,7 +254,7 @@ export function AdminConsole({
   return (
     <div className="sj" onClick={closeMenus} style={{ minHeight: "100vh", background: "#FAF6EE", fontFamily: "var(--font-atkinson)", color: "#22304A" }}>
       {/* ink top bar — signals the whole-school space */}
-      <header style={{ display: "flex", alignItems: "center", gap: 22, padding: "14px 32px", background: "#22304A", position: "sticky", top: 0, zIndex: 30, flexWrap: "wrap" }}>
+      <header data-shell="admin-header" style={{ display: "flex", alignItems: "center", gap: 22, padding: "14px 32px", background: "#22304A", position: "sticky", top: 0, zIndex: 30, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <JarMark />
           <span style={{ font: "600 19px var(--font-fredoka)", color: "#FAF6EE" }}>storyjar</span>
@@ -177,7 +267,7 @@ export function AdminConsole({
               <button
                 key={t.id}
                 onClick={(e) => { e.stopPropagation(); setTab(t.id); closeMenus(); }}
-                style={{ font: "700 15px var(--font-atkinson)", color: active ? "#22304A" : "#C4CDDD", background: active ? "#FAF6EE" : "transparent", border: "none", borderRadius: 999, padding: "7px 16px", whiteSpace: "nowrap", cursor: "pointer" }}
+                style={{ display: "inline-flex", alignItems: "center", minHeight: 44, font: "700 15px var(--font-atkinson)", color: active ? "#22304A" : "#C4CDDD", background: active ? "#FAF6EE" : "transparent", border: "none", borderRadius: 999, padding: "7px 16px", whiteSpace: "nowrap", cursor: "pointer" }}
               >
                 {t.label}
               </button>
@@ -185,7 +275,10 @@ export function AdminConsole({
           })}
         </nav>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-          <Link href="/teacher" style={{ font: "700 14px var(--font-atkinson)", color: "#C4CDDD", textDecoration: "none", whiteSpace: "nowrap" }}>My teaching →</Link>
+          {/* The way back to a teacher's own classes. It measured 99×17 — the
+              only route out of the admin console, and the shortest control on
+              the screen. It now carries a 44px box like everything else. */}
+          <Link href="/teacher" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 8px", borderRadius: 10, font: "700 14px var(--font-atkinson)", color: "#C4CDDD", textDecoration: "none", whiteSpace: "nowrap" }}>My teaching →</Link>
           <span style={{ width: 38, height: 38, borderRadius: "50%", background: avatarColor(meId), display: "flex", alignItems: "center", justifyContent: "center", font: "600 16px var(--font-fredoka)", color: "#FFFDF7" }}>
             {initials(staff.find((s) => s.id === meId)?.name ?? "?")}
           </span>
@@ -193,6 +286,7 @@ export function AdminConsole({
       </header>
 
       <main style={{ maxWidth: 1080, margin: "0 auto", padding: "28px 32px 60px" }}>
+        {!billing.verified && <UnpaidBanner blocked={blocked} />}
         <div style={{ display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
           <div>
             <p style={{ margin: 0, font: "700 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{schoolName}</p>
@@ -221,14 +315,16 @@ export function AdminConsole({
 
         {tab === "staff" && (
           <>
-            {inviting && <InviteForm onDone={() => setInviting(false)} />}
+            {inviting && <InviteForm verified={billing.verified} onDone={() => setInviting(false)} />}
             <StaffTable
               staff={staff}
               classes={classes}
+              verified={billing.verified}
               menuId={menuId}
               submenu={submenu}
               onToggleMenu={(id) => { setMenuId(menuId === id ? null : id); setSubmenu(null); }}
               onSubmenu={setSubmenu}
+              onClose={closeMenus}
             />
             <p style={{ margin: "14px 2px 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>
               Each teacher manages their own classes and approval queue. Admins can invite staff, assign classes and manage the school subscription — but never see pupils&apos; work unless they teach the class.
@@ -264,7 +360,7 @@ export function AdminConsole({
           {importing && (
             <div style={{ marginTop: 18 }}>
               <ImportClassForm
-                staff={staff.map((s) => ({ id: s.id, name: s.isYou ? `${s.name} (you)` : s.name }))}
+                staff={assignable.map((s) => ({ id: s.id, name: s.isYou ? `${s.name} (you)` : s.name }))}
                 defaultOwnerId={meId}
                 onDone={() => setImporting(false)}
               />
@@ -281,13 +377,35 @@ export function AdminConsole({
             )}
             {classes.map((c) => (
               <div key={c.id} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 12, alignItems: "center", padding: "14px 22px", borderBottom: "1px solid #F5F0E6" }}>
-                <span style={{ font: "700 16px var(--font-atkinson)" }}>{c.name}</span>
+                <span style={{ font: "700 16px var(--font-atkinson)" }}>
+                  {c.name}
+                  {/* Inherited because somebody was removed. Said in words on
+                      the row rather than as a colour or a dot, so it survives
+                      forced-colours mode and reads the same to a screen reader
+                      (handbook: convey no status by colour alone). It is here
+                      to be acted on — the admin holding it is not this class's
+                      teacher, and the next thing they should do is hand it to
+                      whoever is. */}
+                  {c.inherited && (
+                    <span
+                      style={{
+                        display: "block",
+                        font: "400 12px/1.45 var(--font-atkinson)",
+                        color: "#8A5A00",
+                        marginTop: 2,
+                      }}
+                    >
+                      Came to you when a colleague was removed — hand it on to whoever teaches it
+                      now.
+                    </span>
+                  )}
+                </span>
                 {/* Handing a class over is the single most common thing an admin
                     needs in September, and it used to be buried three levels deep
                     in a staff row's ⋯ menu. It IS the access control (whoever
                     holds the class is the only one who sees its children's work),
                     so it belongs on the class, in the open, and it is audited. */}
-                <ClassTeacherPicker klass={c} staff={staff} />
+                <ClassTeacherPicker klass={c} staff={assignable} verified={billing.verified} />
                 <span style={{ font: "700 15px var(--font-atkinson)" }}>{c.children === 0 ? <span style={{ color: "var(--sj-muted)", fontWeight: 400 }}>none yet</span> : c.children}</span>
               </div>
             ))}
@@ -348,10 +466,37 @@ export function AdminConsole({
 // hand the class to each teacher in turn as a keyboard user moved through the
 // list. Reassignment IS the access control (SAFEGUARDING rule 4), so it takes a
 // deliberate press.
-function ClassTeacherPicker({ klass, staff }: { klass: SchoolClass; staff: StaffRow[] }) {
+function ClassTeacherPicker({
+  klass,
+  staff,
+  verified,
+}: {
+  klass: SchoolClass;
+  staff: StaffRow[];
+  verified: boolean;
+}) {
   const [choice, setChoice] = useState(klass.teacherId);
   const changed = choice !== klass.teacherId;
   const target = staff.find((t) => t.id === choice);
+
+  // UNTIL THE SCHOOL IS PAID FOR, THIS IS A FACT RATHER THAN A CONTROL.
+  //
+  // This is the shortest road to `assignClassToStaff` and the one an admin
+  // actually uses — the staff-row submenu is the long way round — so gating the
+  // submenu and leaving this pressable would put the refusal in front of the
+  // control nobody presses and behind the one everybody does. A select that
+  // takes the change and then bounces is worse than no select: it looks like
+  // the handover happened.
+  if (!verified) {
+    return (
+      <span style={{ font: "400 15px var(--font-atkinson)", color: "#43506B" }}>
+        {staff.find((t) => t.id === klass.teacherId)?.name ?? "—"}
+        <span style={{ display: "block", font: "400 12px/1.45 var(--font-atkinson)", color: "#8A5A00", marginTop: 2 }}>
+          Handing this class on waits until the plan is paid for.
+        </span>
+      </span>
+    );
+  }
 
   return (
     <form action={assignClassToStaff} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
@@ -414,7 +559,13 @@ function ThingsToDo({
     jobs.push({ key: "noclasses", tab: "classes", text: <>No classes yet. Paste a register and the first one is ready in a minute.</> });
   }
   if (invited > 0) {
-    jobs.push({ key: "invites", tab: "staff", text: <>{invited} {invited === 1 ? "colleague has not" : "colleagues have not"} accepted their invite yet. You can resend it from their row.</> });
+    // NO "you can resend it from their row" ANY MORE. Half these rows are
+    // invitations to teachers who already have an account, whose menu has no
+    // resend — re-typing the address is the resend — so the old sentence was
+    // false for them. It is not replaced with two sentences chosen by kind: a
+    // to-do line that differed would tell the admin which of the two an address
+    // had been, which is the oracle the staff table is careful not to be.
+    jobs.push({ key: "invites", tab: "staff", text: <>{invited} {invited === 1 ? "colleague has not" : "colleagues have not"} accepted their invite yet. Their {invited === 1 ? "row is" : "rows are"} on the Staff tab.</> });
   }
   if (emptyClasses.length > 0) {
     jobs.push({ key: "empty", tab: "classes", text: <>{emptyClasses.length} {emptyClasses.length === 1 ? "class has" : "classes have"} no children in yet — a pasted register fills one in one go.</> });
@@ -455,19 +606,149 @@ function ThingsToDo({
 function StaffTable({
   staff,
   classes,
+  verified,
   menuId,
   submenu,
   onToggleMenu,
   onSubmenu,
+  onClose,
 }: {
   staff: StaffRow[];
   classes: SchoolClass[];
+  verified: boolean;
   menuId: string | null;
   submenu: Submenu;
   onToggleMenu: (id: string) => void;
   onSubmenu: (s: Submenu) => void;
+  onClose: () => void;
 }) {
   const cols = "2.2fr 1.4fr 1.6fr 1fr 44px";
+
+  // The ⋯ button each open panel belongs to, kept so that closing the panel
+  // can put focus back on it. Registered per row as it renders; only ever one
+  // is read, because only one panel is open at a time.
+  const triggers = useRef(new Map<string, HTMLButtonElement>());
+  // The open panel itself. One ref, for the same reason.
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  // The scroll position THIS COMPONENT asked for, so the listener below can
+  // tell its own scroll from the admin's. See `bringIntoView`.
+  const ownScrollY = useRef<number | null>(null);
+
+  // THESE MENUS ARE POPOVERS, WHICH MEANS THEY CLOSE THEMSELVES (F69, decided
+  // 3 September 2026). An outside click is the console's own `onClick`, one
+  // level up. These are the other two halves of that contract:
+  //
+  // SCROLL, because the panel is positioned against its row and a scroll takes
+  // the row out from under it. Listened for in the CAPTURE phase because scroll
+  // does not bubble, and a scroll that started INSIDE the panel is ignored —
+  // otherwise a school with enough classes to make the list scroll would find
+  // that scrolling it closed the menu it was in.
+  //
+  // ESCAPE, with focus put back on the ⋯ button. The ruling names scroll and
+  // outside click; Escape is table stakes for a popover, and without it a
+  // keyboard user can only leave by tabbing through everything in it. Focus is
+  // moved BEFORE the panel unmounts, because focus inside a removed subtree
+  // falls to `document.body` and the next Tab starts again at the top of the
+  // page.
+  //
+  // AND A PANEL THAT CLOSES ON SCROLL HAS TO OPEN WHERE NOTHING NEEDS
+  // SCROLLING TO. This is the trap the two halves make together, and it is not
+  // hypothetical: it hung a security spec for two minutes. Open a menu on a row
+  // near the bottom of a long staff list and the panel runs past the fold; the
+  // only way to reach "Yes, remove …" is to scroll; scrolling closes the panel.
+  // The admin cannot finish the job, and a browser driver retries the click
+  // until it gives up.
+  //
+  // So when the panel opens — or GROWS, which is what pressing "Remove from
+  // school" does to it — the PAGE moves to bring it fully into view. Moving the
+  // page rather than the panel is the whole point: the panel's position in the
+  // DOCUMENT never changes, so "it cannot reach another control" stays a fact
+  // about the layout rather than a measurement that has to be redone. Flipping
+  // or shifting the panel instead would put it over whatever is above the
+  // table — the "＋ Invite staff" button is directly above it and in the same
+  // column band — which is this same finding again in a new place.
+  //
+  // That scroll would of course close the panel it just placed, so the position
+  // it scrolls TO is remembered and the one scroll event that lands on it is
+  // ignored. An admin cannot scroll to where they already are, so nothing of
+  // theirs is swallowed.
+  useEffect(() => {
+    if (!menuId) return;
+    // THE BASELINE IS RECORDED ON EVERY OPEN, whether or not the panel needs
+    // placing. It used to be set only when bringIntoView actually scrolled, so
+    // a panel that already fitted left ownScrollY null, the distance guard in
+    // onScroll was bypassed, and the very next scroll event closed the menu.
+    // There IS a next scroll event on a freshly loaded page: globals.css sets
+    // scroll-behavior: smooth, so Next's own scroll-to-top on navigation
+    // animates and keeps emitting for a few hundred milliseconds. The first
+    // menu opened after a load was closed by that animation's tail; the second
+    // survived because it had finished. It reproduced only when the console
+    // was tall enough to scroll at all, which is why a one-row probe passed and
+    // the two-row test failed, here and on CI, every time.
+    ownScrollY.current = window.scrollY;
+
+    const bringIntoView = () => {
+      const el = panelRef.current;
+      if (!el) return;
+      const margin = 12;
+      const box = el.getBoundingClientRect();
+      let delta = box.bottom - (window.innerHeight - margin);
+      if (delta <= 0) return;
+      // Never so far that the top of the panel leaves the viewport instead: a
+      // panel taller than the space available is what `maxHeight` is for.
+      delta = Math.min(delta, Math.max(0, box.top - margin));
+      if (delta <= 0) return;
+      // `behavior: "instant"` IS LOAD-BEARING, and it cost an afternoon.
+      // globals.css sets `scroll-behavior: smooth` on the document, so a plain
+      // `scrollBy` here is ANIMATED: `window.scrollY` has not moved when the
+      // next line reads it, the position below is never armed, and the stream
+      // of scroll events the animation fires then closes the panel that asked
+      // for it — every menu shutting itself the instant it opened. Instant is
+      // also what a reduced-motion reader is owed for a scroll they did not
+      // ask for.
+      const before = window.scrollY;
+      window.scrollTo({ top: before + delta, behavior: "instant" });
+      // Record WHERE the page was placed, not "one event is ours". The listener
+      // below closes only once the page has genuinely moved away from here.
+      ownScrollY.current = window.scrollY;
+    };
+
+    bringIntoView();
+    const ro = new ResizeObserver(bringIntoView);
+    if (panelRef.current) ro.observe(panelRef.current);
+
+    const onScroll = (e: Event) => {
+      const t = e.target;
+      if (t instanceof Element && t.closest("[data-staff-menu]")) return;
+      // POSITIONAL, NOT COUNTED. This used to consume exactly one scroll event
+      // whose scrollY exactly matched the placement, and treat the next as the
+      // admin's. That is correct on a fast machine and wrong on a slow one: a
+      // single scrollTo can arrive as two events, and a late layout shift fires
+      // one after the one-shot is spent. Either closed the menu before a test
+      // could read it — green locally, red on the CI runner, on the first PR.
+      // A menu closes on scroll because the row it is anchored to has moved out
+      // from under it; so the question is "has the page moved from where the
+      // panel was placed", and the answer is a distance, not an event count.
+      // 8px absorbs sub-pixel settling and a clamped scroll without letting a
+      // real scroll through.
+      if (ownScrollY.current !== null && Math.abs(window.scrollY - ownScrollY.current) < 8) return;
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      triggers.current.get(menuId)?.focus();
+      onClose();
+    };
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      ro.disconnect();
+      ownScrollY.current = null;
+      window.removeEventListener("scroll", onScroll, { capture: true });
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menuId, onClose]);
+
   return (
     <div style={{ marginTop: 30, background: "#FFFDF7", border: "2px solid #E4DCC8", borderRadius: 16, overflow: "visible" }}>
       <div style={{ display: "grid", gridTemplateColumns: cols, gap: 12, padding: "14px 22px", borderBottom: "2px solid #F0EADD", font: "700 12px var(--font-atkinson)", color: "var(--sj-muted)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
@@ -478,7 +759,14 @@ function StaffTable({
         const open = menuId === p.id;
         const invited = p.status === "INVITED";
         return (
-          <div key={p.id} style={{ position: "relative", zIndex: open ? 20 : 1, display: "grid", gridTemplateColumns: cols, gap: 12, alignItems: "center", padding: "14px 22px", borderBottom: "1px solid #F5F0E6" }}>
+          /* `data-staff-row` MARKS THE ROW AND SAYS NOTHING ELSE — no id, no
+             kind, no value at all. It exists so a spec can pick up one whole
+             row and compare it with another, which is how
+             tests/battery/security/school-invitation-console.spec.ts proves
+             that a fresh INVITED teacher and a pending invitation render
+             identically. Giving it a value would defeat the thing it is used
+             to check. Inert. */
+          <div key={p.id} data-staff-row="" style={{ position: "relative", zIndex: open ? 20 : 1, display: "grid", gridTemplateColumns: cols, gap: 12, alignItems: "center", padding: "14px 22px", borderBottom: "1px solid #F5F0E6" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
               <span style={{ width: 40, height: 40, borderRadius: "50%", background: avatarColor(p.id), display: "flex", alignItems: "center", justifyContent: "center", font: "600 16px var(--font-fredoka)", color: "#FFFDF7", flexShrink: 0 }}>{initials(p.name)}</span>
               <div style={{ minWidth: 0 }}>
@@ -487,7 +775,12 @@ function StaffTable({
               </div>
             </div>
             <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-              <span style={{ font: "700 13px var(--font-atkinson)", color: rs.color, background: rs.bg, border: `1px solid ${rs.border}`, borderRadius: 999, padding: "5px 12px", whiteSpace: "nowrap" }}>{rs.label}</span>
+            {/* data-staff-role marks THIS as the row's role, so a test can ask
+                "how many staff are teaching assistants" rather than "how many
+                times do those words appear on the page" — the latter also counts
+                the role picker, the invite form and the explanatory copy beside
+                them. Inert; see tests/e2e/admin.spec.ts. */}
+            <span data-staff-role={p.role} style={{ font: "700 13px var(--font-atkinson)", color: rs.color, background: rs.bg, border: `1px solid ${rs.border}`, borderRadius: 999, padding: "5px 12px", justifySelf: "start", whiteSpace: "nowrap" }}>{rs.label}</span>
               {/* Only the unusual case is labelled: a teacher who may not message
                   families, or a TA who may. The default says nothing. */}
               {p.mayMessage !== null && (
@@ -510,8 +803,12 @@ function StaffTable({
               {invited ? "Invited" : "Active"}
             </span>
 
-            <div style={{ position: "relative", justifySelf: "end" }}>
+            <div style={{ justifySelf: "end" }}>
               <button
+                ref={(el) => {
+                  if (el) triggers.current.set(p.id, el);
+                  else triggers.current.delete(p.id);
+                }}
                 onClick={(e) => { e.stopPropagation(); onToggleMenu(p.id); }}
                 aria-label={`Actions for ${p.name}`}
                 aria-expanded={open}
@@ -519,26 +816,82 @@ function StaffTable({
               >
                 {[0, 1, 2].map((i) => <span key={i} style={{ width: 4, height: 4, borderRadius: "50%", background: "#43506B" }} />)}
               </button>
-              {open && (
-                <div role="menu" onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 40, right: 0, width: 214, background: "#FFFDF7", border: "2px solid #22304A", borderRadius: 12, padding: 6, boxShadow: "0 12px 30px rgba(34,48,74,0.28)", zIndex: 40 }}>
-                  {submenu === "role" ? (
-                    <RoleSubmenu staff={p} onBack={() => onSubmenu(null)} />
-                  ) : submenu === "classes" ? (
-                    <ClassesSubmenu staff={p} classes={classes} onBack={() => onSubmenu(null)} />
-                  ) : submenu === "messaging" ? (
-                    <MessagingSubmenu staff={p} onBack={() => onSubmenu(null)} />
-                  ) : (
-                    <>
-                      <MenuButton icon="edit" label="Edit role" onClick={() => onSubmenu("role")} />
-                      <MenuButton icon="class" label="Assign classes" onClick={() => onSubmenu("classes")} />
-                      <MenuButton icon="share" label="Parent messages" onClick={() => onSubmenu("messaging")} />
-                      {invited && <MenuForm action={resendInvite} staffId={p.id} icon="share" label="Resend invite" />}
-                      {!p.isYou && <MenuForm action={removeStaff} staffId={p.id} icon="delete" label="Remove from school" danger />}
-                    </>
-                  )}
-                </div>
-              )}
             </div>
+
+            {/* ========== WHERE THIS PANEL OPENS, AND WHY IT IS NOT UNDER THE
+                ⋯ BUTTON (F69) ==========
+
+                It used to be `top: 40; right: 0` inside the button's own cell,
+                which put it directly over the NEXT row — and every row's ⋯
+                button is a control, so axe reported a serious `target-size`:
+                "partially obscured, smallest space is 32px by 14px". A 32×14px
+                target fails the finger this console's 44px floor exists for.
+
+                It now opens SIDEWAYS, into the only part of this table where no
+                control lives. The row is a grid whose last column is the 44px
+                actions column, inside 22px of row padding, so `right: 66` is
+                the left edge of that column: the panel's right edge stops 12px
+                short of the ⋯ button and CANNOT reach the column that every
+                other row's button is in, at any height, on any row, at any
+                viewport. Nothing else in the table body is interactive — name,
+                role, classes and status are all text — so the panel covers
+                words and never a target. That is the "cannot overlap another
+                control" half of the ruling, and it is held by construction
+                rather than by measuring the row beneath and hoping.
+                `maxWidth` shrinks it rather than letting it run off the left of
+                a narrow screen; `maxHeight` scrolls a long class list in place
+                instead of running off the bottom, which matters now that a
+                scroll closes the panel.
+
+                A SIBLING OF THE BUTTON'S CELL, not a child of it: the offsets
+                above are resolved against the ROW's padding box, which is what
+                makes them the row's geometry rather than the 32px button's. It
+                stays immediately after the button in the DOM, so the tab order
+                is unchanged — trigger, then the panel's items.
+
+                `data-staff-menu` is inert. It exists so the scroll-to-close
+                listener can tell a scroll of the panel from a scroll of the
+                page. */}
+            {open && (
+              <div
+                role="menu"
+                ref={panelRef}
+                data-staff-menu=""
+                onClick={(e) => e.stopPropagation()}
+                style={{ position: "absolute", top: 6, right: 66, width: 214, maxWidth: "calc(100% - 88px)", maxHeight: "min(70vh, 460px)", overflowY: "auto", background: "#FFFDF7", border: "2px solid #22304A", borderRadius: 12, padding: 6, boxShadow: "0 12px 30px rgba(34,48,74,0.28)", zIndex: 40 }}
+              >
+                {submenu === "role" ? (
+                  <RoleSubmenu staff={p} verified={verified} onBack={() => onSubmenu(null)} />
+                ) : submenu === "classes" ? (
+                  <ClassesSubmenu staff={p} classes={classes} verified={verified} onBack={() => onSubmenu(null)} />
+                ) : submenu === "messaging" ? (
+                  <MessagingSubmenu staff={p} onBack={() => onSubmenu(null)} />
+                ) : p.invitationId ? (
+                  /* A PENDING INVITATION, so the menu is one item.
+
+                     NO "ASSIGN CLASSES": there is no `Teacher` row in this
+                     school to assign a class to. NO "EDIT ROLE": the role IS
+                     the offer, and changing it means making a new one. NO
+                     "RESEND": re-typing the address in the invite form
+                     upserts the row and sends the notification again, which
+                     is one path with one behaviour rather than two that
+                     drift — the lesson `resendInvite` was written to record,
+                     applied before the second path exists. */
+                  <CancelInvitationItem staff={p} invitationId={p.invitationId} />
+                ) : (
+                  <>
+                    <MenuButton icon="edit" label="Edit role" onClick={() => onSubmenu("role")} />
+                    <MenuButton icon="class" label="Assign classes" onClick={() => onSubmenu("classes")} />
+                    {/* Who may reply to families is the school's, per member of
+                        staff (SAFEGUARDING rule 21). Not offered on a pending
+                        invitation above: they are not staff of this school yet. */}
+                    <MenuButton icon="share" label="Parent messages" onClick={() => onSubmenu("messaging")} />
+                    {invited && <MenuForm action={resendInvite} staffId={p.id} icon="share" label="Resend invite" />}
+                    {!p.isYou && <RemoveStaffItem staff={p} verified={verified} />}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
@@ -570,6 +923,213 @@ function MenuButton({ icon, label, onClick }: { icon: IconName; label: string; o
   );
 }
 
+// Removing somebody says what it will do BEFORE it does it.
+//
+// There was no confirmation of any kind (FINDINGS F59), and removal is not an
+// "undo" job: it ends a colleague's access and, as of the same change, moves
+// their classes and their pupils' work to whoever pressed the button and
+// reissues every one of those class codes.
+//
+// IT SAYS "YOUR SCHOOL'S StoryJar", NOT "StoryJar". Removal ends the person's
+// access to this school and nothing else: their own account stays open on the
+// free plan, holding none of the school's classes, because those moved above.
+// The old sentence — "loses access to StoryJar" — read as though the account
+// were closed. It was already misleading and, now that removal restores a free
+// plan (`restoreFreePlan`), it would be plainly false. An admin who thinks a
+// removal deletes an account is an admin who will not do the thing that
+// actually deletes one.
+//
+// ONE PRESS TO CONFIRM, NOT A WIZARD, and that distinction is the whole design.
+// The scenario this exists for is a SUSPENSION, where a head teacher must be
+// able to revoke access immediately — so nothing here asks them to choose a
+// recipient, pick classes, or type a reason. It tells them what is about to
+// happen and takes one more press. A mandatory picker at this moment would be
+// friction on the one path that must never have any.
+function RemoveStaffItem({ staff, verified }: { staff: StaffRow; verified: boolean }) {
+  const [confirming, setConfirming] = useState(false);
+  const count = staff.classes.length;
+  // ONE SENTENCE ABOUT THE WORK, TWO ABOUT THE ACCOUNT, and the split is the
+  // design. Since F68 the classes, the children and their work have the SAME
+  // fate on both branches — they move to the admin pressing the button, and the
+  // clause saying so is shared rather than duplicated, so the two can never
+  // drift into implying different things about children's data.
+  //
+  // What genuinely differs is the person's account. An ACTIVE colleague is
+  // DETACHED — `removeStaff` nulls their `schoolId` and gives them their own
+  // free plan back, so the account survives. An INVITED one never set a password
+  // and the row is deleted with the removal. Saying "their own account stays
+  // open" over a row about to be deleted, or "there is no account left" over one
+  // that carries on, would each be the class of falsehood this sentence was
+  // rewritten to remove.
+  const invited = staff.status === "INVITED";
+
+  // AN UNPAID SCHOOL MAY NOT REMOVE A COLLEAGUE WHO HAS ALREADY JOINED, and may
+  // still remove an invitation it sent by mistake. The split is the server's
+  // (src/app/actions/admin.ts) and this only says so first: removing an ACTIVE
+  // colleague moves their classes and their pupils' work onto the admin
+  // pressing the button, and removing an INVITED row cancels an invitation and
+  // moves nothing.
+  //
+  // THE CONFIRMATION IS REPLACED RATHER THAN THE BUTTON REMOVED. An admin who
+  // has come here to remove somebody needs to be told why they cannot, at the
+  // moment they try — a menu item that has quietly vanished is a support call.
+  const gated = !verified && !invited;
+
+  if (!confirming) {
+    return (
+      <button
+        role="menuitem"
+        type="button"
+        onClick={() => setConfirming(true)}
+        style={{ ...MENU_ITEM, color: "#C2476B" }}
+      >
+        <Icon name="delete" size={18} decorative />
+        Remove from school
+      </button>
+    );
+  }
+
+  if (gated) {
+    return (
+      <div role="group" style={{ padding: "8px 12px" }}>
+        <p style={{ margin: "0 0 8px", font: "400 12px/1.45 var(--font-atkinson)", color: "#43506B" }}>
+          Removing <strong>{staff.name}</strong> waits until the school plan is paid for. Removing a
+          colleague who has already joined moves their classes, and the children&rsquo;s work in them,
+          to you &mdash; so it opens when the payment reaches us. You can still cancel an invitation
+          somebody hasn&rsquo;t accepted.
+        </p>
+        <button
+          role="menuitem"
+          type="button"
+          onClick={() => setConfirming(false)}
+          style={{ ...MENU_ITEM, color: "#43506B" }}
+        >
+          Close
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    // A group, for the reason given in `RoleSubmenu`: this confirmation is a
+    // paragraph and two menu items, and a menu may not own a bare paragraph.
+    <div role="group" style={{ padding: "8px 12px" }}>
+      <p style={{ margin: "0 0 8px", font: "400 12px/1.45 var(--font-atkinson)", color: "#43506B" }}>
+        {count > 0 ? (
+          <>
+            <strong>{staff.name}</strong> loses access to your school&rsquo;s StoryJar. Their{" "}
+            {count} {count === 1 ? "class" : "classes"} ({staff.classes.join(", ")}) and the
+            children&rsquo;s work in {count === 1 ? "it" : "them"} move to <strong>you</strong>,
+            and {count === 1 ? "its class code is" : "their class codes are"} reissued — so the
+            children will need telling the new {count === 1 ? "code" : "codes"}.{" "}
+            {invited ? (
+              <>
+                They never accepted their invitation, so their account goes too &mdash; but the
+                work stays here, with you.
+              </>
+            ) : (
+              <>Their own account stays open on the free plan, with no classes.</>
+            )}
+          </>
+        ) : (
+          <>
+            <strong>{staff.name}</strong> loses access to your school&rsquo;s StoryJar. They hold
+            no classes
+            {invited ? (
+              <>, and they never accepted their invitation, so their account goes too.</>
+            ) : (
+              <>, and their own account stays open on the free plan.</>
+            )}
+          </>
+        )}
+      </p>
+      <form action={removeStaff}>
+        <input type="hidden" name="staffId" value={staff.id} />
+        <button
+          role="menuitem"
+          type="submit"
+          style={{ ...MENU_ITEM, color: "#C2476B", font: "700 13px var(--font-atkinson)" }}
+        >
+          <Icon name="delete" size={18} decorative />
+          Yes, remove {staff.name}
+        </button>
+      </form>
+      <button
+        role="menuitem"
+        type="button"
+        onClick={() => setConfirming(false)}
+        style={{ ...MENU_ITEM, color: "#43506B" }}
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+// Taking back an offer made to a teacher who already has a StoryJar account.
+//
+// IT SAYS WHAT IT DOES *NOT* DO, which is nearly all of it. Removing a
+// colleague moves their classes and their pupils' work; this moves nothing,
+// because nothing ever moved in the first place — the invitee is not in this
+// school, holds none of its classes and has not been told anything except that
+// an offer was waiting. Nor is anything deleted: the row goes to REVOKED so
+// that "did she turn us down or did we withdraw it?" stays answerable from the
+// record (src/lib/schoolInvitationPolicy.ts).
+//
+// A CONFIRMATION STEP, like `RemoveStaffItem`, and for a smaller reason: this
+// is a one-press item in a menu opened by a 32px button next to rows that all
+// look alike, and the sentence is the only place an admin is told that
+// cancelling costs nothing. It is not the suspension path, so there is no case
+// for firing it on the first press.
+function CancelInvitationItem({ staff, invitationId }: { staff: StaffRow; invitationId: string }) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <button
+        role="menuitem"
+        type="button"
+        onClick={() => setConfirming(true)}
+        style={{ ...MENU_ITEM, color: "#C2476B" }}
+      >
+        <Icon name="delete" size={18} decorative />
+        Cancel invitation
+      </button>
+    );
+  }
+
+  return (
+    // A group, for the reason `RoleSubmenu` gives: a menu may own menu items and
+    // groups, and this is a paragraph plus two items.
+    <div role="group" style={{ padding: "8px 12px" }}>
+      <p style={{ margin: "0 0 8px", font: "400 12px/1.45 var(--font-atkinson)", color: "#43506B" }}>
+        The invitation to <strong>{staff.name}</strong> is withdrawn. Nothing has moved and nothing
+        is deleted &mdash; they were never added to your school, so they hold none of its classes
+        and none of its pupils&rsquo; work. You can invite the same address again whenever you like.
+      </p>
+      <form action={cancelSchoolInvitation}>
+        <input type="hidden" name="invitationId" value={invitationId} />
+        <button
+          role="menuitem"
+          type="submit"
+          style={{ ...MENU_ITEM, color: "#C2476B", font: "700 13px var(--font-atkinson)" }}
+        >
+          <Icon name="delete" size={18} decorative />
+          Yes, cancel it
+        </button>
+      </form>
+      <button
+        role="menuitem"
+        type="button"
+        onClick={() => setConfirming(false)}
+        style={{ ...MENU_ITEM, color: "#43506B" }}
+      >
+        Keep it
+      </button>
+    </div>
+  );
+}
+
 function MenuForm({ action, staffId, icon, label, danger }: { action: (fd: FormData) => void; staffId: string; icon: IconName; label: string; danger?: boolean }) {
   return (
     <form action={action}>
@@ -582,21 +1142,67 @@ function MenuForm({ action, staffId, icon, label, danger }: { action: (fd: FormD
   );
 }
 
-function RoleSubmenu({ staff, onBack }: { staff: StaffRow; onBack: () => void }) {
+function RoleSubmenu({ staff, verified, onBack }: { staff: StaffRow; verified: boolean; onBack: () => void }) {
+  // Per staff row, because two open menus would otherwise share an id and the
+  // description would point at the wrong colleague's line.
+  const hintId = `role-unpaid-${staff.id}`;
   return (
     <>
-      <button onClick={onBack} style={{ ...MENU_ITEM, color: "#43506B", font: "700 13px var(--font-atkinson)" }}>← Edit role</button>
+      {/* `role="menuitem"`, like everything else in here. A `role="menu"` may
+          own only menu items and groups, and this button — the way back out of
+          the submenu — had no role at all, so it was an unpermitted child of the
+          menu it sits in. Pre-existing: no test had ever OPENED a submenu to
+          scan it, which is what tests/battery/a11y/axe.spec.ts now does. */}
+      <button role="menuitem" onClick={onBack} style={{ ...MENU_ITEM, color: "#43506B", font: "700 13px var(--font-atkinson)" }}>← Edit role</button>
       <div style={{ height: 1, background: "#F0EADD", margin: "4px 0" }} />
-      {(["ADMIN", "TEACHER", "TA"] as const).map((r) => (
-        <form key={r} action={setStaffRole}>
-          <input type="hidden" name="staffId" value={staff.id} />
-          <input type="hidden" name="role" value={r} />
-          <button role="menuitem" type="submit" disabled={staff.role === r} style={{ ...MENU_ITEM, opacity: staff.role === r ? 0.5 : 1 }}>
-            <span style={{ width: 18, textAlign: "center" }} aria-hidden>{roleStyle(r).label === "Admin" ? "★" : "•"}</span>
-            {roleStyle(r).label}
-          </button>
-        </form>
-      ))}
+      {/* WRAPPED IN A GROUP, and so is every other piece of prose inside one of
+          these menus. A menu may own menu items and groups and nothing else, so
+          a bare paragraph is an unpermitted child — and these paragraphs are
+          load-bearing rather than decorative (this one is the F47 correction),
+          so removing them was never the answer.
+
+          Said here because this is where somebody believes they are limiting a
+          colleague. Only ADMIN changes what StoryJar permits; the other two are
+          the school's own record of who somebody is. What decides what they can
+          see is Assign classes, one menu across. See F47. */}
+      <div role="group">
+        <p style={{ margin: 0, padding: "6px 12px 8px", font: "400 12px/1.45 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+          Only <strong>Admin</strong> changes what someone can do — it opens this console. What a
+          teacher or a teaching assistant can see comes from the classes they hold.
+        </p>
+      </div>
+      {/* ONLY ADMIN IS WITHHELD WHILE THE PLAN IS UNPAID. Teacher and teaching
+          assistant stay live, because neither changes what StoryJar permits and
+          a school setting itself up needs its staff list right. Said here, next
+          to the button it disables, rather than only in the banner at the top of
+          the page: this is where somebody forms the intention. */}
+      {!verified && (
+        <div role="group">
+          <p id={hintId} style={{ margin: 0, padding: "0 12px 8px", font: "400 12px/1.45 var(--font-atkinson)", color: "#8A5A00" }}>
+            Making somebody an admin waits until the school plan is paid for.
+          </p>
+        </div>
+      )}
+      {(["ADMIN", "TEACHER", "TA"] as const).map((r) => {
+        const unpaid = r === "ADMIN" && !verified;
+        const off = unpaid || staff.role === r;
+        return (
+          <form key={r} action={setStaffRole}>
+            <input type="hidden" name="staffId" value={staff.id} />
+            <input type="hidden" name="role" value={r} />
+            <button
+              role="menuitem"
+              type="submit"
+              disabled={off}
+              aria-describedby={unpaid ? hintId : undefined}
+              style={{ ...MENU_ITEM, opacity: off ? 0.5 : 1 }}
+            >
+              <span style={{ width: 18, textAlign: "center" }} aria-hidden>{roleStyle(r).label === "Admin" ? "★" : "•"}</span>
+              {roleStyle(r).label}
+            </button>
+          </form>
+        );
+      })}
     </>
   );
 }
@@ -631,12 +1237,41 @@ function MessagingSubmenu({ staff, onBack }: { staff: StaffRow; onBack: () => vo
   );
 }
 
-function ClassesSubmenu({ staff, classes, onBack }: { staff: StaffRow; classes: SchoolClass[]; onBack: () => void }) {
+function ClassesSubmenu({
+  staff,
+  classes,
+  verified,
+  onBack,
+}: {
+  staff: StaffRow;
+  classes: SchoolClass[];
+  verified: boolean;
+  onBack: () => void;
+}) {
   return (
     <>
-      <button onClick={onBack} style={{ ...MENU_ITEM, color: "#43506B", font: "700 13px var(--font-atkinson)" }}>← Assign classes</button>
+      <button role="menuitem" onClick={onBack} style={{ ...MENU_ITEM, color: "#43506B", font: "700 13px var(--font-atkinson)" }}>← Assign classes</button>
       <div style={{ height: 1, background: "#F0EADD", margin: "4px 0" }} />
-      {classes.length === 0 && <p style={{ margin: 0, padding: "9px 12px", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>No classes yet.</p>}
+      {/* ONE LINE INSTEAD OF THE CLASS LIST. Every row in that list is a button
+          that hands a class of children's work to this person, and the whole
+          list would be refused — so the list is not rendered at all rather than
+          rendered and disabled. What replaces it says which action is waiting
+          and on what, because "unavailable" tells an admin nothing they can act
+          on. */}
+      {!verified ? (
+        <div role="group">
+          <p style={{ margin: 0, padding: "9px 12px", font: "400 12px/1.5 var(--font-atkinson)", color: "#8A5A00" }}>
+            Moving a class to somebody else waits until the school plan is paid for. Every class
+            stays with the teacher who has it, and nothing about it changes meanwhile.
+          </p>
+        </div>
+      ) : (
+      <>
+      {classes.length === 0 && (
+        <div role="group">
+          <p style={{ margin: 0, padding: "9px 12px", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>No classes yet.</p>
+        </div>
+      )}
       {classes.map((c) => {
         const mine = c.teacherId === staff.id;
         return (
@@ -650,11 +1285,54 @@ function ClassesSubmenu({ staff, classes, onBack }: { staff: StaffRow; classes: 
           </form>
         );
       })}
+      </>
+      )}
     </>
   );
 }
 
-function InviteForm({ onDone }: { onDone: () => void }) {
+// THE UNPAID BANNER, and it is the control that matters most here.
+//
+// The three refusals in `src/app/actions/admin.ts` return void: they cannot
+// answer with an error, only redirect. So the screen has to do the explaining
+// BEFORE the button is pressed, and the server refusal is the backstop nobody
+// using this console should ever reach.
+//
+// It names all three withheld actions and all four retained ones, because
+// "some features are limited" is what makes a school ring somebody. `role="status"`
+// rather than `role="alert"`: this is the state of the account, not something
+// that has just gone wrong, and it renders on every tab.
+function UnpaidBanner({ blocked }: { blocked: "verify" | null }) {
+  return (
+    <div
+      role="status"
+      style={{
+        background: "#FDF3DD",
+        border: "2px solid #F0B441",
+        borderRadius: 14,
+        padding: "16px 18px",
+        marginBottom: 22,
+      }}
+    >
+      <p style={{ margin: 0, font: "700 16px var(--font-atkinson)", color: "#22304A" }}>
+        Your school plan hasn&rsquo;t been paid for yet.
+      </p>
+      <p style={{ margin: "6px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "#43506B", maxWidth: 760 }}>
+        We&rsquo;ve emailed the invoice and there are 30 days to pay it. Meanwhile everybody teaches as
+        normal, and you can invite staff, read the audit log and manage billing exactly as usual. What
+        waits is moving a class to somebody else, removing a colleague who has already joined, and
+        making somebody else an admin. All three open the moment the payment reaches us.
+      </p>
+      {blocked === "verify" && (
+        <p style={{ margin: "8px 0 0", font: "700 15px/1.6 var(--font-atkinson)", color: "#8A5A00", maxWidth: 760 }}>
+          That&rsquo;s why the change you just tried didn&rsquo;t happen &mdash; nothing was altered.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function InviteForm({ verified, onDone }: { verified: boolean; onDone: () => void }) {
   const [state, action, pending] = useActionState(inviteStaff, {});
   const ref = useRef<HTMLFormElement>(null);
   const wasPending = useRef(false);
@@ -679,11 +1357,37 @@ function InviteForm({ onDone }: { onDone: () => void }) {
       </div>
       <div>
         <label htmlFor="inv-role" style={{ display: "block", font: "700 13px var(--font-atkinson)", marginBottom: 5 }}>Role</label>
-        <select id="inv-role" name="role" defaultValue="TEACHER" style={{ ...INPUT, width: "auto" }}>
+        {/* THE SAME REFUSAL AS THE ROLE SUBMENU'S ADMIN BUTTON, at the other
+            door into the same thing. An invitation sent as ADMIN and accepted
+            gives an unpaid school a second admin, which is exactly what
+            `setStaffRole`'s gate exists to prevent — so the option is disabled,
+            and the reason is VISIBLE TEXT beside the select rather than hidden
+            inside an option nobody can reach. A disabled option that silently
+            does nothing is worse than one that says why.
+
+            The server refuses it too, with a sentence of its own
+            (`inviteStaff`), because this attribute is a courtesy. */}
+        <select
+          id="inv-role"
+          name="role"
+          defaultValue="TEACHER"
+          aria-describedby={verified ? "inv-role-hint" : "inv-role-hint inv-role-unpaid"}
+          style={{ ...INPUT, width: "auto" }}
+        >
           <option value="TEACHER">Teacher</option>
           <option value="TA">Teaching assistant</option>
-          <option value="ADMIN">Admin</option>
+          <option value="ADMIN" disabled={!verified}>Admin</option>
         </select>
+        {!verified && (
+          <p id="inv-role-unpaid" style={{ margin: "5px 0 0", maxWidth: 220, font: "400 12px/1.45 var(--font-atkinson)", color: "#8A5A00" }}>
+            Making somebody an admin waits until the school plan is paid for. Teacher and teaching
+            assistant work as normal.
+          </p>
+        )}
+        <p id="inv-role-hint" style={{ margin: "5px 0 0", maxWidth: 220, font: "400 12px/1.45 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+          Admin opens this console. Teacher and teaching assistant can do the same things &mdash; give
+          them a class to decide what they see.
+        </p>
       </div>
       <button type="submit" disabled={pending} style={{ ...JAM_BTN, opacity: pending ? 0.7 : 1 }}>{pending ? "Inviting…" : "Send invite"}</button>
       {state.error && <p role="alert" style={{ gridColumn: "1 / -1", margin: 0, font: "700 14px var(--font-atkinson)", color: "#C2476B" }}>{state.error}</p>}

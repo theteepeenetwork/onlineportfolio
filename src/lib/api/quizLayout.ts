@@ -27,8 +27,9 @@ import { ActivityInputError } from "./errors";
 import { asList, asRecord, checkKeys, describe } from "./shapes";
 
 // An image that has already been stored — see src/lib/api/media.ts. By the time
-// anything reaches this module the bytes are on disk and this is just a path.
-export type ResolvedImage = { src: string; alt: string };
+// anything reaches this module the bytes are on disk and this is just a path,
+// plus the picture's own pixel size where we were able to measure it.
+export type ResolvedImage = { src: string; alt: string; width?: number; height?: number };
 
 // One answer. Words, a picture, or both. The canvas has always been able to show
 // a picture answer (QuizOption.imagePath); until now only the editor could make one.
@@ -278,16 +279,14 @@ export function layoutQuiz(
     for (const q of onPage) {
       const box = q.image ? pictureSlot(pictured, rows) : plainSlot(plain, rows);
       if (q.image) {
+        const frame = fitPicture(q.image, MARGIN, box.y, PIC_W, ROW_H);
         pageObjects.push({
           id: `${API_OBJ_PREFIX}i${++objSeq}`,
           type: "image",
           src: q.image.src,
           alt: q.image.alt,
-          x: MARGIN,
-          y: box.y,
-          w: PIC_W,
-          h: ROW_H,
-          aspect: PIC_W / ROW_H,
+          ...frame,
+          aspect: frame.w / frame.h,
           locked: true,
         });
         pictured++;
@@ -316,6 +315,32 @@ export function layoutQuiz(
   }
 
   return { quiz: { questions }, pageCount, objects };
+}
+
+// Fit a picture inside the space kept for it, at its own shape, centred.
+//
+// WHY NOT JUST FILL THE SPACE. The canvas draws an image object with
+// objectFit: "fill" — whatever w and h say, the picture is stretched to it. The
+// space kept beside a question is 400 × 300, and a region cropped out of a
+// worksheet is whatever shape that part of the worksheet was. Filling the space
+// with a square crop of a part-whole model stretches it by a third and turns the
+// circles a child is being asked to count into ovals.
+//
+// A picture we could not measure (a JPEG, or one stored before sizes were
+// recorded) keeps the old behaviour: it fills the space. That is what it did
+// yesterday, and guessing a shape for it would be worse than leaving it.
+function fitPicture(
+  image: ResolvedImage,
+  x: number,
+  y: number,
+  maxW: number,
+  maxH: number,
+): { x: number; y: number; w: number; h: number } {
+  if (!image.width || !image.height) return { x, y, w: maxW, h: maxH };
+  const scale = Math.min(maxW / image.width, maxH / image.height);
+  const w = Math.max(1, Math.round(image.width * scale));
+  const h = Math.max(1, Math.round(image.height * scale));
+  return { x: x + Math.round((maxW - w) / 2), y: y + Math.round((maxH - h) / 2), w, h };
 }
 
 // Where the nth plain question on a page sits: across, then down.

@@ -39,7 +39,16 @@ test("the September jobs: staff in, staff out, classes moved on", async ({ page,
     // The question an admin has to be able to answer to the head: what will this
     // person be able to see?
     t.expects(
-      await t.seesText(/will (only )?see|access|their own class|cannot see/i, 1500),
+      // "access" alone was on this screen whatever it said, so this asks for
+      // the actual promise the panel makes about what a role can reach. The
+      // panel does say it — "Teacher and teaching assistant can do the same
+      // things — give them a class to decide what they see" — so this check
+      // passes honestly rather than by accident, and will notice if the
+      // sentence is ever dropped.
+      await t.seesText(
+        /can do the same things|decide what they see|will only see|opens this console|their own class/i,
+        1500,
+      ),
       "major",
       "confusing",
       "The invite form does not tell me what the person I am inviting will be able to see. I am granting access to children's photographs and I am guessing.",
@@ -55,7 +64,7 @@ test("the September jobs: staff in, staff out, classes moved on", async ({ page,
     // Did it actually send? An invite that silently fails is a member of staff
     // ringing you on Monday saying they never got anything.
     t.expects(
-      await t.seesText(/invited|sent|pending/i, 2000),
+      await t.seesText(/invited|\bsent\b|pending/i, 2000),
       "minor",
       "confusing",
       "Nothing tells me whether the invite email was actually sent, or when. If it bounced I would never know.",
@@ -89,7 +98,22 @@ test("the September jobs: staff in, staff out, classes moved on", async ({ page,
 
     // Removing a person's access to children's data is not an "undo" job. It
     // should say what happens to their classes and their work.
-    const explained = await t.seesText(/class(es)?|work|cannot be undone|permanent|sure/i, 2000);
+    // WRITTEN FROM THE SCREEN, and it is F59's discovery site.
+    //
+    // The old pattern was /class(es)?|work|cannot be undone|permanent|sure/i.
+    // The page after removing somebody contains "Classes" as a nav item and as
+    // a stat tile, so it passed on every run since the day it was written and
+    // this journey has never once tested what it says it tests. What it was
+    // hiding: removal is a single click with no confirmation, it does not
+    // revoke the person's access, and it takes the classes out of the school.
+    //
+    // So this asks for the sentence a head teacher needs before an
+    // irreversible click, and asks for it by its meaning rather than by a word
+    // that is bound to be somewhere on an admin console.
+    const explained = await t.seesText(
+      /what happens to (their|the) class|their classes will|access (will )?end|no longer (be able to )?see|are you sure|cannot be undone/i,
+      2000,
+    );
     t.expects(
       explained,
       "major",
@@ -138,7 +162,7 @@ test("the September jobs: staff in, staff out, classes moved on", async ({ page,
     await t.sweep("the audit log");
 
     t.expects(
-      await t.seesText(/invite|role|staff|added|removed/i, 3000),
+      await t.seesText(/invite|\brole\b|staff|added|removed/i, 3000),
       "major",
       "confusing",
       "The audit log does not show the staff changes I just made, so it cannot be used to answer a question about access.",
@@ -175,7 +199,7 @@ test("what an admin can see about email, and about money", async ({ page, tester
   await carryOn(async () => {
     t.newJob();
     await t.open("/teacher/billing", "our plan and billing");
-    const answered = await t.seesText(/plan|£|renew|invoice|per year|trial/i, 3000);
+    const answered = await t.seesText(/\bplan\b|£|renew|invoice|per year|trial/i, 3000);
     t.expects(
       answered,
       "major",
@@ -192,7 +216,7 @@ test("what an admin can see about email, and about money", async ({ page, tester
 
     // The renewal question every business manager asks before signing.
     t.expects(
-      await t.seesText(/cancel|stop|leave|what happens if/i, 2000),
+      await t.seesText(/cancel|\bstop\b|leave|what happens if/i, 2000),
       "minor",
       "confusing",
       "Nothing says what happens to the children's work if we stop paying. That is the first question our data protection lead asks.",

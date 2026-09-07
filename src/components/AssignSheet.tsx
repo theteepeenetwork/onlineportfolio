@@ -25,18 +25,23 @@ export function AssignSheet({
   onClose: () => void;
 }) {
   const [state, action, pending] = useActionState(assignTemplate, {});
-  const [classId, setClassId] = useState(classes[0]?.id ?? "");
+  // No preselection — the teacher must choose a class explicitly so a busy
+  // library never silently sends work to the wrong class (Item 5).
+  const [classId, setClassId] = useState("");
   const [mode, setMode] = useState<"class" | "children">("class");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const klass = classes.find((c) => c.id === classId) ?? classes[0];
+  // No fallback to classes[0] — klass is only defined once a class is chosen.
+  const klass = classes.find((c) => c.id === classId);
   const count = mode === "class" ? klass?.students.length ?? 0 : selected.size;
   const confirmLabel =
-    mode === "class"
-      ? "Assign to whole class"
-      : selected.size === 0
-        ? "Pick pupils to assign"
-        : `Assign to ${selected.size} ${selected.size === 1 ? "pupil" : "pupils"}`;
+    classId === ""
+      ? "Choose a class first"
+      : mode === "class"
+        ? "Assign to whole class"
+        : selected.size === 0
+          ? "Pick pupils to assign"
+          : `Assign to ${selected.size} ${selected.size === 1 ? "pupil" : "pupils"}`;
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -171,7 +176,7 @@ export function AssignSheet({
           <button type="button" onClick={onClose} className="btn-ghost">
             Cancel
           </button>
-          <button type="submit" disabled={pending || count === 0} className="btn-green">
+          <button type="submit" disabled={pending || classId === "" || count === 0} className="btn-green">
             {pending ? "Assigning…" : confirmLabel}
           </button>
         </div>

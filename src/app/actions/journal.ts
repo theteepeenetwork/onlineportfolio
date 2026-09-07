@@ -364,41 +364,19 @@ export async function returnItem(formData: FormData) {
   revalidatePath("/teacher/queue");
 }
 
-// A child sends one back: a single fixed "heart" acknowledgement of the
-// teacher's sticker. Deliberately NOT free text — the reply vocabulary is one
-// hard-coded value, so no unmoderated child-authored content can travel
-// anywhere (SAFEGUARDING.md rules 2 & 3).
-export async function sendStickerBack(formData: FormData) {
-  const user = await getCurrentUser();
-  if (user?.role !== "STUDENT") redirect("/");
-
-  // Replying is a (tiny) mutation — blocked while the school account is frozen.
-  const gate = await requireWritableAccountForClass(user.student.classId);
-  if (!gate.ok) return;
-
-  const id = String(formData.get("itemId") ?? "");
-
-  // Scope to THIS child's own approved, stickered moment — a crafted id can
-  // never touch another child's work (SAFEGUARDING rules 4 & 8).
-  const item = await db.journalItem.findFirst({
-    where: { id, studentId: user.student.id, status: "APPROVED", stickersJson: { not: null } },
-    select: { id: true, class: { select: { teacher: { select: { schoolId: true } } } } },
-  });
-  if (!item) return;
-
-  await db.journalItem.update({
-    where: { id: item.id },
-    data: { stickerReply: "HEART" },
-  });
-  await recordAudit({
-    action: "STICKER_SENT_BACK", actorType: "STUDENT", actorId: user.student.id, actorName: user.student.name,
-    schoolId: item.class.teacher.schoolId, subjectType: "JOURNAL_ITEM", subjectId: item.id, detail: "Child sent a heart back",
-  });
-
-  // Deliberately no revalidatePath here: the arrival panel stays on screen so
-  // the child sees their "Sent a heart back!" confirmation; the next visit to
-  // /student renders fresh data anyway.
-}
+// REMOVED 2026-08-24: `sendStickerBack`, the child's one-tap heart reply to a
+// teacher's sticker. A product decision, not a defect — a child is read-only to
+// their teacher's feedback. They see the sticker and they see the note; they
+// send nothing back. A proper "respond to feedback" feature may be built later
+// and will be designed as one rather than inherited from a single hard-coded
+// value.
+//
+// `JournalItem.stickerReply` is deliberately LEFT IN THE SCHEMA, unused.
+// Dropping it would be a migration inside the 27 August freeze, and re-adding it
+// later would be another; a dormant column is the cheap door back in. Historic
+// "HEART" values stay readable, and the `STICKER_SENT_BACK` audit action is
+// still handled on the read side so old rows render — nothing writes either any
+// more.
 
 // The child has now seen their jar, so anything approved before this moment is
 // no longer news. Called after the "it went in!" drop has played (M2) —

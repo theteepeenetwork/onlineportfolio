@@ -4,18 +4,28 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AssignSheet } from "@/components/AssignSheet";
 import { duplicateTemplate, setTemplateArchived } from "@/app/actions/activities";
+import { publishTemplateToLibrary } from "@/app/actions/library";
 import type { ClassInfo, RunSummary } from "@/lib/activities";
 
 // The Assign / Edit / View-as-child / Duplicate / Archive controls on the
 // template detail header.
+//
+// `canPublish` adds one more item, and it is false for every teacher at every
+// real school. It is true only where School.canPublishToLibrary is set, which
+// is StoryJar Academy — the fictional school StoryJar's own staff work in — so
+// this is how a member of staff turns something they have just built into a
+// library activity, on the same canvas a teacher uses. The server re-asks the
+// same question; this prop only decides whether the button is drawn.
 export function TemplateActions({
   template,
   classes,
   pastRuns,
+  canPublish = false,
 }: {
-  template: { id: string; title: string; thumb: string | null };
+  template: { id: string; title: string; thumb: string | null; librarySlug?: string | null };
   classes: ClassInfo[];
   pastRuns: RunSummary[];
+  canPublish?: boolean;
 }) {
   const [assigning, setAssigning] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -75,6 +85,14 @@ export function TemplateActions({
                 Duplicate
               </button>
             </form>
+            {canPublish && (
+              <form action={publishTemplateToLibrary}>
+                <input type="hidden" name="templateId" value={template.id} />
+                <button role="menuitem" type="submit" className="block w-full rounded-lg px-3 py-1.5 text-left text-sm hover:bg-background">
+                  {template.librarySlug ? "Update in library" : "Publish to library"}
+                </button>
+              </form>
+            )}
             <form action={setTemplateArchived}>
               <input type="hidden" name="templateId" value={template.id} />
               <input type="hidden" name="archived" value="true" />

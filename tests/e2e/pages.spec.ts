@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { logout, teacherLogin } from "./helpers";
+import { logout, teacherLogin, demoClassCode, holdPageCard } from "./helpers";
 
 // The pages strip: adding, copying and deleting the pages of a template.
 //
@@ -44,6 +44,9 @@ test("a page can be copied, and the copy carries what was on it", async ({ page 
   }
   await expect(page.locator('svg[data-shape="numberline"] text').last()).toHaveText("50");
 
+  // Copy and throw-away live in the page card's own menu, which a finger
+  // reaches by holding the card — the gesture that also slides it.
+  await holdPageCard(page, 0);
   await page.getByRole("button", { name: "Duplicate this page" }).click();
 
   // Two pages now, and the second is the one being shown.
@@ -77,13 +80,15 @@ test("a pupil answering an activity is not offered the page controls", async ({ 
   await page.waitForURL((url) => url.searchParams.has("run"));
 
   await logout(page);
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   await page.getByRole("button", { name: "Ella", exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/student");
   await page.goto("/student/activities");
   await page.getByRole("link", { name: /Gated pages/ }).click();
   await expect(page.locator("canvas").first()).toBeVisible();
 
+  // Holding a page card offers a pupil neither copy nor throw-away.
+  await holdPageCard(page, 0);
   await expect(page.getByRole("button", { name: "Duplicate this page" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Delete page/ })).toHaveCount(0);
 });

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { SCHOOL_A, loginStudent, loginTeacher } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, loginStudent, loginTeacher } from "../helpers";
+import { pickTool } from "../../e2e/helpers";
 
 // ===========================================================================
 // B3 — Every control a CHILD taps is at least 64px
@@ -113,8 +114,8 @@ test("the controls that only appear once a child taps something meet the floor t
   // A shape, placed then tapped.
   await page.locator('button[title="Add"]').click();
   await page.getByRole("button", { name: "Shapes" }).click();
-  await page.locator('[role="group"] button').first().click();
-  await page.locator('button[aria-label="Move"]').click();
+  await page.getByRole("button", { name: "Rectangle", exact: true }).click();
+  await pickTool(page, "Move");
   await expect(page.getByRole("button", { name: "Remove object" })).toBeVisible();
   let small = await undersizedControls(page);
   expect(small, `controls below ${FLOOR}px around a selected shape: ${JSON.stringify(small)}`).toEqual(
@@ -123,12 +124,12 @@ test("the controls that only appear once a child taps something meet the floor t
 
   // A text box, placed then tapped. Same four corners, same floor.
   await page.locator('button[title="Add"]').click();
-  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.getByRole("button", { name: "Words", exact: true }).click();
   await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.7);
   await page.locator('textarea[placeholder="Type…"]').waitFor();
   await page.keyboard.type("Hi");
-  await page.locator('button[title="Pen"]').click();
-  await page.locator('button[aria-label="Move"]').click();
+  await page.locator('button[title="Pens"]').click();
+  await pickTool(page, "Move");
   const label = page.getByText("Hi", { exact: true });
   const lbox = (await label.boundingBox())!;
   await page.mouse.click(lbox.x + lbox.width / 2, lbox.y + lbox.height / 2);
@@ -150,6 +151,47 @@ test("every tool on an activity response meets the child touch floor", async ({ 
 
   const small = await undersizedControls(page);
   expect(small, `controls below ${FLOOR}px on an activity response: ${JSON.stringify(small)}`).toEqual([]);
+});
+
+// The answers a child TAPS on a quiz, measured where the maths bites.
+//
+// The sweeps above run at 1024x768, where the canvas fits at about 1:1 and an
+// answer scrapes past the floor by luck rather than by rule. A quiz box is laid
+// out at logical canvas size and painted through `transform: scale(scale)`, so
+// an answer's real size is 64·scale — 49 real pixels on the 768px tablet a
+// Reception child holds in portrait. That is the shape of the finding: "One /
+// Two / Three" rendering at 190x57 for a four-year-old.
+//
+// Named rather than swept, because the sweep would also pick up the drawing
+// canvas's own long tail of sub-floor tools (F37, logged and repro'd under
+// tests/battery/findings) and go red for something this test is not about.
+test("a quiz answer is 64 real pixels on the tablet a child answers it on", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  // Oakfield's "Oak leaf quiz" is live to the whole of Acorn; Yusuf has not
+  // answered it, so it opens for him. Its box is 400x200 — deliberately shorter
+  // than the answers now need, which is the case the fix has to survive.
+  await loginStudent(page, SCHOOL_B.classCode, "Yusuf");
+  await page.goto("/student/activities");
+  await page.getByRole("link", { name: /Oak leaf quiz/ }).first().click();
+  await expect(page.locator("canvas").first()).toBeVisible();
+
+  const answers = page.getByRole("button", { name: /The oak leaf|Not this one/ });
+  await expect(answers).toHaveCount(2);
+  for (let i = 0; i < 2; i++) {
+    const answer = answers.nth(i);
+    const box = (await answer.boundingBox())!;
+    const name = await answer.getAttribute("aria-label");
+    expect(
+      Math.round(box.height),
+      `"${name}" is ${Math.round(box.width)}x${Math.round(box.height)} — a child's answer, under the ${FLOOR}px floor`,
+    ).toBeGreaterThanOrEqual(FLOOR);
+    // And still on the page: growing the card to fit the floor must not push an
+    // answer off the bottom, where the stage's crop would take it away.
+    const stage = (await page.locator("canvas").first().boundingBox())!;
+    expect(box.y + box.height, `"${name}" is cropped off the page`).toBeLessThanOrEqual(
+      stage.y + stage.height + 1,
+    );
+  }
 });
 
 test("every control on an EYFS child's jar meets the child touch floor", async ({ page }) => {

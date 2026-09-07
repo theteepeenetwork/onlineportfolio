@@ -1,0 +1,35 @@
+-- One nullable column: when a teacher proved they can receive mail at the
+-- address on their account.
+--
+-- docs/dpo-decisions.md, 2 September 2026 — "buying requires a proved email
+-- address". Free teacher signup is unchanged and still asks for nothing. What
+-- this column gates is the two CLAIM purchase routes, `startClaimCheckout` and
+-- `requestClaimInvoice`, which are the ones that bring a `School` into
+-- existence and make the buyer its admin.
+--
+-- WHY NOT A COLUMN ON A NEW TABLE, AND WHY NO NEW TOKEN TABLE AT ALL.
+-- `TeacherPasswordToken` already stores a SHA-256 digest and never the token,
+-- already carries a `purpose`, already has a per-purpose TTL and is already
+-- spent inside the transaction that does the thing it authorises. Confirmation
+-- is a third value in that existing `purpose` column — "CONFIRM" — and needs no
+-- schema change of its own, which is why this migration has one statement.
+--
+-- NO BACKFILL, AND THAT IS THE DECISION RATHER THAN AN OMISSION.
+--
+-- Every existing teacher comes out of this migration with NULL, because NULL is
+-- the truth: StoryJar has never asked any of them to open a link, so it has no
+-- evidence about any of their addresses. Stamping them "confirmed" because they
+-- happen to predate the column would put a fact in the database that nobody
+-- established, in the one column whose whole job is to say what was
+-- established. Rule 8, deny by default.
+--
+-- Nobody loses anything they have today. The column gates buying a school that
+-- does not exist yet; it gates no sign-in, no class, no child's work, and no
+-- part of the free plan. A teacher who has ALREADY bought a school has a
+-- `schoolId`, so they go down `startCheckout`'s existing-school branch, which
+-- this change does not touch at all.
+--
+-- SQLite: adding a nullable column with no default is a metadata-only ALTER —
+-- no table rewrite, no lock worth naming, and it is reversible by dropping the
+-- column. It cannot fail on a populated database.
+ALTER TABLE "Teacher" ADD COLUMN "emailConfirmedAt" DATETIME;

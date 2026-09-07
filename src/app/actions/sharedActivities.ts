@@ -7,15 +7,22 @@ import { getCurrentUser } from "@/lib/auth";
 import { requireWritableAccount } from "@/lib/billing";
 import { copySharedMediaForTeacher } from "@/lib/sharedActivities";
 
-// The ONLY action the shared library has, and it only ever reads the shared
-// table and writes the teacher's own.
+// The only action an ordinary teacher has on the shared library, and it only
+// ever reads the shared table and writes the teacher's own.
 //
-// There is deliberately no create, no update, no publish and no delete here.
-// Publishing is scripts/ops/publish-shared-activities.mjs, in the repository,
-// reviewable in a pull request. A publish action reachable from a teacher's
+// There is deliberately no create, no update, no publish and no delete in THIS
+// file, and there never will be. A publish action reachable from any teacher's
 // session is how a curated library becomes user-generated content by accident,
-// which the owner explicitly deferred. That absence is asserted rather than
-// trusted, in tests/battery/security/shared-activities.spec.ts.
+// which the owner explicitly deferred.
+//
+// Publishing does now exist in the application, and it is somewhere else on
+// purpose: src/lib/libraryPublishing.ts, reachable only from a school whose
+// `canPublishToLibrary` is set — StoryJar Academy, where StoryJar's own staff
+// work. That module is the single writer of the shared table under src/, and
+// the fact that it is the only one is asserted rather than trusted, in
+// tests/battery/security/shared-activities.spec.ts. The repository manifest and
+// scripts/ops/publish-shared-activities.mjs still work and are still how a
+// fresh environment is seeded.
 export async function addSharedActivityToLibrary(formData: FormData) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");

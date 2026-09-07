@@ -81,5 +81,22 @@ next-env.d.ts
 # Per-shard test databases (scripts/run-suites.mjs)
 prisma/dev-shard-*.db*
 
+# Any SQLite file, anywhere, under any name. The rules above name the paths this
+# repo actually uses; these two are the net under them. A bare `dev.db` was once
+# committed at the root and only found by widening a search past prisma/ — it
+# held nothing but the schema, but the next one might not, and this repo is
+# public. Cheaper to ignore an extension than to rewrite history.
+*.sqlite
+*.sqlite3
+
 # Per-lane Next build output (scripts/run-suites.mjs)
 .next-lane-*
+
+# Local Claude Code settings: per-machine permission grants and inbound-message
+# policy. The shared fleet configuration is .claude/settings.json, which IS
+# committed; this file is the local half and should never be.
+.claude/settings.local.json
+
+# Holding pen. device_bash on this machine cannot delete files, so anything
+# being removed is moved here first and deleted from a real terminal later.
+_to_delete/

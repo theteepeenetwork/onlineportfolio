@@ -10,6 +10,160 @@ the competitive rationale in [`COMPETITIVE_POSITIONING.md`](../COMPETITIVE_POSIT
 
 ---
 
+## 2026-09-02 — Promo codes are wanted, and are switched off on the new purchase route until a free purchase means something
+
+**Decision:** `allow_promotion_codes` is removed from the school-claim checkout
+(`startClaimCheckout`). It stays on the existing route, which a school that
+already has an account uses, and which predates this work. Promo codes are
+wanted eventually; this is a deliberate absence, not an oversight, and the thing
+to design first is named below.
+
+**What is actually broken, which is narrower than it looked.** Stripe sets
+`payment_status: "no_payment_required"` only when the amount due is **zero**.
+Any discount below 100% still charges, so the status is `"paid"` and the claim
+transaction runs unchanged. **Promo codes already work on this route at any real
+discount. A free purchase does not** — the webhook's claim branch withholds on
+anything that is not `"paid"`, correctly, because creating a verified school on
+an uncleared payment is worse than creating none.
+
+**Why the obvious patch was refused.** Adding a `no_payment_required` branch that
+treats free as paid would have closed a safeguarding-review condition in an
+afternoon. It would also have settled, silently and in a webhook branch, every
+question nobody has asked: whether a comped school counts as **verified** when
+no payment ever confirmed the claim; what happens at renewal when the code
+lapses and Stripe bills a school that has never paid; whether a comped school is
+identifiable in the operator console or looks exactly like a paying one; and
+whether comping should exist at all. Those are pricing decisions. A branch in a
+payment handler is the wrong place to take them, and taking them as a side
+effect of a review fix is how a product acquires behaviour nobody chose.
+
+**Why removal costs nothing today.** The claim route is new on this branch and
+has never run in production, so switching the flag off takes no capability away
+from anybody. The existing route keeps it and keeps working.
+
+**What has to be decided before it goes back on.** What a free purchase *is* —
+verified or not, renewing or not, visible as comped or not — and then the
+webhook branch follows from that answer rather than standing in for it.
+
+**Decided by:** the founder. **Recorded:** 2026-09-02.
+
+---
+
+## 2026-09-01 — No trial on a new purchase. A 42-day refund instead
+
+**Decision:** a school that buys StoryJar is a paying customer from the moment
+it buys. New purchases do not open on TRIAL. In its place, a school may ask for
+a **full refund within 42 days** of the start of the paid year, no reason
+needed. The 42 days are unchanged; what changes is which side of the money
+they sit on.
+
+**Why.** The trial existed to give a school something to evaluate before its
+finance office raises a purchase order. But a trial is a countdown, and a
+countdown is a thing a school can lose track of and be cut off by in the middle
+of a term — the same objection recorded on 15 Aug 2026 against putting free
+teacher accounts on a clock. It also made every new school an unverified school
+for its first six weeks, which forced a gate on `assignClassToStaff` and left a
+window in which a claim on a school's identity cost nothing.
+
+A refund is the same reassurance without the countdown. The school is never cut
+off by a date it forgot, and StoryJar is never running an unpaid school it
+cannot identify.
+
+**What this makes true on the card route.** Nothing is created when the button
+is pressed. Teacher picks a band, pays, and the Stripe webhook creates the
+`School`, the `Subscription` (ACTIVE, not TRIAL), sets `schoolId` and
+`role = "ADMIN"`, stamps `verifiedAt` and writes the audit row, in one
+transaction. An abandoned checkout creates nothing, so a half-finished purchase
+cannot squat on a URN. The purchase intent travels in Stripe Checkout metadata —
+purchasing teacher, band, school name and URN — because there is no local row to
+hang it on until payment confirms.
+
+**The invoice route still has an unpaid window, and that is accepted.** An
+invoice with 30-day terms is unpaid by definition, and the decision of 30 Aug
+2026 that `requestSchoolInvoice` activates immediately stands: finance sitting
+on an invoice must not be able to freeze a school. So a PO school is created
+ACTIVE and unverified, and `verifiedAt` is stamped on `invoice.paid`. The only
+way to close that window is to give PO schools nothing for 30 days, which would
+end self-serve purchase for most UK primaries. The safeguarding gates on an
+unverified school are what holds the line instead
+([`dpo-decisions.md`](./dpo-decisions.md), 1 Sep 2026).
+
+**The refund is manual, deliberately.** A school asks; the founder actions it in
+the Stripe dashboard. There is no refund button and there does not need to be at
+this volume. The cancellation path already exists —
+`customer.subscription.deleted` → `freezeSubscription`.
+
+**A refunding buyer goes back to free, not to frozen.** The person who bought
+usually had a free teacher account with their own classes before they paid.
+Freezing the school on refund would make their own classes read-only and leave
+them worse off than if they had never bought, which is not a refund. So the
+freeze detaches the buyer back to a free teacher plan — recreating the free
+`Subscription` row, which joining a school deletes — and the school and any
+remaining staff are frozen read-only, because they did not pay.
+
+**Copy this obliges.** "We do not refund part of a paid year" in the Terms and
+"42-day trial for schools evaluating before a purchase order is raised" on the
+landing page were both true when written and are both false the moment this
+ships. Changed in the same shipment.
+
+**Not removed:** the `TRIAL` status itself. `prisma/seed.ts`, `seed-test.ts`,
+the frozen-school persona and `scripts/freeze-expired.mjs` all depend on it,
+and the admin billing pane still renders a trial countdown for a row that has
+one. New purchases simply never enter that state. Removing the status is a
+separate cleanup, not a condition of this decision.
+
+**Decided by:** the founder. **Recorded:** 2026-09-01.
+
+---
+
+## 2026-08-30 — Buying is self-serve. There is no gatekeeper
+
+**Decision:** a school that wants to buy StoryJar must be able to do so without
+a person at StoryJar being involved, at any hour, on the day it decides. No
+manual onboarding step, no operator approval, no "email us to get set up".
+
+**Why this had to be said out loud.** The design already assumed it:
+`docs/school-identity.md` §4 lists "No operator approval queue" as a deliberate
+absence, because payment replaces it and keeps a human out of the onboarding
+critical path. But the half of that design which creates a `School` was
+scheduled for late September, and until it lands `db.school.create` exists only
+in seeds. A real teacher therefore cannot reach the admin console or checkout at
+all, and a school wanting to pay in September would have had to be onboarded by
+hand. A founder-shaped bottleneck in front of the only revenue path is worse
+than any feature gap in this plan, and it fails at exactly the moment it costs
+most: a head deciding on a Tuesday evening.
+
+**What follows:** steps 4 to 7 of `school-identity.md` stop being late-September
+work and become the first thing built. The route is item 0 of
+`docs/paid-tier-plan.md`: any signed-in teacher reaches checkout, and the
+`School` is created in the Stripe webhook's claim transaction.
+
+**The PO route is included, not excepted.** Most UK primaries pay by invoice, so
+"self-serve" that only means card is not self-serve. `requestSchoolInvoice`
+already activates immediately rather than waiting on a webhook, so finance
+holding an invoice cannot freeze a school; it must also be reachable without an
+existing school.
+
+**Teachers without a URN can buy.** The whole-school entry point may not require
+a stored `urn`. Null is a real answer for every teacher outside England and for
+any English school missing from the register, and requiring one would quietly
+route those schools back to the founder's inbox. Accepted consequence: schools
+created from free text have no uniqueness protection and a duplicate is possible,
+which is an operator merge at low volume.
+
+**The safeguarding condition** on all of this, because buying is what makes
+somebody a school admin, is recorded separately in
+[`docs/dpo-decisions.md`](./dpo-decisions.md) (30 Aug 2026): the school exists
+from trial start but is unverified until payment lands, and `assignClassToStaff`
+is refused until it is verified.
+
+**What is still done by hand, and should be:** welcoming the first schools that
+buy. That is a follow-up, never a gate.
+
+**Decided by:** the founder. **Recorded:** 2026-08-30.
+
+---
+
 ## 2026-08-15 — Two tiers: free for a teacher, a paid plan for a school
 
 **Decision:** StoryJar ships with **two** plans.

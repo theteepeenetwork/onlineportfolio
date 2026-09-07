@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { isPublicSite } from "./src/lib/indexability";
 
 // Content-Security-Policy. Kept as tight as the app allows:
 //  - 'unsafe-inline' is needed for scripts/styles because the UI uses inline
@@ -25,6 +26,22 @@ const csp = [
   "worker-src 'self' blob:",
 ].join("; ");
 
+// Keep a non-public deployment out of the search index.
+//
+// This is the half of the job robots.txt cannot do: robots.txt asks a crawler
+// not to FETCH a URL, but a URL linked from somewhere else can still be indexed
+// unfetched, and staging carries fixture children's work, an open operator door
+// and a password published in this repository. X-Robots-Tag is the instruction
+// that actually removes it.
+//
+// Evaluated at build time, and isPublicSite() answers "yes, public" whenever
+// APP_URL is absent or unparseable — so the failure mode of a build that cannot
+// see the variable is that storyjar.co.uk behaves exactly as it does today.
+// Getting this backwards would de-index the live site.
+const noindexHeaders = isPublicSite()
+  ? []
+  : [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }];
+
 // Security headers applied to every response.
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
@@ -47,6 +64,38 @@ const nextConfig: NextConfig = {
   // `.next` exactly as before.
   distDir: process.env.NEXT_DIST_DIR || ".next",
 
+  // Hide Next's dev-tools indicator, and ONLY in a Playwright lane.
+  //
+  // The lanes run `next dev` rather than `next build`, deliberately and
+  // permanently: a production build is a different application here, because
+  // signInLinkMayBeShown() withholds a parent's magic-link URL under production
+  // NODE_ENV (the fix for F19), so family.spec.ts fails against `next start`
+  // *because the gate is working*. See AGENTS.md.
+  //
+  // The dev overlay is the price of that decision, and it is not free. Next
+  // renders the indicator in a <nextjs-portal> at bottom-left, above the page,
+  // and its subtree intercepts pointer events. On 2026-08-23 it sat directly on
+  // top of the teacher rail's "expand the menu" button and swallowed 227 click
+  // retries before the test timed out at 120s — on a control that is present,
+  // visible and enabled, and that no teacher could ever fail to reach, because
+  // in production there is no indicator. Any test touching the bottom-left of
+  // any screen can meet this, so it is fixed here rather than worked around in
+  // the one spec that found it.
+  //
+  // Gated rather than switched off outright: the indicator is useful when
+  // developing and `npm run dev` keeps it. Only the Playwright configs set this,
+  // in their webServer.env. Exactly "1", the OPS_ENABLED convention, so a typo
+  // fails closed and leaves the indicator on rather than half-hiding it.
+  //
+  // Do not "fix" a blocked click with force: true instead. A test that measures
+  // whether a control is reachable must not pass while it is unreachable.
+  //
+  // devIndicators is `false` rather than an object: as of Next 16 the object
+  // form takes only `position`, and buildActivity / buildActivityPosition /
+  // appIsrStatus were removed (node_modules/next/dist/docs, devIndicators.md,
+  // Version History v16.0.0).
+  ...(process.env.PW_HIDE_DEV_INDICATOR === "1" ? { devIndicators: false as const } : {}),
+
   // Custom hostnames used to reach the dev server on the local network. Next 16
   // blocks its /_next dev resources from unknown origins by default, which makes
   // the page load forever when opened via a nice hostname rather than the raw IP.
@@ -68,16 +117,17 @@ const nextConfig: NextConfig = {
 
   async headers() {
     return [
-      { source: "/:path*", headers: securityHeaders },
+      { source: "/:path*", headers: [...securityHeaders, ...noindexHeaders] },
       // The operator area, on top of the site-wide set above. There is no
       // middleware file in this project and one is not being invented for this:
       // these two headers are static, so they belong in the same place as every
       // other static header.
       //
       //   X-Robots-Tag  the area must not be indexed, followed or archived. It
-      //                 is deliberately NOT named in robots.txt (there is no
-      //                 robots.txt, and adding one to name this path would
-      //                 publish it).
+      //                 is deliberately NOT named in robots.txt. src/app/robots.ts
+      //                 serves one now, and it names no path at all for exactly
+      //                 this reason: writing "/ops" into a file the world can
+      //                 fetch would publish the path it is meant to protect.
       //   Cache-Control an edge- or browser-cached authenticated operator page
       //                 is a cross-user disclosure. Every ops route is also
       //                 force-dynamic for the same reason.

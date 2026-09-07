@@ -11,6 +11,11 @@ import { SCHOOL_A, loginTeacher } from "../helpers";
 // ===========================================================================
 
 const VIEWPORTS = [
+  // A phone, because a parent has one and the pages below are the ones they
+  // meet first. Every viewport here started at 768, which is why /family could
+  // hand a parent a sideways scroll on the screen that introduces Storyjar and
+  // nothing noticed: the narrowest thing ever measured was wider than a phone.
+  { label: "phone", width: 390, height: 844 },
   { label: "iPad portrait", width: 768, height: 1024 },
   { label: "iPad landscape", width: 1024, height: 768 },
   { label: "low-end laptop", width: 1280, height: 720 },

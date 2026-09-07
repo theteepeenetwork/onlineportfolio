@@ -89,6 +89,8 @@ export type ActivityInput = {
 // Every picture on the activity: the ones placed in the object layer (question
 // extracts, page images) and the ones used as answers. Page backgrounds are not
 // counted — a blank page has one and it is not a picture anybody put there.
+// Neither is a photo frame: it is the space for a picture a child has not
+// taken yet, so it costs nothing against the picture budget.
 function countPictures(objectsJson: string | null, quizJson: string | null): number {
   let count = 0;
   try {

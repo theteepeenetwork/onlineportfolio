@@ -1,0 +1,29 @@
+// @path: src/lib/ops/reads.ts
+// A string literal whose LAST word is `import`. Not an import statement, and it
+// must not be read as one.
+//
+// The regression this pins, found on 2026-08-24: the bare-import pattern was
+// `\bimport\s*["']`, and `\s*` matches zero characters, so the `import` at the
+// end of "gias:import" matched with that string's CLOSING quote taken as an
+// opening one. The scanner then captured everything up to the next quote in the
+// file and refused the file for importing a package called
+//     " },\n    orderBy: [{ startedAt: "
+//
+// It is the same fault as F52 in a different scanner: a closing quote mistaken
+// for an opening one. Two of them in one repository is a pattern rather than a
+// coincidence, which is why this is pinned rather than worked around.
+//
+// It WAS worked around first: the job key was renamed to "register:refresh" so
+// the literal no longer ended in the word. That is a product constant bent to
+// suit a tool bug, and the tool bug is fixed now, but the name is fine and
+// should stay. This fixture keeps the scanner honest whatever the key is called.
+import { db } from "@/lib/db";
+
+export async function lastRunOfEachJob() {
+  const jobs = ["register:refresh", "mail:suppression-sync", "gias:import"];
+  return db.jobRun.findMany({
+    where: { job: { in: jobs } },
+    orderBy: [{ startedAt: "desc" }],
+    select: { job: true, startedAt: true, outcome: true, itemsAffected: true },
+  });
+}

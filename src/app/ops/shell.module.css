@@ -1,0 +1,61 @@
+/*
+ * Forced-colours handling for the operator bar.
+ *
+ * In normal rendering the bar uses inline `color: var(--paper)` on a
+ * `background: var(--ink)` header. In forced-colours mode (Windows
+ * high-contrast, Chrome `--force-color-profile`) the browser replaces author
+ * colours with system values, but it does NOT replace inline styles that
+ * duplicate `color` — so the bar goes dark-on-dark and all six elements
+ * vanish. This is F32.
+ *
+ * The fix: in the forced-colours media query, override each element with the
+ * appropriate system-colour keyword and `forced-color-adjust: none` on the
+ * header itself so the browser hands colour control back to us. The !important
+ * declarations are intentional — in a forced-colours media query they are the
+ * correct mechanism to override inline styles.
+ *
+ * System-colour roles:
+ *   Canvas / CanvasText — page body (header background / wordmark)
+ *   LinkText            — navigation links (keeps system-link blue)
+ *   ButtonFace / ButtonText — sign-out button (keeps button chrome)
+ */
+
+.bar {
+  /* Marker class; normal styles are on the element as inline styles. */
+}
+
+.wordmark {
+  /* Marker class for forced-colours override below. */
+}
+
+.link {
+  /* Marker class for forced-colours override below. */
+}
+
+.signout {
+  /* Marker class for forced-colours override below. */
+}
+
+@media (forced-colors: active) {
+  .bar {
+    background: Canvas !important;
+    /* A thin border replaces the colour distinction between bar and page body,
+       so the header region stays perceptible without relying on background. */
+    border-bottom: 1px solid ButtonText;
+    forced-color-adjust: none;
+  }
+
+  .wordmark {
+    color: CanvasText !important;
+  }
+
+  .link {
+    color: LinkText !important;
+  }
+
+  .signout {
+    color: ButtonText !important;
+    background: ButtonFace !important;
+    border-color: ButtonText !important;
+  }
+}

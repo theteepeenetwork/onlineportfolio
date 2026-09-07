@@ -123,3 +123,54 @@ test.describe("canvas object validation", () => {
     expect(normaliseOne({ ...base, shape: "ellipse", infinite: "yes" })?.infinite).toBeUndefined();
   });
 });
+
+// The photo frame is its own member of the union, so unlike an unknown shape
+// kind it is dropped by an older build rather than coerced. That makes this
+// gate the whole of what decides whether a teacher's frame reaches a child.
+const frameBase = { id: "f", type: "frame", x: 10, y: 10, w: 400, h: 300 };
+
+test.describe("photo frame validation", () => {
+  test("a frame survives, and one without an id is dropped", () => {
+    expect(normaliseOne(frameBase)?.type).toBe("frame");
+    expect(normaliseOne({ ...frameBase, id: "" })).toBeUndefined();
+  });
+
+  test("geometry is clamped and never below the retake floor", () => {
+    // 160×120 is the room a 64px "take it again" button needs at scale 1.
+    expect(normaliseOne({ ...frameBase, w: 10 })?.w).toBe(160);
+    expect(normaliseOne({ ...frameBase, h: 10 })?.h).toBe(120);
+    expect(normaliseOne({ ...frameBase, w: 5000 })?.w).toBe(1000);
+    expect(normaliseOne({ ...frameBase, h: 5000 })?.h).toBe(700);
+    expect(normaliseOne({ ...frameBase, x: -9999 })?.x).toBe(-1000);
+    expect(normaliseOne({ ...frameBase, w: "wide" })?.w).toBe(400);
+  });
+
+  test("the prompt is capped, and an empty one is not stored", () => {
+    expect((normaliseOne({ ...frameBase, label: "x".repeat(600) })?.label as string).length).toBe(500);
+    expect(normaliseOne({ ...frameBase, label: "" })?.label).toBeUndefined();
+    expect(normaliseOne({ ...frameBase, label: 42 })?.label).toBeUndefined();
+    expect(normaliseOne({ ...frameBase, label: "Your model" })?.label).toBe("Your model");
+  });
+
+  test("a source is kept only where it is a picture or could be served", () => {
+    expect(normaliseOne({ ...frameBase, src: "data:image/webp;base64,AA" })?.src).toBe(
+      "data:image/webp;base64,AA",
+    );
+    expect(normaliseOne({ ...frameBase, src: "/uploads/a.webp" })?.src).toBe("/uploads/a.webp");
+    expect(normaliseOne({ ...frameBase, src: "https://evil.example/x.png" })?.src).toBeUndefined();
+    expect(normaliseOne({ ...frameBase, src: "javascript:alert(1)" })?.src).toBeUndefined();
+    expect(normaliseOne(frameBase)?.src).toBeUndefined();
+  });
+
+  test("a frame carries neither a padlock nor a turn", () => {
+    // Fixed for a child by what it is; storing `locked` would pin it for the
+    // teacher too, and a photo is always drawn flat.
+    expect(normaliseOne({ ...frameBase, locked: true })?.locked).toBeUndefined();
+    expect(normaliseOne({ ...frameBase, rot: 45 })?.rot).toBeUndefined();
+  });
+
+  test("a page of frames is capped like any other page", () => {
+    const page = Array.from({ length: 121 }, (_, i) => ({ ...frameBase, id: `f${i}` }));
+    expect(normalizeTemplateObjects([page]).pages[0]).toHaveLength(120);
+  });
+});

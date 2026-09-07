@@ -14,187 +14,46 @@ Severities are the testers' own, and they mean:
 ## The run
 
 - **28** journeys, **11** testers.
-- **122** distinct findings: 0 blocker · 42 major · 76 minor · 4 polish.
+- **116** distinct findings: 0 blocker · 14 major · 98 minor · 4 polish.
 - Every journey ran to the end.
 
 ## Start here
 
 Everything a tester could not do, or was misled by. Ordered by severity, then by how many of them hit it. Controls that are simply too small are collapsed into one line per floor — they are one problem with many examples, and the per-control sizes are in the sections below.
 
-- [ ] **major** — 16 controls are smaller than the 64px this person can reliably hit (SAFEGUARDING rule 18, anything a child taps): ✓ (56×56), Clear page (44×44), Close (44×44), My journal (97×36), Redo (44×44), Sign out (83×36), Undo (44×44), Add (56×56), Bye bye 👋 (134×56), Colour (24×460), Line thickness (36×36), Send a heart back 💛 (163×56), and 4 more. _(5 testers)_
-- [ ] **major** — A control with no words and no label — impossible to know what it does before pressing it (and silent to a screen reader). _(3 testers)_
-- [ ] **major** — The page is 345px wider than the screen, so it slides sideways and content goes off the edge. _(2 testers)_
+- [ ] **major** — A control with no words and no label — impossible to know what it does before pressing it (and silent to a screen reader).
 - [ ] **major** — A parent has shared our class code round the village and there is nothing here to change it. My only option is to delete the class and start again.
 - [ ] **major** — After tapping around I have ended up somewhere with no way back to my jar.
 - [ ] **major** — As the account holder I get an empty screen with no children on it and no explanation. I cannot tell whether I am not allowed, whether something is broken, or who to ask — and a safeguarding request about family access is on a clock.
+- [ ] **major** — Buttons I cannot read: highlighter. I cannot read at all, so a control labelled only in words is one I press by guessing.
 - [ ] **major** — Buttons I cannot read: journal, picture. I cannot read at all, so a control labelled only in words is one I press by guessing.
-- [ ] **major** — Buttons I cannot read: thickness, highlighter. I cannot read at all, so a control labelled only in words is one I press by guessing.
 - [ ] **major** — I can find the family but I cannot issue them a new code, so the answer to the school is “I will get back to you”.
-- [ ] **major** — I cannot find what my teacher actually said. Feedback a child never reads is feedback that did not happen.
-- [ ] **major** — I cannot read what my teacher asked me to change without hunting for it. If I cannot find the note, I cannot act on it.
 - [ ] **major** — I cannot see anything about email from here. If sign-in letters to families are bouncing, I have no way of knowing — and I am the person parents will ring.
-- [ ] **major** — I cannot see what my teacher asked me to change without going hunting for it.
-- [ ] **major** — I pasted my register with surnames and Storyjar kept them: “… Hassan, … Turner, … Reid, … Okon” are on the sign-in screen the whole class sees. Adding the same list inside the app afterwards keeps first names only, so the rule exists — it just is not applied to the list I typed on my first day.
 - [ ] **major** — I reloaded while I was typing and everything I had written was gone, with nothing to say it had been lost.
-- [ ] **major** — Landing on /ops leaves me on a page with an error and nothing to tap. A child who mistypes or follows an old link is stuck there.
-- [ ] **major** — Landing on /student/activities/not-a-real-id leaves me on a page with an error and nothing to tap. A child who mistypes or follows an old link is stuck there.
-- [ ] **major** — Landing on /student/new/nonsense leaves me on a page with an error and nothing to tap. A child who mistypes or follows an old link is stuck there.
-- [ ] **major** — Nothing here tells me whether editing this changes the version the class is working on RIGHT NOW, or only future ones. That is the only thing I need to know before I touch it.
-- [ ] **major** — Nothing on this screen can be clicked or tapped — it is a dead end.
-- [ ] **major** — Nothing reads the question to me. In the register built for children who cannot read, the question is the one thing that stays silent.
-- [ ] **major** — The approval queue shows me children's work but neither lets me act on it nor says why not. I cannot tell whether it is broken or whether I am not allowed.
-- [ ] **major** — The export exists, but it is inside “class settings”, beside the button that permanently deletes the class. A teacher asked for a copy of a child's work does not go looking in the settings screen — and the one place they do end up is one tap from destroying the lot.
-- [ ] **major** — The panel opened with “Ducklings” already chosen — not the class I was looking at — and “Assign to whole class” is one tap below it. Setting Year 6 work for Reception is a single mis-tap, and nothing afterwards says which class got it.
+- [ ] **major** — Nothing on the way in says what happens to children's work or who can see it. I am about to type my class into this.
+- [ ] **major** — Removing a member of staff happened without telling me what becomes of the classes they taught or the work they published. If their classes go with them, I have just deleted children's work by accident.
 - [ ] **major** — There is no way for me to close our account and have the children's data deleted. Our retention policy says we can ask for it — and the only route I can see is emailing somebody and hoping.
 - [ ] **major** — There is nothing anywhere for the September job: moving each class up a year and handing it to its new teacher. Doing it by hand means recreating every class, re-typing every child's name, and re-issuing every code and letter — and last year's work does not follow the child.
 - [ ] **major** — There is nothing here that gets our data out — no export for a subject-access request, and nothing to take with us if we ever leave.
 
 ## The shape of it
 
-- **beyond this person** — 84
-- **could not tell what was happening** — 21
-- **could not carry on** — 11
-- **worked, but only just** — 6
+- **beyond this person** — 89
+- **could not tell what was happening** — 15
+- **could not carry on** — 7
+- **worked, but only just** — 5
 
-## Major (42)
+## Major (14)
 
 > They got there, but the product misled them, hid something they needed, or risked a mistake they cannot undo.
 
-### “✓” is 56×56px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Nell · Year 2, aged 6, The Wriggler · a bot in a child's session
-- **Doing:** do the quiz my teacher set, with pictures for answers; put a drawing in my jar; tap everything, twice, in the wrong order
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc) · my drawing page (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 2 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) · after a reload (/student/activities) (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcardj002c7dzak67c3iok)
-
-### “Clear page” is 44×44px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Nell · Year 2, aged 6, The Wriggler · a bot in a child's session
-- **Doing:** do the quiz my teacher set, with pictures for answers; put a drawing in my jar; tap everything, twice, in the wrong order
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc) · my drawing page (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 2 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) · after a reload (/student/activities) (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcardj002c7dzak67c3iok)
-
-### “Close” is 44×44px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Nell · Year 2, aged 6, The Wriggler · a bot in a child's session
-- **Doing:** do the quiz my teacher set, with pictures for answers; put a drawing in my jar; tap everything, twice, in the wrong order
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc) · my drawing page (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 2 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) · after a reload (/student/activities) (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcardj002c7dzak67c3iok)
-
-### “My journal” is 97×36px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Wren · Year 6, aged 10, The Wriggler · a bot in a child's session
-- **Doing:** do the quiz my teacher set, with pictures for answers; do the work my teacher sent back, and check it went; tap everything, twice, in the wrong order
-- **Where:** the things I have to do (/student/activities) · my activities (/student/activities) · wherever this is (/student/activities) (/student/activities)
-- **Kind:** beyond this person
-
-### “Redo” is 44×44px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Nell · Year 2, aged 6, The Wriggler · a bot in a child's session
-- **Doing:** do the quiz my teacher set, with pictures for answers; put a drawing in my jar; tap everything, twice, in the wrong order
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc) · my drawing page (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 2 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) · after a reload (/student/activities) (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcardj002c7dzak67c3iok)
-
-### “Sign out” is 83×36px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Wren · Year 6, aged 10, The Wriggler · a bot in a child's session
-- **Doing:** do the quiz my teacher set, with pictures for answers; do the work my teacher sent back, and check it went; tap everything, twice, in the wrong order
-- **Where:** the things I have to do (/student/activities) · my activities (/student/activities) · wherever this is (/student/activities) (/student/activities)
-- **Kind:** beyond this person
-
-### “Undo” is 44×44px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Nell · Year 2, aged 6, The Wriggler · a bot in a child's session
-- **Doing:** do the quiz my teacher set, with pictures for answers; put a drawing in my jar; tap everything, twice, in the wrong order
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc) · my drawing page (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 2 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) · after a reload (/student/activities) (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcardj002c7dzak67c3iok)
-
 ### A control with no words and no label — impossible to know what it does before pressing it (and silent to a screen reader).
 
-- **Who hit it:** Bo · Reception, aged 4, Nell · Year 2, aged 6, The Wriggler · a bot in a child's session
-- **Doing:** do the quiz my teacher set, with pictures for answers; put a drawing in my jar; tap everything, twice, in the wrong order
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc) · my drawing page (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 3 more screens
+- **Who hit it:** The Wriggler · a bot in a child's session
+- **Doing:** tap everything, twice, in the wrong order
+- **Where:** wherever this is (/student/new/words) (/student/new/words)
 - **Kind:** could not tell what was happening
-- **Evidence:** <input class="input bg-white/90 shadow" placeholder="💬 Add a caption…" name="caption">
-
-### “Add” is 56×56px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Nell · Year 2, aged 6, The Wriggler · a bot in a child's session
-- **Doing:** put a drawing in my jar; tap everything, twice, in the wrong order
-- **Where:** my drawing page (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 2 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) · after a reload (/student/activities) (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcardj002c7dzak67c3iok)
-
-### “Bye bye 👋” is 134×56px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Bo · Reception, aged 4
-- **Doing:** do the quiz my teacher set, with pictures for answers; find my own name, my jar, and the thing my teacher left me
-- **Where:** my jar (/student)
-- **Kind:** beyond this person
-
-### “Colour” is 24×460px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Nell · Year 2, aged 6, The Wriggler · a bot in a child's session
-- **Doing:** put a drawing in my jar; tap everything, twice, in the wrong order
-- **Where:** my drawing page (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 2 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) · after a reload (/student/activities) (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcardj002c7dzak67c3iok)
-
-### “Line thickness” is 36×36px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Nell · Year 2, aged 6, The Wriggler · a bot in a child's session
-- **Doing:** put a drawing in my jar; tap everything, twice, in the wrong order
-- **Where:** my drawing page (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 2 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) · after a reload (/student/activities) (/student/new/drawing) · after a reload (/student) (/student/activities/cmszcardj002c7dzak67c3iok)
-
-### “Send a heart back 💛” is 163×56px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Bo · Reception, aged 4
-- **Doing:** do the quiz my teacher set, with pictures for answers; find my own name, my jar, and the thing my teacher left me
-- **Where:** my jar (/student)
-- **Kind:** beyond this person
-
-### “Start” is 122×56px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4, Bo · Reception, aged 4
-- **Doing:** do the quiz my teacher set, with pictures for answers; find my own name, my jar, and the thing my teacher left me
-- **Where:** my jar (/student)
-- **Kind:** beyond this person
-
-### The page is 345px wider than the screen, so it slides sideways and content goes off the edge.
-
-- **Who hit it:** Dani · a parent at home, Dani · a parent at home
-- **Doing:** a parent who mistypes the code is told what to do next; a parent with a letter finds her child's work
-- **Where:** the family sign-in page (/family) · the family sign-in page (/family) — and 1 more screen
-- **Kind:** could not tell what was happening
-- **Evidence:** phone 390×844
-
-### “One” is 190×57px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4
-- **Doing:** do the quiz my teacher set, with pictures for answers
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc)
-- **Kind:** beyond this person
-
-### “Three” is 190×57px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4
-- **Doing:** do the quiz my teacher set, with pictures for answers
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc)
-- **Kind:** beyond this person
-
-### “Two” is 190×57px — under the 64px this person can reliably hit (SAFEGUARDING rule 18 asks 64px for anything a child taps).
-
-- **Who hit it:** Bo · Reception, aged 4
-- **Doing:** do the quiz my teacher set, with pictures for answers
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc)
-- **Kind:** beyond this person
+- **Evidence:** <textarea id="words" name="textContent" rows="7" placeholder="Today I…" style="width:100%;box-sizing:border-box;font:400 calc(22px * var(--s
 
 ### A parent has shared our class code round the village and there is nothing here to change it. My only option is to delete the class and start again.
 
@@ -207,9 +66,9 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** The Wriggler · a bot in a child's session
 - **Doing:** tap everything, twice, in the wrong order
-- **Where:** after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) — and 3 more screens
+- **Where:** after a reload (/student/activities) (/student) — and 1 more screen
 - **Kind:** could not carry on
-- **Evidence:** after /student \| seen on: after a reload (/student) (/student/activities/cmszcd1ba001h7dllixa7z9q9) · after a reload (/student/activities) (/student/new/drawing) · after a reload (/student/new/words) (/student) · after a reload (/student) (/student/activities/cmszcardj002c7dzak67c3iok)
+- **Evidence:** after /student/activities \| seen on: after a reload (/student/activities) (/student) · after a reload (/student/new/words) (/student)
 
 ### As the account holder I get an empty screen with no children on it and no explanation. I cannot tell whether I am not allowed, whether something is broken, or who to ask — and a safeguarding request about family access is on a clock.
 
@@ -218,18 +77,18 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** my classes and children (/teacher)
 - **Kind:** could not tell what was happening
 
+### Buttons I cannot read: highlighter. I cannot read at all, so a control labelled only in words is one I press by guessing.
+
+- **Who hit it:** Bo · Reception, aged 4
+- **Doing:** do the quiz my teacher set, with pictures for answers
+- **Where:** the quiz (/student/activities/cmt8hyh93002e8omq3n0ftmbs)
+- **Kind:** beyond this person
+
 ### Buttons I cannot read: journal, picture. I cannot read at all, so a control labelled only in words is one I press by guessing.
 
 - **Who hit it:** Bo · Reception, aged 4
 - **Doing:** do the quiz my teacher set, with pictures for answers
 - **Where:** the things I have to do (/student/activities)
-- **Kind:** beyond this person
-
-### Buttons I cannot read: thickness, highlighter. I cannot read at all, so a control labelled only in words is one I press by guessing.
-
-- **Who hit it:** Bo · Reception, aged 4
-- **Doing:** do the quiz my teacher set, with pictures for answers
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc)
 - **Kind:** beyond this person
 
 ### I can find the family but I cannot issue them a new code, so the answer to the school is “I will get back to you”.
@@ -239,41 +98,12 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** the adult's record (/ops/lookup)
 - **Kind:** could not carry on
 
-### I cannot find what my teacher actually said. Feedback a child never reads is feedback that did not happen.
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** my jar (/student)
-- **Kind:** could not tell what was happening
-
-### I cannot read what my teacher asked me to change without hunting for it. If I cannot find the note, I cannot act on it.
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** send a piece of work back and watch the child pick it up
-- **Where:** my jar (/student)
-- **Kind:** could not tell what was happening
-
 ### I cannot see anything about email from here. If sign-in letters to families are bouncing, I have no way of knowing — and I am the person parents will ring.
 
 - **Who hit it:** Mrs Hartley · school business manager
 - **Doing:** what an admin can see about email, and about money
 - **Where:** the whole-school console (/admin)
 - **Kind:** could not carry on
-
-### I cannot see what my teacher asked me to change without going hunting for it.
-
-- **Who hit it:** Wren · Year 6, aged 10
-- **Doing:** do the work my teacher sent back, and check it went
-- **Where:** my jar (/student)
-- **Kind:** could not tell what was happening
-
-### I pasted my register with surnames and Storyjar kept them: “… Hassan, … Turner, … Reid, … Okon” are on the sign-in screen the whole class sees. Adding the same list inside the app afterwards keeps first names only, so the rule exists — it just is not applied to the list I typed on my first day.
-
-- **Who hit it:** Ms Blake · brand-new teacher
-- **Doing:** from the landing page to a class of children who can sign in
-- **Where:** what my children will see (/login/student)
-- **Kind:** worked, but only just
-- **Evidence:** surnames on the name wall: Hassan, Turner, Reid, Okon
 
 ### I reloaded while I was typing and everything I had written was gone, with nothing to say it had been lost.
 
@@ -282,69 +112,18 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** back on my journal (/student/activities)
 - **Kind:** worked, but only just
 
-### Landing on /ops leaves me on a page with an error and nothing to tap. A child who mistypes or follows an old link is stuck there.
+### Nothing on the way in says what happens to children's work or who can see it. I am about to type my class into this.
 
-- **Who hit it:** The Wriggler · a bot in a child's session
-- **Doing:** tap everything, twice, in the wrong order
-- **Where:** an address I should not be at (/ops) (/ops)
-- **Kind:** could not carry on
-
-### Landing on /student/activities/not-a-real-id leaves me on a page with an error and nothing to tap. A child who mistypes or follows an old link is stuck there.
-
-- **Who hit it:** The Wriggler · a bot in a child's session
-- **Doing:** tap everything, twice, in the wrong order
-- **Where:** an address I should not be at (/student/activities/not-a-real-id) (/student/activities/not-a-real-id)
-- **Kind:** could not carry on
-
-### Landing on /student/new/nonsense leaves me on a page with an error and nothing to tap. A child who mistypes or follows an old link is stuck there.
-
-- **Who hit it:** The Wriggler · a bot in a child's session
-- **Doing:** tap everything, twice, in the wrong order
-- **Where:** an address I should not be at (/student/new/nonsense) (/student/new/nonsense)
-- **Kind:** could not carry on
-
-### Nothing here tells me whether editing this changes the version the class is working on RIGHT NOW, or only future ones. That is the only thing I need to know before I touch it.
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** edit an activity that a class is already working on
-- **Where:** the activity editor (/teacher/activities/cmszcarda00247dzas6dyqfye/edit)
+- **Who hit it:** Ms Blake · brand-new teacher
+- **Doing:** from the landing page to a class of children who can sign in
+- **Where:** the first step of signing up (/signup/teacher)
 - **Kind:** could not tell what was happening
 
-### Nothing on this screen can be clicked or tapped — it is a dead end.
+### Removing a member of staff happened without telling me what becomes of the classes they taught or the work they published. If their classes go with them, I have just deleted children's work by accident.
 
-- **Who hit it:** The Wriggler · a bot in a child's session
-- **Doing:** tap everything, twice, in the wrong order
-- **Where:** an address I should not be at (/student/new/nonsense) (/student/new/nonsense) — and 2 more screens
-- **Kind:** could not carry on
-- **Evidence:** seen on: an address I should not be at (/student/new/nonsense) (/student/new/nonsense) · an address I should not be at (/student/activities/not-a-real-id) (/student/activities/not-a-real-id) · an address I should not be at (/ops) (/ops)
-
-### Nothing reads the question to me. In the register built for children who cannot read, the question is the one thing that stays silent.
-
-- **Who hit it:** Bo · Reception, aged 4
-- **Doing:** do the quiz my teacher set, with pictures for answers
-- **Where:** the quiz (/student/activities/cmszcardl002e7dzadfx9haqc)
-- **Kind:** beyond this person
-
-### The approval queue shows me children's work but neither lets me act on it nor says why not. I cannot tell whether it is broken or whether I am not allowed.
-
-- **Who hit it:** Sam · teaching assistant
-- **Doing:** what am I allowed to do here?
-- **Where:** the approval queue (/teacher/queue)
-- **Kind:** could not tell what was happening
-
-### The export exists, but it is inside “class settings”, beside the button that permanently deletes the class. A teacher asked for a copy of a child's work does not go looking in the settings screen — and the one place they do end up is one tap from destroying the lot.
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** export a class's evidence, the way a school inspection asks for it
-- **Where:** class settings (/teacher/class)
-- **Kind:** could not tell what was happening
-- **Evidence:** found under: class settings
-
-### The panel opened with “Ducklings” already chosen — not the class I was looking at — and “Assign to whole class” is one tap below it. Setting Year 6 work for Reception is a single mis-tap, and nothing afterwards says which class got it.
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the assign panel (/teacher/activities/cmszcd0iy001f7dllj1u3qvkt)
+- **Who hit it:** Mrs Hartley · school business manager
+- **Doing:** the September jobs: staff in, staff out, classes moved on
+- **Where:** the staff row menu (/admin)
 - **Kind:** worked, but only just
 
 ### There is no way for me to close our account and have the children's data deleted. Our retention policy says we can ask for it — and the only route I can see is emailing somebody and hoping.
@@ -369,134 +148,89 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** the audit log (/admin)
 - **Kind:** could not carry on
 
-## Minor (76)
+## Minor (98)
 
 > Friction. Worth fixing when the area is next open.
 
-### “← Back” is 45×20px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** the teacher sign-in page (/login/teacher)
-- **Kind:** beyond this person
-
-### “＋ New activity” is 124×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** my home page after signing in (/teacher) — and 1 more screen · my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher)
-- **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the whole-school console (/teacher)
-
-### “Account” is 93×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** my home page after signing in (/teacher) — and 3 more screens · my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher) — and 6 more screens · my home page after signing in (/teacher) — and 1 more screen
-- **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the approval queue (/teacher/queue) · the classes I can see (/teacher/class) · the whole-school console (/teacher)
-
-### “Activities” is 104×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** my home page after signing in (/teacher) — and 3 more screens · my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher) — and 6 more screens · my home page after signing in (/teacher) — and 1 more screen
-- **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the approval queue (/teacher/queue) · the classes I can see (/teacher/class) · the whole-school console (/teacher)
-
-### “Calendar” is 99×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** my home page after signing in (/teacher) — and 3 more screens · my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher) — and 6 more screens · my home page after signing in (/teacher) — and 1 more screen
-- **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the approval queue (/teacher/queue) · the classes I can see (/teacher/class) · the whole-school console (/teacher)
-
-### “Journals” is 97×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** my home page after signing in (/teacher) — and 3 more screens · my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher) — and 6 more screens · my home page after signing in (/teacher) — and 1 more screen
-- **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the approval queue (/teacher/queue) · the classes I can see (/teacher/class) · the whole-school console (/teacher)
-
-### “My classes” is 115×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** my home page after signing in (/teacher) — and 3 more screens · my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher) — and 6 more screens · my home page after signing in (/teacher) — and 1 more screen
-- **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the approval queue (/teacher/queue) · the classes I can see (/teacher/class) · the whole-school console (/teacher)
-
-### “storyjar” is 109×33px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** the teacher sign-in page (/login/teacher)
-- **Kind:** beyond this person
-
-### “storyjar” is 99×27px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** my home page after signing in (/teacher) — and 3 more screens · my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher) — and 6 more screens · my home page after signing in (/teacher) — and 1 more screen
-- **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the approval queue (/teacher/queue) · the classes I can see (/teacher/class) · the whole-school console (/teacher)
-
-### “Sign out” is 95×37px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** what am I allowed to do here?; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** the approval queue (/teacher/queue) — and 1 more screen · my activity library (/teacher/activities) — and 1 more screen · my classes (/teacher/class) — and 2 more screens · my activity library (/teacher/activities) — and 5 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: the approval queue (/teacher/queue) · the classes I can see (/teacher/class)
-
-### A box whose only label is grey placeholder text, which disappears the moment you start typing.
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Bo · Reception, aged 4, Nell · Year 2, aged 6, The Wriggler · a bot in a child's session, Mrs Hartley · school business manager, Mrs Hartley · school business manager
-- **Doing:** set a quiz, watch a child take it, and mark it; somebody has to change a password; do the quiz my teacher set, with pictures for answers; put a drawing in my jar; tap everything, twice, in the wrong order; take a family's access away, and take a class away; what an admin can see about email, and about money
-- **Where:** the activity, open (/student/activities/cmszcd1ba001h7dllixa7z9q9) · my account (/teacher/account) · the quiz (/student/activities/cmszcardl002e7dzadfx9haqc) · my drawing page (/student/new/drawing)
-- **Kind:** could not tell what was happening
-- **Evidence:** <input class="input bg-white/90 shadow" placeholder="💬 Add a caption…" name="caption">
-
 ### A control with no words and no label — impossible to know what it does before pressing it (and silent to a screen reader).
 
-- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Ms Blake · brand-new teacher, Ravi · platform operator, Ravi · platform operator, Mrs Hartley · school business manager, Mrs Hartley · school business manager
-- **Doing:** set a quiz, watch a child take it, and mark it; somebody has to change a password; from the landing page to a class of children who can sign in; a school rings up: a family code has gone to the wrong house; the nightly check: is anything on fire?; take a family's access away, and take a class away; what an admin can see about email, and about money
-- **Where:** the activity, open (/student/activities/cmszcd1ba001h7dllixa7z9q9) · my account (/teacher/account) · the children step (/signup/teacher) · find an adult (/ops/lookup)
+- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mrs Frost · admin of a lapsed school, Ms Blake · brand-new teacher, Ravi · platform operator, Ravi · platform operator, Mrs Hartley · school business manager, Mrs Hartley · school business manager, Mrs Hartley · school business manager
+- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks; a lapsed account: what am I allowed to do, and how do I fix it?; from the landing page to a class of children who can sign in; a school rings up: a family code has gone to the wrong house; the nightly check: is anything on fire?; take a family's access away, and take a class away; the September jobs: staff in, staff out, classes moved on; what an admin can see about email, and about money
+- **Where:** my home page after signing in (/teacher) — and 3 more screens · my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher) — and 7 more screens · my home page after signing in (/teacher) — and 1 more screen
 - **Kind:** could not tell what was happening
-- **Evidence:** <input class="input bg-white/90 shadow" placeholder="💬 Add a caption…" name="caption">
+- **Evidence:** <input placeholder="Find a child, class or activity…" type="search" value="" style="flex: 1 1 0%; min-width: 0px; align-self: stretch; backg \| seen on: my home page after signing in (/teacher) · the approval queue (/teacher/queue) · the classes I can see (/teacher/class) · the whole-school console (/teacher)
 
-### “Queue1” is 110×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “Manage class →” is 109×17px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
-- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** add a photo on a child's behalf, then check what the family will see; export a class's evidence, the way a school inspection asks for it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
-- **Where:** my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher) — and 3 more screens · my home page after signing in (/teacher) — and 1 more screen
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
+- **Where:** my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher)
 - **Kind:** beyond this person
 - **Evidence:** seen on: my home page after signing in (/teacher) · my classes and children (/teacher) · a child's journal (/teacher)
 
-### “← Back” is 45×20px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
+### “See all →” is 59×16px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
-- **Who hit it:** Mrs Frost · admin of a lapsed school, Mrs Hartley · school business manager, Mrs Hartley · school business manager, Mrs Hartley · school business manager
-- **Doing:** a lapsed account: what am I allowed to do, and how do I fix it?; take a family's access away, and take a class away; the September jobs: staff in, staff out, classes moved on; what an admin can see about email, and about money
-- **Where:** the teacher sign-in page (/login/teacher)
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks
+- **Where:** my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher)
 - **Kind:** beyond this person
+- **Evidence:** seen on: my home page after signing in (/teacher) · my classes and children (/teacher) · a child's journal (/teacher)
 
-### “Queue3” is 112×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### A box whose only label is grey placeholder text, which disappears the moment you start typing.
 
-- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
-- **Doing:** clear the approval queue before the bell; edit an activity that a class is already working on; set a quiz, watch a child take it, and mark it
-- **Where:** my home page after signing in (/teacher) — and 1 more screen · my home page after signing in (/teacher) — and 2 more screens · my home page after signing in (/teacher) — and 5 more screens
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mrs Hartley · school business manager, Mrs Hartley · school business manager
+- **Doing:** somebody has to change a password; take a family's access away, and take a class away; what an admin can see about email, and about money
+- **Where:** my account (/teacher/account) · our account (/teacher/account) · our plan and billing (/teacher/account)
+- **Kind:** could not tell what was happening
+- **Evidence:** <input type="password" placeholder="New password (at least 8 characters)" autocomplete="new-password" required="" style="width:100%;box-sizi
+
+### “＋ New folder” is 124×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** edit an activity that a class is already working on; set a quiz, watch a child take it, and mark it
+- **Where:** my activity library (/teacher/activities) · my activity library (/teacher/activities) — and 1 more screen
 - **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the approval queue (/teacher/queue)
+- **Evidence:** seen on: my activity library (/teacher/activities) · the new-activity page (/teacher/activities)
 
-### “My teaching →” is 99×17px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
+### “Archived 1” is 126×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
-- **Who hit it:** Mrs Hartley · school business manager, Mrs Hartley · school business manager
-- **Doing:** the September jobs: staff in, staff out, classes moved on; what an admin can see about email, and about money
-- **Where:** the whole-school console (/admin) — and 4 more screens · the whole-school console (/admin)
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** edit an activity that a class is already working on; set a quiz, watch a child take it, and mark it
+- **Where:** my activity library (/teacher/activities) · my activity library (/teacher/activities) — and 1 more screen
 - **Kind:** beyond this person
-- **Evidence:** seen on: the whole-school console (/admin) · the invite panel (/admin) · the staff row menu (/admin) · the whole-school class list (/admin) · the audit log (/admin)
+- **Evidence:** seen on: my activity library (/teacher/activities) · the new-activity page (/teacher/activities)
+
+### “Autumn term 1” is 154×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** edit an activity that a class is already working on; set a quiz, watch a child take it, and mark it
+- **Where:** my activity library (/teacher/activities) · my activity library (/teacher/activities) — and 1 more screen
+- **Kind:** beyond this person
+- **Evidence:** seen on: my activity library (/teacher/activities) · the new-activity page (/teacher/activities)
+
+### “Explaining reasoning” is 145×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** clear the approval queue before the bell; set a quiz, watch a child take it, and mark it
+- **Where:** the approval queue (/teacher/queue) — and 1 more screen · the approval queue (/teacher/queue)
+- **Kind:** beyond this person
+- **Evidence:** seen on: the approval queue (/teacher/queue) · the stickers and praise screen (/teacher/queue)
+
+### “Fine motor / handwriting” is 167×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** clear the approval queue before the bell; set a quiz, watch a child take it, and mark it
+- **Where:** the approval queue (/teacher/queue) — and 1 more screen · the approval queue (/teacher/queue)
+- **Kind:** beyond this person
+- **Evidence:** seen on: the approval queue (/teacher/queue) · the stickers and praise screen (/teacher/queue)
+
+### “Number bonds to 10” is 141×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** clear the approval queue before the bell; set a quiz, watch a child take it, and mark it
+- **Where:** the approval queue (/teacher/queue) — and 1 more screen · the approval queue (/teacher/queue)
+- **Kind:** beyond this person
+- **Evidence:** seen on: the approval queue (/teacher/queue) · the stickers and praise screen (/teacher/queue)
 
 ### “PARENT” is 20×20px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
 
@@ -506,33 +240,51 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Kind:** beyond this person
 - **Evidence:** seen on: find an adult (/ops/lookup) · the adult's record (/ops/lookup)
 
-### “school_1fe” is 13×13px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
+### “Phonics: digraphs” is 127×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
-- **Who hit it:** Mrs Hartley · school business manager, Mrs Hartley · school business manager
-- **Doing:** take a family's access away, and take a class away; what an admin can see about email, and about money
-- **Where:** our account (/teacher/account) · our plan and billing (/teacher/account)
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** clear the approval queue before the bell; set a quiz, watch a child take it, and mark it
+- **Where:** the approval queue (/teacher/queue) — and 1 more screen · the approval queue (/teacher/queue)
+- **Kind:** beyond this person
+- **Evidence:** seen on: the approval queue (/teacher/queue) · the stickers and praise screen (/teacher/queue)
+
+### “Select Nell” is 22×22px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** clear the approval queue before the bell; set a quiz, watch a child take it, and mark it
+- **Where:** the stickers and praise screen (/teacher/queue) · the approval queue (/teacher/queue)
 - **Kind:** beyond this person
 
-### “school_2fe” is 13×13px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
+### “Select Otis” is 22×22px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
-- **Who hit it:** Mrs Hartley · school business manager, Mrs Hartley · school business manager
-- **Doing:** take a family's access away, and take a class away; what an admin can see about email, and about money
-- **Where:** our account (/teacher/account) · our plan and billing (/teacher/account)
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** clear the approval queue before the bell; set a quiz, watch a child take it, and mark it
+- **Where:** the approval queue (/teacher/queue)
 - **Kind:** beyond this person
 
-### “school_large” is 13×13px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
+### “Set for a class” is 130×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
-- **Who hit it:** Mrs Hartley · school business manager, Mrs Hartley · school business manager
-- **Doing:** take a family's access away, and take a class away; what an admin can see about email, and about money
-- **Where:** our account (/teacher/account) · our plan and billing (/teacher/account)
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** edit an activity that a class is already working on; set a quiz, watch a child take it, and mark it
+- **Where:** my activity library (/teacher/activities) · my activity library (/teacher/activities) — and 1 more screen
 - **Kind:** beyond this person
+- **Evidence:** seen on: my activity library (/teacher/activities) · the new-activity page (/teacher/activities)
 
-### “school_small” is 13×13px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
+### “Speaking & listening” is 144×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
-- **Who hit it:** Mrs Hartley · school business manager, Mrs Hartley · school business manager
-- **Doing:** take a family's access away, and take a class away; what an admin can see about email, and about money
-- **Where:** our account (/teacher/account) · our plan and billing (/teacher/account)
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** clear the approval queue before the bell; set a quiz, watch a child take it, and mark it
+- **Where:** the approval queue (/teacher/queue) — and 1 more screen · the approval queue (/teacher/queue)
 - **Kind:** beyond this person
+- **Evidence:** seen on: the approval queue (/teacher/queue) · the stickers and praise screen (/teacher/queue)
+
+### “StoryJar library →” is 160×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson
+- **Doing:** edit an activity that a class is already working on; set a quiz, watch a child take it, and mark it
+- **Where:** my activity library (/teacher/activities) · my activity library (/teacher/activities) — and 1 more screen
+- **Kind:** beyond this person
+- **Evidence:** seen on: my activity library (/teacher/activities) · the new-activity page (/teacher/activities)
 
 ### “TEACHER” is 20×20px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
 
@@ -542,25 +294,32 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Kind:** beyond this person
 - **Evidence:** seen on: find an adult (/ops/lookup) · the adult's record (/ops/lookup)
 
-### “← Back to activity” is 109×17px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “← All classes” is 97×18px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** this class is younger than Storyjar thinks
+- **Where:** class settings (/teacher/class)
+- **Kind:** beyond this person
+
+### “← Back to activity” is 111×17px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** edit an activity that a class is already working on
-- **Where:** the activity editor (/teacher/activities/cmszcarda00247dzas6dyqfye/edit)
+- **Where:** the activity editor (/teacher/activities/cmt8hyh9000248omqsue253g6/edit)
 - **Kind:** beyond this person
 
-### “← Back to library” is 103×17px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “← Back to library” is 106×17px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
 - **Where:** the activity builder (/teacher/activities/new)
 - **Kind:** beyond this person
 
-### “← Back to Pip's journal” is 140×17px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “← Back to Pip's journal” is 142×17px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmszcarak000q7dzaavqt0vni/new)
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
 - **Kind:** beyond this person
 
 ### “← Back to storyjar.co.uk” is 184×20px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
@@ -578,6 +337,20 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Kind:** beyond this person
 - **Evidence:** seen on: the school step (/signup/teacher) · the class step (/signup/teacher) · the children step (/signup/teacher)
 
+### “＋ Add pupil” is 123×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** this class is younger than Storyjar thinks
+- **Where:** class settings (/teacher/class)
+- **Kind:** beyond this person
+
+### “❓ Quiz 1/1 · review” is 150×33px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** clear the approval queue before the bell
+- **Where:** the stickers and praise screen (/teacher/queue)
+- **Kind:** beyond this person
+
 ### “Acceptable use” is 101×18px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Dani · a parent at home
@@ -585,48 +358,83 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** the Storyjar home page (/)
 - **Kind:** beyond this person
 
-### “cmszcaq1g00177dxzts6b46yv” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “Agenda” is 82×31px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmszcarak000q7dzaavqt0vni/new)
+- **Doing:** something is due on Friday
+- **Where:** my calendar (/teacher/calendar)
 - **Kind:** beyond this person
 
-### “cmszcaq1g00187dxz6thgqwya” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmszcarak000q7dzaavqt0vni/new)
-- **Kind:** beyond this person
-
-### “cmszcaq1g00197dxzd4emvuoi” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmszcarak000q7dzaavqt0vni/new)
-- **Kind:** beyond this person
-
-### “cmszcaq1g001a7dxzwpi1r7vr” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmszcarak000q7dzaavqt0vni/new)
-- **Kind:** beyond this person
-
-### “cmszcaq1i001b7dxza09fu5lk” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** add a photo on a child's behalf, then check what the family will see
-- **Where:** adding work on a child's behalf (/teacher/students/cmszcarak000q7dzaavqt0vni/new)
-- **Kind:** beyond this person
-
-### “Colour” is 24×399px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “All activities 3” is 155×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the activity builder (/teacher/activities/new) — and 1 more screen
+- **Where:** my activity library (/teacher/activities) — and 1 more screen
 - **Kind:** beyond this person
-- **Evidence:** seen on: the activity builder (/teacher/activities/new) · the activity, open (/student/activities/cmszcd1ba001h7dllixa7z9q9)
+- **Evidence:** seen on: my activity library (/teacher/activities) · the new-activity page (/teacher/activities)
+
+### “All activities 4” is 155×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** edit an activity that a class is already working on
+- **Where:** my activity library (/teacher/activities)
+- **Kind:** beyond this person
+
+### “All classes” is 105×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** something is due on Friday
+- **Where:** my calendar (/teacher/calendar)
+- **Kind:** beyond this person
+
+### “Autumn quiz 69087” is 276×23px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** edit an activity that a class is already working on
+- **Where:** my activity library (/teacher/activities)
+- **Kind:** beyond this person
+
+### “Class settings” is 161×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** this class is younger than Storyjar thinks
+- **Where:** class settings (/teacher/class)
+- **Kind:** beyond this person
+
+### “cmt8hygpx00178olxcn2dp3r2” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** add a photo on a child's behalf, then check what the family will see
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
+- **Kind:** beyond this person
+
+### “cmt8hygpx00188olx4qrvu2fi” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** add a photo on a child's behalf, then check what the family will see
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
+- **Kind:** beyond this person
+
+### “cmt8hygpx00198olx1myz0n7h” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** add a photo on a child's behalf, then check what the family will see
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
+- **Kind:** beyond this person
+
+### “cmt8hygpx001a8olxj9v329g0” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** add a photo on a child's behalf, then check what the family will see
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
+- **Kind:** beyond this person
+
+### “cmt8hygpx001b8olxbe93zs6v” is 13×13px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** add a photo on a child's behalf, then check what the family will see
+- **Where:** adding work on a child's behalf (/teacher/students/cmt8hyh7b000s8omq3eh51sqd/new)
+- **Kind:** beyond this person
 
 ### “Cookies” is 53×18px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
 
@@ -642,6 +450,48 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** the Storyjar home page (/)
 - **Kind:** beyond this person
 
+### “Count the ducks” is 276×23px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** set a quiz, watch a child take it, and mark it
+- **Where:** my activity library (/teacher/activities)
+- **Kind:** beyond this person
+
+### “Count the ducks” is 301×23px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** set a quiz, watch a child take it, and mark it
+- **Where:** the new-activity page (/teacher/activities)
+- **Kind:** beyond this person
+
+### “Delete this class…” is 185×38px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** this class is younger than Storyjar thinks
+- **Where:** class settings (/teacher/class)
+- **Kind:** beyond this person
+
+### “Ducklings” is 101×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** set a quiz, watch a child take it, and mark it
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
+- **Kind:** beyond this person
+
+### “Ducklings” is 115×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** something is due on Friday
+- **Where:** my calendar (/teacher/calendar)
+- **Kind:** beyond this person
+
+### “Export class data” is 181×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** this class is younger than Storyjar thinks
+- **Where:** class settings (/teacher/class)
+- **Kind:** beyond this person
+
 ### “EYFS” is 19×20px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
 
 - **Who hit it:** Ms Blake · brand-new teacher
@@ -654,6 +504,20 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Who hit it:** Ms Blake · brand-new teacher
 - **Doing:** from the landing page to a class of children who can sign in
 - **Where:** the Storyjar home page (/)
+- **Kind:** beyond this person
+
+### “Herons” is 82×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** set a quiz, watch a child take it, and mark it
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
+- **Kind:** beyond this person
+
+### “Herons” is 96×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** something is due on Friday
+- **Where:** my calendar (/teacher/calendar)
 - **Kind:** beyond this person
 
 ### “How it works” is 91×18px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
@@ -677,27 +541,49 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** the class step (/signup/teacher)
 - **Kind:** beyond this person
 
-### “Line thickness” is 36×36px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “Make a class” is 140×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Sam · teaching assistant
+- **Doing:** what am I allowed to do here?
+- **Where:** my home page after signing in (/teacher) — and 1 more screen
+- **Kind:** beyond this person
+- **Evidence:** seen on: my home page after signing in (/teacher) · the whole-school console (/teacher)
+
+### “Make a token” is 139×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the activity builder (/teacher/activities/new) — and 1 more screen
+- **Doing:** somebody has to change a password
+- **Where:** my account (/teacher/account)
 - **Kind:** beyond this person
-- **Evidence:** seen on: the activity builder (/teacher/activities/new) · the activity, open (/student/activities/cmszcd1ba001h7dllixa7z9q9)
 
-### “Manage class →” is 107×20px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
+### “Manage class →” is 109×17px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
 
 - **Who hit it:** Mrs Frost · admin of a lapsed school
 - **Doing:** a lapsed account: what am I allowed to do, and how do I fix it?
 - **Where:** my home page after signing in (/teacher)
 - **Kind:** beyond this person
 
-### “My journal” is 97×36px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “Month” is 73×31px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** something is due on Friday
+- **Where:** my calendar (/teacher/calendar)
+- **Kind:** beyond this person
+
+### “More actions for Autumn quiz 69087” is 34×34px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** edit an activity that a class is already working on
+- **Where:** my activity library (/teacher/activities)
+- **Kind:** beyond this person
+
+### “More actions for Count the ducks” is 34×34px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** my activities (/student/activities)
+- **Where:** my activity library (/teacher/activities) — and 1 more screen
 - **Kind:** beyond this person
+- **Evidence:** seen on: my activity library (/teacher/activities) · the new-activity page (/teacher/activities)
 
 ### “N Nell” is 83×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
@@ -707,19 +593,32 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Kind:** beyond this person
 - **Evidence:** seen on: my child's page (/family) · my other child's page (/family)
 
-### “Pages ›” is 82×36px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “New class code…” is 180×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** this class is younger than Storyjar thinks
+- **Where:** class settings (/teacher/class)
+- **Kind:** beyond this person
+
+### “Pick pupils” is 136×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the activity builder (/teacher/activities/new) — and 1 more screen
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
 - **Kind:** beyond this person
-- **Evidence:** seen on: the activity builder (/teacher/activities/new) · the activity, open (/student/activities/cmszcd1ba001h7dllixa7z9q9)
 
 ### “Pricing” is 50×18px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
 
 - **Who hit it:** Ms Blake · brand-new teacher
 - **Doing:** from the landing page to a class of children who can sign in
 - **Where:** the Storyjar home page (/)
+- **Kind:** beyond this person
+
+### “Printable code” is 162×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** this class is younger than Storyjar thinks
+- **Where:** class settings (/teacher/class)
 - **Kind:** beyond this person
 
 ### “Privacy” is 46×18px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
@@ -736,42 +635,26 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** the Storyjar home page (/)
 - **Kind:** beyond this person
 
-### “Queue” is 82×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Sam · teaching assistant
-- **Doing:** what am I allowed to do here?
-- **Where:** my home page after signing in (/teacher) — and 3 more screens
-- **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the approval queue (/teacher/queue) · the classes I can see (/teacher/class) · the whole-school console (/teacher)
-
-### “Queue2” is 111×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** clear the approval queue before the bell
-- **Where:** the stickers and praise screen (/teacher/queue)
-- **Kind:** beyond this person
-
-### “Queue4” is 112×32px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** the approval queue (/teacher/queue)
-- **Kind:** beyond this person
-
 ### “Remove template” is 132×36px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** edit an activity that a class is already working on
-- **Where:** the activity editor (/teacher/activities/cmszcarda00247dzas6dyqfye/edit)
+- **Where:** the activity editor (/teacher/activities/cmt8hyh9000248omqsue253g6/edit)
 - **Kind:** beyond this person
 
-### “Renew your plan →” is 137×18px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
+### “Robins” is 81×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
-- **Who hit it:** Mrs Frost · admin of a lapsed school
-- **Doing:** a lapsed account: what am I allowed to do, and how do I fix it?
-- **Where:** my home page after signing in (/teacher) — and 2 more screens
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** set a quiz, watch a child take it, and mark it
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
 - **Kind:** beyond this person
-- **Evidence:** seen on: my home page after signing in (/teacher) · the approval queue on a lapsed account (/teacher/queue) · my classes on a lapsed account (/teacher/class)
+
+### “Robins” is 95×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** something is due on Friday
+- **Where:** my calendar (/teacher/calendar)
+- **Kind:** beyond this person
 
 ### “Safeguarding” is 88×18px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
 
@@ -794,6 +677,28 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** the Storyjar home page (/)
 - **Kind:** beyond this person
 
+### “Save” is 82×42px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** this class is younger than Storyjar thinks
+- **Where:** class settings (/teacher/class)
+- **Kind:** beyond this person
+
+### “See all →” is 59×16px — under the 24px this person can reliably hit (WCAG 2.2 AA 2.5.8 floor).
+
+- **Who hit it:** Mrs Frost · admin of a lapsed school
+- **Doing:** a lapsed account: what am I allowed to do, and how do I fix it?
+- **Where:** my home page after signing in (/teacher)
+- **Kind:** beyond this person
+
+### “Select Rae” is 22×22px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** clear the approval queue before the bell
+- **Where:** the approval queue (/teacher/queue) — and 1 more screen
+- **Kind:** beyond this person
+- **Evidence:** seen on: the approval queue (/teacher/queue) · the stickers and praise screen (/teacher/queue)
+
 ### “Sign out” is 55×17px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Dani · a parent at home
@@ -801,13 +706,6 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** my child's page (/family) — and 1 more screen
 - **Kind:** beyond this person
 - **Evidence:** seen on: my child's page (/family) · my other child's page (/family)
-
-### “Sign out” is 83×36px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
-
-- **Who hit it:** Mr Reeves · teacher mid-lesson
-- **Doing:** set a quiz, watch a child take it, and mark it
-- **Where:** my activities (/student/activities)
-- **Kind:** beyond this person
 
 ### “storyjar” is 125×36px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
@@ -837,6 +735,20 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** the Storyjar home page (/)
 - **Kind:** beyond this person
 
+### “Update email” is 139×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** somebody has to change a password
+- **Where:** my account (/teacher/account)
+- **Kind:** beyond this person
+
+### “Update password” is 166×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** somebody has to change a password
+- **Where:** my account (/teacher/account)
+- **Kind:** beyond this person
+
 ### “W Wren” is 90×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Dani · a parent at home
@@ -852,7 +764,28 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** the Storyjar home page (/)
 - **Kind:** beyond this person
 
-### “Your family space ▾” is 148×20px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+### “Whole class” is 142×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** set a quiz, watch a child take it, and mark it
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
+- **Kind:** beyond this person
+
+### “Wrens (old)” is 112×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** set a quiz, watch a child take it, and mark it
+- **Where:** the assign panel (/teacher/activities/cmt8i07l2001f8oj3q9omydjy)
+- **Kind:** beyond this person
+
+### “Wrens (old)” is 126×40px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
+
+- **Who hit it:** Mr Reeves · teacher mid-lesson
+- **Doing:** something is due on Friday
+- **Where:** my calendar (/teacher/calendar)
+- **Kind:** beyond this person
+
+### “Your family space ▾” is 150×20px — under the 44px this person can reliably hit (a finger on a tablet, not a mouse pointer).
 
 - **Who hit it:** Dani · a parent at home
 - **Doing:** a parent with a letter finds her child's work
@@ -895,13 +828,6 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** our account (/teacher/account)
 - **Kind:** could not tell what was happening
 
-### Nothing says what a teaching assistant is allowed to do. I found out by pressing things, which is exactly how somebody publishes the wrong thing.
-
-- **Who hit it:** Sam · teaching assistant
-- **Doing:** what am I allowed to do here?
-- **Where:** my home page after signing in (/teacher)
-- **Kind:** could not tell what was happening
-
 ### Nothing says what happens to the children's work if we stop paying. That is the first question our data protection lead asks.
 
 - **Who hit it:** Mrs Hartley · school business manager
@@ -920,9 +846,16 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 - **Who hit it:** The Wriggler · a bot in a child's session
 - **Doing:** tap everything, twice, in the wrong order
-- **Where:** an address I should not be at (/student/new/nonsense) (/student/new/nonsense) — and 2 more screens
+- **Where:** an address I should not be at (/ops) (/ops)
 - **Kind:** worked, but only just
-- **Evidence:** Failed to load resource: the server responded with a status of 404 (Not Found) \| seen on: an address I should not be at (/student/new/nonsense) (/student/new/nonsense) · an address I should not be at (/student/activities/not-a-real-id) (/student/activities/not-a-real-id) · an address I should not be at (/ops) (/ops)
+- **Evidence:** Failed to load resource: the server responded with a status of 404 (Not Found)
+
+### The code my children type was not on the screen at the end of setting up. I had to go and find it.
+
+- **Who hit it:** Ms Blake · brand-new teacher
+- **Doing:** from the landing page to a class of children who can sign in
+- **Where:** my classes (/teacher/class)
+- **Kind:** could not tell what was happening
 
 ### There is no link from my child's page to anything explaining who can see these photos or how long they are kept.
 
@@ -938,11 +871,10 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 
 ### The browser tab has no name, so it is unfindable among open tabs.
 
-- **Who hit it:** Sam · teaching assistant, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Bo · Reception, aged 4, Bo · Reception, aged 4, Nell · Year 2, aged 6, The Wriggler · a bot in a child's session, Mrs Frost · admin of a lapsed school, Ms Blake · brand-new teacher, Ravi · platform operator, Ravi · platform operator, Mrs Hartley · school business manager
-- **Doing:** what am I allowed to do here?; add a photo on a child's behalf, then check what the family will see; clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; somebody has to change a password; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks; do the quiz my teacher set, with pictures for answers; find my own name, my jar, and the thing my teacher left me; put a drawing in my jar; tap everything, twice, in the wrong order; a lapsed account: what am I allowed to do, and how do I fix it?; from the landing page to a class of children who can sign in; a school rings up: a family code has gone to the wrong house; the nightly check: is anything on fire?; the September jobs: staff in, staff out, classes moved on
-- **Where:** my home page after signing in (/teacher) · my home page after signing in (/teacher) — and 1 more screen · my jar (/student) · my drawing page (/student/new/drawing)
+- **Who hit it:** Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Mr Reeves · teacher mid-lesson, Bo · Reception, aged 4, Bo · Reception, aged 4, Mrs Frost · admin of a lapsed school, Ravi · platform operator, Ravi · platform operator
+- **Doing:** clear the approval queue before the bell; edit an activity that a class is already working on; export a class's evidence, the way a school inspection asks for it; set a quiz, watch a child take it, and mark it; something is due on Friday; the class code has gone round the whole village; this class is younger than Storyjar thinks; do the quiz my teacher set, with pictures for answers; find my own name, my jar, and the thing my teacher left me; a lapsed account: what am I allowed to do, and how do I fix it?; is anybody's email broken?; the nightly check: is anything on fire?
+- **Where:** my home page after signing in (/teacher) · the activity editor (/teacher/activities/cmt8hyh9000248omqsue253g6/edit) · my jar (/student) · the operations console (/ops)
 - **Kind:** could not tell what was happening
-- **Evidence:** seen on: my home page after signing in (/teacher) · my jar (/student)
 
 ### Double-tapped “Add to my jar” to see whether it submits twice — check the child's journal for a duplicate.
 
@@ -951,11 +883,11 @@ Everything a tester could not do, or was misled by. Ordered by severity, then by
 - **Where:** wherever this is (/student/new/photo) (/student/new/photo)
 - **Kind:** worked, but only just
 
-### Export was found under class settings.
+### Export was found under the open class.
 
 - **Who hit it:** Mr Reeves · teacher mid-lesson
 - **Doing:** export a class's evidence, the way a school inspection asks for it
-- **Where:** class settings (/teacher/class)
+- **Where:** one class, open (/teacher/class)
 - **Kind:** could not tell what was happening
 
 ### The Wriggler ran with seed 20260818. Re-run with the same seed to reproduce anything below.

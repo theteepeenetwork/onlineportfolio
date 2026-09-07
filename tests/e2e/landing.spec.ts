@@ -1,14 +1,22 @@
 import { test, expect, type Page } from "@playwright/test";
 import { teacherLogin, studentLogin } from "./helpers";
 
-// The nine work tiles fill the jar as you scroll the 220vh hero track. These
+// The nine work tiles fill the jar as you scroll the 230vh hero track. These
 // helpers drive that track deterministically and read the styles the ScrollFill
 // island sets, rather than the mid-flight animated values.
+
+// A window TALL enough for the sticky hero to exist. Playwright's default is
+// 1280×720, and the hero deliberately stops sticking below 760px of height:
+// the stage is a sticky 100vh box with `overflow: hidden`, so on a short window
+// the primary CTA would be clipped with no scroll that brings it back. The
+// height guard is asserted on its own further down; everything above it needs a
+// window where the effect is supposed to run.
+test.use({ viewport: { width: 1280, height: 900 } });
 
 type TileState = { opacity: string; transform: string; identity: boolean };
 
 // Scroll to a fraction (0..1) of the hero-track's scrollable range. The track
-// is 220vh, so its range is (trackHeight - viewportHeight). We scroll instantly
+// is 230vh, so its range is (trackHeight - viewportHeight). We scroll instantly
 // to defeat the page's `scroll-behavior: smooth`, so getBoundingClientRect is
 // settled by the time the scroll listener runs.
 async function scrollTrack(page: Page, fraction: number) {
@@ -116,7 +124,10 @@ test.describe("Landing page — jar fills on scroll", () => {
   });
 
   test("with reduced motion the tiles stay visible and untransformed", async ({ browser }) => {
-    const context = await browser.newContext({ reducedMotion: "reduce" });
+    const context = await browser.newContext({
+      reducedMotion: "reduce",
+      viewport: { width: 1280, height: 900 }, // tall enough that only the motion preference bails out
+    });
     const page = await context.newPage();
     await page.goto("/");
 
@@ -125,6 +136,29 @@ test.describe("Landing page — jar fills on scroll", () => {
       expect(state.opacity, `tile ${i + 1} visible (fallback)`).toBe("1");
       expect(state.identity, `tile ${i + 1} untransformed (fallback)`).toBe(true);
     }
+    await context.close();
+  });
+
+  // The third bail-out, and the one that is easiest to lose: on a SHORT window
+  // the CSS un-sticks the hero and lets it flow, so hiding the tiles would
+  // leave the jar permanently empty for a reader who never gets a scroll-fill.
+  // 700px tall is an ordinary windowed browser on a laptop, not an edge case.
+  test("on a short window the hero flows and the tiles stay visible", async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 700 } });
+    const page = await context.newPage();
+    await page.goto("/");
+
+    for (let i = 0; i < 9; i++) {
+      const state = await tileState(page, i);
+      expect(state.opacity, `tile ${i + 1} visible (short window)`).toBe("1");
+      expect(state.identity, `tile ${i + 1} untransformed (short window)`).toBe(true);
+    }
+
+    // And the hero really has stopped sticking, which is what makes that right.
+    const sticky = await page.evaluate(
+      () => getComputedStyle(document.querySelector(".hero-sticky")!).position,
+    );
+    expect(sticky).toBe("static");
     await context.close();
   });
 });
@@ -172,7 +206,7 @@ test.describe("Landing page — navigation and content", () => {
     await page.goto("/");
     const faqs = [
       "Do children need email addresses or passwords?",
-      "Can anything go into a child's jar without me seeing it?",
+      "Can anything reach a child's jar before I see it?",
       "Does it count as assessment evidence?",
       "What devices does it work on?",
       "Where is the data stored?",

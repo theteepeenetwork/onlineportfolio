@@ -1,0 +1,21 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// A bare side-effect import preceded on the same line by a block comment that
+// closes there.
+//
+// The anchor for the bare form is a statement position, not a word boundary.
+// `/* … */` had to be an explicit alternation in it, and this fixture is the
+// reason: without it the form below is invisible and an ops file could pull in
+// an off-allowlist module in silence.
+//
+// It must be `\*\/` and NOT a bare `/` added to the character class. A bare `/`
+// would make the second slash of a `//` comment a valid prefix, so a line like
+//     // import "@/lib/mailer" is deliberately absent here
+// would be read as a real import — which is one of the ten prose false
+// positives the anchoring exists to remove. Narrowing and widening in the same
+// character is how a fix undoes itself.
+/* set up */ import "@/lib/mailer";
+
+export async function stillNotAnImportOfAnythingAllowed() {
+  return true;
+}

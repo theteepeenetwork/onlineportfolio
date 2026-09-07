@@ -1,0 +1,4 @@
+- [Canvas scale hides child bugs](canvas-scale-hides-child-bugs.md) — the a11y gate sweeps at 1024x768 where scale ≈ 1; measure a child's target at 768x1024
+- [Verify a gate by breaking it](verify-a-gate-by-breaking-it.md) — revert the fix and watch the new assertion fail, or it is measuring something else
+- [Ask what the repo already decided](ask-what-the-repo-already-decided.md) — triage by hazard, not by subsystem; the rule is often in a comment the change never touches
+- [Teacher-authored is now teacher-adopted](teacher-authored-is-now-teacher-adopted.md) — the MCP connector can write quiz content; don't assert authorship in safeguarding records

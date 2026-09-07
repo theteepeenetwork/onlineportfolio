@@ -14,11 +14,16 @@
 // and not on the build that gates the merge, and the one new interactive
 // element in PR3 would go untested where it counts.
 //
-// It is safe because nothing can spend it: it is not a real key, the operator
-// area makes no Stripe call of any kind (proved by the blindness gate, which
-// bans fetch() under the ops roots and refuses an import of src/lib/stripe.ts),
-// and the webhook spec that does talk to the Stripe SDK stays skipped because
-// it also needs STRIPE_WEBHOOK_SECRET, which the battery does not set.
+// It is safe because nothing can spend it: it is not a real key, and the
+// operator area makes no Stripe call of any kind (proved by the blindness gate,
+// which bans fetch() under the ops roots and refuses an import of
+// src/lib/stripe.ts).
+//
+// The webhook spec DOES talk to the Stripe SDK, and as of 2 Sep 2026 it runs —
+// see tests/battery/stripeWebhookFixtureKey.ts, which supplies the second half
+// it was waiting on. It still spends nothing: the SDK is used only to HMAC a
+// payload locally, and the events it drives are the ones the route answers
+// without an outbound call.
 //
 // IT DELIBERATELY DOES NOT LOOK LIKE A STRIPE KEY.
 //

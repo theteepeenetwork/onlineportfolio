@@ -133,7 +133,7 @@ export function HowItWorks() {
       <h3 className="mt-5 font-semibold" style={{ color: "var(--ink)" }}>What a school pays</h3>
       <ul className="mt-2 list-disc ps-5" style={{ color: "var(--ink)" }}>
         <li>A single teacher can stay on the free plan permanently. It has no clock and cannot lapse.</li>
-        <li>A school gets a trial, then the school plan, which covers every member of staff.</li>
+        <li>A school buys the school plan, which covers every member of staff. There is no trial: a school that changes its mind can ask for a full refund within 42 days of the start of the paid year.</li>
         <li>A lapsed school goes <strong>frozen</strong>: no new uploads, everything still readable and downloadable, and warnings before anything is ever deleted. Lapsed payment never causes silent deletion.</li>
       </ul>
     </div>

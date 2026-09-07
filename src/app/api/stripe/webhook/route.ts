@@ -2,6 +2,8 @@ import type Stripe from "stripe";
 import { db } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { freezeSubscription, type AccountStatus } from "@/lib/billing";
+import { claimSchool, stampVerified, detachBuyer } from "@/lib/schoolClaim";
+import { SCHOOL_BANDS, type PlanKey } from "@/lib/billing-plans";
 import { recordAudit } from "@/lib/audit";
 import { errorLabel } from "@/lib/safeLog";
 
@@ -59,7 +61,24 @@ export async function POST(req: Request): Promise<Response> {
 
 async function handleEvent(event: Stripe.Event): Promise<void> {
   switch (event.type) {
-    case "checkout.session.completed": {
+    // A DELAYED PAYMENT SETTLING IS THE SAME EVENT UNDER A DIFFERENT NAME, so
+    // it runs the same code. For an asynchronous method (BACS debit, some
+    // wallets) `checkout.session.completed` arrives `unpaid` and is withheld by
+    // step 2 of `handleSchoolClaim`; `checkout.session.async_payment_succeeded`
+    // is the delivery that says the money cleared, and it carries the same
+    // session with the same metadata and `payment_status: "paid"`.
+    //
+    // BEFORE 2 SEP 2026 IT FELL TO `default:` AND WAS ACKED AND IGNORED, and
+    // the comment at step 2 claimed `invoice.paid` would pick the claim up
+    // instead. It cannot: the withheld claim writes no local row, so
+    // `resolveLocalSub` finds nothing there and returns. The buyer paid and got
+    // nothing, permanently. Do not narrow this back to one case.
+    //
+    // On the OTHER arm below — a session that resolves an existing local
+    // subscription — this is equally right and already idempotent: the money
+    // landing is what should move that row to ACTIVE and stamp `verifiedAt`.
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
       const session = event.data.object as Stripe.Checkout.Session;
       const localId = session.client_reference_id ?? session.metadata?.storyjar_subscription_id ?? null;
       const sub = await resolveLocalSub({
@@ -67,21 +86,62 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
         stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id ?? null,
         stripeSubscriptionId: typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null,
       });
-      if (!sub) return;
-      // Pull the created subscription for its period end. There is no seat
-      // count to read: the school plan is a flat price with quantity 1
-      // (docs/pricing-decisions.md).
-      let currentPeriodEnd: Date | null = null;
-      const stripeSubId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
-      if (stripeSubId) {
-        const stripeSub = await getStripe().subscriptions.retrieve(stripeSubId);
-        currentPeriodEnd = periodEndOf(stripeSub);
+      // NO LOCAL SUBSCRIPTION IS THE SIGNAL, NOT AN ERROR. `startClaimCheckout`
+      // omits `client_reference_id` on purpose so that `resolveLocalSub` falls
+      // through to null here: a school being BOUGHT has nothing local yet,
+      // because an abandoned checkout must leave no trace. This is the card
+      // route's other half, and until 2 Sep 2026 it was a silent 200 — money
+      // arrived at Stripe and nothing happened.
+      if (!sub) {
+        await handleSchoolClaim(session);
+        return;
       }
+
+      // THERE IS DELIBERATELY NO `stripe.subscriptions.retrieve` HERE. It was
+      // removed on 2 Sep 2026 and must not come back as a tidy-up. Three
+      // reasons, and the third is the one that matters:
+      //
+      // 1. What it fetched was cosmetic. It read `currentPeriodEnd` only; the
+      //    billing panes already fall back to "Your school plan is active."
+      //    when it is null, and `invoice.paid` and `customer.subscription.
+      //    updated` both carry the same figure seconds later and both already
+      //    write it. There is no seat count to read either: the school plan is
+      //    a flat price with quantity 1 (docs/pricing-decisions.md).
+      // 2. It was the only non-hermetic line in this handler, and therefore the
+      //    reason tests/battery/security/stripe-webhook.spec.ts avoided this
+      //    very event. Removing it is what lets the spec cover the branch.
+      // 3. A NETWORK CALL BETWEEN THE `BillingEvent` INSERT AND A TRANSACTION
+      //    THAT WILL SHORTLY GRANT ADMIN IS A PRIVILEGE-ESCALATION MECHANISM,
+      //    not a latency cost. The insert above is the idempotency record; the
+      //    catch in POST deletes it non-transactionally when the handler
+      //    throws. So anything that throws after a grant has committed rolls
+      //    back the record of the delivery while leaving the privilege in
+      //    place, and Stripe's retry then runs the branch again against a
+      //    school that already exists. Stripe timing out is exactly that throw.
+      //
+      // For whoever adds the school-claim branch above (`if (!sub)`):
+      // NOTHING THAT CAN THROW MAY RUN AFTER `claimSchool` IN THAT BRANCH.
+      const stripeSubId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
       await transition(sub.id, "ACTIVE", {
         stripeSubscriptionId: stripeSubId ?? undefined,
         stripeCustomerId: (typeof session.customer === "string" ? session.customer : session.customer?.id) ?? undefined,
-        currentPeriodEnd,
       });
+      // Money is confirmed, so the school's identity is confirmed. Guarded and
+      // idempotent; the argument for why this is one of exactly two call sites
+      // is in `stampVerified`'s docstring and stays there.
+      //
+      // A CARD CLAIM REACHES THIS LINE ON ITS SECOND DELIVERY AND STAMPS
+      // TWICE, and that is fine BECAUSE OF THE GUARD, not because of the
+      // ordering. `claimSchool` writes `verifiedAt` at creation, so a
+      // redelivery carrying a different event id now resolves the subscription
+      // the claim made, takes this arm instead of the claim branch, and calls
+      // `stampVerified` on an already-stamped school. Its `updateMany where
+      // verifiedAt: null` matches nothing, so the date does not move and no
+      // second `SCHOOL_VERIFIED` row appears. DO NOT reorder or add a
+      // `verifiedAt` check here to avoid the second call: the guard is the
+      // thing that makes it safe, and moving the safety out of `stampVerified`
+      // and into its callers is how one caller eventually forgets.
+      if (sub.schoolId) await stampVerified(sub.schoolId, "Stripe checkout completed");
       return;
     }
 
@@ -94,6 +154,11 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
       if (!sub) return;
       const end = invoicePeriodEnd(invoice);
       await transition(sub.id, "ACTIVE", { currentPeriodEnd: end });
+      // The money for an invoiced (PO) school has arrived, which is what closes
+      // its unverified window. Guarded and idempotent; why resolving purely by
+      // Stripe ids is sufficient here, and why there is no third call site, is
+      // in `stampVerified`'s docstring and stays there.
+      if (sub.schoolId) await stampVerified(sub.schoolId, "Stripe invoice paid");
       return;
     }
 
@@ -136,6 +201,14 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
       });
       if (!sub) return;
       await freezeSubscription(sub, "Stripe subscription cancelled");
+      // A refund on a school plan detaches the person who PAID and leaves
+      // everyone else frozen (owner decision, 1 Sep 2026,
+      // docs/pricing-decisions.md). The buyer usually had a free teacher
+      // account and their own classes before they bought, so freezing those
+      // would leave them worse off than never having bought — which is not a
+      // refund. THE SCHOOL AND EVERY REMAINING MEMBER OF STAFF STAY FROZEN:
+      // they did not pay, and `detachBuyer` unfreezes nothing.
+      if (sub.kind === "SCHOOL" && sub.schoolId) await detachBuyer(sub.schoolId);
       return;
     }
 
@@ -143,6 +216,249 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
       // Unhandled event types are acked (recorded) and ignored.
       return;
   }
+}
+
+// --- The school claim -------------------------------------------------------
+
+/**
+ * THE CARD ROUTE'S OTHER HALF: a checkout session that resolves no local
+ * subscription because the school it paid for does not exist yet.
+ *
+ * REACHED FROM TWO EVENTS, not one — `checkout.session.completed` and
+ * `checkout.session.async_payment_succeeded`. They are the same session at two
+ * moments, and which of them carries the money depends on how the buyer paid.
+ *
+ * `startClaimCheckout` writes NOTHING locally — no School, no Subscription, no
+ * half-made claim squatting on a URN — so an abandoned checkout leaves no
+ * trace and the entire purchase intent travels in Stripe metadata. This is
+ * where that intent is turned into a school, and it is the only place on the
+ * card route where anybody becomes a school ADMIN.
+ *
+ * IT NEVER THROWS AND IT NEVER RETURNS ANYTHING BUT 200. Every refusal below is
+ * unfixable by retrying, and a throw would put Stripe into a redelivery loop
+ * against a state no delivery can change. What a person needs instead is the
+ * audit row, which is the founder's cue to refund by hand.
+ *
+ * IDEMPOTENCY RESTS ON THREE LAYERS AND THIS FUNCTION RELIES ON ALL THREE:
+ *   1. `claimSchool`'s own step 1 resolves an existing `Subscription` by
+ *      `stripeSubscriptionId` and returns `alreadyDone` — the only layer that
+ *      works when a redelivery carries a DIFFERENT event id.
+ *   2. `Subscription.stripeSubscriptionId` and `School.urn` are both `@unique`,
+ *      so two genuinely racing deliveries end with the loser's transaction
+ *      aborting whole: no half-made school, no promoted teacher.
+ *   3. The `BillingEvent` insert in POST catches ordinary redelivery.
+ *
+ * NOTHING THAT CAN THROW MAY RUN AFTER `claimSchool` — see the long comment at
+ * the removed `subscriptions.retrieve` for why. `recordAudit` swallows, and it
+ * is only reached on the refusal path, where nothing has been committed.
+ */
+async function handleSchoolClaim(session: Stripe.Checkout.Session): Promise<void> {
+  const meta = session.metadata ?? {};
+  // READ HERE RATHER THAN AT STEP 3 ONLY SO THE AUDIT ROWS BELOW CAN NAME IT.
+  // The GUARD on it stays at step 3, where the ordering of the refusals is
+  // part of what each one means: a session that is both unpaid and missing a
+  // subscription id is an unpaid session first.
+  const stripeSubscriptionId =
+    typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
+
+  // ------------------------------------------------------------------------
+  // 1. NOT OURS. The silent 200 becomes a noisy one.
+  //
+  // A session with no local subscription and no claim metadata is a genuine
+  // anomaly — a checkout created outside this application, or one whose
+  // metadata contract has drifted — and losing it silently is what hid the
+  // missing claim branch in the first place.
+  //
+  // THE SESSION ID ONLY, NEVER THE METADATA. `storyjar_school_name` is in
+  // there, and stdout goes to Railway's log store, which erasure cannot reach
+  // (src/lib/safeLog.ts; tests/battery/security/log-hygiene.spec.ts polices
+  // this class). A session id is enough to find the whole thing in the Stripe
+  // dashboard, which is where the school's name may safely be read.
+  // ------------------------------------------------------------------------
+  if (meta.storyjar_purchase !== "school_claim") {
+    console.error("[stripe] checkout.session.completed matched no subscription and is not a school claim; session", session.id);
+    return;
+  }
+
+  // ------------------------------------------------------------------------
+  // 2. ONLY MONEY CREATES A SCHOOL ON THIS ROUTE.
+  //
+  // `checkout.session.completed` fires when the CHECKOUT completes, which is
+  // not the same as the money arriving. For an asynchronous method (BACS debit,
+  // some wallets) the session completes `unpaid` and settles minutes or days
+  // later on `checkout.session.async_payment_succeeded`.
+  //
+  // Unguarded, the card route would create a VERIFIED school on the strength of
+  // a payment that has not cleared and may never — acquiring exactly the
+  // unverified window the invoice route exists to contain, but with the gates
+  // already open.
+  //
+  // WHAT PICKS THE CLAIM UP AFTERWARDS IS `checkout.session.
+  // async_payment_succeeded`, which is a case in the switch above. Until 2 Sep
+  // 2026 this comment said `invoice.paid` would carry the same subscription and
+  // claim the school by the invoice route's path. IT DID NOT AND COULD NOT:
+  // withholding the claim writes no local row, so `invoice.paid`'s
+  // `resolveLocalSub` finds nothing and returns — and the async event was not a
+  // case at all, so it was acked by `default:` and dropped. For a
+  // delayed-settlement method the buyer paid and got nothing, permanently, and
+  // this paragraph is why nobody looked. A comment describing a recovery that
+  // does not happen is worse than no comment.
+  //
+  // `payment_status: "no_payment_required"` — Stripe's status for an amount due
+  // of zero — is withheld by this same test and has NO BRANCH OF ITS OWN, ON
+  // PURPOSE. It never settles and never fires the async event, so it is
+  // withheld, audited, and waits for a person. Whether a free school exists at
+  // all, and whether it counts as verified, is a pending owner decision
+  // (docs/pricing-decisions.md); deciding it here, in a branch, as a side
+  // effect of fixing delayed settlement, is the wrong place. It is also not
+  // reachable from this route today: `startClaimCheckout` no longer sends
+  // `allow_promotion_codes`, and any discount short of 100% still charges and
+  // still arrives here as "paid".
+  // ------------------------------------------------------------------------
+  if (session.payment_status !== "paid") {
+    console.error("[stripe] school claim withheld, session is not paid; session", session.id, session.payment_status);
+    // AND A DURABLE ROW, NOT ONLY THAT LINE. stdout goes to Railway's log store,
+    // which erasure cannot reach and which nobody reads on a Tuesday evening
+    // (src/lib/safeLog.ts) — so a withholding that is only logged is a person
+    // who pressed Pay, has no school, and appears nowhere anybody looks. Every
+    // other refusal on this path writes one; this is the same rule.
+    //
+    // ADULT IDS AND A STATUS ONLY, never `storyjar_school_name` from the
+    // metadata sitting beside it — same reasoning as step 1.
+    await recordAudit({
+      action: "SCHOOL_CLAIM_WITHHELD",
+      actorType: "SYSTEM",
+      actorName: "Stripe webhook",
+      actorId: meta.storyjar_teacher_id || null,
+      subjectType: stripeSubscriptionId ? "SUBSCRIPTION" : "CHECKOUT_SESSION",
+      subjectId: stripeSubscriptionId ?? session.id,
+      detail:
+        `A card checkout completed before its payment cleared, so no school was set up yet ` +
+        `(Stripe session ${session.id}, payment status ${session.payment_status}). No money has been ` +
+        `taken, so there is nothing to refund. If the payment settles, Stripe sends ` +
+        `checkout.session.async_payment_succeeded and the school is set up then, with no action needed. ` +
+        `A payment status of "no_payment_required" is the exception: it will never settle and needs a person.`,
+    });
+    return;
+  }
+
+  // ------------------------------------------------------------------------
+  // 3. THE IDEMPOTENCY KEY MUST EXIST BEFORE ANYTHING IS CREATED.
+  //
+  // `stripeSubscriptionId` is what `claimSchool` step 1 reads to recognise a
+  // redelivery, and it is `@unique` as the backstop under a race. A claim made
+  // without one has NEITHER, so a second delivery would create a second school
+  // and promote the buyer into it. A `mode: "subscription"` session always
+  // carries one; this is the guard for a session that is not the one we sent.
+  // The value is read at the top of this function so the withholding row at
+  // step 2 can name it; this is where it is REQUIRED.
+  // ------------------------------------------------------------------------
+  if (!stripeSubscriptionId) {
+    console.error("[stripe] school claim withheld, session carries no subscription id; session", session.id);
+    return;
+  }
+
+  // ------------------------------------------------------------------------
+  // 4. THE METADATA CONTRACT, READ DEFENSIVELY.
+  //
+  // `claimMetadata` in src/app/actions/billing.ts emits six string keys and is
+  // the only writer, so these should always be present and well-formed. They
+  // are checked anyway because the failure mode of not checking is bad in a
+  // specific way: an unrecognised plan key makes `bandFor` THROW inside the
+  // claim transaction, which becomes a 500, which becomes a Stripe retry loop
+  // against metadata no retry can improve. That is the exact shape step 5
+  // exists to avoid, so it is caught here as a refusal instead.
+  //
+  // An empty school name would create a nameless school, which is worse than
+  // creating none: it is a real tenant nobody can identify on a screen.
+  // ------------------------------------------------------------------------
+  const teacherId = meta.storyjar_teacher_id ?? "";
+  const schoolName = (meta.storyjar_school_name ?? "").trim();
+  const plan = meta.storyjar_plan ?? "";
+  if (!teacherId || !schoolName || !isPlanKey(plan)) {
+    // Adult data and ids only, in a row a person will actually find: a Stripe
+    // session id and which of the three fields was wrong. Never the name.
+    await recordAudit({
+      action: "SCHOOL_CLAIM_REFUSED",
+      actorType: "SYSTEM",
+      actorName: "Stripe webhook",
+      subjectType: "SUBSCRIPTION",
+      subjectId: stripeSubscriptionId,
+      detail:
+        `A paid card checkout could not be turned into a school because its purchase details were incomplete ` +
+        `(Stripe session ${session.id}${!teacherId ? ", no buyer" : ""}${!schoolName ? ", no school name" : ""}` +
+        `${!isPlanKey(plan) ? ", unrecognised plan" : ""}). The money has been taken and must be refunded by hand.`,
+    });
+    return;
+  }
+
+  // ------------------------------------------------------------------------
+  // 5. THE CLAIM. `verified: true` because the money is confirmed above, which
+  // is why a card school never passes through the unverified state at all.
+  // The URN travels as "" for null, because Stripe metadata has no other type.
+  // ------------------------------------------------------------------------
+  const outcome = await claimSchool({
+    teacherId,
+    schoolName,
+    urn: meta.storyjar_urn ? meta.storyjar_urn : null,
+    plan,
+    verified: true,
+    source: "CARD",
+    stripeCustomerId: typeof session.customer === "string" ? session.customer : session.customer?.id ?? null,
+    stripeSubscriptionId,
+  });
+
+  // ------------------------------------------------------------------------
+  // 6. A REFUSAL IS AUDITED AND ACKED. IT IS NOT AN ERROR.
+  //
+  // Every `ClaimRefusal` is unfixable by retrying — a deleted buyer stays
+  // deleted, and "this teacher already belongs to a school" cannot be made
+  // untrue by a seventh delivery. Throwing here would cost Stripe deliveries
+  // and change nothing, so the answer is 200 and a durable record.
+  //
+  // `schoolId` is deliberately null on this row: no school was created, and
+  // attaching it to the school the buyer was invited into would put a stranger's
+  // failed purchase in that school's audit log.
+  //
+  // NOTHING RUNS AFTER `claimSchool` ON THE SUCCESS PATH, and this branch is
+  // not an exception to that: it is reached only when the transaction committed
+  // nothing at all. `recordAudit` swallows its own failures, so it cannot throw
+  // even here.
+  // ------------------------------------------------------------------------
+  if (!outcome.ok) {
+    await recordAudit({
+      action: "SCHOOL_CLAIM_REFUSED",
+      actorType: "SYSTEM",
+      actorName: "Stripe webhook",
+      actorId: teacherId,
+      subjectType: "TEACHER",
+      subjectId: teacherId,
+      detail:
+        outcome.reason === "teacher-has-school"
+          ? `A paid card checkout could not set up a new school because the buyer had joined a school between ` +
+            `pressing the button and the payment landing. They were NOT moved. The money has been taken ` +
+            `(Stripe session ${session.id}) and must be refunded by hand.`
+          : `A paid card checkout could not set up a new school because the buyer's account no longer exists. ` +
+            `The money has been taken (Stripe session ${session.id}) and must be refunded by hand.`,
+    });
+    return;
+  }
+
+  // DELIBERATELY NOTHING HERE. Not a log line, not a `stampVerified`, not a
+  // Stripe call. `claimSchool` has committed a privilege grant, and the catch
+  // in POST deletes the `BillingEvent` row NON-TRANSACTIONALLY when this
+  // handler throws — so any statement added below would, on failing, roll back
+  // the record of the delivery while leaving somebody an ADMIN. `verifiedAt`
+  // is already stamped inside the transaction, and both audit rows were
+  // written inside it too.
+}
+
+/** The metadata plan key, narrowed against the real catalogue. A string Stripe
+ *  handed us is not a `PlanKey` until something has checked it, and `bandFor`
+ *  throws on anything else — inside the claim transaction, where a throw is a
+ *  retry loop. */
+function isPlanKey(value: string): value is PlanKey {
+  return SCHOOL_BANDS.some((b) => b.key === value);
 }
 
 // --- Helpers ----------------------------------------------------------------

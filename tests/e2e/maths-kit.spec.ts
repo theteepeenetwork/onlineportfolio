@@ -66,11 +66,10 @@ test.describe("who is offered the kit", () => {
       // Building a worksheet is a teacher's job at every age.
       await expect(page.getByRole("button", { name: "Maths kit" })).toHaveCount(0);
 
-      // Scoped to the fan, because "Text" also names the tool on the shelf.
-      const fan = page.locator("div.w-44");
-      await expect(fan.getByRole("button", { name: "Shapes" })).toBeVisible();
-      await expect(fan.getByRole("button", { name: "Photo / PDF" })).toBeVisible();
-      await expect(fan.getByRole("button", { name: "Text" })).toBeVisible();
+      // The child's inner ring, in full: three things to insert and no more.
+      await expect(page.getByRole("button", { name: "Shapes" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Photo", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Words" })).toBeVisible();
 
       // The line, the arrow and the ring are not apparatus, so they are here
       // for everyone — a child had no way to draw a straight line at all.
@@ -303,7 +302,7 @@ test.describe("what the kit draws", () => {
   // --- The signs ------------------------------------------------------------
 
   test("an operator is a shape, so its fill and line are the child's", async ({ page }) => {
-    await place(page, "Signs", "Add sign");
+    await place(page, "Symbols", "Add sign");
     const path = page.locator('svg[data-shape="operator"] path').first();
     await expect(path).toBeVisible();
     // Filled and stroked like any other shape — that is the point of it being
@@ -314,7 +313,7 @@ test.describe("what the kit draws", () => {
   });
 
   test("one sign can be changed into another without starting again", async ({ page }) => {
-    await place(page, "Signs", "Add sign");
+    await place(page, "Symbols", "Add sign");
     const path = page.locator('svg[data-shape="operator"] path').first();
     const plus = (await path.getAttribute("d"))!;
 

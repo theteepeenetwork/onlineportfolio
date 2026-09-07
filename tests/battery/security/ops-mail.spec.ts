@@ -7,12 +7,16 @@ import { SCHOOL_A, loginTeacher, asOperator } from "../helpers";
 import { BATTERY_MAIL_HMAC_KEY } from "../mailHmacFixtureKey";
 import { recordMailAttempt } from "@/lib/mailCounters";
 import {
+  MAIL_SUPPRESSION_SYNC_JOB,
+  MAIL_TEMPLATE_KEYS,
+  MAIL_TEMPLATE_LABEL,
   MAIL_VERDICT_LABEL,
   classifyMailResult,
   mailVerdict,
   utcDay,
 } from "@/lib/mailStatus";
 import { mailAddressHmac, mailHmacConfigured } from "@/lib/ops/mailHmac";
+import { runMailSuppressionSync } from "@/lib/mailSuppressionSync";
 
 // ===========================================================================
 // A29 - Mail delivery status (PR5): counters that cannot name anybody
@@ -138,11 +142,17 @@ test(`${ROUTE} is never indexed, and is declared uncacheable`, () => {
 test("no public route advertises the mail screen (ruling R18)", async ({ page }) => {
   await page.context().clearCookies();
 
-  // There is deliberately no robots.txt in this project, and the reason is in
-  // next.config.ts: naming /ops in one would publish the path it is meant to
-  // keep quiet. Asserted so that adding one becomes a decision rather than an
-  // accident.
-  expect((await page.goto("/robots.txt"))?.status()).toBe(404);
+  // robots.txt is the one file written to be fetched by strangers, so naming
+  // /ops in it would publish the path it is meant to keep quiet. This used to
+  // assert the file did not exist at all; src/app/robots.ts added one on
+  // 29 Aug 2026 to keep the staging deployment out of the search index, and
+  // this assertion is what made that a decision rather than an accident. The
+  // decision, recorded in ops-auth.spec.ts and in next.config.ts, is that the
+  // file names no path: the disallow is a bare "/" and the operator area is
+  // kept out of the index by an X-Robots-Tag header instead.
+  const robots = await page.goto("/robots.txt");
+  expect(robots?.status(), "robots.txt should be served").toBe(200);
+  expect(await robots!.text(), "robots.txt must not name the operator area").not.toContain("/ops");
 
   // And the public landing page links nowhere near it.
   const landing = await page.goto("/");
@@ -249,12 +259,47 @@ test("the window filter is a filter, not a total of the table", async () => {
     ).toBeGreaterThan(attemptedWeek);
     expect(rows.some((row) => row.count === 99), "the out-of-window fixture is missing").toBe(true);
 
-    // Read as raw textContent rather than through toContainText, because the
-    // term and its figure are a <dt>/<dd> pair and only the raw concatenation
-    // puts them next to each other.
+    // ASSERTED PER TEMPLATE, PER WINDOW, WHICH IS THE GRAIN THE SCREEN ACTUALLY
+    // RENDERS. This used to sum every template together and look for that total
+    // anywhere in `main`, and the screen has never drawn such a number: a
+    // `WindowCard` holds one `TemplateRow` per template and each draws its own
+    // `Attempted`. The sum therefore matched a rendered figure only while
+    // exactly one template had counters on the day the suite ran, so the day a
+    // fifth template shipped it broke — in that person's branch, three files
+    // from anything they wrote. Logged as F70.
+    //
+    // Computing from the table stays, and for the reason the paragraph above
+    // gives: other specs send real mail and every attempt is counted, so a
+    // written-in figure is wrong about the world rather than about the screen.
+    // What changes is only the grain. This is strictly stronger than the sum it
+    // replaces — a total can agree by coincidence while a per-template figure is
+    // wrong, and now every template is checked in both windows rather than one
+    // number being checked once.
+    for (const [label, from] of [
+      ["Today", today],
+      ["The last 7 days", weekAgo],
+    ] as const) {
+      const card = main.locator("li.card").filter({ has: page.getByRole("heading", { name: label, exact: true }) });
+      for (const key of MAIL_TEMPLATE_KEYS) {
+        const expected = total((r) => r.templateKey === key && r.day >= from && r.day <= today);
+        const row = card.locator("li").filter({
+          has: page.getByRole("heading", { name: MAIL_TEMPLATE_LABEL[key], exact: true }),
+        });
+        // Raw textContent rather than toContainText, because the term and its
+        // figure are a <dt>/<dd> pair and only the concatenation puts them
+        // together.
+        expect(
+          (await row.textContent()) ?? "",
+          `${label}: ${MAIL_TEMPLATE_LABEL[key]}`,
+        ).toContain(`Attempted${expected}`);
+      }
+    }
+    // The negative half, and it is still a whole-page read on purpose: the
+    // all-time total includes the 99-failure row seeded twenty days back, and
+    // it exceeds every windowed figure on the screen, so it cannot coincide
+    // with any per-template number. If it appears anywhere, something summed
+    // without filtering.
     const rendered = (await main.textContent()) ?? "";
-    expect(rendered, "today's attempts").toContain(`Attempted${attemptedToday}`);
-    expect(rendered, "the seven-day attempts").toContain(`Attempted${attemptedWeek}`);
     expect(rendered, "an out-of-window row must not be counted").not.toContain(
       `Attempted${attemptedEver}`,
     );
@@ -500,6 +545,146 @@ test("sendMail has exactly one way out, and it counts", () => {
   // And what it is handed is a template constant, never the recipient.
   expect(source).toContain("finish(templateKey, { ok: true })");
   expect(source).not.toMatch(/recordMailAttempt\([^)]*\bto\b/);
+});
+
+// ---------------------------------------------------------------------------
+// 6. The in-app scheduler (F31)
+// ---------------------------------------------------------------------------
+//
+// The sync function is called by the CLI script and by the in-app scheduler in
+// src/instrumentation.ts. The critical property is that it writes a JobRun
+// row on EVERY run, including runs where no credentials are configured, because
+// Railway does not alert on a non-zero exit and a scheduler that stops running
+// produces no error — the absence of a recent SUCCESS is the signal.
+//
+// This test calls `runMailSuppressionSync` directly with the shared database,
+// driving it through the "no Mailjet credentials in this environment" path.
+// That is enough to prove the JobRun write, and it avoids a real Mailjet call.
+//
+// IT DELETES THE CREDENTIALS ANYWAY, and that belt-and-braces is the point of
+// the test above it. `.env` carries the real production Mailjet keys, so any
+// process started from this repository holds them, including this one. The
+// MAIL_SYNC_ENABLED switch is what stops the call now; the deletion is what
+// stopped it being catastrophic when the switch did not exist. Keep both.
+// ---------------------------------------------------------------------------
+
+test("runMailSuppressionSync writes a JobRun row on every run, even with no credentials", async () => {
+  // Count existing runs before the test touches anything.
+  const before = await db.jobRun.count({ where: { job: MAIL_SUPPRESSION_SYNC_JOB } });
+
+  // Call the sync with no MAILJET_* env vars, so it hits the early-return path
+  // — still writes a FAILURE JobRun.
+  //
+  // The deletion is load-bearing and not merely tidy. `.env` supplies the REAL
+  // production Mailjet credentials to every process started from this
+  // repository, this test runner included, so without these four lines this
+  // test would call the live account (F43). The scheduler's guard does not
+  // help here: this calls the sync function directly, which is exactly what
+  // the CLI does and exactly what it is allowed to do.
+  const savedApiKey = process.env.MAILJET_API_KEY;
+  const savedSecretKey = process.env.MAILJET_SECRET_KEY;
+  delete process.env.MAILJET_API_KEY;
+  delete process.env.MAILJET_SECRET_KEY;
+
+  try {
+    const result = await runMailSuppressionSync(db);
+
+    // A run with no credentials is a FAILURE, not an exception.
+    expect(result.outcome).toBe("FAILURE");
+    expect(result.outcomeDetail).toContain("no Mailjet credentials");
+
+    // One new JobRun row regardless.
+    const after = await db.jobRun.count({ where: { job: MAIL_SUPPRESSION_SYNC_JOB } });
+    expect(after, "a JobRun must be written even when credentials are absent").toBe(before + 1);
+
+    // The row itself is clean: no address, no domain, no provider string.
+    const run = await db.jobRun.findFirst({
+      where: { job: MAIL_SUPPRESSION_SYNC_JOB },
+      orderBy: { startedAt: "desc" },
+    });
+    expect(run).not.toBeNull();
+    expect(JSON.stringify(run)).not.toMatch(/@/);
+    expect(run?.outcomeDetail ?? "").toMatch(/^[\w ]*$/);
+  } finally {
+    // Restore env so nothing downstream is affected by the deletion above.
+    if (savedApiKey !== undefined) process.env.MAILJET_API_KEY = savedApiKey;
+    if (savedSecretKey !== undefined) process.env.MAILJET_SECRET_KEY = savedSecretKey;
+    // Remove the run this test added so it does not affect the fixture assertions
+    // in section 3 above (which check outcomeDetail vocabulary).
+    await db.jobRun.deleteMany({
+      where: { job: MAIL_SUPPRESSION_SYNC_JOB, outcome: "FAILURE", outcomeDetail: "no Mailjet credentials in this environment" },
+    });
+  }
+});
+
+// THIS IS A SOURCE-TEXT ASSERTION, AND IT IS NARROWER THAN IT WAS ON PURPOSE.
+//
+// The first version of this test asserted the MECHANISM: that instrumentation.ts
+// contained the exact string `NEXT_RUNTIME !== "nodejs"`, plus `setInterval` and
+// `runMailSuppressionSync`. All three were true when it was written and all
+// three broke the day the implementation moved to Next's documented
+// split-module pattern (a `=== "nodejs"` guard around a dynamic import of
+// ./instrumentation-node, which is what keeps node:crypto out of the Edge
+// bundle). Nothing was wrong with the code; the test was pinned to a spelling.
+//
+// There is no unit runner in this repository — only Playwright — and the fact
+// worth protecting is a startup path that cannot be reached from a test at all,
+// because a running dev server's NODE_ENV cannot be changed from inside it.
+// This is the same position as the OPS_ENABLED kill switch in A21, and it takes
+// the same answer: assert the fact in source, not the spelling of it.
+//
+// So: the scheduler refuses to schedule outside a production build. What that
+// refusal is made of — one guard or two, an early return or a wrapper, which
+// file it lives in — is free to change without touching this test.
+test("the in-app scheduler refuses to schedule outside a production build", () => {
+  const read = (file: string) => readFileSync(path.join(process.cwd(), "src", file), "utf8");
+  const scheduler = read("instrumentation-node.ts");
+
+  // THE FACT. Somewhere before it schedules anything, the scheduler compares
+  // NODE_ENV against production and gives up if it does not match. The battery
+  // lanes run `next dev`, so this is the condition that keeps a test run from
+  // calling the live Mailjet account (F43).
+  expect(
+    /NODE_ENV\s*!==\s*["']production["']/.test(scheduler),
+    "the scheduler must refuse to run outside a production build — see FINDINGS.md F43",
+  ).toBe(true);
+
+  // And an operator-controlled switch, so a misbehaving sync can be stopped in
+  // production by unsetting a Railway variable rather than by shipping a
+  // deploy. Exactly "1", the OPS_ENABLED convention.
+  expect(
+    /MAIL_SUPPRESSION_SYNC\s*!==\s*["']1["']/.test(scheduler),
+    "the scheduler must have a kill switch that does not need a deploy",
+  ).toBe(true);
+
+  // Both refusals say so out loud. A scheduler that declines silently reads as
+  // a broken scheduler to whoever is wondering why the figures are stale.
+  const refusals = scheduler.match(/not scheduled:/g) ?? [];
+  expect(refusals.length, "each refusal path must log why it declined").toBeGreaterThanOrEqual(2);
+
+  // It still schedules recurrently rather than once. A setTimeout-only
+  // implementation would run on the first boot after a deploy and never again,
+  // which looks identical to a working scheduler for a day.
+  expect(scheduler).toContain("setInterval");
+
+  // It calls the shared sync function rather than carrying a private copy of
+  // the logic — two copies agree on the day they are written and drift after.
+  expect(scheduler).toContain("runMailSuppressionSync");
+
+  // The Edge split, asserted as a fact rather than as a spelling: the hook
+  // Next.js actually calls exports register(), and the Node-only module is
+  // reached through a dynamic import so the bundler cannot trace node:crypto
+  // into the Edge bundle. A static import here is the bug this pattern fixed.
+  const hook = read("instrumentation.ts");
+  expect(hook).toContain("export async function register()");
+  expect(
+    /await import\(["']\.\/instrumentation-node["']\)/.test(hook),
+    "the Node-only half must be reached by dynamic import, or it is traced into the Edge bundle",
+  ).toBe(true);
+  expect(
+    /^import .*instrumentation-node/m.test(hook),
+    "a static import of the Node-only half defeats the split",
+  ).toBe(false);
 });
 
 // ---------------------------------------------------------------------------

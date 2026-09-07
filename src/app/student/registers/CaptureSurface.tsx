@@ -9,6 +9,7 @@ import { Icon } from "@/components/icons/Icon";
 import { studentCopy } from "@/lib/copy/student";
 import type { AgeMode } from "@/lib/ageMode";
 import { readAloud } from "@/lib/readAloud";
+import { useCaptureDraft } from "@/lib/captureDraft";
 import { useSpeechReady } from "@/lib/useSpeechReady";
 
 // The inline capture surface shared by all three age registers (designs
@@ -39,6 +40,7 @@ const SIZE: Record<RegisterSize, { close: number; title: number; submit: number;
 export function CaptureSurface({
   type,
   mode,
+  studentId,
   size,
   title,
   onClose,
@@ -46,6 +48,7 @@ export function CaptureSurface({
 }: {
   type: CaptureType;
   mode: AgeMode;
+  studentId: string;
   size: RegisterSize;
   title: string;
   onClose: () => void;
@@ -58,6 +61,15 @@ export function CaptureSurface({
   const s = SIZE[size];
 
   const speechReady = useSpeechReady();
+  // Only the open fold is mounted, so a child who writes a sentence and then
+  // opens Photo loses it on the spot without this. See src/lib/captureDraft.ts.
+  const draft = useCaptureDraft(studentId, type);
+
+  // A bounced submit keeps its words — they are still on screen, and still the
+  // child's, so they go back rather than being lost to the tidy-up on send.
+  useEffect(() => {
+    if (state?.error) draft.save(draft.text, draft.caption);
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // On a successful inline submit, hold the celebration briefly, then fold the
   // surface shut and restore the tiles. ~1800ms matches the design. Clearing on
@@ -110,7 +122,7 @@ export function CaptureSurface({
           <span style={{ font: "400 18px var(--font-atkinson)", color: "var(--sj-muted)" }}>{cel.subtitle}</span>
         </div>
       ) : (
-        <form action={action} style={{ paddingBottom: 8 }}>
+        <form action={action} onSubmit={draft.clear} style={{ paddingBottom: 8 }}>
           <input type="hidden" name="type" value={type} />
           {/* Ask the action to celebrate inline rather than redirect to /popped. */}
           <input type="hidden" name="inline" value="1" />
@@ -144,6 +156,8 @@ export function CaptureSurface({
                 id="words"
                 name="textContent"
                 rows={5}
+                value={draft.text}
+                onChange={(e) => draft.setText(e.target.value)}
                 placeholder={c.wordsPlaceholder}
                 style={{ width: "100%", boxSizing: "border-box", font: "400 22px/1.6 var(--font-atkinson)", padding: "14px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)", resize: "vertical" }}
               />
@@ -161,6 +175,8 @@ export function CaptureSurface({
               <input
                 id="caption"
                 name="caption"
+                value={draft.caption}
+                onChange={(e) => draft.setCaption(e.target.value)}
                 placeholder={c.captionPlaceholder}
                 style={{ width: "100%", boxSizing: "border-box", marginTop: 8, minHeight: 64, font: "400 22px var(--font-atkinson)", padding: "12px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
               />

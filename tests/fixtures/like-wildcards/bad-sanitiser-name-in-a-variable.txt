@@ -1,0 +1,13 @@
+// @path: src/app/actions/somewhere.ts
+// @expect: contains
+// The sanitiser's NAME is not the sanitiser. `likeSafeQuery` is a variable that
+// somebody called something reassuring; nothing has stripped anything.
+//
+// This fixture exists because a gate that looked for the marker with a substring
+// test would wave it through, and that gate passed the rest of this corpus
+// unchanged — which is the definition of a rule nothing was proving.
+import { db } from "@/lib/db";
+
+export async function searchSchools(likeSafeQuery: string) {
+  return db.establishment.findMany({ where: { name: { contains: likeSafeQuery } } });
+}

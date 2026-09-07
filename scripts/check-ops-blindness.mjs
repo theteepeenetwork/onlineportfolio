@@ -290,6 +290,80 @@ const LOOKUP_ONLY = [
   // every adult currently locked out of their own child's work. Answering "is
   // this one address being refused" is support. Listing them is a register.
   "MailSuppression",
+  // The offer a school makes to a teacher who already has their own account
+  // (PR-phase-2). One row is: two named adults, a school, a role and four
+  // timestamps.
+  //
+  // WIDENING (ruling R2: a widening lands in the same commit as the model it
+  // permits, with a comment naming the rule and fixtures proving the true
+  // positive still fires — bad-ops-deletes-school-invitation.txt and
+  // bad-ops-lists-school-invitations.txt). The drift check refused
+  // SchoolInvitation as OPS-MODEL-UNKNOWN from the moment the model landed
+  // until this entry existed, which is the drift check working.
+  //
+  // OPS NEEDS NOTHING FROM THIS MODEL TODAY, AND THIS CLASS PERMITS EXACTLY
+  // THAT NOTHING. findUnique, findUniqueOrThrow and count: no write of any
+  // shape, and no way to page through the table. Nothing in src/app/ops,
+  // src/app/actions/ops or src/lib/ops reads an invitation, and no operation in
+  // the frozen registry (src/lib/ops/registry.ts) creates or answers one —
+  // inviting is an admin's act on their own console and accepting is the
+  // teacher's, and neither of them is an operator.
+  //
+  // WHY NOT ADULT_READABLE, WHICH IS WHAT THE TASK ASKED FOR. Two reasons, and
+  // the first is the one that decided it.
+  //
+  //   1. THE REGISTER. ADULT_READABLE permits an unrestricted findMany, and a
+  //      findMany here is a list of every teacher currently being courted by a
+  //      school. That is the same objection MailSuppression above earned its
+  //      own classification with, in the same words: answering "does this one
+  //      teacher have an open offer" is support, and listing them is a
+  //      register. Nobody has asked for that screen and nobody should be able
+  //      to page through it.
+  //   2. THE WRITES. ADULT_READABLE also permits create, update, updateMany and
+  //      upsert. OPS-MUTATION-MODULE confines those to
+  //      src/lib/ops/operations.ts, so it would not be a write from anywhere —
+  //      but it would still pre-authorise an operator operation that offers one
+  //      adult's account, and the pupils in their classes, to a school. That is
+  //      Establishment's objection below: a classification that silently
+  //      pre-authorises a thing nothing else in the design allows is the wrong
+  //      classification, however little data is at stake.
+  //
+  // WHAT IT WITHHOLDS, STATED PLAINLY, because the argument for reading it is
+  // not empty. It is an ACCOUNT EVENT ABOUT TWO NAMED ADULTS — that this
+  // teacher has been asked by this school, by this colleague, and has not yet
+  // answered. TeacherPasswordToken is in CREDENTIAL_NEVER partly for that exact
+  // sentence ("a particular teacher is mid-reset or has an unopened
+  // invitation"), and SAFEGUARDING rule 5's "admins are not all-seeing" applies
+  // to adults' employment as much as to children's work.
+  //
+  // WHY IT STOPS HERE AND DOES NOT GO TO CREDENTIAL_NEVER. Two things.
+  // There is no credential, so the class name would have to be read past — the
+  // objection that kept Establishment out of PLATFORM_CONTENT below. And the
+  // fresh-invite version of this fact is ALREADY fully readable: Teacher is
+  // ADULT_READABLE, so `status: "INVITED"` beside a `schoolId` says the same
+  // thing about a brand-new colleague. The genuinely new fact is narrower —
+  // that an ESTABLISHED teacher has a pending offer from a school they are not
+  // in — and it does not need to be browsable in order to be looked up if a
+  // support question ever needs it.
+  //
+  // THIS IS THE PARAGRAPH TO ARGUE WITH. If an ops invitation screen is ever
+  // proposed, the case has to be made here, against the register objection
+  // above, and it has to name the operation and put it in the registry. Do not
+  // move the model up a class to make a screen compile.
+  //
+  // What it does NOT do:
+  //   - no write of any shape. Not create, not update, not updateMany, not
+  //     upsert, not delete.
+  //   - no findMany, no findFirst, no aggregate, no groupBy.
+  //   - it is deliberately absent from `adultTargets` below, so the three
+  //     relation names that point at it — `invitations` on School,
+  //     `schoolInvitations` and `sentSchoolInvitations` on Teacher — are
+  //     treated as relations to a non-adult model and refused under the ops
+  //     roots. That is the same consequence PLATFORM_CONTENT and
+  //     PUBLIC_REFERENCE below both accept in so many words, and it is the
+  //     right one here: nothing may gain a path to an invitation by traversing
+  //     a Teacher or a School it is already allowed to read.
+  "SchoolInvitation",
 ];
 
 // StoryJar's OWN published teaching content, and the least sensitive model in
@@ -328,6 +402,48 @@ const LOOKUP_ONLY = [
 //     not try.
 const PLATFORM_CONTENT = ["SharedActivity"];
 
+// Public reference data about INSTITUTIONS, published by somebody else under an
+// open licence. Read-only, and the least sensitive class in this gate.
+//
+// WIDENING (PR-school-identity step 1, ruling R2: a widening lands in the same
+// commit as the code it permits, with a comment naming the rule and a fixture
+// proving the true positive still fires — bad-ops-writes-establishment.txt).
+// Establishment was refused as OPS-MODEL-UNKNOWN until this class existed, which
+// is the drift check working.
+//
+// WHY A NEW CLASS AND NOT ADULT_READABLE, which is what the plan asked for.
+// ADULT_READABLE permits create, update, updateMany and upsert. Putting the
+// register there would mean the gate ALREADY permitted an ops screen to bulk
+// write twenty thousand rows — and docs/school-identity-launch.md keeps the
+// import a hand-run script precisely on the grounds that such a screen "would
+// need the gate widened to permit a bulk write of twenty thousand rows". A
+// classification that silently pre-authorises the thing the design refuses is
+// the wrong classification, however little data is at stake. The import is
+// scripts/gias-import.ts, in the repository, reviewable in a pull request and
+// impossible to fat-finger in production, and that is the only way rows get in.
+//
+// WHY NOT PLATFORM_CONTENT, which has exactly the right methods. Its name and
+// its comment say "StoryJar's OWN published teaching content". GIAS data is
+// neither ours nor teaching content, and a class name that has to be read past
+// is a class name the next person will file something wrong under.
+//
+// WHY AN OPERATOR MAY READ IT AT ALL. There is no person in the table: a URN, a
+// school name, a postcode, a local authority, a phase and a town, every one of
+// them already published by the DfE under the Open Government Licence. Answering
+// "is this teacher's school in the register?" is ordinary support, and the
+// register tile on /ops/health is a count and a date.
+//
+// What it does NOT do:
+//   - no write of any shape. Not create, not update, not upsert, not delete.
+//   - it does not exempt the model from the banned-identifier rule. `postcode`
+//     is on DENY_FIELDS (see the note there), so an ops file naming the column
+//     still fails, and a row read without a `select:` is still refused by the
+//     projection rule below.
+//   - it is deliberately absent from `adultTargets`, so nothing gains a relation
+//     path through it. Today it has no relations at all; when Teacher.urn lands
+//     in step 3 it is a scalar join key, not a Prisma relation, on purpose.
+const PUBLIC_REFERENCE = ["Establishment"];
+
 // No read of any shape, not even a count that could confirm a specific row.
 // Session and MagicToken hold live sign-in credentials. AuditLog.detail is free
 // text written by teacher-facing actions and routinely contains a child's first
@@ -352,6 +468,25 @@ const CREDENTIAL_NEVER = [
   "ApiToken",
   "OAuthClient",
   "OAuthGrant",
+  // The teacher password token (F61). One row is a live, single-use credential
+  // for setting a named teacher's password, so it belongs in the strictest
+  // class in this gate for the same reason MagicToken does — and the fact that
+  // the column stores a SHA-256 digest rather than the token does not soften
+  // that: what an operator would learn from a read here is not the secret, it
+  // is that a particular teacher is mid-reset or has an unopened invitation,
+  // which is an account event about a named adult and rule 5's "admins are not
+  // all-seeing" applies to it.
+  //
+  // A TIGHTENING, not a widening (ruling R2), landing in the same commit as the
+  // model: the drift check refused it as OPS-MODEL-UNKNOWN until it was
+  // classified here, and the class it landed in permits nothing at all — no
+  // read, no count, no confirmation that a row exists.
+  //
+  // Support does not need it. A teacher who did not receive their invitation
+  // asks a colleague to send another, and the operator's view of whether mail
+  // is leaving at all is MailCounter, which counts messages and knows nothing
+  // about who they were for.
+  "TeacherPasswordToken",
   // Parent–teacher messages (SAFEGUARDING rule 21). The AuditLog precedent
   // applies word for word: AuditLog sits here because its free text "routinely
   // contains a child's first name", and a message between a parent and a
@@ -467,6 +602,9 @@ const METHODS_BY_CLASS = {
   OPS_OWNED: PRISMA_METHODS,
   // Read-only, and no write of any shape. See the comment on PLATFORM_CONTENT.
   PLATFORM_CONTENT: ["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count"],
+  // Read-only, and no write of any shape. Same list as PLATFORM_CONTENT and for
+  // the same reason: rows get in through a reviewed script, never from a screen.
+  PUBLIC_REFERENCE: ["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count"],
 };
 
 // ---------------------------------------------------------------------------
@@ -523,6 +661,11 @@ const DENY_FIELDS = [
   "keyHash",
   "codeHash",
   "refreshHash",
+  // The password-reset / staff-invite token (F61). Stronger than the three
+  // above: those grant a teacher's activity library, this sets their password.
+  // Denied by name as well as by the model's CREDENTIAL_NEVER class, which is
+  // why it is called resetHash and not tokenHash — see the note on the model.
+  "resetHash",
   "redirectUrisJson",
   // Child work and per-child state
   "caption",
@@ -588,6 +731,30 @@ const DENY_FIELDS = [
   "codeHash",
   "refreshHash",
   "redirectUrisJson",
+  // NOT a credential and not child data, and it is on this list anyway. Read
+  // this one before copying it as a precedent.
+  //
+  // `Establishment.postcode` (PR-school-identity step 1) trips
+  // SENSITIVE_NAME_PATTERNS on /code$/i — the pattern that exists for
+  // familyCode and classCode. That is a false positive: a school's postcode is
+  // published by the DfE under an open licence and identifies a building, not a
+  // person. The drift check's message offers two ways out, "add it to
+  // DENY_FIELDS, or say in a comment why an operator may read it", and only the
+  // first is implemented — the loop tests denySet and nothing else.
+  //
+  // Building the second way out was considered and rejected. An exemption keyed
+  // on a field NAME is global: exempting "postcode" would silence the drift
+  // check on the day somebody puts a postcode on Parent, which is a home
+  // address for a child. Denying it costs nothing instead — no operator screen
+  // needs a school's postcode, the register tile on /ops/health is a count and
+  // a date, and the establishment picker is a teacher-facing search that never
+  // runs under the ops roots. So the strict answer is also the free one.
+  //
+  // What this entry does: an ops file may not name the column, and because
+  // Establishment permits row reads, a read of it without a `select:` is
+  // refused by the projection rule. What it does not do: it makes no claim that
+  // a postcode is a secret.
+  "postcode",
 ];
 
 // Documented pending entries: named in the SAFEGUARDING amendments table but
@@ -928,6 +1095,63 @@ const ALLOWED_LOCAL_IMPORTS = [
   // bad-ops-imports-mail-counters.txt, which prove the two halves that must
   // stay out reachable are still refused.
   "@/lib/mailStatus",
+  // WIDENING (PR5, ruling R2: a widening lands in the same commit as the code
+  // it permits, with a comment naming the rule and a fixture proving the true
+  // positive still fires). The fifth entry is @/lib/mailHmac.
+  //
+  // Why it is needed. reads.ts imports mailAddressHmac() to look up a
+  // suppressed address by its HMAC label, and mailHmacConfigured() to decide
+  // whether the feature is active. The function was originally at
+  // src/lib/ops/mailHmac.ts. It was moved to src/lib/mailHmac for the same
+  // reason mailStatus was moved: instrumentation.ts (the in-app scheduler, PR5
+  // F31) needs mailAddressHmac to HMAC each address before writing, and a
+  // non-ops file that imports from @/lib/ops/ is walked and scanned as ops
+  // code — which then flags its mailSuppression.upsert() as OPS-MUTATION-MODULE.
+  // src/lib/ops/mailHmac.ts is now a re-export wrapper so reads.ts keeps working.
+  //
+  // Why this module rather than @/lib/ops/mailHmac. The wrapper in ops is still
+  // under the ops roots and therefore always permitted by ALLOWED_LOCAL_PREFIXES;
+  // this entry covers the re-export's own import of @/lib/mailHmac.
+  //
+  // What this widening does NOT do: it does not permit the sync module itself
+  // (@/lib/mailSuppressionSync) — that holds db.mailSuppression.upsert(), and
+  // permitting it here would be the OPS-MUTATION-MODULE bypass in an import
+  // list. The near miss is proved by bad-ops-imports-sync-module.txt.
+  //
+  // The true positive still fires, proved by bad-ops-imports-sync-module.txt
+  // (an ops file importing @/lib/mailSuppressionSync, the near miss this
+  // widening invites), and the clean shape by good-ops-mail-hmac-import.txt.
+  "@/lib/mailHmac",
+  // WIDENING (PR-school-identity step 1, ruling R2: a widening lands in the same
+  // commit as the code it permits, with a comment naming the rule and a fixture
+  // proving the true positive still fires). The sixth entry is
+  // @/lib/establishmentRegister.
+  //
+  // Why it is needed. The register tile on /ops/health has to find the last run
+  // of the import, and finding it means knowing the one string the import writes
+  // into JobRun.job. Two copies of that string — one in the script, one in
+  // reads.ts — would agree the day they were written and disagree the first time
+  // either is renamed, and the failure is silent: the tile would say the register
+  // has never been imported, on a screen whose entire purpose is to be believed
+  // about staleness.
+  //
+  // What is in it: one job key, two functions that format and re-read a date, and
+  // the licence attribution string. No Prisma, no filesystem, no fetch, no
+  // `server-only`, and nothing that does work.
+  //
+  // Why this module rather than the obvious one. The obvious import is
+  // @/lib/establishmentSearch, which is where a reader would expect the register's
+  // helpers to live, and permitting THAT would be a real widening: it names the
+  // column `postcode`, which is on DENY_FIELDS below, so it would fail the moment
+  // it was scanned as ops code — and the wrong fix for that would be to un-deny
+  // the column. The two were split for exactly this reason, the same split as
+  // @/lib/mailStatus against @/lib/mailer.
+  //
+  // The true positive still fires, proved by
+  // bad-ops-imports-establishment-search.txt (an ops file importing
+  // @/lib/establishmentSearch, the near miss this widening invites), and the clean
+  // shape by good-ops-establishment-count.txt.
+  "@/lib/establishmentRegister",
 ];
 const ALLOWED_LOCAL_PREFIXES = ["@/lib/ops/"];
 
@@ -1167,18 +1391,87 @@ const SENSITIVE_NAME_PATTERNS = [
 
 function importSpecsOf(code) {
   const specs = [];
+
+  // ONE definition of what a module specifier may contain, shared by every
+  // pattern below INCLUDING `typeRe`, which is declared after the array.
+  //
+  // That separation is not incidental: `typeRe` is exactly the pattern the first
+  // sweep of this fault missed, because it is declared somewhere else. Sharing
+  // the class means a sixth pattern cannot quietly use a different one.
+  //
+  // WHY IT IS CONSTRAINED RATHER THAN `[^"']+` (FINDINGS F54)
+  //
+  // `[^"']+` will happily capture anything that is not a quote, including code
+  // and prose. Combined with a lazy `[\s\S]*?` before `from`, a string literal
+  // ending in the word `from` puts a CLOSING quote exactly where the pattern
+  // expects an opening one, and the capture then runs to the next quote in the
+  // file:
+  //     export const note = "a phrase ending in from";
+  //     const path = "@/lib/ops/session";
+  //   captured specifier: `";\nconst path = "`
+  // It is the same closing-quote-as-opening fault as F52 and as the bare-import
+  // form below. A constrained class cannot express that capture at all, which is
+  // the shape `scripts/select-suites.mjs` already uses: a misread quote fails to
+  // match rather than swallowing arbitrary content.
+  //
+  // THE COLON IS LOAD-BEARING AND IS THE REASON THIS IS MEASURED, NOT REASONED.
+  //
+  // A first candidate omitted `:` and would have stopped capturing `node:fs`,
+  // `node:fs/promises` and `node:crypto` — 108 real specifiers. That is not a
+  // stricter gate, it is NO gate: `OPS-FILESYSTEM` fires on
+  // `FS_IMPORT_SPECS.includes(spec)`, so a specifier that is never captured is a
+  // rule that never runs, and the check standing between an ops file and the
+  // volume holding children's media (rule 7) would have gone quiet with nothing
+  // turning red. Measured across 506 files: this class accepts all 238 real
+  // specifiers and rejects only a template literal in one spec file.
+  // `good-ops-node-fs-still-caught.txt` is the fixture that keeps it that way.
+  //
+  // If a real specifier is ever rejected, WIDEN THIS ONE CLASS. Do not add a
+  // second, looser pattern.
+  const SPEC = String.raw`[A-Za-z0-9@._~/:$-]+`;
+
   const patterns = [
-    /\bimport\s+type\s[\s\S]*?\bfrom\s*["']([^"']+)["']/g,
-    /\bimport\s+(?!type\s)[\s\S]*?\bfrom\s*["']([^"']+)["']/g,
-    /\bimport\s*["']([^"']+)["']/g,
-    /\bexport\s+type\s[\s\S]*?\bfrom\s*["']([^"']+)["']/g,
-    /\bexport\s+(?!type\s)[\s\S]*?\bfrom\s*["']([^"']+)["']/g,
-    /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g,
-    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+    new RegExp(String.raw`\bimport\s+type\s[\s\S]*?\bfrom\s*["'](${SPEC})["']`, "g"),
+    new RegExp(String.raw`\bimport\s+(?!type\s)[\s\S]*?\bfrom\s*["'](${SPEC})["']`, "g"),
+    // The bare side-effect form, `import "server-only"`. Anchored to a statement
+    // position — start of line, after `;`, `{` or `}`, or after a block comment
+    // that closes on the same line — and NOT merely to a word boundary.
+    //
+    // `\bimport\s*["']` was the original and it had the F52 fault in it: `\s*`
+    // permits zero characters, so the word `import` at the END of a string
+    // literal matched, taking that string's CLOSING quote as an opening one and
+    // capturing everything up to the next quote. A perfectly ordinary ops read
+    //     where: { job: "gias:import" },
+    //     orderBy: [{ startedAt: "desc" }],
+    // was therefore reported as importing the package
+    //     " },\n    orderBy: [{ startedAt: "
+    // and refused as off-allowlist.
+    //
+    // `\*\/` is an alternation and NOT a member of the character class, which
+    // matters: adding a bare `/` would make the second slash of a `//` comment a
+    // valid prefix, so `// import "server-only" is deliberately absent` would be
+    // read as a real import again — one of the ten prose matches this anchoring
+    // exists to remove.
+    //
+    // `)` is deliberately absent. `if (a) import "x";` is not valid JavaScript —
+    // an ImportDeclaration is only legal at module-item position — so there is
+    // no case to catch, and a string containing `) import "` is likelier than
+    // any real import.
+    //
+    // This is NOT a relaxation. Every real spelling still matches, including no
+    // space (`import"./x"`) and two on one line (`import "a"; import "b";`).
+    new RegExp(String.raw`(?:^|[;{}]|\*\/)\s*import\s*["'](${SPEC})["']`, "gm"),
+    new RegExp(String.raw`\bexport\s+type\s[\s\S]*?\bfrom\s*["'](${SPEC})["']`, "g"),
+    new RegExp(String.raw`\bexport\s+(?!type\s)[\s\S]*?\bfrom\s*["'](${SPEC})["']`, "g"),
+    new RegExp(String.raw`\brequire\s*\(\s*["'](${SPEC})["']\s*\)`, "g"),
+    new RegExp(String.raw`\bimport\s*\(\s*["'](${SPEC})["']\s*\)`, "g"),
   ];
   const typeOnly = new Set();
   let m;
-  const typeRe = /\b(?:import|export)\s+type\s[\s\S]*?\bfrom\s*["']([^"']+)["']/g;
+  const typeRe = new RegExp(
+    String.raw`\b(?:import|export)\s+type\s[\s\S]*?\bfrom\s*["'](${SPEC})["']`,
+    "g",
+  );
   while ((m = typeRe.exec(code))) typeOnly.add(m[1]);
   for (const re of patterns) {
     re.lastIndex = 0;
@@ -1971,6 +2264,7 @@ const classified = [
   [CREDENTIAL_NEVER, "CREDENTIAL_NEVER"],
   [OPS_OWNED, "OPS_OWNED"],
   [PLATFORM_CONTENT, "PLATFORM_CONTENT"],
+  [PUBLIC_REFERENCE, "PUBLIC_REFERENCE"],
 ];
 for (const [list, klass] of classified) {
   for (const model of list) {
@@ -2043,10 +2337,19 @@ for (const [field, owners] of fieldOwners) {
   // those models cannot be read by ops in any case — the model ban is absolute
   // and comes first — so demanding a denylist entry for the NAME adds nothing,
   // and for a name the operator's own tables also use it would take something
-  // away. `tokenHash` is exactly that: it is `ApiToken.tokenHash`, which ops may
-  // never touch, and it is `OperatorSession.tokenHash`, which is how the
-  // operator's own session is looked up (`src/lib/ops/session.ts`) and which
-  // this gate's own note under "token" points at as the right column to use.
+  // away. `tokenHash` is exactly that: it is `OperatorSession.tokenHash`, which
+  // is how the operator's own session is looked up (`src/lib/ops/session.ts`)
+  // and which this gate's own note under "token" points at as the right column
+  // to use.
+  //
+  // This paragraph used to say `tokenHash` was also `ApiToken.tokenHash`. It
+  // never was — that column is `keyHash`, and the schema comment beside it says
+  // it was named that way precisely to avoid this collision. So the stated
+  // reason for the exemption named a column that does not exist, while the
+  // exemption itself was right. Corrected 25 August 2026, alongside F61's
+  // `resetHash`, which was briefly written as `tokenHash` and renamed for the
+  // same reason `keyHash` was: a name the denylist can never hold is a name
+  // protected by one control instead of two.
   // Banning the name outright would fail the door's own code; leaving the drift
   // check to demand it would be asking for a ban that must not be granted.
   //
@@ -2085,7 +2388,15 @@ const projectionRequired = new Map();
 for (const [model, klass] of modelClass) {
   // PLATFORM_CONTENT joins these two: it permits row reads, and it owns the
   // denylisted payload column names, so a bare findMany would return them.
-  if (klass !== "ADULT_READABLE" && klass !== "LOOKUP_ONLY" && klass !== "PLATFORM_CONTENT") continue;
+  // PUBLIC_REFERENCE joins them for the same reason: it permits row reads and it
+  // owns `postcode`, so a bare findMany would return the denied column.
+  if (
+    klass !== "ADULT_READABLE" &&
+    klass !== "LOOKUP_ONLY" &&
+    klass !== "PLATFORM_CONTENT" &&
+    klass !== "PUBLIC_REFERENCE"
+  )
+    continue;
   const denied = (schema.get(model)?.fields ?? [])
     .filter((f) => !schema.has(f.type) && denySet.has(f.name))
     .map((f) => f.name);

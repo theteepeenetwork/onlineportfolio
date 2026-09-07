@@ -44,19 +44,51 @@
 // ---------------------------------------------------------------------------
 // Templates
 // ---------------------------------------------------------------------------
-// One entry, because one template is sent. src/lib/emailTemplates.ts also
-// exports staffInviteEmail(), and nothing calls sendMail with it: the only
-// sendMail call site in the application is requestMagicLink in
-// src/app/actions/family.ts. A second entry here today would put a permanently
-// empty row on the operator screen, which reads as "no sign-in mail has gone
-// out" rather than "this kind of mail does not exist yet". Add it in the same
-// commit as its send path.
-export const MAIL_TEMPLATE_KEYS = ["magic-link"] as const;
+// Five entries, because five templates are sent. The rule this list is kept
+// by: a key is added in the SAME COMMIT as the code that sends that mail, never
+// before. An entry with no send path behind it puts a permanently empty row on
+// the operator screen, and an empty row reads as "no mail of this kind has gone
+// out" — an operator chasing a teacher who never got their invitation would be
+// looking at a screen telling them the send is broken, when in fact the feature
+// did not exist. "staff-invite" waited here for exactly that reason:
+// staffInviteEmail() was written months before anything called it.
+//
+// The labels name the RECIPIENT as well as the mail, because the operator
+// screen lists them together and "Password reset" alone would leave an operator
+// wondering whether it covers their own door. It does not: an operator's
+// recovery is docs/ops-recovery.md and sends no mail.
+//
+// "email-confirm" arrives with `emailConfirmationEmail()` and the two purchase
+// routes that send it, in one commit, by the rule above. It is the one row on
+// this screen an operator should expect to be SMALL and to matter a lot: it is
+// sent only when somebody presses Buy without a proved address, so a run of
+// failures on it is a run of schools that could not pay
+// (docs/dpo-decisions.md, 2 Sep 2026).
+//
+// "school-invitation" arrives with `src/lib/schoolInvite.ts` and the
+// schoolless-account branch of `inviteStaff`, in one commit, by the rule above.
+// It is a SEPARATE key from "staff-invite" rather than a second use of it,
+// which is worth stating because the two are deliberately indistinguishable on
+// the admin's own screen: an operator asking "did that teacher get told?" is
+// asking about a different message with a different failure mode (this one
+// mints nothing and cannot expire in a mailbox), and collapsing them would make
+// a run of failures on one look like ordinary noise in the other.
+export const MAIL_TEMPLATE_KEYS = [
+  "magic-link",
+  "password-reset",
+  "staff-invite",
+  "email-confirm",
+  "school-invitation",
+] as const;
 
 export type MailTemplateKey = (typeof MAIL_TEMPLATE_KEYS)[number];
 
 export const MAIL_TEMPLATE_LABEL: Record<MailTemplateKey, string> = {
   "magic-link": "Parent sign-in link",
+  "password-reset": "Teacher password reset",
+  "staff-invite": "Staff invitation",
+  "email-confirm": "Email confirmation before buying",
+  "school-invitation": "Invitation for a teacher who already has an account",
 };
 
 // ---------------------------------------------------------------------------

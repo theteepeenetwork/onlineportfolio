@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, asOperator } from "../helpers";
+import { SCHOOL_A, SCHOOL_B, SCHOOL_C, loginTeacher, asOperator, withoutOwnPath } from "../helpers";
 import { BATTERY_STRIPE_KEY } from "../stripeFixtureKey";
 import { stripeLiveMode } from "@/lib/stripeMode";
 import { MIN_CELL } from "@/lib/ops/dto";
@@ -81,7 +81,7 @@ const CODES = [
 ];
 
 async function bodyText(page: Page): Promise<string> {
-  return (await page.textContent("body")) ?? "";
+  return withoutOwnPath((await page.textContent("body")) ?? "");
 }
 
 function card(page: Page, schoolName: string) {

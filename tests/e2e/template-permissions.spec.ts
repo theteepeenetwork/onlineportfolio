@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { teacherLogin, logout } from "./helpers";
+import { teacherLogin, logout, demoClassCode } from "./helpers";
 
 // What a child may do to the teacher's worksheet — through EVERY route, not
 // just the ones the corner controls offer.
@@ -40,13 +40,15 @@ async function assignTemplateWithAShape(page: Page, title: string) {
   await page.getByRole("button", { name: /Save to library/ }).click();
   await page.waitForURL((u) => /^\/teacher\/activities\/[^/]+$/.test(u.pathname));
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((u) => u.searchParams.has("run"));
 }
 
 async function openAsChild(page: Page, title: string) {
   await logout(page);
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   await page.getByRole("button", { name: "Finn", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/student");
   await page.goto("/student/activities");
@@ -94,7 +96,7 @@ test("a child's own work is still theirs to cut, copy and delete", async ({ page
   // The gate is about whose object it is, not about being a child — otherwise
   // it would take away the shortcuts on their own drawing too.
   await logout(page);
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   await page.getByRole("button", { name: "Finn", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/student");
   await page.goto("/student/new/drawing");
@@ -118,7 +120,7 @@ test("a child is not offered the page structure controls", async ({ page }) => {
   // Deleting a page of their OWN drawing is a separate, older permission and is
   // deliberately left alone.
   await logout(page);
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   await page.getByRole("button", { name: "Finn", exact: true }).click();
   await page.waitForURL((u) => u.pathname === "/student");
   await page.goto("/student/new/drawing");

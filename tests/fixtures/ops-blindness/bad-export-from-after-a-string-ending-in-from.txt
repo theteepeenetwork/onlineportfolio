@@ -1,0 +1,20 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-IMPORT-ALLOWLIST
+// A real off-allowlist `export … from`, in a file that ALSO contains a string
+// literal ending in the word `from`.
+//
+// The string is the trap and the export is the thing that must still be caught.
+// Before F54 the pattern could enter at the string's closing quote and capture
+// the code between two literals instead, which meant the genuine specifier on
+// the last line was never examined at all. So this fixture asserts the half that
+// matters: the real import is still found, with a decoy in front of it.
+import { db } from "@/lib/db";
+
+export const note = "a phrase ending in from";
+const wherePupilsCome = "the register";
+
+export { sendMail } from "@/lib/mailer";
+
+export async function count() {
+  return db.establishment.count();
+}

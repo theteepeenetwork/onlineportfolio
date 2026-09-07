@@ -1,3 +1,4 @@
+import { demoClassCode } from "./helpers";
 import { test, expect } from "@playwright/test";
 import { studentCopy } from "@/lib/copy/student";
 import { resolveAgeMode, type AgeMode } from "@/lib/ageMode";
@@ -86,11 +87,11 @@ for (const mode of MODES) {
 }
 
 // End-to-end: the class's register actually reaches the child's screen. The
-// demo seeds Sunflower (SUN234) younger and Ladybird (BUG456) older, so signing
+// demo seeds Sunflower younger and Ladybird (BUG456) older, so signing
 // into each shows the matching sign-out wording. This is the proof the ageMode
 // is threaded through, not just that the copy object is correct.
 test("a younger class shows the younger register on the jar", async ({ page }) => {
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   await page.getByRole("button", { name: "Amara", exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/student");
   await expect(page.getByRole("button", { name: "Bye bye 👋" })).toBeVisible();
@@ -109,7 +110,7 @@ test("an older class shows the older register on the jar", async ({ page }) => {
 // no jar picture, "journal" wording.
 test("a younger class keeps the jar; an older class becomes a journal", async ({ page }) => {
   // Younger (Sunflower / SUN234): the jar, and jar wording.
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   await page.getByRole("button", { name: "Amara", exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/student");
   await expect(page.getByText("Amara's jar", { exact: true })).toBeVisible();
@@ -134,7 +135,7 @@ test("the older register renders a tighter type scale", async ({ page }) => {
     await page.goto(`/login/student?code=${code}`);
     return page.locator("h1").first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   };
-  const younger = await h1Size("SUN234"); // KS1
+  const younger = await h1Size(await demoClassCode()); // KS1
   const older = await h1Size("BUG456"); // KS2
   expect(older).toBeLessThan(younger);
   expect(older / younger).toBeCloseTo(0.85, 1); // ~15% tighter, off the switch

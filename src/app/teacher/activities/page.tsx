@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { jsonArray, templateThumb } from "@/lib/activities";
+import { canPublish } from "@/lib/libraryPublishing";
 import { ActivityLibrary, type TemplateSummary, type FolderInfo } from "./ActivityLibrary";
 
 export default async function ActivityLibraryPage() {
@@ -70,5 +71,16 @@ export default async function ActivityLibraryPage() {
 
   const folderInfos: FolderInfo[] = folders.map((f) => ({ id: f.id, name: f.name, color: f.color }));
 
-  return <ActivityLibrary templates={summaries} classes={classes} folders={folderInfos} />;
+  // False at every real school. The Publishing link is drawn only for StoryJar
+  // staff signed in at the Academy; the screen behind it 404s to anybody else.
+  const mayPublish = await canPublish(user.teacher.id);
+
+  return (
+    <ActivityLibrary
+      templates={summaries}
+      classes={classes}
+      folders={folderInfos}
+      canPublish={mayPublish}
+    />
+  );
 }

@@ -35,6 +35,11 @@ const ROUTES = [
   ["/ops", "operator console"],
   ["/ops/schools", "schools list"],
   ["/ops/lookup", "adult lookup"],
+  // Both read-only, and both held to the same empty baseline as the rest. The
+  // Academy screen is the one with a data table on it, which is where a missing
+  // accessible name or a header without a scope would show up first.
+  ["/ops/library", "shared library uptake"],
+  ["/ops/academy", "StoryJar Academy reference"],
 ] as const;
 
 async function assertStrictNoViolations(page: Page, where: string) {

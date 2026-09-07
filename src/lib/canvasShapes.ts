@@ -168,10 +168,28 @@ export type ShapeGeom = {
   lockAspect?: boolean;
 };
 
-// The four operators a primary maths worksheet is built from.
-export type OperatorKind = "add" | "subtract" | "multiply" | "divide";
+// The operators a primary maths worksheet is built from. The four arithmetic
+// signs came first; the three comparisons arrived with the fan toolbar, because
+// a teacher building "which is bigger?" was reaching for a text box and getting
+// a glyph that took none of the fill and line controls the other signs take.
+export type OperatorKind =
+  | "add"
+  | "subtract"
+  | "multiply"
+  | "divide"
+  | "equals"
+  | "less"
+  | "greater";
 
-export const OPERATOR_KINDS: OperatorKind[] = ["add", "subtract", "multiply", "divide"];
+export const OPERATOR_KINDS: OperatorKind[] = [
+  "add",
+  "subtract",
+  "multiply",
+  "divide",
+  "equals",
+  "less",
+  "greater",
+];
 
 // What each one is called where a child or a screen reader meets it. Words, not
 // glyphs: "×" read aloud is not reliably "times".
@@ -180,6 +198,9 @@ export const OPERATOR_LABEL: Record<OperatorKind, string> = {
   subtract: "Subtract",
   multiply: "Multiply",
   divide: "Divide",
+  equals: "Equals",
+  less: "Less than",
+  greater: "Greater than",
 };
 
 export function clampOperator(v: unknown): OperatorKind {
@@ -639,6 +660,42 @@ function crossPoints(arm: number, half: number): [number, number][] {
   ];
 }
 
+// A polyline drawn with a thickness, mitred at its joints. The comparison
+// signs are one bent stroke, and two overlapping bars would show the seam the
+// plus and the times were written as one path to avoid.
+function thickPolyline(pts: [number, number][], t: number): [number, number][] {
+  const normals: [number, number][] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const dx = pts[i + 1][0] - pts[i][0];
+    const dy = pts[i + 1][1] - pts[i][1];
+    const len = Math.hypot(dx, dy) || 1;
+    normals.push([-dy / len, dx / len]);
+  }
+  // The offset at a joint is the mitre: the average of the two normals, grown
+  // by 1/cos(half the turn) so the band keeps its thickness round the bend.
+  const offsetAt = (i: number): [number, number] => {
+    if (i === 0) return normals[0];
+    if (i === pts.length - 1) return normals[normals.length - 1];
+    const a = normals[i - 1];
+    const b = normals[i];
+    const mx = a[0] + b[0];
+    const my = a[1] + b[1];
+    const len = Math.hypot(mx, my) || 1;
+    const ux = mx / len;
+    const uy = my / len;
+    const cos = Math.max(0.25, ux * a[0] + uy * a[1]);
+    return [ux / cos, uy / cos];
+  };
+  const left: [number, number][] = [];
+  const right: [number, number][] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const [ox, oy] = offsetAt(i);
+    left.push([pts[i][0] + ox * t, pts[i][1] + oy * t]);
+    right.push([pts[i][0] - ox * t, pts[i][1] - oy * t]);
+  }
+  return [...left, ...right.reverse()];
+}
+
 function operatorParts(o: ShapeGeom): ShapePart[] {
   const { w, h } = o;
   const cx = w / 2;
@@ -702,6 +759,42 @@ function operatorParts(o: ShapeGeom): ShapePart[] {
           role: "outline",
         },
       ];
+    }
+    case "equals": {
+      // Two bars with a gap of about one bar between them, so the pair reads as
+      // an equals rather than as a squashed divide. One part, because they are
+      // the symbol together.
+      const barHalf = Math.min(half * 0.7, h * 0.18);
+      const gap = barHalf * 2.2;
+      const rail = (yc: number) =>
+        roundedPolygon(
+          [
+            [cx - w * 0.42, yc - barHalf],
+            [cx + w * 0.42, yc - barHalf],
+            [cx + w * 0.42, yc + barHalf],
+            [cx - w * 0.42, yc + barHalf],
+          ],
+          Math.min(radius, barHalf * 0.8),
+        );
+      return [{ d: [rail(cy - gap), rail(cy + gap)].join(" "), role: "outline" }];
+    }
+    case "less":
+    case "greater": {
+      // One bent stroke, pointing left for "less than" and right for
+      // "greater than". Sized off the short side so it stays a sign in a box
+      // that is not square.
+      const reach = short * 0.34;
+      const rise = short * 0.36;
+      const dir = kind === "less" ? -1 : 1;
+      const pts = thickPolyline(
+        [
+          [cx - dir * reach, cy - rise],
+          [cx + dir * reach, cy],
+          [cx - dir * reach, cy + rise],
+        ],
+        half * 0.9,
+      );
+      return [{ d: roundedPolygon(pts, radius), role: "outline" }];
     }
   }
 }
@@ -1160,7 +1253,7 @@ const MATHS_KIT: Kit = {
     },
     {
       id: "operators",
-      label: "Signs",
+      label: "Symbols",
       // Shapes, not letters, so a child sets their fill and line exactly as
       // they would on a circle — and so they land in the hand-in as geometry
       // rather than as a font that may not be installed. Square boxes: these
@@ -1170,6 +1263,12 @@ const MATHS_KIT: Kit = {
         { id: "m-op-subtract", kind: "operator", operator: "subtract", label: "Subtract sign", w: 180, h: 180, fill: "#E2725B" },
         { id: "m-op-multiply", kind: "operator", operator: "multiply", label: "Multiply sign", w: 180, h: 180, fill: "#8FBDB2" },
         { id: "m-op-divide", kind: "operator", operator: "divide", label: "Divide sign", w: 180, h: 180, fill: "#F0B441" },
+        // The three comparisons. Same box, same "… sign" naming, so a screen
+        // reader hears the same kind of thing it hears for the four above and
+        // "Add" is never ambiguous with the ＋ that opens the toolbox.
+        { id: "m-op-equals", kind: "operator", operator: "equals", label: "Equals sign", w: 180, h: 180, fill: "#D8ECE8" },
+        { id: "m-op-less", kind: "operator", operator: "less", label: "Less than sign", w: 180, h: 180, fill: "#8AB9D6" },
+        { id: "m-op-greater", kind: "operator", operator: "greater", label: "Greater than sign", w: 180, h: 180, fill: "#E08A9B" },
       ],
     },
   ],

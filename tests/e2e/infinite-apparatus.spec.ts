@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { teacherLogin, logout } from "./helpers";
+import { teacherLogin, logout, demoClassCode } from "./helpers";
 
 // Endless apparatus: a teacher marks a placed counter or base-10 block as a
 // source, and a child drags copies off it.
@@ -87,13 +87,15 @@ async function buildTemplateWithSource(page: import("@playwright/test").Page, ti
   await page.waitForURL((url) => /^\/teacher\/activities\/[^/]+$/.test(url.pathname));
 
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((url) => url.searchParams.has("run"));
 }
 
 async function openAsChild(page: import("@playwright/test").Page, title: string) {
   await logout(page);
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   // Finn, not Ella: shapes.spec.ts relies on Ella having no other waiting work,
   // and one of the tests below hands work in.
   await page.getByRole("button", { name: "Finn", exact: true }).click();

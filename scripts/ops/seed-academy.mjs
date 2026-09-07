@@ -86,8 +86,19 @@ async function main() {
 
   let school = await db.school.findFirst({ where: { name: SCHOOL_NAME } });
   if (!school) {
+    // `verifiedAt` on creation, not left null. The Academy is where StoryJar
+    // staff rehearse the ordinary path, and an unverified school cannot
+    // reassign a class, remove an ACTIVE colleague or promote an admin — so a
+    // null here would make the sandbox stop resembling the thing it rehearses,
+    // which is the one thing this school exists not to do. Seeds run under
+    // `db push`, which never applies migrations, so the backfill in
+    // 20260902090000_school_claim does not reach a freshly pushed database.
+    //
+    // Set only on CREATE. The update branch below re-asserts the two flags that
+    // are this school's whole point and must not silently re-verify a school
+    // somebody deliberately unverified while testing the gates.
     school = await db.school.create({
-      data: { name: SCHOOL_NAME, kind: "DEMO", canPublishToLibrary: true },
+      data: { name: SCHOOL_NAME, kind: "DEMO", canPublishToLibrary: true, verifiedAt: new Date() },
     });
     console.log(`  created the school`);
   } else {

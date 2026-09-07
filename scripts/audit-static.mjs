@@ -37,8 +37,8 @@ const DSIH_ALLOWLIST = [
     why: "Renders a QR SVG produced by the `qrcode` library from the class-code sign-in URL — machine-generated vector shapes, not user HTML (finding F9, reviewed).",
   },
   {
-    file: "src/app/teacher/students/[studentId]/letter/page.tsx",
-    why: "Same pattern, reviewed: a QR SVG from the `qrcode` library for the /family sign-in URL. The URL is built from the request host and a fixed path, carries no family code and no user text, so nothing user-supplied reaches the markup.",
+    file: "src/components/storyjar/FamilyLetter.tsx",
+    why: "Same pattern, reviewed: a QR SVG from the `qrcode` library for the /family sign-in URL, built in `src/lib/familyLetterQr.ts` from the request host and a fixed path. It carries no family code and no user text, so nothing user-supplied reaches the markup. This use MOVED here from src/app/teacher/students/[studentId]/letter/page.tsx when the letter was extracted for the whole-class sheet; the markup is byte-identical and both the single letter and /teacher/class/[classId]/letters now render through this one component, so there is one reviewed use rather than two.",
   },
 ];
 
@@ -113,6 +113,47 @@ function scan(file) {
 
 walk(APP, scan);
 for (const dir of SEARCHABLE) walk(dir, scanForControlBytes);
+checkSignInLinksAreGuarded();
+
+// ---------------------------------------------------------------------------
+// A sign-in URL may only reach the browser behind signInLinkMayBeShown().
+// ---------------------------------------------------------------------------
+//
+// F19 already has a blocking spec, and it asserts the RULE:
+// signInLinkMayBeShown("production") is false. What nothing asserted is that
+// any particular action asks it. The pure function can be perfect while a new
+// action returns a link without consulting it, and that is exactly the shape
+// F19 was in before it was found — an implicit `if` in a server action where no
+// gate could see it.
+//
+// It stopped being hypothetical on 25 August 2026: F61 added a SECOND action
+// that mints a single-use URL, for a teacher's password rather than a parent's
+// session. `requestPasswordReset` does consult the policy. Nothing would have
+// noticed if it had not, and the next one is the one to worry about.
+//
+// So: any server action that hands a caller a field named `openUrl` must
+// mention `signInLinkMayBeShown` in the same file. Deliberately a coarse check —
+// it proves the decision is CONSULTED, not that it is obeyed, which is what a
+// reviewer is for. Coarse and present beats exact and absent.
+function checkSignInLinksAreGuarded() {
+  walk(APP, (file) => {
+    if (!/\.tsx?$/.test(file)) return;
+    const src = readFileSync(file, "utf8");
+    if (!/^\s*["']use server["']/m.test(src)) return;
+    if (!/\bopenUrl\b/.test(src)) return;
+    // The IMPORT, not a mention. A comment saying "callers must put it through
+    // signInLinkMayBeShown()" satisfied the first version of this check, which
+    // is precisely the sort of gate that reports green over a hole — caught by
+    // deleting the guard and watching it stay green.
+    if (/import\s*\{[^}]*\bsignInLinkMayBeShown\b[^}]*\}\s*from/.test(src)) return;
+    const rel = path.relative(process.cwd(), file);
+    violations.push(
+      `${rel}  returns an \`openUrl\` without consulting signInLinkMayBeShown(). ` +
+        `A sign-in or set-password URL on screen in production is a complete account ` +
+        `takeover for anyone who can type somebody's address (FINDINGS F19, F61).`,
+    );
+  });
+}
 
 if (violations.length) {
   console.error("✖ Static security gate failed:\n");

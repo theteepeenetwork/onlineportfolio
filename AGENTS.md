@@ -94,12 +94,41 @@ three lanes at once, which is the isolation CI gets from three runners, on one
 machine. `PW_SHARDS=1` turns it off; `PW_SHARDS=4` on a bigger machine turns it
 up. Nothing is skipped: `--shard` splits by file.
 
+**The lanes are the runner's, and it now says so.** Before it generates,
+pushes or seeds anything, `run-suites.mjs` binds each lane's port and **refuses
+to start if one is taken**, because both configs set `reuseExistingServer: true`
+— so a lane handed a port somebody else is already on adopts that server and
+never starts its own, while still seeding `dev-shard-N.db` and driving a server
+reading a different database. The two ways that happens are a stray
+`PORT=3201 npm run dev` (the suite then drives `prisma/dev.db`, and the persona
+journeys *delete* staff, classes and access) and a second battery run on the
+same tree, which owns these ports and these databases and reseeds under the
+first one's feet. Each lane's database is also removed and recreated at the
+start of a run rather than only at the end, so an interrupted run cannot leave a
+file whose schema belongs to another branch. Build caches are deliberately left
+alone: measured, the same 29 specs took 33.2s cold and 30.4s warm, so clearing
+`.next-lane-*` costs a recompile and buys nothing. If you need the ports for
+something else, move the block with `PW_BASE_PORT`.
+
 The cost of three lanes on a four-core machine is that a single test can lose a
 race it would never lose alone: three dev servers compiling at once have twice
 pushed a `waitForURL` past its budget — once on the operator door's keyboard
 walk, once on a child handing in words. Both passed alone in a second or two. So
 **a lone timeout in a lane run is a re-run before it is a bug**: run that spec
 by itself, and believe the second answer. Anything that fails both ways is real.
+
+**A *cluster* of timeouts in one product area is the same advice, and looks
+much more like a regression.** On 2026-08-24 a run came back 5 failed / 78
+passed on one e2e shard in 1 hour 32, every failure in the canvas-object specs,
+with Playwright blaming `objects.spec.ts (17.1m)` and `object-lock.spec.ts
+(16.3m)`. Those files run in about two seconds. Cold, alone, they passed in 33s;
+the whole 252-test e2e suite across the same three lanes passed in 2.1 minutes;
+the entire blocking battery passed in 5.7. What was actually true was
+`sysctl vm.swapusage` reading **9.4 GB used of a 10 GB swap file before the run
+began**, on a 16 GB machine. A starved machine stretches a two-second file to
+seventeen minutes and everything holding a `waitForURL` goes red together. Check
+memory pressure and re-run the named files alone before reading a line of test
+code.
 
 The lanes run `next dev`, not a shared `next build`, and that is deliberate
 however tempting the 30-second build looks. A production build is a different
@@ -170,3 +199,77 @@ gate and `main`.
   voice ("I could not find…"), because the output is read by whoever has to fix
   it. Reserve `blocker` for "could not do the job" and errors — a severity that
   is used for taste is a severity that gets muted.
+
+# Run the battery cold
+
+Kill the dev server and clear `.next`, `.next-lane-*` and the shard databases
+before any run you intend to believe. A warm server made one full run take
+**1 hour 3 minutes**; the same suites cold took **5.4 minutes**. Worse than the
+time, a warm server started without `OPS_ENABLED` produced three false operator
+"blockers" in a persona run, because every operator journey died at
+`/ops/sign-in` with a 404. For persona runs of the operator surface, use
+`OPS_ENABLED=1 npm run test:personas` against a cold server.
+
+# Where things are written down
+
+Everything an agent or a person needs is in the repository. Nothing important
+lives only in a chat session.
+
+**Binding, read before you change the thing they govern**
+
+| Document | Governs |
+| --- | --- |
+| [`SAFEGUARDING.md`](./SAFEGUARDING.md) | Auth, access control, the approval queue, children's data, uploads. Rule 1. |
+| [`RETENTION.md`](./RETENTION.md) | What is kept, for how long, and what deletion means |
+| [`docs/DPIA.md`](./docs/DPIA.md) | The data protection impact assessment, and what is still open before sign-off |
+| [`docs/exceptional-access.md`](./docs/exceptional-access.md) | Any access to a child's data that does not come through a StoryJar screen |
+| [`docs/brand-and-copy.md`](./docs/brand-and-copy.md) | Anything published in StoryJar's name, including pricing claims |
+
+**Product and design**
+
+| Document | Covers |
+| --- | --- |
+| [`docs/product-overview.md`](./docs/product-overview.md) | The one-page orientation: audience, features, age modes, pricing, exclusions, competitors |
+| [`docs/AGE_MODE_COPY.md`](./docs/AGE_MODE_COPY.md) | The child-facing copy for each register, approved |
+| [`docs/canvas-toolbox.md`](./docs/canvas-toolbox.md) | The parameterised shape kits: decisions, constraints, phasing |
+| [`docs/showcase-template-ideas.md`](./docs/showcase-template-ideas.md) + [`docs/template-design-sheet.html`](./docs/template-design-sheet.html) | The shared activity library and the house style, including where the line sits with schools |
+| [`docs/library-publishing.md`](./docs/library-publishing.md) | How StoryJar staff publish to the shared library from the Academy, why it is not an operator screen, and the security assertion that changed to allow it |
+| [`docs/claude-connector.md`](./docs/claude-connector.md) | What the MCP connector can and cannot touch, and what to tell a school |
+
+**Decisions, dated**
+
+| Document | Covers |
+| --- | --- |
+| [`docs/pricing-decisions.md`](./docs/pricing-decisions.md) | Pricing and packaging |
+| [`docs/dpo-decisions.md`](./docs/dpo-decisions.md) | Data protection decisions taken as data protection lead |
+| [`docs/ops-architecture.md`](./docs/ops-architecture.md) | The operator programme. An owner decision here outranks the handbook and the briefs |
+| [`docs/admin-billing-and-import.md`](./docs/admin-billing-and-import.md) | The admin Billing tab and paste-a-class-list, and the four billing bugs fixed alongside them |
+| [`docs/billing-safeguarding-review.md`](./docs/billing-safeguarding-review.md) | The safeguarding checklist worked through for the billing gate |
+| [`docs/policy-readiness.md`](./docs/policy-readiness.md) | What has to be true before the "Draft for review" banner comes off |
+
+**Plans, not yet built**
+
+| Document | Covers |
+| --- | --- |
+| [`docs/school-identity.md`](./docs/school-identity.md) | The GIAS establishment register, and who owns a school. A `School` row cannot be created by anything a user can reach today, so admin, school plans and messaging are all unreachable for real signups |
+| [`docs/parent-teacher-messages.md`](./docs/parent-teacher-messages.md) | Parent–teacher messages held to school office hours. Reverses the REJECT verdict in `COMPETITIVE_POSITIONING.md` and needs SAFEGUARDING rule 21. Depends on `docs/school-identity.md` |
+| [`docs/paid-tier-plan.md`](./docs/paid-tier-plan.md) | Making the school plan worth buying. **Item 0 is self-serve purchase and comes first**: no real account can create a `School`, so nobody can buy without the founder. Then year-end transfer, the procurement pack, admin-requested export, the stored band. Year-end transfer and whole-school export are sold in point-of-sale copy today and are not built |
+
+**Launch and operations**
+
+| Document | Covers |
+| --- | --- |
+| [`docs/launch-runway.md`](./docs/launch-runway.md) | The plan to 1 September 2026. Supersedes `LAUNCH_PLAN.md`, which is stale |
+| [`docs/launch-triage.md`](./docs/launch-triage.md) | Wave 1 evidence from the four surface leads |
+| [`docs/launch-batch-b.md`](./docs/launch-batch-b.md) | Batch B, the Railway variables table, and the Batch A outcome |
+| [`docs/ops-recovery.md`](./docs/ops-recovery.md) | How the operator gets back in. Read it while you can still sign in |
+| [`docs/ops-facts.md`](./docs/ops-facts.md), [`docs/ops-backup-options.md`](./docs/ops-backup-options.md) | The briefs checked against the repository; the backup options for decision D2 |
+| [`docs/TEST_LOGINS.md`](./docs/TEST_LOGINS.md) | Every fixture account, all four roles. Fictional data only, forever |
+| [`docs/agent-fleet.md`](./docs/agent-fleet.md) | Running several Claude sessions on this repo at once |
+| [`docs/MANUAL_USABILITY_KIT.md`](./docs/MANUAL_USABILITY_KIT.md) | Running a moderated session with real teachers |
+
+**What is deliberately not here.** This repository is public. Live credentials,
+DNS and mailbox administration, social and LinkedIn account state, the current
+Railway environment, and anything identifying a real person stay out of it, in
+the owner's own notes. If a task needs one of those, ask rather than writing it
+down here.

@@ -46,10 +46,13 @@ export function ActivityLibrary({
   templates,
   classes,
   folders,
+  canPublish = false,
 }: {
   templates: TemplateSummary[];
   classes: ClassInfo[];
   folders: FolderInfo[];
+  /** True only at StoryJar Academy. See the Publishing link below. */
+  canPublish?: boolean;
 }) {
   const [folder, setFolder] = useState<string>(ALL);
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -164,6 +167,19 @@ export function ActivityLibrary({
         >
           StoryJar library <span aria-hidden>→</span>
         </Link>
+
+        {/* Absent for every teacher at every real school. It appears only where
+            School.canPublishToLibrary is set, which is StoryJar Academy — the
+            school StoryJar's own staff work in. The screen behind it answers
+            404 to anybody else, so this is the signpost and not the lock. */}
+        {canPublish && (
+          <Link
+            href="/teacher/activities/library"
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", font: "700 14px var(--font-atkinson)", color: "var(--paper)", background: "var(--ink)", border: "2px solid var(--ink)", borderRadius: 999, padding: "9px 16px", minHeight: 42, boxSizing: "border-box" }}
+          >
+            Publishing <span aria-hidden>→</span>
+          </Link>
+        )}
       </div>
 
       {inFolder.length > 0 && shown.length === 0 ? (

@@ -31,8 +31,6 @@ export function MomentRecord({
   stickers,
   arrivedBadge,
   praiseNote,
-  heartedBack,
-  heartLabel,
 }: {
   title: string;
   dateLabel: string;
@@ -49,8 +47,6 @@ export function MomentRecord({
   stickers: ReactNode;
   arrivedBadge: ReactNode;
   praiseNote: string | null;
-  heartedBack: boolean;
-  heartLabel: string;
 }) {
   const [page, setPage] = useState(0);
   const at = Math.min(page, Math.max(0, pages.length - 1));
@@ -209,30 +205,20 @@ export function MomentRecord({
         </nav>
       )}
 
-      {(praiseNote || heartedBack) && (
+      {/* The teacher's kind note. The child reads it and sends nothing back —
+          the one-tap heart reply that used to sit beneath this was removed on
+          2026-08-24 as a product decision (see src/app/actions/journal.ts). */}
+      {praiseNote && (
         <div style={{ padding: "12px 20px 16px" }}>
-          {praiseNote && (
-            <p
-              style={{
-                margin: 0,
-                font: "400 calc(15px * var(--sj-type-scale, 1))/1.4 var(--font-atkinson)",
-                color: "var(--ink-soft)",
-              }}
-            >
-              💬 “{praiseNote}”
-            </p>
-          )}
-          {heartedBack && (
-            <p
-              style={{
-                margin: "6px 0 0",
-                font: "700 calc(14px * var(--sj-type-scale, 1)) var(--font-atkinson)",
-                color: "var(--jam)",
-              }}
-            >
-              {heartLabel}
-            </p>
-          )}
+          <p
+            style={{
+              margin: 0,
+              font: "400 calc(15px * var(--sj-type-scale, 1))/1.4 var(--font-atkinson)",
+              color: "var(--ink-soft)",
+            }}
+          >
+            💬 “{praiseNote}”
+          </p>
         </div>
       )}
     </article>

@@ -5,15 +5,23 @@
 //
 // The owner's first constraint is that the library is curated, not community:
 // only StoryJar publishes, and no teacher may publish, share or submit an
-// activity in this version or by accident. The enforceable version of that is
-// that publishing does not exist in the application at all. It lives here, in
-// the repository, so the library is version controlled, reviewable in a pull
-// request, and cannot be fat-fingered in production at eleven at night.
+// activity by accident. This script is the version-controlled road in: the
+// library is reviewable in a pull request and cannot be fat-fingered in
+// production at eleven at night.
 //
-// An operator screen for this belongs in the operator console later and is
-// deliberately out of scope. When it arrives it will need its own audit trail
-// and its own thinking about who may publish; a text field in an admin panel is
-// not that.
+// THIS IS NO LONGER THE ONLY ROAD, as of 1 September 2026. StoryJar staff can
+// now publish from inside the application, signed in at StoryJar Academy — see
+// docs/library-publishing.md. Both roads upsert on `slug`, so they do not
+// fight, but be clear about the consequence: THE DATABASE IS THE TRUTH AND THIS
+// MANIFEST IS THE BASELINE. It is how a fresh environment is filled and how art
+// ships with the repository. It is not a mirror of production, and reading it
+// as one will mislead you.
+//
+// It is still not an OPERATOR screen, and that is deliberate rather than
+// pending. Authoring needs the canvas, template payload reads and filesystem
+// writes, all of which the ops blindness gate refuses under its roots; the
+// publish step lives with the person who built the activity, on the school
+// surface, and the operator console holds a read-only view at /ops/library.
 //
 // scripts/ops/ is deliberately outside the ops blindness gate's roots: these
 // scripts run on the server with full database access by design and are

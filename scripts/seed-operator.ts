@@ -6,9 +6,17 @@ import { hashRecoveryCodes, newRecoveryCodes, RECOVERY_CODE_COUNT } from "../src
 import { formatSecretForTyping, newTotpSecret, totpEnrolmentUri } from "../src/lib/ops/totp";
 
 // ---------------------------------------------------------------------------
-// Create the one platform operator account. Run once, by hand, per environment:
+// Create the one platform operator account. Run once, by hand, per environment.
+// In production that means inside the container, because that is where the
+// database is:
 //
-//     railway run npx tsx scripts/seed-operator.ts you@example.com
+//     railway ssh
+//     npx tsx scripts/seed-operator.ts you@example.com
+//
+// NOT `railway run`. That injects the production variables into a process on
+// your own machine, and DATABASE_URL is `file:/data/prod.db` on the Railway
+// volume, which is not mounted there — the variables travel, the file does not,
+// and Prisma fails with SQLite error 14. See FINDINGS.md F44.
 //
 // WHAT THIS SCRIPT WILL NOT DO, AND WHY
 //

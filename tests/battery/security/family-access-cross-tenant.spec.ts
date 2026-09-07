@@ -422,3 +422,122 @@ test("a family with no email is unreachable by a sign-in link, and a blank box m
     await db.parent.deleteMany({ where: { id: family.id } });
   }
 });
+
+// ---------------------------------------------------------------------------
+// The whole-class sheet: /teacher/class/[classId]/letters
+//
+// It is the same ownership question asked with a CLASS id instead of a pupil
+// id, which makes it a new front door on the highest-stakes check in the
+// product. One page renders every family code in a class, and one action mints
+// codes for a whole register at once, so a scoping mistake here leaks thirty
+// families rather than one.
+//
+// Paired positive and negative on the same actor, per the convention at the top
+// of this file.
+// ---------------------------------------------------------------------------
+
+async function klass(classCode: string) {
+  const found = await db.class.findFirst({ where: { classCode }, select: { id: true, name: true } });
+  expect(found, `fixture class ${classCode}`).not.toBeNull();
+  return found!;
+}
+
+async function familyCount(classId: string) {
+  return db.parent.count({ where: { children: { some: { classId } } } });
+}
+
+test("LETTERS: a teacher opens their own class sheet and not another school's", async ({ page }) => {
+  const sunflower = await klass(SCHOOL_A.classCode);
+  const acorn = await klass(SCHOOL_B.classCode);
+
+  await loginTeacher(page, SCHOOL_B.teacher);
+
+  // Positive control: their own class sheet renders.
+  expect(await fetchStatus(page, `/teacher/class/${acorn.id}/letters`)).toBe(200);
+
+  // Negative: School A's class is not found, exactly as a tampered id would be.
+  expect(await fetchStatus(page, `/teacher/class/${sunflower.id}/letters`)).toBe(404);
+});
+
+test("LETTERS: the sheet prints a code per family and never rotates one", async ({ page }) => {
+  const acorn = await klass(SCHOOL_B.classCode);
+  await loginTeacher(page, SCHOOL_B.teacher);
+
+  const before = await db.parent.findMany({
+    where: { children: { some: { classId: acorn.id } } },
+    select: { id: true, familyCode: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  await page.goto(`/teacher/class/${acorn.id}/letters`);
+  await expect(page.getByRole("heading", { name: /Family letters for/ })).toBeVisible();
+
+  // Every existing code is on the paper, character by character: the tiles
+  // render one <span> per character, so assert on the page text instead.
+  const text = (await page.locator("body").innerText()).replace(/\s+/g, "");
+  for (const family of before) {
+    expect(text, `${family.familyCode} should be printed`).toContain(family.familyCode);
+  }
+
+  // And printing changed nothing. A letter already sent home keeps working.
+  const after = await db.parent.findMany({
+    where: { children: { some: { classId: acorn.id } } },
+    select: { id: true, familyCode: true },
+    orderBy: { createdAt: "asc" },
+  });
+  expect(after, "opening the sheet must not rotate or create anything").toEqual(before);
+});
+
+test("MINT ALL: a teacher cannot mint family codes across another school's class", async ({ page }) => {
+  const sunflower = await klass(SCHOOL_A.classCode);
+  const acorn = await klass(SCHOOL_B.classCode);
+
+  await loginTeacher(page, SCHOOL_B.teacher);
+  await page.goto(`/teacher/class/${acorn.id}/letters`);
+
+  const sunflowerBefore = await familyCount(sunflower.id);
+  const acornBefore = await db.parent.findMany({
+    where: { children: { some: { classId: acorn.id } } },
+    select: { id: true },
+  });
+
+  // The button only exists while somebody in the class has no code, and the
+  // positive control below removes that state. So the NEGATIVE runs first,
+  // while the form is still on the page to tamper with. Ordering it the other
+  // way silently skips the negative on a fixture where the positive succeeded,
+  // which is exactly the "passed for the wrong reason" trap this file warns
+  // about at the top.
+  const MINT = "Make codes for the";
+  const mint = page.getByRole("button", { name: new RegExp(MINT) });
+  expect(
+    await mint.count(),
+    "fixture expectation: Acorn has at least one child without a family code, so the mint button is on the page",
+  ).toBeGreaterThan(0);
+
+  await tamper(page, MINT, { classId: sunflower.id });
+  await mint.click();
+  await page.waitForLoadState("networkidle");
+  expect(
+    await familyCount(sunflower.id),
+    "a School B teacher minted family codes across a School A class",
+  ).toBe(sunflowerBefore);
+
+  // Positive control on the same actor and the same button: their own class.
+  try {
+    await page.goto(`/teacher/class/${acorn.id}/letters`);
+    await page.getByRole("button", { name: new RegExp(MINT) }).click();
+    await expect
+      .poll(async () => db.student.count({ where: { classId: acorn.id, parents: { none: {} } } }), {
+        message: "one press should leave nobody in their own class without a code",
+      })
+      .toBe(0);
+  } finally {
+    // Put the fixture back: delete only the rows this test made.
+    await db.parent.deleteMany({
+      where: {
+        children: { some: { classId: acorn.id } },
+        id: { notIn: acornBefore.map((f) => f.id) },
+      },
+    });
+  }
+});

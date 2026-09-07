@@ -73,8 +73,14 @@ async function main() {
 
   // The demo teacher is also the admin of their school, so the /admin space is
   // reachable from the seeded login.
+  // `verifiedAt` is set explicitly, and every seed has to do it. Seeds run under
+  // `prisma db push`, which builds the schema directly and NEVER applies
+  // migrations, so 20260902090000_school_claim's backfill does not reach a
+  // seeded database. A fixture school with a null `verifiedAt` would silently
+  // lose class reassignment, staff removal and admin promotion, and the failure
+  // would surface three suites away from the seed that caused it.
   const school = await db.school.create({
-    data: { name: "St Bede’s Primary" },
+    data: { name: "St Bede’s Primary", verifiedAt: new Date() },
   });
 
   // The demo school is evaluating the school plan on its 42-day trial, so the
@@ -428,6 +434,25 @@ async function main() {
       familyCode: "FAM123",
       children: { connect: [{ id: sun[0].id }, { id: lady[0].id }] },
     },
+  });
+
+  // EVERY FIXTURE TEACHER HAS A PROVED EMAIL ADDRESS.
+  //
+  // `Teacher.emailConfirmedAt` gates the two CLAIM purchase routes
+  // (docs/dpo-decisions.md, 2 Sep 2026), and null is the honest default for a
+  // real signup — StoryJar has asked nobody to open a link. A fixture is not a
+  // real signup: a fixture that could not buy would fail every purchase spec
+  // for a reason that has nothing to do with what those specs are about.
+  //
+  // Done in ONE PASS at the end rather than field by field on each create, so
+  // that a teacher added later cannot be forgotten. A spec that needs an
+  // UNPROVED teacher builds its own — see
+  // tests/battery/security/email-confirmation-before-buying.spec.ts, which does
+  // exactly that, and would silently stop testing anything if it relied on a
+  // fixture this line could change under it.
+  await db.teacher.updateMany({
+    where: { emailConfirmedAt: null },
+    data: { emailConfirmedAt: new Date() },
   });
 
   console.log("✅ Seeded demo data (library-first activities).");

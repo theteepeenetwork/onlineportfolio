@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/icons/Icon";
 import { jsonArray, templateThumb, type RunSummary } from "@/lib/activities";
 import { ClearMarkedDraft } from "@/components/ClearMarkedDraft";
+import { canPublish } from "@/lib/libraryPublishing";
 import { TemplateActions } from "./TemplateActions";
 
 function fmtDate(d: Date) {
@@ -29,6 +30,15 @@ export default async function TemplateDetail({
     where: { id, teacherId: user.teacher.id },
     include: {
       assignments: {
+        // ONLY RUNS IN CLASSES THIS TEACHER STILL TEACHES (F66). Without the
+        // class filter this join walked assignments → class → students on the
+        // strength of template authorship alone, so an author whose class had
+        // been reassigned in September still read the new teacher's full
+        // roster — every pupil's first name, avatar and per-child status. The
+        // work itself was already out of reach (the pupil page is class-scoped),
+        // which is what kept this a leak of names and progress rather than of
+        // children's work.
+        where: { class: { teacherId: user.teacher.id } },
         include: {
           class: {
             select: { id: true, name: true, students: { select: { id: true, name: true, avatarColor: true }, orderBy: { name: "asc" } } },
@@ -46,6 +56,11 @@ export default async function TemplateDetail({
     orderBy: { createdAt: "asc" },
     include: { students: { orderBy: { name: "asc" }, select: { id: true, name: true, avatarColor: true } } },
   });
+
+  // False at every real school, so the publish control is not drawn there at
+  // all. The action re-asks the same question server-side; this only decides
+  // what is rendered.
+  const mayPublish = await canPublish(user.teacher.id);
 
   // LIVE runs first, then by newest.
   const runs = [...template.assignments].sort((a, b) => {
@@ -115,9 +130,15 @@ export default async function TemplateDetail({
             </div>
           </div>
           <TemplateActions
-            template={{ id: template.id, title: template.title, thumb: templateThumb(template) }}
+            template={{
+              id: template.id,
+              title: template.title,
+              thumb: templateThumb(template),
+              librarySlug: template.librarySlug,
+            }}
             classes={classes}
             pastRuns={pastRuns}
+            canPublish={mayPublish}
           />
         </div>
 

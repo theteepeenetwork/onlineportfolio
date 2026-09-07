@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useActionState } from "react";
 import { createJournalItem } from "@/app/actions/journal";
@@ -8,6 +8,7 @@ import { PhotoCapture } from "@/components/PhotoCapture";
 import { AudioCapture } from "@/components/AudioCapture";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { studentCopy } from "@/lib/copy/student";
+import { useCaptureDraft } from "@/lib/captureDraft";
 import type { AgeMode } from "@/lib/ageMode";
 
 // The child's jar used to send them to a separate capture page per tile
@@ -47,7 +48,7 @@ function revealWrap(open: boolean): React.CSSProperties {
   };
 }
 
-export function AddToJar({ mode }: { mode: AgeMode }) {
+export function AddToJar({ mode, studentId }: { mode: AgeMode; studentId: string }) {
   const [open, setOpen] = useState<Surface | null>(null);
   const c = studentCopy(mode).add;
 
@@ -82,7 +83,7 @@ export function AddToJar({ mode }: { mode: AgeMode }) {
       {(["photo", "voice", "words"] as const).map((s) => (
         <div key={s} style={revealWrap(open === s)}>
           <div style={{ overflow: "hidden", minHeight: 0 }}>
-            {open === s && <CaptureSurface type={CAPTURE_TYPE[s]} mode={mode} />}
+            {open === s && <CaptureSurface type={CAPTURE_TYPE[s]} mode={mode} studentId={studentId} />}
           </div>
         </div>
       ))}
@@ -109,15 +110,34 @@ function Tile({ tile, open, onClick }: { tile: (typeof TILES)[number]; open: boo
 // StudentCapture, minus the full-page chrome (no back link, no heading — the
 // tile above is the heading). Same hidden fields, same Server Action, so the
 // item posts and lands PENDING exactly as before.
-function CaptureSurface({ type, mode }: { type: "PHOTO" | "AUDIO" | "TEXT"; mode: AgeMode }) {
+function CaptureSurface({
+  type,
+  mode,
+  studentId,
+}: {
+  type: "PHOTO" | "AUDIO" | "TEXT";
+  mode: AgeMode;
+  studentId: string;
+}) {
   const [state, action, pending] = useActionState(createJournalItem, {});
   const c = studentCopy(mode).add;
+  // Only the open tile is mounted, so without this a child who writes a
+  // sentence and then taps Photo loses the sentence on the spot — no reload
+  // required. See src/lib/captureDraft.ts.
+  const draft = useCaptureDraft(studentId, type);
+
+  // A bounced submit keeps its words: they are still on screen and still the
+  // child's, so they go back into storage rather than being lost to the
+  // tidy-up that runs when the form is sent.
+  useEffect(() => {
+    if (state?.error) draft.save(draft.text, draft.caption);
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     // paddingBottom leaves room for the submit button's 5px drop shadow: a
     // box-shadow adds no layout height, so without it the accordion's
     // overflow:hidden wrapper clips the last few pixels of the shadow.
-    <form action={action} style={{ paddingTop: 22, paddingBottom: 8, borderTop: "2px dashed #e4dcc8", marginTop: 22 }}>
+    <form action={action} onSubmit={draft.clear} style={{ paddingTop: 22, paddingBottom: 8, borderTop: "2px dashed #e4dcc8", marginTop: 22 }}>
       <input type="hidden" name="type" value={type} />
 
       {type === "PHOTO" ? (
@@ -133,6 +153,8 @@ function CaptureSurface({ type, mode }: { type: "PHOTO" | "AUDIO" | "TEXT"; mode
             id="words"
             name="textContent"
             rows={6}
+            value={draft.text}
+            onChange={(e) => draft.setText(e.target.value)}
             placeholder={c.wordsPlaceholder}
             style={{ width: "100%", boxSizing: "border-box", font: "400 calc(22px * var(--sj-type-scale, 1))/1.6 var(--font-atkinson)", padding: "16px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)", resize: "vertical" }}
           />
@@ -151,6 +173,8 @@ function CaptureSurface({ type, mode }: { type: "PHOTO" | "AUDIO" | "TEXT"; mode
           <input
             id="caption"
             name="caption"
+            value={draft.caption}
+            onChange={(e) => draft.setCaption(e.target.value)}
             placeholder={c.captionPlaceholder}
             style={{ width: "100%", boxSizing: "border-box", marginTop: 8, minHeight: 64, font: "400 calc(22px * var(--sj-type-scale, 1)) var(--font-atkinson)", padding: "14px 18px", border: "3px solid var(--ink)", borderRadius: 16, background: "var(--cream)", color: "var(--ink)" }}
           />

@@ -4,7 +4,7 @@ export const metadata = { title: "Cookie Policy — StoryJar" };
 
 export default function Cookies() {
   return (
-    <LegalShell title="Cookie Policy" intro="StoryJar uses the smallest possible number of cookies. We do not use any analytics, advertising or tracking cookies.">
+    <LegalShell title="Cookie Policy" policyKey="cookies" intro="StoryJar uses the smallest possible number of cookies. We do not use any analytics, advertising or tracking cookies.">
       <h2>What we use</h2>
       <p>StoryJar sets one <strong>strictly necessary</strong> cookie:</p>
       <table>
@@ -28,7 +28,7 @@ export default function Cookies() {
       </p>
 
       <h2>Changes</h2>
-      <p>If we ever introduced a non-essential cookie, we would ask for consent first and update this page. <em>[Confirm with the data protection lead before adding any new cookie or third-party script.]</em></p>
+      <p>If we ever introduced a non-essential cookie, we would ask for consent first and update this page.</p>
     </LegalShell>
   );
 }

@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { GIAS_IMPORT_JOB, formatImportDetail } from "@/lib/establishmentRegister";
 
 // ---------------------------------------------------------------------------
 // Test fixtures for the QA battery (tenant isolation and friends).
@@ -84,7 +85,24 @@ async function main() {
   const DAY = 24 * 60 * 60 * 1000;
 
   const oak = await db.school.create({
-    data: { name: "Oakfield Primary" },
+    // VERIFIED AND CLAIMED, and the `urn` is the load-bearing half. Oakfield is
+    // the school that is ALREADY ON STORYJAR, so a spec has something for the
+    // duplicate-URN refusal to refuse — without a claimed URN in the fixtures
+    // that branch can only be tested by a test that first creates the thing it
+    // is about, which proves the code and not the product.
+    //
+    // 900200 has a matching fictional Establishment row seeded below. It sits
+    // outside both existing runs (900001–900007 and 900100–900124) so it cannot
+    // be swept up by the prefix-bound loop or by a search spec counting rows.
+    //
+    // `verifiedAt` is written by hand here and at every other school in the
+    // fixtures: seeds run under `prisma db push`, which builds the schema
+    // directly and NEVER applies migrations, so the backfill in
+    // 20260902090000_school_claim does not reach a seeded database. A fixture
+    // school left null would quietly lose class reassignment, staff removal and
+    // admin promotion, and the failure would surface three suites away from the
+    // seed that caused it.
+    data: { name: "Oakfield Primary", urn: "900200", verifiedAt: new Date() },
   });
   // Oakfield is on the free trial (full access) — mirrors School A.
   await db.subscription.create({
@@ -326,7 +344,12 @@ async function main() {
   //    moment lets us assert the frozen teacher can still read/download work.
   console.log("[seed-test] Appending School C (Larchwood, FROZEN) …");
   const larch = await db.school.create({
-    data: { name: "Larchwood Primary" },
+    // Verified, and FROZEN. The two are independent and the fixture proves it:
+    // Larchwood paid once and then lapsed, so the money did arrive. Billing
+    // status is what `requireWritableAccount` reads; `verifiedAt` is what the
+    // three admin gates read. Collapsing them would make School C a fixture for
+    // both at once and a negative control for neither.
+    data: { name: "Larchwood Primary", verifiedAt: new Date(Date.now() - 200 * DAY) },
   });
   await db.subscription.create({
     data: {
@@ -590,6 +613,200 @@ async function main() {
   });
 
   // -------------------------------------------------------------------------
+  // School D = StoryJar Studio, the ONE fixture school that may publish.
+  //
+  // It stands in for StoryJar Academy, which is seeded separately by
+  // scripts/ops/seed-academy.mjs against a real environment and is far too big
+  // to belong in a test fixture. What matters here is the single bit the
+  // publishing gate reads: School.canPublishToLibrary. Every other fixture
+  // school leaves it at its default of false, which is what makes the
+  // cross-tenant refusals in shared-activities.spec.ts a real test rather than
+  // a test of an empty table.
+  //
+  // The template below carries its OWN background file, never a child's
+  // response media, for the same reason Oakfield's does: publishing copies the
+  // bytes of whatever the template references into the shared directory, and a
+  // fixture that pointed at a child's work would be a fixture that published
+  // one.
+  console.log("[seed-test] Appending School D (StoryJar Studio, may publish) …");
+  const studio = await db.school.create({
+    data: { name: "StoryJar Studio", kind: "DEMO", canPublishToLibrary: true, verifiedAt: new Date() },
+  });
+  await db.subscription.create({
+    data: { kind: "SCHOOL", status: "TRIAL", trialEndsAt: new Date(Date.now() + 42 * DAY), schoolId: studio.id },
+  });
+  const studioTeacher = await db.teacher.create({
+    data: {
+      name: "Nell Hartley",
+      title: "Ms",
+      displayStyle: "formal",
+      displayName: "Ms Hartley",
+      email: "publisher@studio.storyjar.co.uk",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "TEACHER",
+      status: "ACTIVE",
+      schoolId: studio.id,
+    },
+  });
+  const studioTmplBg = writeSvg("seed-studio-tmpl-bg.svg", OAK_SVG);
+  await db.activityTemplate.create({
+    data: {
+      title: "Studio worksheet",
+      instructions: "Draw what you noticed.",
+      templatePathsJson: JSON.stringify([studioTmplBg]),
+      tagsJson: JSON.stringify(["Studio"]),
+      teacherId: studioTeacher.id,
+    },
+  });
+
+  // -------------------------------------------------------------------------
+  // 5) School E = Pennyfields Primary. THE UNVERIFIED SCHOOL.
+  //
+  // Bought on the invoice / PO route and not yet paid for: an ACTIVE
+  // subscription, because finance holding an invoice for thirty days must not
+  // freeze a school (docs/paid-tier-plan.md item 0.4), and `verifiedAt: null`,
+  // because the money has not arrived.
+  //
+  // ACTIVE + unverified is the ONLY combination this fixture is for, and it is
+  // the combination that is easy to assume impossible. Billing status and
+  // verification are different facts read by different code: `settleStatus` and
+  // the write gate read the first, and the three admin gates read the second. A
+  // school that can teach normally all term while its head cannot reassign a
+  // class is not a broken state, it is the designed one, and School C
+  // (Larchwood: FROZEN but verified, because it paid once and lapsed) is the
+  // same point from the other side.
+  //
+  // One ADMIN, one ACTIVE teacher and one class, which is the minimum the gate
+  // specs need: an ACTIVE colleague to be refused a removal and a promotion, and
+  // a class to be refused a reassignment. Deliberately NO invited staff member —
+  // `removeStaff` on an INVITED row stays allowed while unverified, and a spec
+  // proving that needs to create the invitation itself so it can see the
+  // invitation being created.
+  //
+  // No pupils and no journal items. Nothing in the unverified gates reads a
+  // child, and a fixture that carried children's work would invite a spec to
+  // assert something about it here rather than where it belongs.
+  // -------------------------------------------------------------------------
+  console.log("[seed-test] Appending School E (Pennyfields, ACTIVE but UNVERIFIED) …");
+  const penny = await db.school.create({
+    data: { name: "Pennyfields Primary", verifiedAt: null },
+  });
+  await db.subscription.create({
+    data: { kind: "SCHOOL", status: "ACTIVE", schoolId: penny.id },
+  });
+  await db.teacher.create({
+    data: {
+      name: "Bea Okonkwo",
+      title: "Mrs",
+      displayStyle: "formal",
+      displayName: "Mrs Okonkwo",
+      email: "admin@pennyfields.sch.uk",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "ADMIN",
+      status: "ACTIVE",
+      schoolId: penny.id,
+    },
+  });
+  const pennyTeacher = await db.teacher.create({
+    data: {
+      name: "Idris Vaughan",
+      title: "Mr",
+      displayStyle: "formal",
+      displayName: "Mr Vaughan",
+      email: "teacher@pennyfields.sch.uk",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "TEACHER",
+      status: "ACTIVE",
+      schoolId: penny.id,
+    },
+  });
+  // Owned by the ordinary teacher rather than the admin, because the refusal the
+  // gate spec drives is the admin trying to move SOMEBODY ELSE'S class — which
+  // is the escalation `assignClassToStaff` is, and the reason it is gated at all
+  // (docs/school-identity.md §5).
+  await db.class.create({
+    data: { name: "Kestrel Class", yearGroup: "Year 4", classCode: "PENN44", teacherId: pennyTeacher.id },
+  });
+
+  // -------------------------------------------------------------------------
+  // A SCHOOLLESS FREE TEACHER, with a class and pupils of her own.
+  //
+  // The fixture phase 2 is about. `inviteStaff` refuses an email that already
+  // belongs to a teacher, so a teacher who signed up free in September cannot
+  // be brought into their school when it buys in January — and that refusal
+  // cannot be tested at all without somebody in exactly this state:
+  //
+  //   `schoolId: null`, an ACTIVE account, her OWN FREE plan, and children whose
+  //   work would change hands if she accepted an invitation.
+  //
+  // She belongs to NO school, which is the whole point, so she is seeded here
+  // rather than inside one of the five school blocks above.
+  //
+  // SHE HAS A FREE SUBSCRIPTION, AND IT IS NOT DECORATION. A teacher with no
+  // school and no subscription is precisely the stranded state
+  // tests/battery/security/removed-staff-keep-a-free-plan.spec.ts sweeps the
+  // whole table for, so a fixture without one would fail that blocking spec —
+  // in a file nobody would think to look in — rather than failing anything
+  // about invitations. It is also what makes her realistic: this is the row
+  // `createTeacherAccount` writes for every free signup.
+  //
+  // `schoolName` is free text and `urn` is null, which is the ordinary shape of
+  // a free signup: what she typed at the door, never checked against anything
+  // (docs/school-identity.md §5). Thornbury Lane is deliberately NOT one of the
+  // fictional Establishment rows seeded below, so nothing here looks like a
+  // register claim.
+  //
+  // PUPILS BUT NO JOURNAL ITEMS. The pupils are load-bearing: the acceptance
+  // screen's whole claim is that her classes AND THE CHILDREN IN THEM become
+  // the school's, and a fixture with an empty class could not prove anything
+  // moved. Children's WORK is left out on purpose — whether accepting an
+  // invitation may touch a draft is a question `class-handover.spec.ts` already
+  // guards at the cascade level, and a fixture carrying drafts here would
+  // invite a second, weaker assertion about it in the wrong file.
+  //
+  // Her `emailConfirmedAt` is stamped by the one-pass update at the end of this
+  // file, along with every other fixture teacher. Left null she would be
+  // refused at the purchase gate (docs/dpo-decisions.md, 2 Sep 2026) and a
+  // phase 2 spec would fail for a reason that has nothing to do with
+  // invitations.
+  //
+  // NOT ADDED TO prisma/seed-personas.ts. The persona journeys delete staff,
+  // classes and access, and must never touch the fixtures the blocking gates
+  // depend on.
+  // -------------------------------------------------------------------------
+  console.log("[seed-test] Appending a schoolless FREE teacher (no school at all) …");
+  const freeTeacher = await db.teacher.create({
+    data: {
+      name: "Nadia Brookfield",
+      title: "Miss",
+      displayStyle: "formal",
+      displayName: "Miss Brookfield",
+      email: "free.teacher@example.test",
+      passwordHash: await bcrypt.hash("password", 10),
+      schoolName: "Thornbury Lane Primary",
+      role: "TEACHER",
+      status: "ACTIVE",
+      // No schoolId. Stated as an absence rather than written as `null`,
+      // because the column's default is already null and a reader should see
+      // that nothing put her in a school rather than that something took her
+      // out of one.
+    },
+  });
+  await db.subscription.create({
+    data: { kind: "FREE", status: "ACTIVE", trialEndsAt: null, teacherId: freeTeacher.id },
+  });
+  const bluebell = await db.class.create({
+    data: { name: "Bluebell Class", yearGroup: "Year 2", classCode: "BLUE33", teacherId: freeTeacher.id },
+  });
+  await Promise.all(
+    ["Elsie", "Kofi", "Marnie"].map((name, i) =>
+      db.student.create({
+        data: { name, classId: bluebell.id, avatarColor: oakColors[i % oakColors.length] },
+      }),
+    ),
+  );
+
+  // -------------------------------------------------------------------------
   // StoryJar's shared activity library.
   //
   // Two rows, and the second one is the point: an UNPUBLISHED activity must be
@@ -703,6 +920,90 @@ async function main() {
     },
   });
 
+  // -------------------------------------------------------------------------
+  // The establishment register (PR-school-identity step 1).
+  //
+  // FICTIONAL SCHOOLS, and that is not negotiable: docs/TEST_LOGINS.md says
+  // fictional data only, forever, and a real school's name in a fixture is a
+  // real school's name in a screenshot — with a real school's postcode next to
+  // it. Nothing here is imported from GIAS. The real register is loaded by hand
+  // with `npm run gias:import`, and never in a test.
+  //
+  // Chosen so the search's decisions are testable rather than merely present:
+  //   • two schools sharing "St Cuthbert's" and differing only by postcode,
+  //     because that is what disambiguation has to survive;
+  //   • one beginning with "The", so a word-prefix match can be proved;
+  //   • one whose postcode has an outward code of a different length;
+  //   • enough rows that a bound of 20 can be shown to bite (see the loop).
+  // -------------------------------------------------------------------------
+  await db.establishment.deleteMany();
+  await db.establishment.createMany({
+    data: [
+      { urn: "900001", name: "Bramblewick Community Primary School", postcode: "AB1 2CD", localAuthority: "Barsetshire", phase: "Primary", town: "Ambledon" },
+      { urn: "900002", name: "St Cuthbert's Catholic Primary School", postcode: "AB1 3EF", localAuthority: "Barsetshire", phase: "Primary", town: "Ambledon" },
+      { urn: "900003", name: "St Cuthbert's Catholic Primary School", postcode: "CD12 9ZZ", localAuthority: "Wessex", phase: "Primary", town: "Fernhollow" },
+      { urn: "900004", name: "The Grange Infant School", postcode: "AB2 4GH", localAuthority: "Barsetshire", phase: "Primary", town: "Marlow End" },
+      { urn: "900005", name: "Little Wren Nursery School", postcode: "AB2 5JK", localAuthority: "Barsetshire", phase: "Nursery", town: "Wren Hill" },
+      { urn: "900006", name: "Halcyon House Special School", postcode: "AB1 7NP", localAuthority: "Barsetshire", phase: "Not applicable", town: "Ambledon" },
+      { urn: "900007", name: "Thornbury Green Junior School", postcode: "", localAuthority: "Barsetshire", phase: "Primary", town: "Thornbury" },
+      // The register entry Oakfield Primary (School B) was CLAIMED as — see
+      // `School.urn` on the school create above. It is here so the "already on
+      // StoryJar" refusal has a real register row behind it: a teacher whose own
+      // `Teacher.urn` is 900200 resolves to this establishment, and the claim
+      // then finds the URN taken. The name deliberately matches School B's, the
+      // way a real GIAS row would.
+      { urn: "900200", name: "Oakfield Primary", postcode: "AB3 8QR", localAuthority: "Barsetshire", phase: "Primary", town: "Oakfield" },
+      // Twenty-five more sharing one prefix, so a spec can prove the result set
+      // is bounded at 20 and that the caller is told there are more.
+      ...Array.from({ length: 25 }, (_, i) => ({
+        urn: `9001${String(i).padStart(2, "0")}`,
+        name: `Meadowbank Primary School ${i + 1}`,
+        postcode: `ZZ9 ${i}AA`,
+        localAuthority: "Barsetshire",
+        phase: "Primary",
+        town: "Meadowbank",
+      })),
+    ],
+  });
+
+  // The refresh that put them there. Seeded alongside the rows because the
+  // health tile reports on the IMPORT and not on the row count: rows with no
+  // recorded refresh is the "never imported" state, which is a different fact
+  // and must not render as a healthy register.
+  await db.jobRun.deleteMany({ where: { job: GIAS_IMPORT_JOB } });
+  await db.jobRun.create({
+    data: {
+      job: GIAS_IMPORT_JOB,
+      startedAt: new Date(Date.now() - 26 * 60 * 60 * 1000),
+      finishedAt: new Date(Date.now() - 26 * 60 * 60 * 1000 + 9_000),
+      outcome: "SUCCESS",
+      itemsAffected: 33,
+      // Through the formatter, not as a literal: the spelling is held to a
+      // log-hygiene invariant by tests/battery/security/ops-mail.spec.ts, and a
+      // hand-typed fixture is how a seed comes to disagree with the code.
+      outcomeDetail: formatImportDetail("2026-08-24"),
+    },
+  });
+
+  // EVERY FIXTURE TEACHER HAS A PROVED EMAIL ADDRESS.
+  //
+  // `Teacher.emailConfirmedAt` gates the two CLAIM purchase routes
+  // (docs/dpo-decisions.md, 2 Sep 2026), and null is the honest default for a
+  // real signup — StoryJar has asked nobody to open a link. A fixture is not a
+  // real signup: a fixture that could not buy would fail every purchase spec
+  // for a reason that has nothing to do with what those specs are about.
+  //
+  // Done in ONE PASS at the end rather than field by field on each create, so
+  // that a teacher added later cannot be forgotten. A spec that needs an
+  // UNPROVED teacher builds its own — see
+  // tests/battery/security/email-confirmation-before-buying.spec.ts, which does
+  // exactly that, and would silently stop testing anything if it relied on a
+  // fixture this line could change under it.
+  await db.teacher.updateMany({
+    where: { emailConfirmedAt: null },
+    data: { emailConfirmedAt: new Date() },
+  });
+
   console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
   console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN234 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");
@@ -710,8 +1011,11 @@ async function main() {
   console.log("  School B media: /uploads/seed-oak.svg (APPROVED)  /uploads/seed-oak-pending.svg (PENDING)  /uploads/seed-oak-quiz.svg (quiz option)");
   console.log("  School B voice: /uploads/seed-oak-voice.m4a (APPROVED)  /uploads/seed-oak-voice-pending.webm (PENDING)");
   console.log("  School C (Larchwood, FROZEN): teacher@larchwood.sch.uk / password  class ARCH22 (Willow)  read-only");
+  console.log("  School E (Pennyfields, ACTIVE but UNVERIFIED): admin admin@pennyfields.sch.uk / password  teacher teacher@pennyfields.sch.uk / password  class PENN44 (Kestrel)");
+  console.log("  Free teacher, NO school: free.teacher@example.test / password  class BLUE33 (Bluebell, 3 pupils)  FREE plan — the phase 2 invitation fixture");
   console.log("  StoryJar library: seed-autumn-walk (published, /uploads/shared/seed-shared-bg.svg)  seed-not-published-yet (unpublished)");
   console.log("  Connector tokens: School A/B/C — see API_TOKEN_* in prisma/seed-test.ts and tests/battery/helpers.ts");
+  console.log("  Establishment register: 33 fictional schools (Bramblewick, St Cuthbert's ×2, The Grange, Oakfield 900200 = the claimed one, 25× Meadowbank for the bound)");
   console.log("  Platform operator: ops@storyjar.test / fixture-operator-pass-9271 + a real TOTP code (no bypass exists)");
 
   // Handy for a quick sanity check of the student-impersonation finding (F1).

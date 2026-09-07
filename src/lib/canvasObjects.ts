@@ -145,7 +145,45 @@ export type TextObj = ObjCommon & {
   rot?: number;
 };
 
-export type CanvasObj = ImageObj | ShapeObj | TextObj;
+// A photo frame: a box the TEACHER places, and the CHILD fills from the
+// device camera when they do the activity. It is its own member of the union
+// rather than a ShapeKind because a shape has no vocabulary for a picture
+// source, and rather than an ImageObj because an image is something the
+// teacher already has — a frame is the space for one that does not exist yet.
+//
+//  - Only the teacher's toolbox offers it; a child's never does.
+//  - A child can never move, resize or delete one, whatever `locked` says, so
+//    `locked` is not stored on a frame at all (see normalizeObject).
+//  - `src` is set on the CHILD'S canvas only, at answer time, and is flattened
+//    into their handed-in page like every other object. A teacher's save
+//    strips it, so a child's photo can never become template media.
+//
+// Rollback is a one-way door, as with the maths kit: an older build's
+// normalizeObject returns null for an unknown `type`, so a template re-saved on
+// the old build loses its frames on that save (not on read).
+export type FrameObj = ObjCommon & {
+  type: "frame";
+  w: number;
+  h: number;
+  src?: string; // data:image URL while a child is working; never persisted by a teacher
+  alt?: string;
+  // The teacher's prompt shown inside the empty frame ("Take a photo of your
+  // model"). Teacher-authored text: shown, never read aloud.
+  label?: string;
+};
+
+export type CanvasObj = ImageObj | ShapeObj | TextObj | FrameObj;
+
+// Frame geometry, in model units. The floor leaves room for the child's 64px
+// "take it again" button at scale 1, so a photo is never uncorrectable.
+export const MIN_FRAME_W = 160;
+export const MIN_FRAME_H = 120;
+export const FRAME_DEFAULT_W = 400;
+export const FRAME_DEFAULT_H = 300;
+// Long side of the centre-cropped capture. A frame is at most 1000 model units
+// wide and a page composite is 1000px, so more pixels than this only inflate
+// the draft and the hand-in.
+export const FRAME_PHOTO_MAX_PX = 1600;
 
 // The stored payload: one array of objects per canvas page (index-aligned with
 // the template pages), so an object always lands back on its page.
@@ -221,6 +259,50 @@ function shapeGeometryFields(shape: ShapeKind, o: Record<string, unknown>) {
 
 // Degrees into the 0–359 half-open range, or 0 for anything that isn't a real
 // number. Returns a plain number so the caller can drop a falsy 0.
+// How many degrees one step of the rotate handle turns an object.
+//
+// It used to be a flat 15° for everything, and a flat step is the bug. Rotation
+// is not judged in degrees; it is judged by how far the far end of the thing
+// travels, because a child is aiming an object at something ELSE on the page.
+// One step of θ moves each end along a chord of `L·sin(θ/2)`, so at 15° that is
+// 0.13 × the object's length — 16 model units on a 120-unit counter, and 55 on
+// the 420-unit Line preset, which is 5.5% of the page. On the maths kit's number
+// line it is 93, or a tenth of the page, every single step.
+//
+// That is why a long line "jumps like 45 degrees" when the constant says 15: a
+// 15° step on the Line preset moves its ends as far as a 54° step on a counter.
+// The full working is in docs/rotation-findings.md.
+//
+// It matters most for a LINE, where this is not a grid that fine-tuning sits on
+// top of — it is the entire vocabulary. A line's box IS the line, so resizing
+// locks its aspect ratio on purpose and turning is the only way to aim it. At
+// 15° the product could draw a line at twelve angles and no others.
+//
+// Two rules the ladder has to keep:
+//
+//  • **Every rung divides 45 and 90.** That is what the old 15 was protecting —
+//    a right angle really being a right angle, and 30° and 45° landing exactly.
+//    15, 5, 3 and 1 all do, so a finer step is a superset of the coarser one
+//    rather than a different grid.
+//  • **Every rung is an integer.** `normaliseRotation` below rounds to whole
+//    degrees when an object is saved, so a 7.5° rung would not survive a
+//    reload — the object would come back half a step out.
+//
+// The bands hold the endpoint travel at roughly 13 model units, about 1% of the
+// page, which is what a 15° step already felt like on the objects most of the
+// canvas is made of.
+export function rotateStepFor(lengthUnits: number): number {
+  if (!Number.isFinite(lengthUnits) || lengthUnits <= 100) return 15;
+  if (lengthUnits <= 300) return 5;
+  if (lengthUnits <= 500) return 3;
+  return 1;
+}
+
+/** Wrap any angle into 0–359, the range `rot` is stored in. */
+export function wrapRotation(deg: number): number {
+  return ((Math.round(deg) % 360) + 360) % 360;
+}
+
 function normaliseRotation(v: unknown): number {
   if (typeof v !== "number" || !Number.isFinite(v)) return 0;
   return (((Math.round(v) % 360) + 360) % 360);
@@ -307,6 +389,31 @@ function normalizeObject(raw: unknown): CanvasObj | null {
       color: str(o.color, MAX_COLOR_LEN) || "#1f2430",
       ...(rot ? { rot } : {}),
       locked,
+    };
+  }
+
+  if (o.type === "frame") {
+    const w = clamp(num(o.w, FRAME_DEFAULT_W), MIN_FRAME_W, OBJ_W);
+    const h = clamp(num(o.h, FRAME_DEFAULT_H), MIN_FRAME_H, OBJ_H);
+    const label = typeof o.label === "string" ? str(o.label, MAX_LABEL_LEN) : undefined;
+    const alt = typeof o.alt === "string" ? str(o.alt, MAX_LABEL_LEN) : undefined;
+    return {
+      id,
+      type: "frame",
+      x,
+      y,
+      w,
+      h,
+      // Kept only where it could be served or is a picture — the same rule an
+      // image object's source obeys — and expected to be absent at rest: the
+      // teacher's save strips it before the payload is stored.
+      ...(isAllowedImageSrc(o.src) ? { src: o.src } : {}),
+      ...(label ? { label } : {}),
+      ...(alt ? { alt } : {}),
+      // `locked` is deliberately not stored. A frame is fixed for a child by
+      // what it is, not by a padlock, and the padlock is never offered on one;
+      // storing it would pin the frame for the teacher too. No `rot` either:
+      // a photo is drawn flat, as a picture is.
     };
   }
 

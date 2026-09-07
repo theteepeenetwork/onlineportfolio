@@ -35,9 +35,25 @@ function scan(file) {
   // line mentioning error/message/toast/return { error, or JSX text.
   text.split("\n").forEach((line, i) => {
     if (!/error|message|toast|showToast|placeholder|label|title:/i.test(line)) return;
-    const strings = line.match(/["'`]([^"'`]{6,})["'`]/g) ?? [];
+    // Each alternative opens and closes on the SAME quote character, and the
+    // length filter lives below rather than in the pattern. Both halves are
+    // load-bearing and neither works alone (F52).
+    //
+    // The old pattern was /["'`]([^"'`]{6,})["'`]/g. Two faults. It could open
+    // on `"` and close on `'`, so an apostrophe inside a double-quoted string
+    // ended it and everything after "doesn't" was invisible to this audit. And
+    // the {6,} minimum meant a string too short to match never consumed its own
+    // quotes: the engine advanced and retried from the CLOSING quote of the
+    // short string, ran to the OPENING quote of the next one, and audited the
+    // code in between. A scanner whose extractor can mistake a closing quote
+    // for an opening one is not reporting on strings; it is reporting on
+    // whatever happens to lie between them.
+    const strings = line.match(/"([^"\n]*)"|'([^'\n]*)'|`([^`\n]*)`/g) ?? [];
     for (const raw of strings) {
       const val = raw.slice(1, -1);
+      // Was `{6,}` inside the pattern above. It has to be applied after
+      // extraction, or a short string silently offsets every quote after it.
+      if (val.length < 6) continue;
       if (/[A-Za-z]{4,}/.test(val) === false) continue;
       if (HARD.some((re) => re.test(val))) hard.push(`${rel}:${i + 1}  ${val}`);
       else if (SOFT.some((re) => re.test(val))) soft.push(`${rel}:${i + 1}  ${val}`);

@@ -1,47 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Icon } from "./icons/Icon";
+import { useCameraStream } from "./camera/useCameraStream";
 
 // Lets a child add a photo either by taking one with the device camera (live)
 // or by uploading a file. A captured photo is stored as a data URL in a hidden
 // `photoData` field; an uploaded photo stays as a normal file in the `photo`
 // field. The journal action accepts whichever one is present.
+//
+// The camera itself lives in useCameraStream, shared with the canvas's photo
+// frame. What is here is only the form: which field wins, and what the child
+// sees while choosing.
 export function PhotoCapture() {
   const [mode, setMode] = useState<"idle" | "camera">("idle");
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const { videoRef, start, stop, snapshot } = useCameraStream();
   const photoDataRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function stopCamera() {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-  }
-
-  // Tidy up the camera stream if the component goes away.
-  useEffect(() => () => stopCamera(), []);
-
   async function openCamera() {
     setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false,
-      });
-      streamRef.current = stream;
-      setMode("camera");
-      // The <video> mounts with `mode === "camera"`; attach on the next tick.
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play();
-        }
-      });
-    } catch {
+    // The <video> mounts with `mode === "camera"`; the hook attaches on the
+    // next frame, so the mode has to flip before the stream is asked for.
+    setMode("camera");
+    const ok = await start();
+    if (!ok) {
       setError(
         "We couldn't open the camera. You can upload a photo instead, or check the browser's camera permission.",
       );
@@ -50,19 +36,12 @@ export function PhotoCapture() {
   }
 
   function capture() {
-    const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
-    const c = canvas.getContext("2d");
-    if (!c) return;
-    c.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    const dataUrl = snapshot();
+    if (!dataUrl) return;
     setPreview(dataUrl);
     if (photoDataRef.current) photoDataRef.current.value = dataUrl;
     if (fileRef.current) fileRef.current.value = ""; // a capture wins over any file
-    stopCamera();
+    stop();
     setMode("idle");
   }
 
@@ -103,6 +82,7 @@ export function PhotoCapture() {
             ref={videoRef}
             playsInline
             muted
+            autoPlay
             className="w-full rounded-xl border border-border bg-black"
             style={{ aspectRatio: "4 / 3" }}
           />
@@ -113,7 +93,7 @@ export function PhotoCapture() {
             <button
               type="button"
               onClick={() => {
-                stopCamera();
+                stop();
                 setMode("idle");
               }}
               className="btn-ghost"

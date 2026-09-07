@@ -23,10 +23,10 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   // question, so answer fields exist in both — scope to the panel.
   const panel = page.getByRole("region", { name: "Quiz builder" });
 
-  // Question 1 on page 1: correct answer is the first option ("Moo"). A new
-  // question opens expanded in the accordion, ready to type into.
+  // Question 1 on page 1: correct answer is the first option ("Moo"). Every
+  // question is a card that is always open, so a new one is the LAST card.
   await panel.getByRole("button", { name: /Add question to page 1/ }).click();
-  await panel.getByPlaceholder("What do you want to ask?").fill("What does a cow say?");
+  await panel.getByPlaceholder("What do you want to ask?").last().fill("What does a cow say?");
   await panel.getByPlaceholder("Type an answer").nth(0).fill("Moo");
   await panel.getByPlaceholder("Type an answer").nth(1).fill("Woof");
 
@@ -34,11 +34,13 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   await page.locator('button[title="Add page"]').click();
   await page.locator('button[title="Add page"]').click();
   await panel.getByRole("button", { name: /Add question to page 3/ }).click();
-  await panel.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
-  await panel.getByPlaceholder("Type an answer").nth(0).fill("Four");
-  await panel.getByPlaceholder("Type an answer").nth(1).fill("Eight");
+  // Both cards are open, so the second question's fields come after the first's.
+  const card2 = panel.locator("[data-question-card]").last();
+  await card2.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
+  await card2.getByPlaceholder("Type an answer").nth(0).fill("Four");
+  await card2.getByPlaceholder("Type an answer").nth(1).fill("Eight");
   // Mark the SECOND option ("Eight") as correct for this question.
-  await panel.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
+  await card2.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
 
   // Finish the editor and save the template.
   await page.locator('button[title="Done"]').click();
@@ -50,6 +52,8 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
 
   // --- Assign it to the whole class ---
   await page.getByRole("button", { name: /Assign/ }).first().click();
+  // No class is preselected; choose one before assigning (Item 5).
+  await page.getByRole("button", { name: "Sunflower Class" }).click();
   await page.getByRole("button", { name: /Assign to whole class/ }).click();
   await page.waitForURL((url) => url.searchParams.has("run"));
 
@@ -68,7 +72,7 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   await expect(moo).toBeFocused();
   await moo.click();
   // Jump to page 3 via its thumbnail and answer INCORRECTLY ("Four").
-  await page.locator('img[alt="Page 3"]').click();
+  await page.getByRole("button", { name: "Page 3", exact: true }).click();
   await page.getByRole("button", { name: "Four" }).click();
 
   // Nothing tells the child whether they were right — silent capture.
@@ -220,8 +224,6 @@ test("the worksheet box and the quiz panel edit the same question, both ways", a
   await boxPrompt.pressSequentially("Where is Harry?");
   await expect(panelPrompt).toHaveValue("Where is Harry?");
   await expect(boxPrompt).toBeFocused();
-  // The accordion header title tracks the prompt too.
-  await expect(panel.getByRole("button", { name: /Where is Harry\?/ })).toBeVisible();
 
   // Answers mirror both ways as well.
   await panel.getByPlaceholder("Type an answer").nth(0).fill("At the bus stop");
@@ -319,9 +321,13 @@ test("shrinking a question box scales its contents instead of clipping them", as
   const shrunkWidth = await box.evaluate((el) => (el as HTMLElement).offsetWidth);
   expect(shrunkWidth).toBeLessThan(220);
 
-  // …the type came down with it…
+  // …the type came down with it, to the floor and no further. Type has a
+  // minimum (15px): below it a question is small enough to be decoration
+  // rather than something a child reads, and the card grows to fit instead —
+  // which is what the no-clipping check below is really asserting.
   const after = await fontOf(prompt);
-  expect(after).toBeLessThan(before);
+  expect(after).toBeLessThanOrEqual(before);
+  expect(after).toBeGreaterThanOrEqual(15);
 
   // …and everything still fits: no clipped fields, no overflow.
   const state = await box.evaluate((el) => ({
@@ -415,7 +421,7 @@ test("a sent-back quiz says which ones to look at again, without giving the answ
 
     const panel = page.getByRole("region", { name: "Quiz builder" });
     await panel.getByRole("button", { name: /Add question to page 1/ }).click();
-    await panel.getByPlaceholder("What do you want to ask?").fill("What does a cow say?");
+    await panel.getByPlaceholder("What do you want to ask?").last().fill("What does a cow say?");
     await panel.getByPlaceholder("Type an answer").nth(0).fill("Moo");
     await panel.getByPlaceholder("Type an answer").nth(1).fill("Woof");
 
@@ -423,15 +429,19 @@ test("a sent-back quiz says which ones to look at again, without giving the answ
     // other's taps.
     await page.locator('button[title="Add page"]').click();
     await panel.getByRole("button", { name: /Add question to page 2/ }).click();
-    await panel.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
-    await panel.getByPlaceholder("Type an answer").nth(0).fill("Four");
-    await panel.getByPlaceholder("Type an answer").nth(1).fill("Eight");
-    await panel.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
+    // Both cards are open, so scope the second question's fields to its card.
+    const card2 = panel.locator("[data-question-card]").last();
+    await card2.getByPlaceholder("What do you want to ask?").fill("How many legs has a spider?");
+    await card2.getByPlaceholder("Type an answer").nth(0).fill("Four");
+    await card2.getByPlaceholder("Type an answer").nth(1).fill("Eight");
+    await card2.getByRole("button", { name: /Mark .* as correct/ }).nth(1).click();
 
     await page.locator('button[title="Done"]').click();
     await page.getByRole("button", { name: /Save to library/ }).click();
     await expect(page.getByRole("heading", { name: "Second go" })).toBeVisible();
     await page.getByRole("button", { name: /Assign/ }).first().click();
+    // No class is preselected; choose one before assigning (Item 5).
+    await page.getByRole("button", { name: "Sunflower Class" }).click();
     await page.getByRole("button", { name: /Assign to whole class/ }).click();
     await page.waitForURL((url) => url.searchParams.has("run"));
     // Every DB check below is scoped to THIS run: the spec above also leaves
@@ -445,7 +455,7 @@ test("a sent-back quiz says which ones to look at again, without giving the answ
     await page.getByRole("link", { name: /Second go/ }).click();
     await expect(page.locator("canvas")).toBeVisible();
     await page.getByRole("button", { name: "Moo" }).click();
-    await page.locator('img[alt="Page 2"]').click();
+    await page.getByRole("button", { name: "Page 2", exact: true }).click();
     await page.getByRole("button", { name: "Four" }).click();
     await page.locator('button[title="Done"]').click();
     await page.getByRole("button", { name: /hand it in/i }).click();
@@ -482,7 +492,7 @@ test("a sent-back quiz says which ones to look at again, without giving the answ
 
     // The one they got wrong comes back AS THEY ANSWERED IT, said in words and
     // still tappable — not blanked, which read as "you never did this".
-    await page.locator('img[alt="Page 2"]').click();
+    await page.getByRole("button", { name: "Page 2", exact: true }).click();
     await expect(page.getByText("Have another go at this one")).toBeVisible();
     const four = page.getByRole("button", { name: "Four" });
     await expect(four).toHaveAttribute("aria-pressed", "true");
@@ -543,7 +553,7 @@ test("a picture in an answer is re-encoded and kept small", async ({ page }) => 
 
     const panel = page.getByRole("region", { name: "Quiz builder" });
     await panel.getByRole("button", { name: /Add question to page 1/ }).click();
-    await panel.getByPlaceholder("What do you want to ask?").fill("Which city?");
+    await panel.getByPlaceholder("What do you want to ask?").last().fill("Which city?");
     await panel.getByPlaceholder("Type an answer").nth(0).fill("London");
     await panel.getByPlaceholder("Type an answer").nth(1).fill("Paris");
 
@@ -581,4 +591,61 @@ test("a picture in an answer is re-encoded and kept small", async ({ page }) => 
     await db.activityTemplate.deleteMany({ where: { title: "Picture answers" } });
     await db.$disconnect();
   }
+});
+
+// A question box must reach the foot of the page it is on.
+//
+// The move was clamped to `H - q.h`, the height the question is STORED at,
+// while the card is drawn at the height of its own content. A default box
+// stored 300 units tall but drawn 104 walled itself out of the bottom third of
+// the page — an invisible limit with nothing on screen to explain it — and
+// every resize wrote a bigger `h`, so the wall came further up each time.
+test("a question can be dragged to the foot of the page, and still can after resizing", async ({
+  page,
+}) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Reach the foot");
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+
+  const panel = page.getByRole("region", { name: "Quiz builder" });
+  await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+  await panel.getByPlaceholder("What do you want to ask?").last().fill("What is 10 more than 60?");
+  await page.getByRole("button", { name: "Tuck away" }).click();
+
+  const box = page.getByRole("group", { name: "Question box" });
+  const canvas = (await page.locator("canvas").first().boundingBox())!;
+  const foot = canvas.y + canvas.height;
+
+  const drag = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+  };
+  // How close to the foot the box can be dragged. Grabbed by the card's own
+  // left padding: the answers are buttons and the prompt swallows its pointer,
+  // so neither of those is a drag handle.
+  const gapAtFoot = async () => {
+    const b = (await box.boundingBox())!;
+    await drag({ x: b.x + 6, y: b.y + b.height / 2 }, { x: b.x + 6, y: foot + 300 });
+    const after = (await box.boundingBox())!;
+    return foot - (after.y + after.height);
+  };
+
+  expect(await gapAtFoot(), "a fresh question box cannot reach the foot of its page").toBeLessThan(40);
+
+  // Three resizes. Each used to write a taller `h` and take another slice off
+  // the bottom of the page.
+  for (let i = 0; i < 3; i++) {
+    const handle = (await page.locator('[aria-label="Bigger or smaller: drag"]').boundingBox())!;
+    await drag(
+      { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 },
+      { x: handle.x + 60, y: handle.y + 120 },
+    );
+  }
+  expect(await gapAtFoot(), "resizing walled the question out of the foot of its page").toBeLessThan(40);
 });

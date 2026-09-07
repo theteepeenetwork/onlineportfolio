@@ -4,7 +4,7 @@ export const metadata = { title: "Acceptable Use Policy — StoryJar" };
 
 export default function AcceptableUse() {
   return (
-    <LegalShell title="Acceptable Use Policy" intro="What may and may not be put into StoryJar. Teachers are the moderators, so this is mainly a guide for staff.">
+    <LegalShell title="Acceptable Use Policy" policyKey="acceptable-use" intro="What may and may not be put into StoryJar. Teachers are the moderators, so this is mainly a guide for staff.">
       <h2>StoryJar is for children's learning moments</h2>
       <p>It is a place for a child&apos;s own work — drawings, photos of what they&apos;ve made or done, and their words — kept for the class journal. It is not a general photo store or a place for personal or sensitive records. Where a school has switched them on, families and staff can also exchange short messages about a child, inside the school&apos;s office hours; the rules for those are below.</p>
 

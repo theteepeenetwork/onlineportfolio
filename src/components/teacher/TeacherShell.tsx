@@ -63,13 +63,22 @@ const SECTIONS: { href: string; label: string; icon: IconName; exact?: boolean }
   { href: "/teacher/account", label: "Account", icon: "settings" },
 ];
 
+// "School admin →" and "Sign out" on the identity bar. They read as text links
+// and are styled as text links, but they are the two controls a teacher reaches
+// for at the end of a lesson, so they carry a 44px box of their own rather than
+// only the height of their letters (they measured 17px tall — WCAG 2.2 AA 2.5.8
+// wants 24, and a finger on a classroom iPad wants 44).
 const idBarLink: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 44,
   font: "600 14px var(--font-atkinson)",
   color: "#d8ece8",
   textDecoration: "none",
   background: "none",
   border: "none",
-  padding: 0,
+  borderRadius: 10,
+  padding: "0 8px",
   cursor: "pointer",
 };
 
@@ -250,6 +259,10 @@ function IdentityBar({
   return (
     <div
       className="no-print"
+      // Swept by tests/battery/a11y/teacher-touch-targets.spec.ts. Every control
+      // inside this bar is a 44px target; the attribute is how the gate finds
+      // the bar without depending on its markup.
+      data-shell="identity-bar"
       style={{
         background: INK,
         display: "flex",
@@ -287,7 +300,9 @@ function IdentityBar({
         </button>
       )}
 
-      <Link href="/teacher" style={{ display: "flex", alignItems: "center", gap: 8, flex: "none", textDecoration: "none" }}>
+      {/* Home. The jar and the wordmark together came to 27px tall; the link now
+          carries its own 44px box so the way back is a target, not a caption. */}
+      <Link href="/teacher" style={{ display: "flex", alignItems: "center", minHeight: 44, gap: 8, flex: "none", textDecoration: "none" }}>
         {/* The jar, tinted for the dark bar: cream stroke instead of ink. */}
         <span aria-hidden style={{ display: "flex" }}>
           <DarkBarJar />
@@ -412,8 +427,11 @@ function ShellSearch() {
           background: "rgba(255,253,247,.1)",
           border: "2px solid rgba(216,236,232,.35)",
           borderRadius: 999,
-          padding: "7px 16px",
-          minHeight: 44,
+          // No vertical padding: the input STRETCHES to fill the pill instead,
+          // so the control a teacher taps and the box they can see are the same
+          // 44px rectangle. 48 here minus the 2px borders is the 44 inside.
+          padding: "0 16px",
+          minHeight: 48,
           boxSizing: "border-box",
         }}
       >
@@ -440,6 +458,7 @@ function ShellSearch() {
           style={{
             flex: 1,
             minWidth: 0,
+            alignSelf: "stretch", // fill the pill — see the label's padding note
             background: "none",
             border: "none",
             outline: "none",
@@ -556,6 +575,8 @@ function Rail({
 
   return (
     <nav
+      // Swept by the touch-target gate, like the identity bar above.
+      data-shell="rail"
       aria-label="Teacher sections and classes"
       className="no-print"
       style={{
@@ -655,8 +676,8 @@ function Rail({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              minWidth: 32,
-              minHeight: 32,
+              minWidth: 44,
+              minHeight: 44,
               font: "700 15px var(--font-atkinson)",
               color: "var(--sj-muted)",
               textDecoration: "none",
@@ -716,7 +737,7 @@ function Rail({
             borderRadius: 999,
             padding: "8px 12px",
             color: "var(--sj-muted)",
-            minHeight: 40,
+            minHeight: 44,
             boxSizing: "border-box",
           }}
         >
@@ -796,7 +817,7 @@ function ClassRow({
         textDecoration: "none",
         borderRadius: 10,
         padding: showLabels ? "9px 10px" : "9px 0",
-        minHeight: 42,
+        minHeight: 44,
         boxSizing: "border-box",
         background: selected ? "var(--kraft-tag)" : "transparent",
         color: selected ? INK : "var(--ink-soft)",

@@ -83,7 +83,7 @@ test("this class is younger than Storyjar thinks", async ({ page, tester: t }) =
     );
 
     t.expects(
-      await t.seesText(/what (they|the children) see|reading|younger|older|jar|journal/i, 2000),
+      await t.seesText(/what (they|the children) see|reading|younger|older|\bjar\b|journal/i, 2000),
       "minor",
       "confusing",
       "The age setting does not tell me what actually changes for the children, so I am guessing which one my class needs.",
@@ -104,7 +104,7 @@ test("something is due on Friday", async ({ page, tester: t }) => {
     );
 
     t.expects(
-      await t.seesText(/\d+\s*\/\s*\d+|waiting|done|to do/i, 2000),
+      await t.seesText(/\d+\s*\/\s*\d+|waiting|\bdone\b|to do/i, 2000),
       "minor",
       "confusing",
       "The calendar shows me what is set but not how far the children have got, so I still have to go and look somewhere else.",
@@ -144,7 +144,7 @@ test("somebody has to change a password", async ({ page, tester: t }) => {
     );
 
     t.expects(
-      await t.seesText(/plan|billing|trial|£/i, 2000),
+      await t.seesText(/\bplan\b|billing|trial|£/i, 2000),
       "minor",
       "confusing",
       "My account page does not tell me what our school is on, so I cannot answer the head when she asks.",

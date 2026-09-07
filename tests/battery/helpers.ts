@@ -38,6 +38,18 @@ export const SCHOOL_B = {
   teacherDraftMedia: "/uploads/seed-oak-tmpl-draft.svg", // Okafor's template draft — Okafor ONLY
 } as const;
 
+// The one fixture school allowed to publish to StoryJar's library. It stands in
+// for StoryJar Academy, which is seeded against a real environment by
+// scripts/ops/seed-academy.mjs and is far too large to be a fixture. Every other
+// school here leaves School.canPublishToLibrary at its default of false, which
+// is what makes a cross-tenant publish attempt a real refusal to test.
+export const SCHOOL_D = {
+  name: "StoryJar Studio",
+  teacher: { email: "publisher@studio.storyjar.co.uk", password: "password" },
+  templateTitle: "Studio worksheet",
+  templateMedia: "/uploads/seed-studio-tmpl-bg.svg",
+} as const;
+
 // POST a same-origin JSON body from within the page (so the session cookie
 // rides along) and return the HTTP status. The page must already be on our
 // origin. Used to exercise POST endpoints (e.g. /api/drafts) in isolation specs.
@@ -78,6 +90,29 @@ export const SCHOOL_C = {
   // testable in the same render as a working link.
   stripeCustomerId: "cus_seedlarchwood0001",
   stripeSubscriptionId: "sub_seedlarchwood0001",
+} as const;
+
+// School E = Pennyfields Primary — ACTIVE and UNVERIFIED. Bought on a purchase
+// order that has not been paid, which is the only way a school reaches this
+// state (docs/dpo-decisions.md, 1 September 2026). Its admin keeps the console,
+// billing, invitations and the audit log, and is refused the three actions that
+// move children's work between adults.
+//
+// ACTIVE + unverified is the combination that looks impossible and is not:
+// billing status and verification are different facts, read by different code,
+// and a school whose finance office is sitting on a 30-day invoice must teach
+// normally while it does. School C is the same point from the other side —
+// FROZEN but verified, because it paid once and lapsed.
+//
+// It has NO invited staff on purpose: `removeStaff` on an INVITED row stays
+// allowed while unverified, and a spec proving that creates its own invitation
+// so it can watch the invitation being made.
+export const SCHOOL_E = {
+  name: "Pennyfields Primary",
+  admin: { email: "admin@pennyfields.sch.uk", password: "password" }, // Mrs Okonkwo
+  teacher: { email: "teacher@pennyfields.sch.uk", password: "password" }, // Mr Vaughan, owns Kestrel
+  className: "Kestrel Class",
+  classCode: "PENN44",
 } as const;
 
 // Sign in as a teacher/admin by email + password, landing on their dashboard.
@@ -351,4 +386,22 @@ export async function clearSession(page: Page) {
 // along) and return the HTTP status. The page must already be on our origin.
 export async function fetchStatus(page: Page, url: string): Promise<number> {
   return page.evaluate((u) => fetch(u, { credentials: "include" }).then((r) => r.status), url);
+}
+
+/**
+ * Remove this repository's own absolute path from a page body before scanning
+ * it for a child's name.
+ *
+ * `next dev` serialises the source location of every server action into the
+ * flight payload (`"location":["module evaluation","/Users/…/repo/.next/…"]`),
+ * and the ops specs deliberately read that payload — `textContent("body")` and
+ * `page.content()` both include it — because a prop serialised and never
+ * rendered is still a leak. The cost is that the machine's path is on every
+ * page, and a substring check for a name matches it whenever the path contains
+ * one: the repo moved to `~/Developer` on 2026-09-04 and "Dev" went red on four
+ * screens (F72). Only the path itself is removed; nothing a school could put on
+ * the page is touched, and a production build emits no location at all.
+ */
+export function withoutOwnPath(body: string): string {
+  return body.split(process.cwd()).join("");
 }

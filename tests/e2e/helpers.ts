@@ -10,9 +10,37 @@ export async function teacherLogin(page: Page) {
   await page.waitForURL((url) => url.pathname === "/teacher");
 }
 
+/**
+ * The demo class's CURRENT code, read rather than assumed.
+ *
+ * This used to be the literal "SUN234". It stopped being safe on 2026-08-29,
+ * when handing a class to another member of staff started reissuing its code
+ * (FINDINGS F66: the code is a bearer credential, so the previous teacher keeps
+ * a way in as any pupil unless it rotates). `admin.spec.ts` hands the demo
+ * teacher's first class over and straight back — deliberately, and it says so —
+ * which is now two genuine rotations, and every later file that typed the old
+ * code sat waiting sixty seconds for a name that would never appear.
+ *
+ * The fixture was wrong rather than the product: a test suite must not assume a
+ * class code outlives a handover, because a real class's does not.
+ */
+export async function demoClassCode(): Promise<string> {
+  const { PrismaClient } = await import("@prisma/client");
+  const db = new PrismaClient();
+  try {
+    const klass = await db.class.findFirstOrThrow({
+      where: { name: "Sunflower Class" },
+      select: { classCode: true },
+    });
+    return klass.classCode;
+  } finally {
+    await db.$disconnect();
+  }
+}
+
 // Sign in as a student by class code + tapping their name.
 export async function studentLogin(page: Page, name: string) {
-  await page.goto("/login/student?code=SUN234");
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
   // Exact match so e.g. "Dev" doesn't also hit the "Dev Tools" button.
   await page.getByRole("button", { name, exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/student");
@@ -35,9 +63,16 @@ export async function logout(page: Page) {
 export async function drawOnCanvas(page: Page) {
   const canvas = page.locator("canvas").first();
   await expect(canvas).toBeVisible();
-  // Templates open on the finger/Select tool, so pick the Pen before drawing.
-  const pen = page.locator('button[title="Pen"]');
-  if (await pen.count()) await pen.first().click();
+  // Templates open on the finger/Select tool, so pick a pen before drawing —
+  // out of the fan, and then fold the fan, because while one is open the paper
+  // is a way out of it rather than something to draw on.
+  const disc = page.locator('button[title="Pens"]');
+  if (await disc.count()) {
+    await disc.first().click();
+    const felt = page.locator('button[aria-label="Felt tip"]');
+    if (await felt.count()) await felt.first().click();
+    await disc.first().click();
+  }
   const box = await canvas.boundingBox();
   if (!box) throw new Error("canvas has no bounding box");
   const x = box.x + box.width * 0.3;
@@ -114,5 +149,48 @@ export async function turnObject(page: Page, degrees: number) {
   await page.mouse.move(hx, hy);
   await page.mouse.down();
   await page.mouse.move(cx + Math.cos(end) * radius, cy + Math.sin(end) * radius, { steps: 10 });
+  await page.mouse.up();
+}
+
+// ---------------------------------------------------------------------------
+// The canvas's thumb fans
+// ---------------------------------------------------------------------------
+//
+// The tools, the nibs and the colours live on rings that fan out of the pen
+// disc, and the ＋ menu's items on rings that fan out of the other one. So a
+// spec that wants a tool has to open the fan first — the same two taps a child
+// makes. These are here rather than in each file so the gesture is written once.
+
+/** Open the pen disc's fan (tools, nibs, colours) and hand back the page. */
+export async function openPenFan(page: Page) {
+  const disc = page.locator('button[title="Pens"]');
+  if ((await disc.getAttribute("aria-expanded")) !== "true") await disc.click();
+  return page;
+}
+
+/** Pick a tool by its name — "Move", "Pen", "Felt tip", "Highlighter", "Rubber". */
+export async function pickTool(page: Page, name: string) {
+  await openPenFan(page);
+  const label = name === "Move" ? "Move — drag & resize things" : name;
+  await page.locator(`button[aria-label="${label}"]`).click();
+}
+
+/** Open the ＋ fan. */
+export async function openAddFan(page: Page) {
+  await page.locator('button[title="Add"]').click();
+}
+
+/**
+ * Press and hold a page card until its menu opens — how a finger reaches
+ * "make a copy" and "throw this page away".
+ */
+export async function holdPageCard(page: Page, index: number) {
+  const card = page.getByRole("button", { name: `Page ${index + 1}`, exact: true });
+  const box = (await card.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  // The hold is 350ms; wait past it without moving, which is what tells a hold
+  // from a tap and from a slide.
+  await page.waitForTimeout(600);
   await page.mouse.up();
 }

@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { BATTERY_STRIPE_KEY } from "./tests/battery/stripeFixtureKey";
+import { BATTERY_STRIPE_WEBHOOK_SECRET } from "./tests/battery/stripeWebhookFixtureKey";
 import { BATTERY_MAIL_HMAC_KEY } from "./tests/battery/mailHmacFixtureKey";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,14 @@ export default defineConfig({
   reporter: [["list"], ["html", { outputFolder: "playwright-report/battery", open: "never" }]],
   use: {
     baseURL: BASE_URL,
-    trace: "on-first-retry",
+    // "retain-on-failure", BY OWNER DECISION on 3 September 2026. The battery
+    // runs with no retries, so "on-first-retry" could never fire and every red
+    // gate this week left only a screenshot. Three such runs against
+    // school-invitation-console.spec.ts:331 went nowhere; the first run with a
+    // trace found the defect in an afternoon (F69's entry in FINDINGS.md has
+    // the mechanism). A trace is kept on every failure from here on, and the
+    // artefact size is the accepted cost. Do not put "on-first-retry" back.
+    trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [
@@ -113,8 +121,15 @@ export default defineConfig({
     // Without this, the link-out would render on a developer's machine and not
     // in CI, so the one new interactive element in PR3 would be untested on the
     // build that gates the merge. It is never sent anywhere: no code path in
-    // the operator area calls Stripe, and the webhook spec stays skipped
-    // because it also needs STRIPE_WEBHOOK_SECRET, which is still unset.
+    // the operator area calls Stripe.
+    //
+    // BATTERY_STRIPE_WEBHOOK_SECRET turns stripe-webhook.spec.ts ON. Until it
+    // was added, that spec's describe-level `test.skip` needed a webhook secret
+    // nothing set, so every one of its tests was skipped on every PR and every
+    // push to main — signature rejection, idempotent redelivery and the freeze
+    // on cancellation were all ungated. It stays hermetic: signature
+    // verification is local HMAC over the raw body and opens no socket, and the
+    // spec drives only events the handler answers without calling Stripe.
     //
     // MAIL_HMAC_KEY is here for the same reason as the Stripe key. With it
     // unset, the operator area records no address suppression at all and every
@@ -123,10 +138,20 @@ export default defineConfig({
     // hashes its fixture addresses under the SAME constant
     // (tests/battery/global-setup.ts), because two different keys would hash
     // one address to two labels and the seeded rows would match nothing.
+    //
+    // PW_HIDE_DEV_INDICATOR turns off Next's dev-tools badge for this server
+    // only. The lanes run `next dev` on purpose (a production build withholds
+    // the parent magic link, so family.spec.ts would fail because the gate is
+    // working), and the badge is rendered in a portal at bottom-left whose
+    // subtree intercepts pointer events — on 2026-08-23 it sat on top of the
+    // teacher rail's expand button and ate 227 click retries. `npm run dev`
+    // still has the badge; only these lanes lose it. See next.config.ts.
     env: {
       OPS_ENABLED: "1",
       STRIPE_SECRET_KEY: BATTERY_STRIPE_KEY,
+      STRIPE_WEBHOOK_SECRET: BATTERY_STRIPE_WEBHOOK_SECRET,
       MAIL_HMAC_KEY: BATTERY_MAIL_HMAC_KEY,
+      PW_HIDE_DEV_INDICATOR: "1",
     },
   },
 });

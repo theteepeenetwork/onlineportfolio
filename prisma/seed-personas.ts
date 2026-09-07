@@ -94,7 +94,13 @@ async function main() {
 
   console.log("[seed-personas] Appending Bramblewood Primary (the tester team's school) …");
 
-  const school = await db.school.create({ data: { name: "Bramblewood Primary" } });
+  // `verifiedAt` is set explicitly, and every seed has to do it. Seeds run under
+  // `prisma db push`, which builds the schema directly and NEVER applies
+  // migrations, so 20260902090000_school_claim's backfill does not reach a
+  // seeded database. A fixture school with a null `verifiedAt` would silently
+  // lose class reassignment, staff removal and admin promotion, and the failure
+  // would surface three suites away from the seed that caused it.
+  const school = await db.school.create({ data: { name: "Bramblewood Primary", verifiedAt: new Date() } });
   // Parent messages are on at Bramblewood, Monday–Friday 08:00–16:00, so the
   // parent persona can write at nine at night and see what she is told.
   await db.messagingPolicy.create({
@@ -467,6 +473,15 @@ async function main() {
   await run(minibeast, robins);
   await run(ducksQuiz, ducklings);
   await run(method, herons);
+
+  // Every persona teacher has a proved email address, for the reason given at
+  // length in prisma/seed-test.ts: `emailConfirmedAt` gates buying, and a
+  // business manager who cannot reach the purchase screen would file a blocker
+  // about a gate that is working exactly as decided.
+  await db.teacher.updateMany({
+    where: { emailConfirmedAt: null },
+    data: { emailConfirmedAt: new Date() },
+  });
 
   console.log("\n[seed-personas] ✅ Bramblewood Primary ready — the tester team's environment.");
   console.log("  Admin (business manager): head@bramblewood.test / password");

@@ -13,27 +13,112 @@ datasource db {
 
 // A teacher owns one or more classes and moderates the journal.
 model Teacher {
-  id                     String               @id @default(cuid())
+  id                     String                 @id @default(cuid())
   name                   String // the teacher's full name (e.g. "Sam Pearson")
   title                  String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
-  displayStyle           String               @default("formal") // "formal" (title + surname) | "first"
+  displayStyle           String                 @default("formal") // "formal" (title + surname) | "first"
   displayName            String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
-  email                  String               @unique
+  email                  String                 @unique
   passwordHash           String
   schoolName             String? // captured at signup (StoryJar onboarding); free text
+  // The DfE URN of the school this teacher said they work at, when they picked
+  // it from the register at signup rather than typing a name (Establishment).
+  //
+  // ALONGSIDE `schoolName`, NEVER INSTEAD OF IT. The free text is what the
+  // teacher believes their school is called, and it is what the product and the
+  // operator console display; this is the join key. Keeping both is what stops a
+  // later re-import renaming a teacher's own school out from under them.
+  //
+  // NULL IS A REAL ANSWER, NOT A MISSING ONE, and this is the sentence to read
+  // before "fixing" it. Null is what every teacher outside England has, because
+  // GIAS is the English register and the picker is not even rendered for them.
+  // It is also what an English teacher has whose school is missing from a
+  // hand-run snapshot — schools open, close and merge constantly, and the
+  // free-text path exists for exactly that and is first-class rather than
+  // degraded. So a column full of nulls is the product working, NOT an
+  // incomplete backfill waiting for somebody to finish it. Any future attempt to
+  // populate these by matching names is the fuzzy guess docs/school-identity.md
+  // exists to remove; it was considered and rejected there by name.
+  //
+  // NOT A RELATION, AND NOT INDEXED. A Prisma relation to Establishment would
+  // pull that model into the ops blindness gate's relation-path logic for no
+  // gain, and nothing joins on this column yet. It is a RECORDED IDENTIFIER
+  // rather than a live pointer: the register is replaced wholesale on every
+  // import, so a row it names can disappear, and no part of a person's account
+  // may depend on a row a refresh can delete.
+  //
+  // `School.urn` NOW EXISTS, AND THIS IS NOT IT. An earlier version of this
+  // comment said there was no such column and pointed forward to the step that
+  // would add it; that step is
+  // prisma/migrations/20260902090000_school_claim. The two columns are
+  // different kinds of fact and must be read as such:
+  //
+  //   `Teacher.urn` is a RECORDED IDENTIFIER — what this teacher said their
+  //   school was at signup. Nobody checked that they work there
+  //   (docs/school-identity.md §5: matching a name is not evidence of
+  //   employment), and `updateProfile` lets a teacher change `schoolName`
+  //   without ever touching this, so it also goes stale when somebody moves
+  //   schools.
+  //
+  //   `School.urn` is a CLAIM KEY — the register entry somebody paid for. It is
+  //   `@unique`, because uniqueness belongs where the claim is, and it is what
+  //   lets the product say "St Bede's is already on StoryJar, ask Mrs Lindqvist
+  //   to add you" instead of quietly creating a second St Bede's.
+  //
+  // NEITHER IS DERIVED FROM THE OTHER AND THEY ARE NOT KEPT IN STEP. A teacher
+  // whose `urn` equals some claimed `School.urn` is NOT a member of that school
+  // and must never be treated as one — that is the auto-join
+  // docs/school-identity.md §4 forbids by name. And a teacher who IS a member of
+  // a claimed school, whose own `urn` is null or names somewhere else entirely,
+  // is an ordinary person who moved jobs rather than a data fault to reconcile.
+  //
+  // It is checked against the register before it is stored (see
+  // src/app/actions/auth.ts): a URN that is not in the register is worse than no
+  // URN, because null is honest and a made-up key is a join somebody will one
+  // day follow.
+  //
+  // Not personal data beyond the teacher row it sits on: it identifies an
+  // institution, and every character of it is published by the DfE. Deleted with
+  // the teacher by the same cascade as everything else on this row.
+  urn                    String?
   country                String? // England / Scotland / Wales / NI / Elsewhere
-  role                   String               @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
-  status                 String               @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
+  role                   String                 @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
+  status                 String                 @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
   // Signed up before launch day (1 Sept 2026) and promised free, unlimited
   // access permanently. STORED, never derived from `createdAt`: a promise you
   // can't identify the beneficiaries of is a promise you will break, and a
   // derived date stops being equivalent the first time rows are migrated or
   // imported. See docs/pricing-decisions.md. Not child data; no retention
   // implications beyond the teacher row itself.
-  foundingMember         Boolean              @default(false)
-  school                 School?              @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  foundingMember         Boolean                @default(false)
+  // When this teacher PROVED they can receive mail at `email`, by opening a
+  // link sent to it. Null means unproved — the ordinary state of every account,
+  // because free signup asks for nothing (docs/dpo-decisions.md, 2 Sep 2026).
+  //
+  // NULL IS THE COMMON CASE AND NOT A BACKLOG. Signup deliberately does not
+  // verify: a mail-delivery dependency in front of every new teacher in the
+  // busiest week of the school year fails the people who never say so. What
+  // this column gates is BUYING — `startClaimCheckout` and `requestClaimInvoice`
+  // refuse without it — because a teacher blocked at checkout is by definition
+  // trying to give StoryJar money and will tell you. F67 stays open either way.
+  //
+  // WHAT IT IS NOT. It is not a sign-in condition, not a permission, and not a
+  // fact about the person: it says a mailbox answered, nothing more. Do not read
+  // it as "this teacher works at that school" — nothing in this product has ever
+  // checked that (docs/school-identity.md §5), and a column that looked like
+  // evidence of employment is exactly the fuzzy guess that document removes.
+  //
+  // STAMPED ONLY by src/app/confirm-email/route.ts, in the same transaction that
+  // spends the CONFIRM token which authorised it. Never set by an admin, an
+  // operator or a seed of real data; `prisma/seed*.ts` stamp fixtures because a
+  // fixture that could not buy would fail every purchase spec.
+  //
+  // Not a new data category: it is a timestamp about an adult's own address,
+  // which this row already holds. Deleted with the teacher by the same cascade.
+  emailConfirmedAt       DateTime?
+  school                 School?                @relation(fields: [schoolId], references: [id], onDelete: SetNull)
   schoolId               String?
-  createdAt              DateTime             @default(now())
+  createdAt              DateTime               @default(now())
   classes                Class[]
   sessions               Session[]
   templates              ActivityTemplate[]
@@ -46,29 +131,39 @@ model Teacher {
   // their library, and the claude.ai connector grants behind the OAuth ones.
   apiTokens              ApiToken[]
   oauthGrants            OAuthGrant[]
+  // Outstanding password-reset and staff-invite tokens. Cascade on delete, the
+  // same as sessions: deleting a teacher must not leave a live link behind.
+  passwordTokens         TeacherPasswordToken[]
+  // Offers of school membership made TO this teacher, and separately the ones
+  // they made as an admin. Two relations because both ends of a
+  // SchoolInvitation are a Teacher; the names are the disambiguator Prisma
+  // requires and carry no meaning beyond that. Both cascade on delete, the
+  // same as sessions and password tokens.
+  schoolInvitations      SchoolInvitation[]     @relation("SchoolInvitationInvitee")
+  sentSchoolInvitations  SchoolInvitation[]     @relation("SchoolInvitationInviter")
   // Parent messaging (SAFEGUARDING rule 21). May this member of staff read and
   // reply to parents? NULL means "the default for their role": yes for a
   // TEACHER or ADMIN, no for a TA. True/false is an admin's override, set on
   // the Staff tab and nowhere else. Resolved ONLY through
-  // src/lib/messaging/policy.ts (mayMessageParents), never read raw — the same
-  // NULL-means-default convention as Class.ageMode. A staff member cannot set
-  // their own: parent contact is the school's to govern.
+  // src/lib/messaging/policy.ts (resolveMayMessageParents), never read raw —
+  // the same NULL-means-default convention as Class.ageMode. A staff member
+  // cannot set their own: parent contact is the school's to govern.
   mayMessageParents      Boolean?
-  sentMessages           Message[]            @relation("MessageSenderTeacher")
-  threadShares           MessageThreadShare[] @relation("ShareTeacher")
-  sharesGiven            MessageThreadShare[] @relation("ShareSharedBy")
-  handledThreads         MessageThread[]      @relation("ThreadHandler")
-  closedThreads          MessageThread[]      @relation("ThreadClosedBy")
-  messagingPolicyUpdates MessagingPolicy[]    @relation("PolicyUpdatedBy")
+  sentMessages           Message[]              @relation("MessageSenderTeacher")
+  threadShares           MessageThreadShare[]   @relation("ShareTeacher")
+  sharesGiven            MessageThreadShare[]   @relation("ShareSharedBy")
+  handledThreads         MessageThread[]        @relation("ThreadHandler")
+  closedThreads          MessageThread[]        @relation("ThreadClosedBy")
+  messagingPolicyUpdates MessagingPolicy[]      @relation("PolicyUpdatedBy")
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
 // staff, class assignment and billing — but never see children's work unless
 // they teach the class (that stays scoped to each teacher's own classes).
 model School {
-  id                  String           @id @default(cuid())
+  id                  String   @id @default(cuid())
   name                String
-  createdAt           DateTime         @default(now())
+  createdAt           DateTime @default(now())
   // What this school IS. "SCHOOL" is a real customer; "DEMO" is StoryJar
   // Academy, the fictional school StoryJar staff work and troubleshoot in.
   //
@@ -81,23 +176,324 @@ model School {
   // What it IS for is figures. The Academy must never appear in the pupil rolls,
   // price bands or revenue the operator console reports, or StoryJar's own
   // numbers quietly include several hundred children who do not exist.
-  kind                String           @default("SCHOOL")
+  kind                String   @default("SCHOOL")
   // May staff of this school publish a template into the shared library?
   //
   // False everywhere except the Academy, and settable only by a seed or a
   // migration. There is deliberately no screen, no action and no operator
   // control that writes it, which is what keeps "only StoryJar publishes" true
   // while letting it be done on the real canvas, in a real teacher account.
-  canPublishToLibrary Boolean          @default(false)
-  staff               Teacher[]
+  canPublishToLibrary Boolean  @default(false)
+
+  // ---------------------------------------------------------------------------
+  // THE CLAIM. Three columns saying which register entry this school was bought
+  // as, whether the money arrived, and who paid. docs/paid-tier-plan.md item 0,
+  // docs/school-identity.md §3.
+  //
+  // TWO WRITERS, AND ONLY TWO. `src/lib/schoolClaim.ts` takes the claim;
+  // `src/lib/urnRelease.ts` gives it back when an unverified school freezes
+  // (docs/dpo-decisions.md, 2 Sep 2026). This comment read "written only by
+  // src/lib/schoolClaim.ts" until the release existed. A third writer belongs in
+  // this list before it belongs in the code.
+  // ---------------------------------------------------------------------------
+
+  // The DfE URN this school was CLAIMED as. Distinct from `Teacher.urn`, which
+  // is only what a teacher said at signup — read the long comment there before
+  // assuming either follows from the other.
+  //
+  // NULLABLE AND @unique TOGETHER, AND THAT PAIRING IS THE DESIGN, not an
+  // accident to tighten later. SQLite treats every NULL as distinct, so the
+  // index constrains nothing at all about the nulls: unlimited free-text schools
+  // coexist happily, and the constraint bites on exactly one thing — two schools
+  // claiming the same register entry. That is what lets the product refuse a
+  // second claim with a sentence naming the school and its admin, instead of
+  // quietly creating a duplicate school with a second admin standing over the
+  // same children's teachers.
+  //
+  // TWO PRECEDENTS, AND BOTH OF THEM ARE REAL. `Parent.email` is where the
+  // SQLite null semantics were reasoned out first — its comment sits above
+  // `model Parent` rather than inline beside the field, and it says the same
+  // thing in the same words. `ActivityTemplate.librarySlug` is the one that
+  // shows the SQL: Prisma emitted it as a plain CREATE UNIQUE INDEX in
+  // 20260901090000_library_publishing, which is exactly the statement this
+  // column's migration writes by hand.
+  //
+  // docs/paid-tier-plan.md cites `Parent.email`, AND IT IS RIGHT TO. A note in
+  // the item-0 work plan says that column carries no comment and that this one
+  // should cite `librarySlug` instead — checked on 1 Sep 2026, the comment is
+  // there. Do not "correct" the citation in paid-tier-plan.md; it is correct.
+  //
+  // A SCALAR, WITH NO RELATION TO Establishment, deliberately. The register is
+  // deleted and rebuilt wholesale on every import (scripts/gias-import.ts), so a
+  // foreign key would let a closure or a merge take a paying customer's identity
+  // with it, and it would pull Establishment into the ops gate's relation-path
+  // logic for nothing. THE CLAIM SNAPSHOTS RATHER THAN JOINING: `School.name` is
+  // copied at claim time and never follows a GIAS rename, so a customer's
+  // invoice does not change because of a data refresh.
+  //
+  // THE NAME IS ALL THAT IS SNAPSHOTTED — not postcode, local authority or town
+  // (owner decision, 1 Sep 2026, partially reversing decision (a) of 24 Aug,
+  // where the full reasoning now lives in scripts/gias-import.ts). `School.name`
+  // alone serves that decision's stated reason, and `postcode` is a field name
+  // scripts/check-ops-blindness.mjs deliberately DENIES to the operator area
+  // rather than exempting, so `School.postcode` would widen that gate's surface
+  // for a column no screen reads.
+  //
+  // IT GOES BACK TO NULL WHEN AN UNVERIFIED SCHOOL FREEZES (owner decision,
+  // 2 Sep 2026). A purchase order costs the person raising it nothing, so
+  // without a release a squatter held a register entry for ever and only the
+  // founder could clear it. Releasing takes NOTHING ELSE: the school row, its
+  // staff, its classes and every child's work stay exactly where they are, and
+  // the school reclaims the URN by buying again — the same act that claimed it.
+  // A school that PAID and later lapsed keeps its claim; `verifiedAt` below is
+  // the line, and src/lib/urnRelease.ts denies the release if it cannot read it.
+  //
+  // Not personal data: it identifies an institution, and every character of it
+  // is published by the DfE under the Open Government Licence.
+  urn String? @unique
+
+  // When payment for this school was CONFIRMED. Null means arranged but not yet
+  // paid for — a real state, not a missing value.
+  //
+  // ONLY THE INVOICE / PO ROUTE CAN PRODUCE IT. `requestSchoolInvoice` creates
+  // the school ACTIVE and unverified, because a 30-day invoice is unpaid by
+  // definition and finance holding it must not freeze a school; `verifiedAt` is
+  // stamped on `invoice.paid`. A card purchase creates AND verifies inside one
+  // transaction and never passes through this state at all
+  // (docs/pricing-decisions.md, 1 Sep 2026: no trial on new purchases, a 42-day
+  // full refund instead).
+  //
+  // WHAT NULL COSTS A SCHOOL, exactly: no `assignClassToStaff`, no `removeStaff`
+  // on a colleague who has already joined, and no promotion to ADMIN — the three
+  // powers that hand one adult oversight of another adult's pupils
+  // (docs/dpo-decisions.md, 30 Aug + 1 Sep 2026). `removeStaff` on an INVITED
+  // row stays allowed, and so does inviting staff, the audit log, billing and
+  // all of teaching.
+  //
+  // A MISSING SCHOOL ROW READS AS UNVERIFIED, never as "assume fine": that is
+  // rule 8, deny by default, and `schoolIsVerified` in src/lib/schoolClaim.ts is
+  // where it is implemented.
+  verifiedAt DateTime?
+
+  // Which teacher account paid for this school. A bare id, WITH NO FOREIGN KEY,
+  // and that is a decision rather than an oversight to tidy up.
+  //
+  // A relation would have to be `onDelete: SetNull` (the only safe option —
+  // Cascade would delete a whole school because one member of staff closed their
+  // account), and SetNull would erase the one fact a disputed claim asks about:
+  // who claimed this school, at the time, under whose name the money moved. A
+  // claim record that deletes itself when the claimant leaves is not a record.
+  //
+  // IT IS LOAD-BEARING, NOT ARCHAEOLOGICAL. docs/pricing-decisions.md (1 Sep
+  // 2026) requires a refund to detach THE BUYER back to their own free plan
+  // rather than freezing them alongside the school, and nothing else in this
+  // schema can say which member of staff that was:
+  // `customer.subscription.deleted` resolves a Subscription and gets a
+  // `schoolId`, and a school has many staff. `detachBuyer` in
+  // src/lib/schoolClaim.ts is the consumer.
+  //
+  // Because there is no FK, EVERY READER MUST TREAT IT AS POSSIBLY DANGLING: the
+  // teacher may have deleted their account, or may have been removed and moved
+  // on. `detachBuyer` re-reads the teacher and checks they still point at THIS
+  // school before touching anything.
+  claimedByTeacherId String?
+
+  staff           Teacher[]
   // The school's billing subscription (school plan). Null until one is created;
   // the plan label shown in the admin console is derived from this, not stored.
-  subscription        Subscription?
+  subscription    Subscription?
+  // Offers this school has made to teachers who already hold their own
+  // account. Not a second staff list: a row here is a question, and only
+  // `Teacher.schoolId` is an answer.
+  invitations     SchoolInvitation[]
   // Parent messaging: the school's office hours and switch (SAFEGUARDING rule
   // 21), and the threads denormalised onto the school so a policy change can
   // recompute every undelivered message in one query.
-  messagingPolicy     MessagingPolicy?
-  messageThreads      MessageThread[]
+  messagingPolicy MessagingPolicy?
+  messageThreads  MessageThread[]
+}
+
+// An OFFER of school membership, made to a teacher who ALREADY HAS a StoryJar
+// account of their own.
+//
+// It exists because `inviteStaff` (src/app/actions/admin.ts) refuses an email
+// that already belongs to a teacher, flatly. A teacher who signed up free in
+// September therefore cannot be brought into their school when it buys in
+// January — the ordinary case rather than an edge one, and the last thing
+// standing between a school paying and its staff using what it paid for.
+// docs/dpo-decisions.md (1 Sep 2026), docs/paid-tier-plan.md.
+//
+// THIS IS A MEMBERSHIP RECORD, NOT A CREDENTIAL. It is filed here, beside
+// School in the billing and adult-account half of this file, and deliberately
+// NOT beside TeacherPasswordToken, so that a reader arriving at it does not
+// begin by assuming it holds a secret. It does not.
+//
+// ---------------------------------------------------------------------------
+// THERE IS NO SECRET COLUMN, AND THAT IS THE DESIGN
+// ---------------------------------------------------------------------------
+// Nothing here is named `*Hash`, `*Token`, `*Code` or `*Secret`, so nothing
+// trips SENSITIVE_NAME_PATTERNS in scripts/check-ops-blindness.mjs and nothing
+// needs a DENY_FIELDS entry. That is a CONSEQUENCE, not the reason. The reason
+// is the owner decision of 1 September 2026: this invitation is answered IN THE
+// APP BY THE SIGNED-IN ACCOUNT HOLDER, so there is nobody for a bearer token to
+// be issued to. The invitee is already authenticated; a mailed secret would be
+// a second way in to an account that already has one.
+//
+// SO AN `inviteCode` "SO IT CAN BE FORWARDED" IS THE CHANGE TO REFUSE. It would
+// recreate — after MagicToken and TeacherPasswordToken — the third bearer
+// credential in this product, and it would do it on the highest-value action in
+// it: accepting hands a school authority over this teacher's classes and the
+// children in them. "Forwardable" means "works for whoever is holding it", and
+// what would be handed over is not this teacher's account, it is their pupils.
+// A notification email may say an invitation is waiting; it may not carry one.
+//
+// ---------------------------------------------------------------------------
+// WHY NOT COLUMNS ON TeacherPasswordToken
+// ---------------------------------------------------------------------------
+// Because `mintPasswordToken` (src/lib/passwordTokens.ts) SPENDS every unspent
+// token in the password-setting pool each time it mints another. An invitation
+// filed there as a fourth `purpose` would be cancelled silently the next time
+// the teacher asked for a password reset, and the banner offering it would
+// vanish with nothing on any screen explaining why.
+//
+// That is a live edge rather than a theory: it is exactly what CONFIRM hit in
+// prisma/migrations/20260902150000_teacher_email_confirmation, which is why
+// confirmation was given its own pool. A pool is the right answer THERE,
+// because a confirmation is still a mailed secret with a lifetime. It is the
+// wrong answer here. An invitation is not a secret at all, and a table whose
+// entire purpose is "single-use expiring credential, stored as a digest" is the
+// wrong cabinet for a record that a school and a teacher both have to be able
+// to look at and talk about.
+//
+// ---------------------------------------------------------------------------
+// ONE ROW PER (TEACHER, SCHOOL), MUTATED THROUGH STATES
+// ---------------------------------------------------------------------------
+// `@@unique([teacherId, schoolId])`. Re-inviting somebody is an UPSERT back to
+// PENDING with a fresh clock, never a second row, so "does this teacher have an
+// open offer from us?" is one lookup with one answer and there is no
+// newest-row tie for two readers to break differently.
+//
+// History is not lost; it is kept where this codebase already keeps history.
+// src/app/admin/page.tsx reconstructs which teacher held which class entirely
+// from CLASS_ASSIGNED audit rows rather than from a column, for exactly this
+// reason: the log is the record, and a column is the current state.
+//
+// THE LEADING COLUMN IS teacherId, AND THERE IS NO SECOND INDEX. The read that
+// happens constantly is the teacher's — the shell asks "do I have an open
+// offer?" on EVERY navigation — and a composite index is usable on its leading
+// column alone, so that read is covered. The school's read, an admin opening
+// one console page, scans a table holding one row per outstanding offer. That
+// is cheaper than an index maintained on every write, and if it ever stops
+// being cheaper the fix is one line here.
+//
+// NO GLOBAL UNIQUE ON teacherId. A supply teacher genuinely can be asked by two
+// schools at once, and a unique constraint there would make the second school's
+// invitation fail with a database error instead of arriving. What stops a
+// teacher belonging to two schools is ACCEPTANCE — `Teacher.schoolId` is a
+// single column, and accepting supersedes the other open offers — not a
+// constraint on being asked.
+//
+// ---------------------------------------------------------------------------
+// EXPIRY IS A PAST `expiresAt`, NOT A STATE
+// ---------------------------------------------------------------------------
+// There is no EXPIRED value in `state` and there is no job that would write
+// one. An offer is open when its state is PENDING and its clock has not run
+// out, and both halves are read together by `schoolInvitationIsOpen` in
+// src/lib/schoolInvitationPolicy.ts. A state would need a sweeper to be true; a
+// sweeper that stops running is a silent widening; and a sweeper's absence
+// looks exactly like an offer that is still open. Nothing to schedule, nothing
+// to drift.
+//
+// ---------------------------------------------------------------------------
+// WHAT IS IN IT, FOR THE DPIA
+// ---------------------------------------------------------------------------
+// Two adults and a school: the invitee, the inviter, the school, a role from a
+// three-word vocabulary, the name the ADMIN TYPED, and four timestamps. No
+// child, no address, no free text a child's name could reach, no credential and
+// no new sub-processor. Nothing the Teacher rows at either end do not already
+// hold. Deleted with either adult, and with the school, by the cascades below.
+model SchoolInvitation {
+  id String @id @default(cuid())
+
+  // The school making the offer. Cascade: if the school row goes, an offer to
+  // join it is not a record of anything.
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId String
+
+  // The teacher being asked. Cascade for the reason Session and
+  // TeacherPasswordToken cascade: closing an account must not leave something
+  // behind that still names the person who closed it.
+  teacher   Teacher @relation("SchoolInvitationInvitee", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+
+  // ADMIN | TEACHER | TA — the SAME closed vocabulary as `Teacher.role`, in the
+  // same words rather than a parallel set, because this value is copied onto
+  // the teacher when they accept. Checked in src/lib/schoolInvitationPolicy.ts
+  // before a row is written; SQLite has no enum, which is why Teacher.role and
+  // Teacher.status are strings too.
+  //
+  // NO DEFAULT. The role is a choice an admin makes on a form, and a default
+  // here is a way to write the wrong one quietly. Whether ADMIN may be OFFERED
+  // is a separate rule about the school, not about this column: an unverified
+  // school may not (docs/dpo-decisions.md, 2 Sep 2026).
+  role String
+
+  // THE NAME THE ADMIN TYPED, NEVER THE ACCOUNT'S OWN. This is a safeguarding
+  // decision wearing a display field's clothes, and it does two jobs.
+  //
+  // Rendering `Teacher.name` instead would disclose an adult's real name to
+  // somebody who supplied only an email address: an admin who typed a
+  // colleague's address would be told what that person is called, which they
+  // did not know a moment earlier.
+  //
+  // And it would make a pending invitation LOOK DIFFERENT in the staff list
+  // from a fresh INVITED row — which is exactly the difference the four-case
+  // `inviteStaff` branch exists to erase. "No account here" and "an account,
+  // now invited" must be indistinguishable to the admin, or the invite form is
+  // FINDINGS F6's account-existence oracle with better manners.
+  invitedName String
+
+  // WHO ASKED: a nullable pointer, plus the name snapshotted as text.
+  //
+  // SetNull, because an inviter can leave the school or close their account and
+  // neither of those may delete an offer somebody is still holding. The
+  // snapshot is what makes SetNull safe — "Mrs Lindqvist asked you to join
+  // Oakfield" survives Mrs Lindqvist, and that sentence is what the acceptance
+  // screen has to be able to say before a teacher hands over their classes.
+  //
+  // Compare School.claimedByTeacherId, which answers the same problem the other
+  // way round: no foreign key at all, because there is no name column there to
+  // carry the fact once the pointer has gone.
+  invitedBy          Teacher? @relation("SchoolInvitationInviter", fields: [invitedByTeacherId], references: [id], onDelete: SetNull)
+  invitedByTeacherId String?
+  invitedByName      String
+
+  // PENDING | ACCEPTED | DECLINED | REVOKED | SUPERSEDED. Closed vocabulary,
+  // enforced in src/lib/schoolInvitationPolicy.ts.
+  //
+  // The last three are three values rather than one "closed", because they are
+  // answers to different questions and a support call asks which: DECLINED is
+  // the teacher's answer, REVOKED is the school taking it back, and SUPERSEDED
+  // is what happens to every other open offer the moment a teacher accepts one
+  // — nobody did anything, and it must not read as though somebody did.
+  //
+  // NO `EXPIRED`. See the note above the model.
+  state String @default("PENDING")
+
+  // When the offer stops being answerable. 14 days; the number and the argument
+  // for it are in src/lib/schoolInvitationPolicy.ts, in one place so it can be
+  // overruled in one place.
+  expiresAt DateTime
+
+  // When the teacher answered, whichever way. Null while PENDING. Not derivable
+  // from `updatedAt`, which also moves when a school revokes or when acceptance
+  // elsewhere supersedes this row.
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([teacherId, schoolId])
 }
 
 // A billing subscription that governs WRITE access for an account. An account is
@@ -246,6 +642,87 @@ model MagicToken {
   createdAt DateTime  @default(now())
 }
 
+// A single-use, expiring token that lets an ADULT set a password.
+//
+// ONE MODEL, TWO PURPOSES, and that is a decision rather than an economy. A
+// forgotten password and a staff invitation are the same mechanism — mint a
+// random secret, mail a link, let the person who opened it write a new hash
+// once — and two models would be two copies of that mechanism, drifting apart
+// the first time one of them was fixed. What actually differs between the two
+// is carried by `purpose`: how long the token lasts, which audit action a
+// completed set writes, and whether the REQUEST path has to be neutral (a
+// reset does, because anyone may ask for one; an invite is triggered by a
+// colleague who is already signed in).
+//
+// `purpose` is a closed vocabulary, "RESET" or "INVITE", checked in code
+// before a row is written. SQLite has no enum, which is the same reason
+// Session.role and JournalItem.status are strings here.
+//
+// THE TOKEN IS STORED HASHED, NEVER RAW. `resetHash` is the SHA-256 hex digest
+// of the 24 random bytes that went out in the email, and the raw token exists
+// only in that message and in the request that spends it. The reason is that a
+// database READ must not be replayable into an account takeover: with raw
+// storage, anyone who can see this table for the lifetime of a token owns any
+// account with an outstanding reset. That is not hypothetical here. FINDINGS
+// F20 records that volume backups now exist, F35 that nobody has confirmed
+// which country they sit in, and docs/exceptional-access.md describes a route
+// by which a human deliberately reads rows. A stolen dev.db, a leaked backup
+// and an authorised look are all the same shape of event, and after this
+// decision none of them yields a working link.
+//
+// SHA-256 AND NOT BCRYPT, DELIBERATELY. Slow KDFs exist to defend secrets
+// people choose; this secret is 24 bytes from `randomBytes` — 192 bits, not
+// guessable, with no dictionary to run against it. bcrypt would buy nothing
+// for that and would cost a KDF on every lookup, and it silently truncates its
+// input at 72 bytes, which is a trap to leave lying around. A single fast
+// digest is the right primitive for a high-entropy bearer token.
+//
+// Lookup is BY HASH: the caller digests the token from the URL and reads this
+// unique index. So hashing costs no scan and no extra query — the index does
+// exactly the work it did before.
+//
+// THIS DIVERGES FROM MagicToken ABOVE, WHICH STORES ITS TOKEN RAW, AND THE
+// DIVERGENCE IS THE POINT. MagicToken's raw storage is a weakness to be
+// corrected on its own terms, not a house style for new tables to match; it is
+// left alone in this commit because changing the parent sign-in path is a
+// separate, safeguarding-reviewed change and not something to smuggle in
+// beside a teacher feature. Anyone adding a third token table should copy this
+// model, not that one.
+model TeacherPasswordToken {
+  id        String    @id @default(cuid())
+  // Named resetHash, not tokenHash, for the reason ApiToken.keyHash gives above:
+  // OperatorSession already owns `tokenHash`, the ops blindness gate's denylist
+  // is keyed on the column NAME, and denylisting that name would either break
+  // the operator's own sign-in or leave this column unprotected. Two
+  // credentials, two names, both denied. This model was first written with
+  // `tokenHash` and renamed the same morning — the gate passed either way,
+  // because the model's CREDENTIAL_NEVER classification already permits
+  // nothing, but a name that can never be added to DENY_FIELDS is protected by
+  // one control where every other teacher credential has two.
+  resetHash String    @unique // SHA-256 hex of the raw token. The raw token is never stored.
+  teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  // RESET | INVITE | CONFIRM.
+  //
+  // The first two SET A PASSWORD and share one pool: `mintPasswordToken` spends
+  // every unspent RESET or INVITE the teacher holds when it mints another, so
+  // only one password-setting link is ever live. CONFIRM sets no password — it
+  // proves a mailbox answered — so it has its own pool and its own minting
+  // function, and the two must not spend each other. A reset that killed an
+  // outstanding confirmation would block a teacher at checkout with a dead link
+  // in their inbox.
+  //
+  // The vocabulary is closed and enforced in src/lib/passwordTokenPolicy.ts, and
+  // BOTH consumers check the purpose they expect. `setPassword` refuses a
+  // CONFIRM token: a confirmation link is sent to an address NOBODY HAS PROVED
+  // YET, so a token that could also set a password would hand a mistyped
+  // stranger the account.
+  purpose   String
+  expiresAt DateTime
+  usedAt    DateTime? // set in the same transaction as the password write, which is what makes it single-use
+  createdAt DateTime  @default(now())
+}
+
 // A single piece of work in a student's journal.
 model JournalItem {
   id               String      @id @default(cuid())
@@ -313,6 +790,22 @@ model ActivityTemplate {
   // than files is the trap this avoids).
   sourceShared           SharedActivity? @relation(fields: [sourceSharedActivityId], references: [id], onDelete: SetNull)
   sourceSharedActivityId String?
+  // The slug of the library activity this template was published AS, when it
+  // was published by StoryJar staff from the Academy. Null for every template
+  // at every real school, forever.
+  //
+  // A plain string and deliberately NOT a relation. SharedActivity's own
+  // comment says it has no teacherId and no folderId and that nothing should
+  // ever give it one; a foreign key from it back to a template would be a
+  // teacherId by proxy, and the whole point of that table is that it belongs to
+  // StoryJar rather than to a school. Holding the pointer on this side keeps
+  // the library row independent of the template that seeded it, so deleting the
+  // template leaves the published activity — and every teacher's copy of it —
+  // untouched.
+  //
+  // Unique because the slug is the library's identity: publishing the same
+  // template twice must update one row rather than mint a second.
+  librarySlug            String?         @unique
   createdAt              DateTime        @default(now())
   assignments            Assignment[]
 }
@@ -799,7 +1292,7 @@ model OAuthClient {
 
 // One teacher's decision to let one client in, and the credentials that carry
 // that decision: first a single-use authorization code, then a refresh token.
-// Both are stored hashed, for the same reason ApiToken.tokenHash is.
+// Both are stored hashed, for the same reason ApiToken.keyHash is.
 model OAuthGrant {
   id            String      @id @default(cuid())
   oauthClient   OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -822,7 +1315,48 @@ model OAuthGrant {
   @@index([teacherId])
 }
 
-// ---------------------------------------------------------------------------
+// One open, primary-facing English establishment, imported from the DfE's GIAS
+// all-establishments CSV by scripts/gias-import.ts. Public reference data about
+// an INSTITUTION: there is no person in this table, no foreign key to one, and
+// no route from a row here back to a teacher, a parent or a child.
+//
+// It is a register, not a service. Nothing calls GIAS at runtime — the CSV is
+// downloaded and parsed by a person running a command, which is why there is no
+// sub-processor to declare (docs/DPIA.md) and no retention clock to run
+// (RETENTION.md: no data subject, replaced wholesale on each import).
+//
+// SIX COLUMNS, AND DELIBERATELY NO SEVENTH. GIAS also publishes each school's
+// website and telephone number; neither is needed once domain matching is off
+// the table (docs/school-identity.md), and a field nobody reads is a field
+// somebody later decides to display. That rule is why there is no lower-cased
+// name column and no space-free postcode column here either: prefix search
+// normalises the QUERY instead (src/lib/establishmentSearch.ts), which cannot drift
+// out of step with the row the way a derived column can.
+//
+// `urn` is the Unique Reference Number the DfE assigns, and it is the whole
+// point of the table: two teachers typing "St Bede's Primary" and "St Bedes
+// CofE Primary School" are the same school here and nowhere else in StoryJar.
+//
+// STALENESS IS ACCEPTED. Schools open, close and merge under new URNs, and a
+// hand-run import is a snapshot. A real school missing from the register must
+// still be able to sign up, which is why signup keeps its free-text field as a
+// first-class path rather than a degraded one.
+model Establishment {
+  // The DfE's URN, not a cuid: the row IS the establishment, and a surrogate
+  // key would let one school in twice under two ids.
+  urn            String @id
+  name           String // EstablishmentName, verbatim
+  // Postcode does the disambiguating work in the picker — there are dozens of
+  // St Mary's Primary Schools. Stored exactly as GIAS prints it.
+  postcode       String
+  localAuthority String // LA (name)
+  phase          String // PhaseOfEducation (name): Primary, Middle deemed primary, All-through
+  town           String // Town, falling back to Locality — GIAS populates Town far more reliably
+
+  @@index([name])
+  @@index([postcode])
+}
+
 // Parent–teacher messages, held to the school's office hours.
 // SAFEGUARDING.md rule 21; retention in RETENTION.md ("Parent–teacher
 // messages"); risk assessment docs/DPIA.md R18.

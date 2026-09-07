@@ -21,7 +21,7 @@ test("what am I allowed to do here?", async ({ page, tester: t }) => {
   await carryOn(async () => {
     // First question on a shared device: whose account am I in?
     t.expects(
-      await t.seesText(/sam/i, 3000),
+      await t.seesText(/\bsam\b/i, 3000),
       "minor",
       "confusing",
       "Nothing on screen tells me whose account I am signed in to. On a shared classroom iPad that is the first thing I need to know.",
@@ -44,7 +44,7 @@ test("what am I allowed to do here?", async ({ page, tester: t }) => {
     await t.open("/teacher/queue", "the approval queue");
     const approve = page.getByRole("button", { name: /add to jar/i }).first();
     const canApprove = await t.sees(approve, 2500);
-    const saysWhyNot = await t.seesText(/only (a )?teacher|not allowed|ask|cannot approve/i, 1500);
+    const saysWhyNot = await t.seesText(/only (a )?teacher|not allowed|\bask\b|cannot approve/i, 1500);
     t.expects(
       canApprove || saysWhyNot,
       "major",
