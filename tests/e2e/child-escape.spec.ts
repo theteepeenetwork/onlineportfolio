@@ -177,7 +177,7 @@ test("a sent-back piece does not bury the way out under the teacher's note", asy
 
     // Every control in the top-left corner answers to its own centre. If the
     // note is over one of them, the browser names the note instead.
-    for (const label of [WAY_BACK, /^Undo$/, /^Redo$/, /^Clear page$/]) {
+    for (const label of [WAY_BACK, /^Undo$/, /^Redo$/]) {
       const control = page.getByRole("button", { name: label });
       await expect(control, `${label} should be on screen`).toBeVisible();
       const box = (await control.boundingBox())!;

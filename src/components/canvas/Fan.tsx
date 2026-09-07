@@ -263,6 +263,8 @@ export type PenFanProps = {
   /** Whether the Move tool is offered (it is not on a canvas with no objects). */
   canMove: boolean;
   onToggle: () => void;
+  /** Press and hold the disc: swap the fans to the other corner. */
+  onHold?: () => void;
   onTool: (key: string) => void;
   onColour: (hex: string) => void;
   onSize: (n: number) => void;
@@ -282,11 +284,26 @@ export function PenFan({
   size,
   canMove,
   onToggle,
+  onHold,
   onTool,
   onColour,
   onSize,
   art,
 }: PenFanProps) {
+  // A hold on the disc is not a tap on it: the timer fires the swap and marks
+  // the press so the click that follows the release is swallowed.
+  const discHold = useRef<{ t: ReturnType<typeof setTimeout> | null; fired: boolean }>({ t: null, fired: false });
+  const discDown = () => {
+    discHold.current.fired = false;
+    discHold.current.t = setTimeout(() => {
+      discHold.current.fired = true;
+      onHold?.();
+    }, 600);
+  };
+  const discUp = () => {
+    if (discHold.current.t) clearTimeout(discHold.current.t);
+    discHold.current.t = null;
+  };
   // Press and hold a swatch and it says what it is. A child who is choosing
   // "the green one" has no other way to be told which green.
   const [held, setHeld] = useState<string | null>(null);
@@ -479,7 +496,14 @@ export function PenFan({
           hand is visible without opening anything. */}
       <button
         type="button"
-        onClick={onToggle}
+        onPointerDown={discDown}
+        onPointerUp={discUp}
+        onPointerLeave={discUp}
+        onPointerCancel={discUp}
+        onClick={() => {
+          if (discHold.current.fired) return;
+          onToggle();
+        }}
         // NOT "Pen": the tool ring inside carries a Pen, and two buttons with
         // the same accessible name on one screen is a screen reader with no way
         // to tell them apart. This one is the lid on all of it.

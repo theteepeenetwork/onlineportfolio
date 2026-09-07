@@ -3802,26 +3802,10 @@ export function DrawingCanvas({
                     {title}
                   </span>
                 )}
-                {/* Clear page keeps its place in this row — it is the one
-                    control here that is not undo, and the row nearest the way
-                    out must not be the one that wipes a child's work, so it
-                    sits AFTER undo and redo. */}
-                <ChromeRound u={u} label="Clear page" onClick={clearPage}>
-                  <Icon name="delete" size={u(24)} decorative />
-                </ChromeRound>
-                {/* Which corner the fans open from. The one setting the design
-                    calls for, and the only place a child can reach it. */}
-                <ChromeRound
-                  u={u}
-                  label={
-                    hand === "right"
-                      ? "Put the buttons on the other side, for a left hand"
-                      : "Put the buttons back, for a right hand"
-                  }
-                  onClick={swapHand}
-                >
-                  <Icon name="point" size={u(24)} decorative />
-                </ChromeRound>
+                {/* Nothing else up here. Clear page lives in the page card's
+                    menu ("Wipe this page clean") beside copy and throw-away,
+                    and the left-hand swap is a press-and-hold on the pen disc —
+                    the top row is the design's: way out, undo, redo, status. */}
                 </div>
               </div>
 
@@ -3907,6 +3891,12 @@ export function DrawingCanvas({
                   setFanOpen(false);
                   setPlusRow(null);
                 }}
+                // Press and hold the disc to move the fans to the other corner
+                // — the one setting the design asks for, kept off the top row.
+                onHold={() => {
+                  swapHand();
+                  say(hand === "right" ? "Buttons are on the left now" : "Buttons are on the right now");
+                }}
                 onTool={(key) => {
                   finishEditing();
                   setTool(key as Tool);
@@ -3971,6 +3961,11 @@ export function DrawingCanvas({
                 onDelete={(i) => {
                   deletePageAt(i);
                   say(`Page ${i + 1} is back`);
+                }}
+                onClear={(i) => {
+                  if (i !== currentRef.current) goToPage(i);
+                  clearPage();
+                  say("Drawing is back");
                 }}
                 onContextMenu={allowPageStructure ? openPageMenu : undefined}
               />

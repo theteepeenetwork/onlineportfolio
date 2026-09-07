@@ -49,6 +49,7 @@ export function PageTray({
   onReorder,
   onDuplicate,
   onDelete,
+  onClear,
   onContextMenu,
   maxWidth,
 }: {
@@ -64,6 +65,8 @@ export function PageTray({
   onReorder: (from: number, to: number) => void;
   onDuplicate: (i: number) => void;
   onDelete: (i: number) => void;
+  /** Wipe the drawing off a page, leaving the page. */
+  onClear: (i: number) => void;
   /** Right-click / two-finger click on a card. A mouse's way to the same menu
       the hold gives a finger — see CanvasMenu for why it is a menu, not a
       dialog. */
@@ -404,6 +407,7 @@ export function PageTray({
           canStructure={canStructure}
           onDuplicate={() => { setMenu(null); onDuplicate(menu); }}
           onDelete={() => { setMenu(null); onDelete(menu); }}
+          onClear={() => { setMenu(null); onClear(menu); }}
           onClose={() => setMenu(null)}
         />
       )}
@@ -419,6 +423,7 @@ function PageMenu({
   canStructure,
   onDuplicate,
   onDelete,
+  onClear,
   onClose,
 }: {
   u: Unit;
@@ -428,6 +433,7 @@ function PageMenu({
   canStructure: boolean;
   onDuplicate: () => void;
   onDelete: () => void;
+  onClear: () => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -488,6 +494,9 @@ function PageMenu({
           <Icon name="duplicate" size={u(20)} decorative /> Make a copy of this page
         </button>
       )}
+      <button type="button" onClick={onClear} style={row} aria-label="Clear page" title="Wipe this page clean">
+        <Icon name="eraser" size={u(20)} decorative /> Wipe this page clean
+      </button>
       {canDelete && count > 1 && (
         <button type="button" onClick={onDelete} style={row} aria-label={`Delete page ${index + 1}`} title="Delete page">
           <Icon name="delete" size={u(20)} decorative /> Throw this page away
