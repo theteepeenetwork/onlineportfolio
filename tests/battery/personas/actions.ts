@@ -83,8 +83,16 @@ export async function scribble(page: Page) {
   // a blank page may not, and the tools differ between the two canvases — so
   // this is a short, optional attempt rather than the project's 15-second
   // action timeout spent waiting for a button that was never going to appear.
-  const pen = page.locator('button[title="Pen"], button[aria-label="Pen"]');
-  if (await pen.count()) await pen.first().click({ timeout: 2000 }).catch(() => {});
+  // The pen disc opens a fan of nibs, tools and colours. Pick a felt tip out of
+  // it and then FOLD IT: while a fan is open the paper is a way out of it, so
+  // the first stroke would only be spent shutting the fan.
+  const pen = page.locator('button[title="Pens"]');
+  if (await pen.count()) {
+    await pen.first().click({ timeout: 2000 }).catch(() => {});
+    const felt = page.locator('button[aria-label="Felt tip"]');
+    if (await felt.count()) await felt.first().click({ timeout: 2000 }).catch(() => {});
+    await pen.first().click({ timeout: 2000 }).catch(() => {});
+  }
   const box = await canvas.boundingBox();
   if (!box) return;
   const x = box.x + box.width * 0.3;

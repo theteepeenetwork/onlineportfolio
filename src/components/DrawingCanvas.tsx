@@ -1,7 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon, type IconName } from "./icons/Icon";
+import { ShapeThumb } from "./canvas/ShapeThumb";
+import { PenArt, PenFan, PlusFan, type PlusItem, type PlusOption } from "./canvas/Fan";
+import { PageTray } from "./canvas/PageTray";
+import { KitPalette } from "./canvas/KitPalette";
+import {
+  defaultWindowPos,
+  FloatingWindow,
+  WINDOW_PILL_W,
+  WINDOW_W,
+  type WindowPos,
+} from "./canvas/FloatingWindow";
+import { ChromeDone, ChromePill, ChromeRound, StatusChip, Toast } from "./canvas/Chrome";
+import {
+  DISC,
+  FAN_COLOURS,
+  FRAME_H,
+  FRAME_W,
+  NEAR_X,
+  WHITE,
+  discCy,
+  penCx,
+  penDir,
+  Z_BASE,
+  Z_CHROME,
+  plusCx,
+  plusDir,
+} from "@/lib/canvasFan";
+import { readHand, serverHand, subscribeHand, writeHand } from "@/lib/canvasHand";
 import { TeacherNote } from "@/app/student/TeacherNote";
 import {
   MIN_OPTIONS,
@@ -81,10 +109,14 @@ function cloneQuestions(qs: QuizQuestion[]): QuizQuestion[] {
   return qs.map((q) => ({ ...q, options: q.options.map((o) => ({ ...o })) }));
 }
 
-const SWATCHES = [
-  "#1f2430", "#ef4444", "#f97316", "#f59e0b", "#10b981",
-  "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#ffffff",
-];
+// ONE palette, everywhere a colour is offered: the pen fan, the object bar's
+// fill and line menus, the inline editor. They used to be a stock Tailwind row
+// here and the brand ten in the design; a child who picked "the green one" on
+// the pen and then on a shape got two different greens.
+//
+// White is the eleventh and is not a brand colour: it is how you draw on a
+// photograph, and taking it away is what the hue bar did wrong (pen-width.spec).
+const SWATCHES = [...FAN_COLOURS.map((c) => c.hex), WHITE.hex];
 const SIZES = [6, 12, 22];
 // Bounds of the child canvas line-thickness slider.
 const MIN_WIDTH = 2;
@@ -105,7 +137,6 @@ const DEFAULT_TOOL_SIZES: Record<Tool, number> = {
 };
 // The four drawing tools map onto four distinct nib shapes + stroke weights:
 // pencil → Pen (thin), pen → Felt tip (thick), highlighter (wide/translucent),
-// eraser. See ToolShape for the drawn nibs and true-weight sample strokes.
 const TOOLS: { key: Tool; label: string; icon?: IconName }[] = [
   { key: "cursor", label: "Move", icon: "select" },
   { key: "pencil", label: "Pen", icon: "pen" },
@@ -147,12 +178,12 @@ const SHELF: { key: Tool; label: string }[] = [
 // restores that tool's last colour instead of forcing whatever the picker last
 // showed. These are the on-load defaults (black Pen, blue Felt tip, …).
 const DEFAULT_TOOL_COLORS: Record<Tool, string> = {
-  cursor: "#1f2430", // unused (move tool)
-  pencil: "#1f2430", // Pen — black
+  cursor: "#22304a", // unused (move tool)
+  pencil: "#22304a", // Pen — ink
   pen: "#3b82f6", // Felt tip — blue
-  highlighter: "#f59e0b", // amber highlight
-  eraser: "#1f2430", // unused (erases)
-  text: "#1f2430", // black
+  highlighter: "#f0b441", // honey highlight
+  eraser: "#22304a", // unused (erases)
+  text: "#22304a", // ink
 };
 
 const W = 1000;
@@ -168,6 +199,10 @@ const IMAGE_LOAD_BUDGET_MS = 30_000;
 // from these, so they're the maximum rather than a fixed size.
 const QUIZ_W = 380;
 const QUIZ_H = 300;
+// How much a question box grows for each answer added, and shrinks for each
+// taken away — the design's 50 a row — so the box always has room for its own
+// answers rather than clipping the fourth.
+const QUIZ_ROW = 50;
 // How small a teacher may drag a box: a quiz can be a small aside on a busy
 // worksheet, not just the main event. Well under the old 220×160 floor — which
 // was nominal anyway, since at that size the old fixed-size contents didn't fit
@@ -235,6 +270,19 @@ const SIZE_STEP = 1.1;
 // The child touch floor (SAFEGUARDING rule 18), as a number the offsets can be
 // derived from rather than a second place to keep in step.
 const HIT_PX = 64;
+
+// The sign each operator draws, for the settings row's seven buttons. Glyphs
+// here only; the accessible name is the word (OPERATOR_LABEL), because "×" read
+// aloud is not reliably "times".
+const OPERATOR_GLYPH: Record<OperatorKind, string> = {
+  add: "+",
+  subtract: "−",
+  multiply: "×",
+  divide: "÷",
+  equals: "=",
+  less: "<",
+  greater: ">",
+};
 // Above the floating toolbar's `z-30`. The two can only meet where there is room
 // for the toolbar neither above nor below the object — the case the placement
 // below deliberately accepts — and when they do, the object's own controls are
@@ -360,6 +408,10 @@ function fitTextToBox(
   text: string,
   boxW: number,
   boxH: number,
+  // The largest size to try. A shape's label wants the biggest that fits, so
+  // this is open by default; a question's prompt has a size of its own and
+  // only ever needs wrapping DOWN from it.
+  maxFontPx?: number,
 ): { fontPx: number; lines: string[]; lineHeight: number } {
   const words = text.split(/\s+/).filter(Boolean);
   if (!words.length) return { fontPx: 24, lines: [], lineHeight: 29 };
@@ -384,7 +436,8 @@ function fitTextToBox(
     return lines;
   };
 
-  for (let fontPx = Math.min(140, Math.floor(maxH)); fontPx >= 8; fontPx -= 2) {
+  const start = Math.min(maxFontPx ?? 140, 140, Math.max(8, Math.floor(maxH)));
+  for (let fontPx = start; fontPx >= 8; fontPx -= 2) {
     const lines = wrap(fontPx);
     const lineHeight = fontPx * 1.2;
     mc.font = `600 ${fontPx}px ${FONT_STACK}`;
@@ -696,7 +749,10 @@ export function DrawingCanvas({
   // A template (teacher building it, or a child working on it) opens on the
   // Select tool, so objects can be picked up and moved straight away.
   // A plain free-draw still opens ready to draw with the Pen.
-  const [tool, setTool] = useState<Tool>(objectMode ? "cursor" : "pencil");
+  // A blank page opens with the FELT TIP in hand — the blue pen the design's
+  // disc holds — not the ink pencil. A worksheet with pieces to move opens on
+  // Move, as before.
+  const [tool, setTool] = useState<Tool>(objectMode ? "cursor" : "pen");
   // Per-tool colour, kept for the whole session. `color` is the active tool's
   // colour; changing it only affects the tool you're currently holding.
   const [toolColors, setToolColors] = useState<Record<Tool, string>>(DEFAULT_TOOL_COLORS);
@@ -782,8 +838,11 @@ export function DrawingCanvas({
   // The panel floats over the canvas. Its position and collapsed state live here
   // rather than in the panel so that tucking it away to the launcher and
   // reopening brings it back exactly where the teacher left it.
-  const [quizPanelPos, setQuizPanelPos] = useState({ x: 80, y: 96 });
-  const [quizPanelCollapsed, setQuizPanelCollapsed] = useState(false);
+  // Where the Quiz builder window sits, in design units, for the session.
+  // Where the Quiz builder window sits, for the session. It cannot be given a
+  // real default here — the paper has not been measured yet — so it is parked
+  // properly the first time it is opened.
+  const [quizWindow, setQuizWindow] = useState<WindowPos | null>(null);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   // Answer mode: the child's current selection per question, mirrored into the
   // hidden `quizAnswers` input the response form submits. On a "carry on" reopen
@@ -861,7 +920,25 @@ export function DrawingCanvas({
   // The active tab within each kit, remembered while the canvas is open so a
   // teacher placing ten counters doesn't re-pick the group every time.
   const [openGroup, setOpenGroup] = useState<Partial<Record<KitId, string>>>({});
-  const [stripOpen, setStripOpen] = useState(true);
+
+  // ---- The fan toolbar's own state ---------------------------------------
+  //
+  // Which second row of the ＋ fan is fanned out (a kit id, "photo", "quiz"),
+  // and where the floating windows are. Positions are remembered for the
+  // session because a teacher who has dragged the maths kit out of the way of
+  // the thing they are building has said where they want it.
+  const [plusRow, setPlusRow] = useState<string | null>(null);
+  // Where the next piece off a palette lands, so repeats do not stack exactly.
+  const placeCycleRef = useRef(0);
+  const [kitWindows, setKitWindows] = useState<Partial<Record<string, WindowPos>>>({});
+  // What the last thing did, in the words that would undo it.
+  const [toast, setToast] = useState<{ text: string; at: number } | null>(null);
+  const say = useCallback((text: string) => setToast({ text, at: Date.now() }), []);
+  // Which corner the fans sit in — a device setting; see `src/lib/canvasHand.ts`.
+  const hand = useSyncExternalStore(subscribeHand, readHand, serverHand);
+  function swapHand() {
+    writeHand(hand === "right" ? "left" : "right");
+  }
   // The line-thickness slider (child canvas). Closed by default; the line button
   // toggles it and a tap anywhere else on the stage puts it away again.
   // The slider only makes sense while a drawing tool is in hand.
@@ -874,6 +951,9 @@ export function DrawingCanvas({
   const drawingTool = tool !== "cursor" && tool !== "text" && SHELF.some((t) => t.key === tool);
   // The hue-bar handle just tracks the current tool's colour.
   const [box, setBox] = useState({ w: 700, h: 490 });
+  // The measured paper, readable from a handler that runs outside the render.
+  const boxRef = useRef(box);
+  boxRef.current = box;
 
   // Which text object (if any) is currently open for typing.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1135,56 +1215,73 @@ export function DrawingCanvas({
   function drawQuizForPreview(ec: CanvasRenderingContext2D) {
     const boxes = quizRef.current.filter((q) => q.pageIndex === currentRef.current);
     for (const q of boxes) {
-      const k = Math.min(1, q.w / QUIZ_W, q.h / QUIZ_H);
+      // Scaled by WIDTH alone, and floored the same way the card is. The height
+      // used to be in here too, and once the card started following its content
+      // `q.h` became the answer to a different question: a box 104 tall against
+      // a nominal 300 drew every word at a third of its size. Same rule as the
+      // screen, or the picture stops being a picture of the work.
+      const k = Math.min(1, q.w / QUIZ_W);
       const px = (n: number) => n * k;
-      const pad = px(16);
+      const txt = (n: number) => Math.max(15, px(n));
+      const pad = px(14);
       ec.save();
       // The box.
       ec.beginPath();
-      ec.roundRect(q.x, q.y, q.w, q.h, px(24));
+      ec.roundRect(q.x, q.y, q.w, q.h, px(18));
       ec.fillStyle = "#FFFDF7";
       ec.fill();
       ec.lineWidth = Math.max(1, px(3));
-      ec.strokeStyle = "#E9C0CE";
+      ec.strokeStyle = "#22304A";
       ec.stroke();
 
       // The question, wrapped by the same helper the shape labels use.
-      const promptBox = { w: q.w - pad * 2, h: q.h * 0.3 };
-      const fitted = fitTextToBox(q.prompt || "", promptBox.w, promptBox.h);
-      ec.fillStyle = "#1f2430";
+      const promptPx = txt((q.prompt || "").length > 40 ? 16 : 20);
+      const fitted = fitTextToBox(q.prompt || "", q.w - pad * 2, q.h * 0.5, promptPx);
+      ec.fillStyle = "#22304A";
       ec.textAlign = "center";
       ec.textBaseline = "top";
-      ec.font = `700 ${fitted.fontPx}px ${FONT_STACK}`;
+      ec.font = `600 ${fitted.fontPx}px ${FONT_STACK}`;
       fitted.lines.forEach((line, i) =>
-        ec.fillText(line, q.x + q.w / 2, q.y + pad + i * fitted.lineHeight),
+        ec.fillText(line, q.x + q.w / 2, q.y + px(12) + i * fitted.lineHeight),
       );
 
       // The answers, in the same one- or two-column grid the box uses.
-      const twoCol = q.options.length > 2;
-      const top = q.y + pad + Math.max(fitted.lines.length, 1) * fitted.lineHeight + px(10);
-      const gap = px(8);
-      const cols = twoCol ? 2 : 1;
-      const rows = Math.ceil(q.options.length / cols);
-      const cw = (q.w - pad * 2 - gap * (cols - 1)) / cols;
-      const chB = Math.max(px(28), (q.y + q.h - pad - top - gap * (rows - 1)) / rows);
-      ec.font = `600 ${px(20)}px ${FONT_STACK}`;
+      // One answer a row, as pills — the design's card, and the same shape a
+      // child tapped.
+      const top = q.y + px(12) + Math.max(fitted.lines.length, 1) * fitted.lineHeight + px(10);
+      const gap = px(6);
+      const rows = q.options.length;
+      const cw = q.w - pad * 2;
+      const chB = Math.max(px(64), 44);
+      const dot = px(24);
+      ec.font = `700 ${Math.min(promptPx - 2, txt(18))}px ${FONT_STACK}`;
       ec.textBaseline = "middle";
+      ec.textAlign = "left";
       q.options.forEach((o, i) => {
-        const cx = q.x + pad + (i % cols) * (cw + gap);
-        const cy = top + Math.floor(i / cols) * (chB + gap);
+        const cx = q.x + pad;
+        const cy = top + i * (chB + gap);
         const picked = answersRef.current.get(q.id) === o.id;
         ec.beginPath();
-        ec.roundRect(cx, cy, cw, chB, px(12));
-        ec.fillStyle = picked ? "#F7E6EC" : "#ffffff";
+        ec.roundRect(cx, cy, cw, chB, chB / 2);
+        ec.fillStyle = picked ? "#FBEED3" : "#FFFDF7";
         ec.fill();
         ec.lineWidth = Math.max(1, px(2));
-        ec.strokeStyle = picked ? "#BD3F63" : "#E4DCC8";
+        ec.strokeStyle = picked ? "#22304A" : "#E4DCC8";
+        ec.stroke();
+        // The circle that says which one was picked.
+        ec.beginPath();
+        ec.arc(cx + px(8) + dot / 2, cy + chB / 2, dot / 2, 0, Math.PI * 2);
+        ec.fillStyle = picked ? "#BD3F63" : "#FFFDF7";
+        ec.fill();
+        ec.lineWidth = Math.max(1, px(2));
+        ec.strokeStyle = "#22304A";
         ec.stroke();
         if (o.text) {
-          ec.fillStyle = "#1f2430";
-          ec.fillText(o.text, cx + cw / 2, cy + chB / 2, cw - px(12));
+          ec.fillStyle = "#22304A";
+          ec.fillText(o.text, cx + px(8) + dot + px(10), cy + chB / 2, cw - dot - px(34));
         }
       });
+      ec.textAlign = "center";
       ec.restore();
     }
   }
@@ -1819,6 +1916,12 @@ export function DrawingCanvas({
       setSelectedId(id);
       setEditingId(id);
       editingRef.current = id;
+      // One tap, one box. Words are almost never placed two at a time — the
+      // job is place it, type it, move it — so the tool disarms itself and
+      // hands over to Move. The new box stays open for typing; it is the NEXT
+      // tap on the paper that would otherwise have made a second box nobody
+      // asked for.
+      setTool("cursor");
       return;
     }
     e.preventDefault();
@@ -2008,7 +2111,14 @@ export function DrawingCanvas({
   // that moved four of the five would look right and hand in wrong. So this
   // follows the same order duplicate and delete do, for the same reasons.
   function movePageBy(index: number, delta: number) {
-    const target = index + delta;
+    movePageTo(index, index + delta);
+  }
+
+  // Move a page to a position, not just past its neighbour. The page tray drags
+  // a card several slots at once, and a run of swaps would fire the whole
+  // reorder (and its history reset) once per slot crossed.
+  function movePageTo(index: number, target: number) {
+    if (index === target) return;
     if (index < 0 || index >= pagesRef.current.length) return;
     if (target < 0 || target >= pagesRef.current.length) return;
     finishEditing();
@@ -2016,24 +2126,28 @@ export function DrawingCanvas({
     // drops the in-progress work on the one being viewed.
     syncHidden();
 
-    const swap = <T,>(arr: T[]) => {
-      const t = arr[index];
-      arr[index] = arr[target];
-      arr[target] = t;
+    const lift = <T,>(arr: T[]) => {
+      const [item] = arr.splice(index, 1);
+      arr.splice(target, 0, item);
     };
-    swap(pagesRef.current);
-    swap(templatesRef.current);
-    swap(objectsRef.current);
-    swap(compositeRef.current);
-    swap(previewRef.current);
+    lift(pagesRef.current);
+    lift(templatesRef.current);
+    lift(objectsRef.current);
+    lift(compositeRef.current);
+    lift(previewRef.current);
 
-    // The questions swap with their pages. This is the part a naive reorder
-    // silently breaks: the pictures move and the questions stay behind.
+    // The questions travel with their pages. This is the part a naive reorder
+    // silently breaks: the pictures move and the questions stay behind. Every
+    // page between the old and new position shifts by one, and the page being
+    // moved jumps the whole way.
+    const step = index < target ? -1 : 1;
+    const lo = Math.min(index, target);
+    const hi = Math.max(index, target);
     quizRef.current = quizRef.current.map((q) =>
       q.pageIndex === index
         ? { ...q, pageIndex: target }
-        : q.pageIndex === target
-          ? { ...q, pageIndex: index }
+        : q.pageIndex >= lo && q.pageIndex <= hi
+          ? { ...q, pageIndex: q.pageIndex + step }
           : q,
     );
     setQuizQuestions([...quizRef.current]);
@@ -2256,20 +2370,35 @@ export function DrawingCanvas({
   // that varies between palette buttons — size, colours, a preset label — comes
   // off the preset, so a new button is a table entry rather than another branch
   // in here.
-  function addShape(preset: ShapePreset) {
+  function addShape(preset: ShapePreset, cycle = false) {
     pushHistory();
     const id = `o${objIdRef.current++}`;
     const w = preset.w ?? SHAPE_DEFAULTS.w;
     const h = preset.h ?? SHAPE_DEFAULTS.h;
+    // Nine landing places in a cycle, so a teacher tapping "Counter 1" four
+    // times out of the kit WINDOW gets four counters they can see rather than
+    // one they have to peel apart. Design offsets of ±44 / ±36 px, in model
+    // units. Only from a window: the ＋ fan folds after each shape, so one tap
+    // is one shape and the middle of the page is where it belongs.
+    const slot = cycle ? placeCycleRef.current++ % 9 : 4;
+    const dx = ((slot % 3) - 1) * 37;
+    const dy = (Math.floor(slot / 3) - 1) * 30;
     const obj: ShapeObj = {
       id,
       type: "shape",
       shape: preset.kind,
-      x: (W - w) / 2,
-      y: (H - h) / 2,
+      x: Math.max(0, Math.min(W - w, placeX(w) + dx)),
+      y: (H - h) / 2 + dy,
       w,
       h,
-      fill: preset.fill ?? SHAPE_DEFAULTS.fill,
+      // Apparatus arrives cream, so what is written on it reads; a plain shape
+      // arrives in the colour the pen is set to, so what a child sees on the
+      // fan is what lands on the page. A preset's own colour wins over both.
+      fill:
+        preset.fill ??
+        (preset.kind === "grid" || preset.kind === "pie" || preset.kind === "ring"
+          ? "#fffdf7"
+          : color),
       stroke: preset.stroke ?? SHAPE_DEFAULTS.stroke,
       strokeWidth: preset.strokeWidth ?? SHAPE_DEFAULTS.strokeWidth,
       ...(preset.text ? { text: preset.text } : {}),
@@ -2294,8 +2423,12 @@ export function DrawingCanvas({
     anyDrawnRef.current = true;
     setSelectedId(id);
     setTool("cursor"); // so it can be positioned straight away
-    setOpenKit(null);
+    // The kit window STAYS. A teacher builds a page out of several pieces, and
+    // a palette that shut after every one made them re-open it each time. The
+    // fan is the thing that folds — a fan is a choice, a window is a workbench.
+    setPlusRow(null);
     setFanOpen(false);
+    say(`${preset.label} gone`);
     syncHidden();
     refreshThumbs();
   }
@@ -2903,7 +3036,9 @@ export function DrawingCanvas({
   // to do nothing at all.
   function openQuizPanel() {
     setQuizPanelOpen(true);
-    setQuizPanelCollapsed(false);
+    setQuizWindow((w) =>
+      w ? { ...w, collapsed: false } : defaultWindowPos({ w: boxRef.current.w, h: boxRef.current.h }),
+    );
   }
 
   // Drop a new question box in the middle of the CURRENT page. Marking a quiz
@@ -2915,7 +3050,10 @@ export function DrawingCanvas({
     const q: QuizQuestion = {
       id: qid,
       pageIndex: currentRef.current,
-      x: (W - QUIZ_W) / 2,
+      // The middle of the room that is LEFT, not the middle of the page: with
+      // the builder parked on the right, a box at page centre put its own
+      // resize corner under the window that made it.
+      x: placeX(QUIZ_W),
       y: (H - QUIZ_H) / 2,
       w: QUIZ_W,
       h: QUIZ_H,
@@ -2950,7 +3088,9 @@ export function DrawingCanvas({
       let n = q.options.length;
       let oid = `opt${n}`;
       while (used.has(oid)) oid = `opt${++n}`;
-      return { ...q, options: [...q.options, { id: oid }] };
+      // The box grows with its answers — 50 units a row, as the design has it —
+      // so a fourth answer lands in the box rather than being clipped by it.
+      return { ...q, options: [...q.options, { id: oid }], h: Math.min(QUIZ_H, q.h + QUIZ_ROW) };
     });
     commitQuiz();
   }
@@ -2963,7 +3103,7 @@ export function DrawingCanvas({
       const correctOptionId = options.some((o) => o.id === q.correctOptionId)
         ? q.correctOptionId
         : options[0].id;
-      return { ...q, options, correctOptionId };
+      return { ...q, options, correctOptionId, h: Math.max(QUIZ_MIN_H, q.h - QUIZ_ROW) };
     });
     commitQuiz();
   }
@@ -3175,6 +3315,50 @@ export function DrawingCanvas({
   // The kits this canvas offers, in registry order.
   const availableKits = kitsToShow(kits);
 
+  // A kit is either a row on the ＋ fan (Shapes: a child taps one and it lands)
+  // or a window (the Maths kit: a teacher places a dozen pieces from it while
+  // building a page). One rule, so a third kit needs no decision.
+  function kitIsWindow(id: KitId) {
+    return id !== "shapes";
+  }
+
+  // The floating windows stay open while a page is built, so they are part of
+  // the room the page HAS rather than something over it. Whatever band they are
+  // parked in is reserved: the object toolbar keeps out of it, and a new piece
+  // or question lands in the middle of what is left rather than under a window.
+  const openWindows: WindowPos[] = [
+    ...availableKits
+      .filter((k) => kitIsWindow(k.id))
+      .map((k) => kitWindows[k.id])
+      .filter((w): w is WindowPos => Boolean(w)),
+    ...(isQuizAuthor && quizPanelOpen && quizWindow ? [quizWindow] : []),
+  ];
+  const windowBand = (w: WindowPos) => ({
+    width: w.collapsed ? WINDOW_PILL_W : WINDOW_W,
+    right: w.x + (w.collapsed ? WINDOW_PILL_W : WINDOW_W) / 2 > box.w / 2,
+  });
+  const reserveRight = Math.max(
+    0,
+    ...openWindows.map((w) => (windowBand(w).right ? box.w - w.x : 0)),
+  );
+  const reserveLeft = Math.max(
+    0,
+    ...openWindows.map((w) => (windowBand(w).right ? 0 : w.x + windowBand(w).width)),
+  );
+  // The middle of the free band, in MODEL units — where something new goes.
+  function freeCentreX(): number {
+    if (!fullScreen || box.w <= 0) return W / 2;
+    const mid = (reserveLeft + (box.w - reserveRight)) / 2;
+    return (mid / box.w) * W;
+  }
+  // Where a piece `w` wide lands: centred in the free band, but ON THE PAGE
+  // first. A 700-wide number line centred beside an open window started at
+  // x = −16, with its take-it-away corner off the edge of the paper. Clear of
+  // the window is the preference; inside the page is the rule.
+  function placeX(w: number): number {
+    return Math.max(0, Math.min(W - w, freeCentreX() - w / 2));
+  }
+
   const objectLayer = (
     <ObjectLayer
       objects={objects}
@@ -3339,15 +3523,148 @@ export function DrawingCanvas({
     </>
   );
 
-  // Declared once because its position in the tool row changes (see below).
-  const clearPageBtn = (
-    <RoundBtn label="Clear page" onClick={clearPage}><Icon name="delete" size={20} decorative /></RoundBtn>
-  );
-
   // ---- Full-screen, child-led layout ---------------------------------------
   if (fullScreen) {
+    // ONE number scales the whole 1194 × 834 design frame onto the paper, and
+    // every measurement in the chrome goes through it. That is what lets the
+    // fan geometry be written as the constants it was designed as, rather than
+    // as a pile of percentages nobody can check against the drawing.
+    // The chrome is drawn at DESIGN SIZE and anchored to the paper's own edges
+    // rather than scaled into it. Scaling it looked right and was wrong: every
+    // control a child presses carries a 64px floor (rule 18), so on a 1024px
+    // classroom iPad the buttons kept their 64px while the arcs they sit on
+    // shrank to 60px apart and the nibs overlapped — which axe calls
+    // `target-size`, and which is a press a child cannot aim at.
+    //
+    // `u` survives as the one place a floor is applied, and so that the few
+    // things that SHOULD track the paper (the empty-state words) are visibly
+    // the exceptions.
+    // A floor is for sizes. A negative is an offset — a card's lift, the tray
+    // strip's pull-up — and goes through untouched; flooring it at zero was
+    // what pinned every lifted card to the tray and clipped its number.
+    const u = (n: number, floor = 0) => (n < 0 ? n : Math.max(n, floor));
+    const teacher = isObjectAuthor || isQuizAuthor;
+    // The two discs are anchored to the PAPER's corners at design size, not
+    // scaled with the frame — see `penCx` in canvasFan.ts.
+    const paper = { w: box.w, h: box.h };
+    const penX = penCx(hand, paper.w);
+    const plusX = plusCx(hand, paper.w);
+    const discY = discCy(paper.h);
+    // Stack only when the row actually cannot fit. What makes it too wide is
+    // the labelled way out — "← Back to my jar" is a quarter of a 768px tablet
+    // on its own — and with it the row is about 740px, so it fits on a 1024px
+    // iPad and not on a 768px one. A teacher's row starts with a 64px ✕ and
+    // fits at any width this canvas is used at. Stacking when there is no need
+    // is not free: it costs the page 74px of height the object bar needs, and
+    // on a 720px window that is the difference between a turn button a child
+    // can press and one under the status chip.
+    const stackTop = Boolean(closeLabel) && paper.w < 900;
+
+    // Something is open that a touch on the paper should CLOSE rather than
+    // draw through. The floating windows are deliberately not in this list:
+    // they are a workbench, not a choice, and they stay until they are shut.
+    const anyFanOpen = toolBarOpen || fanOpen || plusRow !== null;
+
+    function closeFans() {
+      setToolBarOpen(false);
+      setFanOpen(false);
+      setPlusRow(null);
+    }
+
+    function toggleKitWindow(id: KitId) {
+      setKitWindows((prev) => {
+        const open = Object.values(prev).filter(Boolean).length;
+        return prev[id]
+          ? { ...prev, [id]: undefined }
+          : { ...prev, [id]: defaultWindowPos({ w: box.w, h: box.h }, open * 24) };
+      });
+      setFanOpen(false);
+      setPlusRow(null);
+      setSelectedId(null);
+    }
+
+    const shapesKit = availableKits.find((k) => k.id === "shapes");
+    const plusItems: PlusItem[] = [];
+    // The live ＋ menu's three, with the live labels, in the live order.
+    plusItems.push({
+      key: "photo",
+      icon: "add-picture",
+      // "Photo" to a child; the teacher's canvas, which imports PDFs too, keeps
+      // the live label.
+      label: teacher ? "Photo / PDF" : "Photo",
+      ring: 0,
+      onSelect: () => {
+        closeFans();
+        fileRef.current?.click();
+      },
+    });
+    plusItems.push({
+      key: "words",
+      icon: "text",
+      label: "Words",
+      ring: 0,
+      pressed: tool === "text",
+      onSelect: () => {
+        closeFans();
+        setTool("text");
+      },
+    });
+    if (shapesKit) {
+      const presets = shapesKit.groups.flatMap((g) => g.presets);
+      const options: PlusOption[] = presets.map((preset) => ({
+        key: preset.id,
+        label: preset.label,
+        art: <ShapeThumb preset={preset} px={u(40)} fill={preset.fill ?? color} />,
+        onSelect: () => addShape(preset),
+      }));
+      plusItems.push({ key: "shapes", icon: "shapes", label: shapesKit.label, ring: 0, options });
+    }
+    // The teacher's outer ring: the kits that open as a window, then the two
+    // things only a template carries.
+    for (const kit of availableKits.filter((k) => kitIsWindow(k.id))) {
+      plusItems.push({
+        key: kit.id,
+        icon: KIT_ICON[kit.id],
+        label: kit.label,
+        ring: 1,
+        pressed: Boolean(kitWindows[kit.id]),
+        onSelect: () => toggleKitWindow(kit.id),
+      });
+    }
+    if (isObjectAuthor) {
+      plusItems.push({
+        key: "frame",
+        icon: "camera",
+        label: "Photo frame",
+        ring: 1,
+        onSelect: () => {
+          closeFans();
+          addFrame();
+        },
+      });
+    }
+    if (isQuizAuthor) {
+      plusItems.push({
+        key: "quiz",
+        icon: "help",
+        label: "Quiz",
+        ring: 1,
+        pressed: quizPanelOpen,
+        onSelect: () => {
+          closeFans();
+          setOpenKit(null);
+          setTool("cursor");
+          openQuizPanel();
+        },
+      });
+    }
+
+    // Nothing on this page yet, so the paper says what it is for. Gone the
+    // moment there is a stroke, a piece or a template underneath.
+    const pageIsBare = !canUndo && objects.length === 0 && !currentTemplate;
+
     return (
-      <div className="fixed inset-0 z-40 flex flex-col bg-[#e9ebf1]">
+      <div className="fixed inset-0 z-40 flex flex-col" style={{ background: "var(--paper)" }}>
         {hiddenInputs}
         {draftPrompt && (
           <RestorePrompt source={draftSource} onRestore={restoreDraft} onDiscard={discardDraft} />
@@ -3366,9 +3683,31 @@ export function DrawingCanvas({
           className="relative flex-1 select-none overflow-hidden [-webkit-touch-callout:none]"
         >
           <div className="absolute inset-0 flex items-center justify-center">
+            {/* The paper IS the frame: every piece of chrome below is placed in
+                design units inside it, so the fans clip against the edge of the
+                page exactly as they do in the drawing. */}
             <div
-              className="relative select-none rounded-2xl shadow-lg ring-1 ring-black/5 overflow-hidden"
-              style={{ width: box.w, height: box.h }}
+              className="relative select-none overflow-hidden"
+              style={{
+                width: box.w,
+                height: box.h,
+                // The bottom band belongs to the chrome: the page tray across
+                // the middle and a disc in each corner. Anything that floats
+                // over the page and clamps itself to the stage — the object
+                // toolbar — reads this and stops short of it, instead of
+                // parking its settings row on top of "new page".
+                // The tray is 84 (card) + 16 (padding) + 12 (bottom) + the
+                // active card's lift, so 128 covers it. Every extra pixel here
+                // is a pixel the object bar cannot use.
+                ["--sj-chrome-bottom" as string]: `${u(128)}px`,
+                // The top row, for the object bar to PREFER to keep out of: a
+                // piece near the top gets its bar below itself, as the design
+                // has it. A preference only — see the bar's own note on why
+                // clamping to it was worse than sliding under it.
+                ["--sj-chrome-top" as string]: `${stackTop ? u(170) : u(96)}px`,
+                ["--sj-chrome-left" as string]: `${u(reserveLeft)}px`,
+                ["--sj-chrome-right" as string]: `${u(reserveRight)}px`,
+              }}
             >
               {stage}
               {!ready && (
@@ -3376,394 +3715,440 @@ export function DrawingCanvas({
                   Loading…
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Top left: the way out, then the tools under it.
-              A child's escape goes HERE rather than beside the ✓ for two
-              reasons. It is not the same kind of thing as handing in, and two
-              64px controls side by side, one of which ends the work, is a
-              mis-tap that costs a child their turn. And it is the only place
-              the words fit: on a 768px classroom tablet a labelled pill on the
-              right runs under the activity's own title, which a long title then
-              collides with (asserted in tests/e2e/child-escape.spec.ts).
-              Stacking keeps the left group no wider than the tool row it
-              already had, so the title keeps its room. */}
-          <div className="absolute left-3 top-3 flex flex-col items-start gap-3">
-            {onClose && closeLabel && (
-              <button
-                type="button"
-                onClick={onClose}
-                // 64px tall, like every other control a child taps
-                // (SAFEGUARDING rule 18, F37).
-                className="flex h-16 items-center gap-2 whitespace-nowrap rounded-full bg-white/90 px-5 text-base font-bold text-foreground shadow transition-colors hover:bg-white"
-              >
-                <span aria-hidden="true">←</span>
-                {closeLabel}
-              </button>
-            )}
-            <div className="flex gap-2">
-              {/* "Clear page" moves to the end of the row when a child's way
-                  out sits directly above it: the control nearest the escape
-                  must not be the one that wipes their work. Undo is the safe
-                  neighbour. The editor's row is unchanged. */}
-              {!closeLabel && clearPageBtn}
-              <RoundBtn label="Undo" onClick={undo} disabled={!canUndo}><Icon name="undo" size={20} decorative /></RoundBtn>
-              <RoundBtn label="Redo" onClick={redo} disabled={!canRedo}><Icon name="redo" size={20} decorative /></RoundBtn>
-              {closeLabel && clearPageBtn}
-            </div>
-          </div>
-
-          {/* The title strip lives BETWEEN the two corners rather than across
-              the whole width. `left-56` / `right-56` is 224px, which clears the
-              widest either corner gets: the tool row is 12 + 3×64 + 2×8 = 220,
-              and a labelled escape pill is narrower than that.
-
-              It used to be 60vw centred, which on a 768px tablet reached from
-              154 to 614 and so ran underneath both corners. That was invisible
-              while the strip held one line of small title text, and stopped
-              being invisible the moment a child's way out took a second row on
-              the left: the teacher's note on a sent-back piece renders in this
-              strip, is `max-w-md` and `pointer-events-auto`, and sat on top of
-              Undo, Redo and Clear page — covering them AND swallowing the taps.
-              The child most likely to be looking for the way out is the one who
-              has just had work sent back, so that is the worst version of it.
-
-              Reserving the corners fixes it for every width at once, rather
-              than for the one someone thought to measure. */}
-          <div className="pointer-events-none absolute left-56 right-56 top-3 z-10 text-center">
-            <span className="inline-flex items-center gap-1 rounded-full border-2 border-amber-400 bg-white/90 px-3 py-1 text-sm font-bold text-amber-700">
-              <Icon name="edit" size={14} decorative /> Draft
-            </span>
-            {title && <p className="mt-1 text-sm font-bold text-foreground/80">{title}</p>}
-            {subtitle && <p className="text-xs text-foreground/60">{subtitle}</p>}
-            {/* The teacher's note, on the work itself. `pointer-events-auto`
-                because the wrapper above is deliberately click-through and this
-                is the one thing in it a child presses. */}
-            {teacherNote && (
-              <div className="pointer-events-auto mx-auto mt-2 max-w-md text-left">
-                <TeacherNote note={teacherNote} mode="KS1" compact />
-              </div>
-            )}
-          </div>
-
-          <div className="absolute right-3 top-3 flex items-center gap-2">
-            {/* The ✕ is the EDITOR's way out (a teacher closing a template).
-                A child's is a labelled pill, top left — see the left-hand
-                group and `closeLabel` for why it is not here, next to the ✓. */}
-            {onClose && !closeLabel && (
-              <RoundBtn label="Close" onClick={onClose}><Icon name="close" size={20} decorative /></RoundBtn>
-            )}
-            <button
-              type={onDone || confirmSubmit ? "button" : "submit"}
-              onClick={
-                onDone
-                  ? () => {
-                      const pages = currentPages();
-                      onDone(
-                        pages,
-                        isQuizAuthor ? { questions: quizRef.current } : undefined,
-                        isObjectAuthor ? currentObjectsPayload() : undefined,
-                        currentPreviews(),
-                      );
-                    }
-                  : confirmSubmit
-                    ? handIn
-                    : undefined
-              }
-              title={nextPage ? "Next page" : "Done"}
-              aria-label={nextPage ? "Next page" : "Done"}
-              className={`flex h-16 items-center justify-center gap-1.5 rounded-full bg-emerald-500 text-white shadow-lg transition-transform hover:scale-105 hover:bg-emerald-600 ${
-                nextPage ? "px-5 text-lg font-bold" : "w-16 text-2xl"
-              }`}
-            >
-              {nextPage ? "Next ›" : "✓"}
-            </button>
-          </div>
-
-          <div className="absolute left-3 top-1/2 flex -translate-y-1/2 flex-col items-start gap-2">
-            {fanOpen && (
-              <div className="flex w-44 flex-col gap-2">
-                <FanBtn label="Photo / PDF" onClick={() => fileRef.current?.click()}><Icon name="add-picture" size={26} decorative /></FanBtn>
-                <FanBtn label="Text" onClick={() => { setFanOpen(false); setTool("text"); }}><Icon name="text" size={26} decorative /></FanBtn>
-                {availableKits.map((kit) => (
-                  <FanBtn
-                    key={kit.id}
-                    label={kit.label}
-                    onClick={() => toggleKit(kit.id)}
-                  >
-                    <Icon name={KIT_ICON[kit.id]} size={26} decorative />
-                  </FanBtn>
-                ))}
-                {/* Teacher-only, like the quiz: a child never adds a frame,
-                    they fill the one the teacher placed. */}
-                {isObjectAuthor && (
-                  <FanBtn label="Photo frame" onClick={addFrame}><Icon name="camera" size={26} decorative /></FanBtn>
-                )}
-                {isQuizAuthor && (
-                  <FanBtn label="Quiz" onClick={() => { setFanOpen(false); setOpenKit(null); setTool("cursor"); openQuizPanel(); }}><Icon name="help" size={26} decorative /></FanBtn>
-                )}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => openAddMenu(!fanOpen)}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-brand text-3xl font-light text-white shadow-lg transition-transform hover:scale-105"
-              title={fanOpen ? "Close" : "Add"}
-              aria-label={fanOpen ? "Close add menu" : "Add"}
-            >
-              {fanOpen ? <Icon name="close" size={26} decorative /> : "＋"}
-            </button>
-          </div>
-
-          {openKit && (
-            // Sits to the right of the (labelled) add menu so the two don't
-            // overlap. Capped in height and scrollable, because a kit's tallest
-            // group must not run off the top and bottom of a 768px-tall iPad.
-            <div className="absolute left-52 top-1/2 max-h-[80%] -translate-y-1/2 overflow-y-auto">
-              {palette(availableKits.find((k) => k.id === openKit) ?? availableKits[0])}
-            </div>
-          )}
-
-          {/* Only once there is a quiz to go back to. The way IN is the ＋ menu;
-              this is the way back, and a shortcut to a panel that has nothing
-              in it is a button that has to be explained. */}
-          {isQuizAuthor && !quizPanelOpen && quizQuestions.length > 0 && (
-            <QuizLauncher onOpen={openQuizPanel} />
-          )}
-
-          {isQuizAuthor && quizPanelOpen && (
-            <QuizPanel
-              questions={quizQuestions}
-              currentPage={current}
-              pageCount={pageCount}
-              selectedId={selectedQuestionId}
-              pos={quizPanelPos}
-              collapsed={quizPanelCollapsed}
-              onPosChange={setQuizPanelPos}
-              onCollapsedChange={setQuizPanelCollapsed}
-              onClose={() => setQuizPanelOpen(false)}
-              onAddQuestion={addQuestion}
-              onSelectQuestion={(id) => {
-                // Opening a question jumps to the page it lives on, so the box
-                // being edited is always the one on screen. Collapsing it (null)
-                // shouldn't move the teacher anywhere.
-                if (id === null) {
-                  setSelectedQuestionId(null);
-                  return;
-                }
-                const q = quizRef.current.find((x) => x.id === id);
-                if (q && q.pageIndex !== currentRef.current) goToPage(q.pageIndex);
-                setSelectedQuestionId(id);
-              }}
-              onUpdatePrompt={(id, prompt) => updateQuestion(id, { prompt })}
-              onDeleteQuestion={deleteQuestion}
-              onAddOption={addOption}
-              onRemoveOption={removeOption}
-              onOptionText={(qid, oid, text) => setOptionField(qid, oid, { text })}
-              onOptionImage={pickOptionImage}
-              onClearOptionImage={(qid, oid) => setOptionField(qid, oid, { imagePath: undefined })}
-              onSetCorrect={setCorrectOption}
-            />
-          )}
-
-          {/* What the pen in hand is set to. Sits above the tray the pens
-              stick up from, so the thing being changed and the thing doing the
-              changing are next to each other. */}
-          {drawingTool && toolBarOpen && (
-            <ToolProperties
-              color={color}
-              size={size}
-              isEraser={tool === "eraser"}
-              canMove={canMove}
-              onClose={() => setToolBarOpen(false)}
-              onColor={setColor}
-              onSize={setSize}
-              onMove={() => { finishEditing(); setTool("cursor"); }}
-            />
-          )}
-
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-center gap-2">
-            {SHELF.filter((t) => t.key !== "cursor" || canMove).map((t) => {
-              const selected = tool === t.key;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  // Picking a pen is what shows what that pen is set to. It
-                  // goes again on the next touch of the page, so it is never a
-                  // thing sitting over a child's work waiting to be tidied
-                  // away — which is what a permanent pill amounted to.
-                  onClick={() => {
-                    finishEditing();
-                    setTool(t.key);
-                    setToolBarOpen(t.key !== "cursor");
+              {pageIsBare && (
+                <p
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 text-center"
+                  style={{
+                    // The one measurement that tracks the paper rather than
+                    // the design frame: it is the middle of the page, not a
+                    // piece of furniture on its edge.
+                    top: paper.h * (470 / FRAME_H),
+                    font: `600 ${u(28)}px var(--font-fredoka)`,
+                    color: "#c9a87c",
                   }}
-                  // The pen a child sees is unchanged; the button around it is
-                  // 64px wide (rule 18, F37) — the tools were 58, which is a
-                  // miss for a four-year-old aiming with a whole finger.
-                  className="pointer-events-auto flex min-w-16 flex-col items-center transition-transform duration-150"
-                  style={{ transform: `translateY(${selected ? 34 : 68}px)` }}
-                  title={t.key === "cursor" ? "Move — drag & resize things" : t.label}
-                  aria-label={t.label}
-                  aria-pressed={selected}
                 >
-                  <ToolShape kind={t.key} color={toolColors[t.key]} />
-                </button>
-              );
-            })}
-          </div>
+                  Draw here
+                </p>
+              )}
 
-          {/* Told in the design system's own colours, not a stock utility.
-              `bg-amber-500` is used nowhere else in the app, so it was never
-              generated into the stylesheet — which left white text on a
-              transparent pill: a message a child could not read, on the one
-              screen where they are stuck and need telling why. Inline styles
-              off the tokens cannot fail that way, and honey-on-ink is the pair
-              the palette already reserves for "wait a moment". */}
-          {holdUp && (
-            <div
-              role="status"
-              className="pointer-events-none absolute left-1/2 top-24 z-30 -translate-x-1/2"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                background: "var(--honey)",
-                color: "var(--ink)",
-                border: "3px solid var(--ink)",
-                borderRadius: 999,
-                padding: "12px 22px",
-                font: "700 19px var(--font-atkinson)",
-                boxShadow: "0 6px 18px rgba(34,48,74,.28)",
-                maxWidth: "min(90%, 520px)",
-                textAlign: "center",
-              }}
-            >
-              <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>
-                ✋
-              </span>
-              {holdUp}
-            </div>
-          )}
+              {/* Words is armed: the next touch of the paper is where they go. */}
+              {tool === "text" && !editingId && (
+                <p
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 text-center"
+                  style={{
+                    top: `${46}%`,
+                    font: `600 ${u(30)}px var(--font-fredoka)`,
+                    color: "#c9a87c",
+                    animation: `sj-pop-in 340ms cubic-bezier(.34,1.4,.64,1) backwards`,
+                  }}
+                >
+                  Tap where your words go
+                </p>
+              )}
 
-          {(importing || importError) && (
-            <div
-              className={`absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-lg px-3 py-2 text-sm font-semibold shadow-lg ${
-                importError ? "bg-rose-600 text-white" : "bg-white text-foreground"
-              }`}
-            >
-              {importError ?? "Adding your file…"}
-            </div>
-          )}
+              {/* A fan is open, so the paper is a way OUT of it rather than
+                  something to draw on. One layer, above the stage and below the
+                  fans themselves. */}
+              {anyFanOpen && (
+                <div
+                  className="absolute inset-0"
+                  // Above the object layer (whose toolbars are z-30) so a
+                  // touch cannot land on a handle, and BELOW the tray and the
+                  // fans, which are the things the touch is meant to reach.
+                  style={{ zIndex: Z_BASE + 2 }}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeFans();
+                  }}
+                />
+              )}
 
-          {selectedId && (
-            <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-muted shadow">
-              Drag to move · pull a corner to resize or turn it
-            </div>
-          )}
+              {/* Top left: the way out, then undo and redo, then where this
+                  work has got to.
 
-          {withCaption && (
-            <div className="absolute bottom-3 left-3 w-64 max-w-[70vw]">
-              <label
-                htmlFor={captionId}
-                className="mb-1 inline-block rounded-full bg-white/90 px-3 py-1 text-sm font-bold text-foreground shadow"
+                  A child's escape goes HERE rather than beside the ✓ for two
+                  reasons. It is not the same kind of thing as handing in, and
+                  two 64px controls side by side, one of which ends the work, is
+                  a mis-tap that costs a child their turn. And it is the only
+                  place the words fit: on a 768px classroom tablet a labelled
+                  pill on the right runs under the activity's own title
+                  (asserted in tests/e2e/child-escape.spec.ts). */}
+              <div
+                className="absolute flex"
+                style={{
+                  left: u(16),
+                  top: u(16),
+                  gap: u(10),
+                  zIndex: Z_CHROME,
+                  // On a paper narrower than the design frame the row does not
+                  // fit, and an overflowing row puts "Clear page" off the edge
+                  // — which is how a child on a 768px tablet lost it. Stack the
+                  // way out above the rest, exactly as the old chrome did, and
+                  // for the same reason.
+                  flexDirection: stackTop ? "column" : "row",
+                  alignItems: stackTop ? "flex-start" : "center",
+                }}
               >
-                {captionLabel}
-              </label>
-              {/* min-h-16: a child taps into this to say what their picture is,
-                  so it carries the same 64px floor as everything else here. */}
-              <input
-                id={captionId}
-                ref={captionRef}
-                name="caption"
-                className="input min-h-16 bg-white/90 shadow"
-                placeholder="💬 Add a caption…"
-              />
-            </div>
-          )}
-
-          {/* Pages sit on the right, but nudged in from the edge so the strip
-              clears the hue (colour) bar instead of sitting behind it. */}
-          <div className="absolute right-16 top-20 flex flex-col items-end">
-            <button
-              type="button"
-              onClick={() => setStripOpen((v) => !v)}
-              className="mb-1.5 flex min-h-16 items-center rounded-full bg-white px-5 text-sm font-bold text-foreground shadow ring-1 ring-black/5"
-            >
-              {stripOpen ? "Pages ›" : "‹ Pages"}
-            </button>
-            {stripOpen && (
-              // A greyer tray so each (white) page preview reads as its own tile;
-              // thumbnails keep a fixed size (shrink-0) so adding pages makes this
-              // column SCROLL rather than squashing every preview smaller. Each is
-              // numbered in the corner so its place in the order is obvious.
-              // w-28, not w-24: at 96px the 10:7 page tiles came out 57px tall,
-              // under the child floor (F37). The extra 16px of column is what
-              // buys a tile a child can actually hit.
-              <div className="flex max-h-[42vh] w-28 flex-col gap-2 overflow-y-auto rounded-xl bg-slate-400/40 p-2 shadow-inner ring-1 ring-black/10">
-                {thumbs.map((src, i) => (
-                  <div
-                    key={i}
-                    className="relative shrink-0"
-                    onContextMenu={allowPageStructure ? (e) => openPageMenu(e, i) : undefined}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => goToPage(i)}
-                      aria-current={i === current ? "true" : undefined}
-                      className={`block w-full overflow-hidden rounded-lg border-2 bg-white shadow-sm ${i === current ? "border-brand" : "border-white"}`}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={src} alt={`Page ${i + 1}`} className="aspect-[10/7] w-full object-cover" />
-                      {/* Decorative — the image's alt already names the page. */}
-                      <span aria-hidden="true" className="absolute bottom-0.5 right-0.5 min-w-[16px] rounded bg-foreground/75 px-1 text-center text-[10px] font-bold leading-[15px] text-white">
-                        {i + 1}
-                      </span>
-                    </button>
-                    {/* Delete this page — same red cross as the shape/object delete. */}
-                    {allowPageDelete && pageCount > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => deletePageAt(i)}
-                        className="absolute right-0.5 top-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-white shadow ring-2 ring-white transition-transform hover:scale-105"
-                        title="Delete page"
-                        aria-label={`Delete page ${i + 1}`}
-                      >
-                        <Icon name="close" size={13} decorative />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={addPage}
-                  className="flex aspect-[10/7] min-h-16 w-full shrink-0 items-center justify-center rounded-lg border-2 border-dashed border-slate-500/50 bg-white/40 text-lg text-slate-600"
-                  title="Add page"
-                >
-                  ＋
-                </button>
-                {/* Copy the page on screen. A full-width control rather than a
-                    cross on the thumbnail, because a thumbnail is smaller than
-                    the 64px a child's finger is owed (rule 18) and nothing that
-                    has to be pressed is allowed to be smaller than that.
-                    Behind the same gate as delete, not the same one as ＋ Add:
-                    a pupil answering an assigned activity gets no way to make
-                    more copies of the teacher's template pages (rule 8, deny by
-                    default). */}
-                {allowPageStructure && (
-                  <button
-                    type="button"
-                    onClick={() => duplicatePageAt(currentRef.current)}
-                    className="flex h-16 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border-2 border-slate-500/50 bg-white/70 px-2 text-xs font-bold text-slate-700"
-                    title="Make a copy of this page"
-                    aria-label="Duplicate this page"
-                  >
-                    <Icon name="duplicate" size={18} decorative /> Copy
-                  </button>
+                {onClose && closeLabel && (
+                  <ChromePill u={u} label={closeLabel} onClick={onClose}>
+                    <span aria-hidden="true">←</span>
+                    <Icon name="jar" size={u(28)} decorative />
+                    {closeLabel}
+                  </ChromePill>
                 )}
+                <div className="flex items-center" style={{ gap: u(10) }}>
+                {onClose && !closeLabel && (
+                  <ChromeRound u={u} label="Close" onClick={onClose}>
+                    <Icon name="close" size={u(24)} decorative />
+                  </ChromeRound>
+                )}
+                <ChromeRound u={u} label="Undo" onClick={undo} disabled={!canUndo}>
+                  <Icon name="undo" size={u(26)} decorative />
+                </ChromeRound>
+                <ChromeRound u={u} label="Redo" onClick={redo} disabled={!canRedo}>
+                  <Icon name="redo" size={u(26)} decorative />
+                </ChromeRound>
+                <StatusChip u={u}>
+                  <Icon name="waiting" size={u(18)} decorative />
+                  {teacher ? "Draft template" : "Not in your jar yet"}
+                </StatusChip>
+                {title && !stackTop && (
+                  <span
+                    style={{
+                      font: `600 ${u(22)}px var(--font-fredoka)`,
+                      color: "var(--ink)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: u(300),
+                    }}
+                  >
+                    {title}
+                  </span>
+                )}
+                {/* Nothing else up here. Clear page lives in the page card's
+                    menu ("Wipe this page clean") beside copy and throw-away,
+                    and the left-hand swap is a press-and-hold on the pen disc —
+                    the top row is the design's: way out, undo, redo, status. */}
+                </div>
               </div>
-            )}
+
+              {/* Under the top row, on the work itself: the subtitle and the
+                  teacher's note on a piece that was sent back. */}
+              {(subtitle || teacherNote || (title && stackTop)) && (
+                <div
+                  className="pointer-events-none absolute"
+                  style={{
+                    left: u(16),
+                    top: stackTop ? u(166) : u(92),
+                    width: Math.min(u(520), paper.w - u(32)),
+                    zIndex: Z_CHROME,
+                  }}
+                >
+                  {title && stackTop && (
+                    <p style={{ font: `600 ${u(20)}px var(--font-fredoka)`, color: "var(--ink)" }}>
+                      {title}
+                    </p>
+                  )}
+                  {subtitle && (
+                    <p style={{ font: `400 ${u(15)}px var(--font-atkinson)`, color: "var(--ink-soft)" }}>
+                      {subtitle}
+                    </p>
+                  )}
+                  {teacherNote && (
+                    <div className="pointer-events-auto mt-2 text-left">
+                      <TeacherNote note={teacherNote} mode="KS1" compact />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Top right: the way in to the jar. */}
+              <div
+                className="absolute flex items-center"
+                style={{ right: u(16), top: u(16), gap: u(10), zIndex: Z_CHROME }}
+              >
+                <ChromeDone
+                  u={u}
+                  type={onDone || confirmSubmit ? "button" : "submit"}
+                  title={nextPage ? "Next page" : "Done"}
+                  label={nextPage ? "Next page" : teacher ? "Save template" : "Pop in my jar"}
+                  onClick={
+                    onDone
+                      ? () => {
+                          const pages = currentPages();
+                          onDone(
+                            pages,
+                            isQuizAuthor ? { questions: quizRef.current } : undefined,
+                            isObjectAuthor ? currentObjectsPayload() : undefined,
+                            currentPreviews(),
+                          );
+                        }
+                      : confirmSubmit
+                        ? handIn
+                        : undefined
+                  }
+                >
+                  <Icon name={teacher ? "done" : "pop-in"} size={u(26)} decorative />
+                  {nextPage ? "Next ›" : teacher ? "Save template" : "Pop in my jar"}
+                </ChromeDone>
+              </div>
+
+              {/* The two discs and their fans. */}
+              <PenFan
+                u={u}
+                hand={hand}
+                cx={penX}
+                cy={discY}
+                frame={paper}
+                dir={penDir(hand)}
+                open={toolBarOpen}
+                tool={tool}
+                // The fan shows the PEN's colour whatever is in hand: with Move
+                // picked the "current colour" is the cursor's, which is ink and
+                // means nothing to a child looking at the nibs.
+                colour={drawingTool ? color : toolColors.pen}
+                size={size}
+                canMove={canMove}
+                onToggle={() => {
+                  setToolBarOpen((v) => !v);
+                  setFanOpen(false);
+                  setPlusRow(null);
+                }}
+                // Press and hold the disc to move the fans to the other corner
+                // — the one setting the design asks for, kept off the top row.
+                onHold={() => {
+                  swapHand();
+                  say(hand === "right" ? "Buttons are on the left now" : "Buttons are on the right now");
+                }}
+                onTool={(key) => {
+                  finishEditing();
+                  setTool(key as Tool);
+                  // Picking a nib, a colour or another pen leaves the fan open:
+                  // the next choice is already in front of you. Picking MOVE
+                  // folds it, because Move means "I am going to handle a piece
+                  // now", and the fan sweeps over the very corner where a piece
+                  // placed near the foot of the page keeps its handles — which
+                  // is the bug the old properties bar had (pen-width.spec.ts).
+                  if (key === "cursor") setToolBarOpen(false);
+                }}
+                onColour={(hex) => setColor(hex)}
+                onSize={(n) => setSize(n)}
+                art={<PenArt colour={drawingTool ? color : toolColors.pen} />}
+              />
+
+              <PlusFan
+                u={u}
+                cx={plusX}
+                cy={discY}
+                frame={paper}
+                dir={plusDir(hand)}
+                open={fanOpen}
+                items={plusItems}
+                row={plusRow}
+                teacher={teacher}
+                onToggle={() => {
+                  const next = !fanOpen;
+                  openAddMenu(next);
+                  setPlusRow(null);
+                  setToolBarOpen(false);
+                }}
+                onRow={setPlusRow}
+              />
+
+              {/* The pages, always visible, with the one being drawn on lifted
+                  out of the tray. */}
+              <PageTray
+                u={u}
+                count={pageCount}
+                active={current}
+                maxWidth={Math.max(200, paper.w - 2 * (NEAR_X + DISC / 2 + 10))}
+                thumbs={thumbs}
+                canDelete={allowPageDelete}
+                canStructure={allowPageStructure}
+                onGo={(i) => {
+                  closeFans();
+                  goToPage(i);
+                }}
+                onAdd={() => {
+                  addPage();
+                  say("New page gone");
+                }}
+                onReorder={(from, to) => {
+                  movePageTo(from, to);
+                  say("Page moved back");
+                }}
+                onDuplicate={(i) => {
+                  duplicatePageAt(i);
+                  say("Page copy gone");
+                }}
+                onDelete={(i) => {
+                  deletePageAt(i);
+                  say(`Page ${i + 1} is back`);
+                }}
+                onClear={(i) => {
+                  if (i !== currentRef.current) goToPage(i);
+                  clearPage();
+                  say("Drawing is back");
+                }}
+                onContextMenu={allowPageStructure ? openPageMenu : undefined}
+              />
+
+              {/* The floating windows: one shell, a kit or the quiz inside it. */}
+              {availableKits
+                .filter((k) => kitIsWindow(k.id) && kitWindows[k.id])
+                .map((kit) => {
+                  const pos = kitWindows[kit.id]!;
+                  return (
+                    <FloatingWindow
+                      key={kit.id}
+                      u={u}
+                      paper={paper}
+                      icon={KIT_ICON[kit.id]}
+                      title={kit.label}
+                      pos={pos}
+                      onPos={(p) => setKitWindows((prev) => ({ ...prev, [kit.id]: p }))}
+                      onClose={() => setKitWindows((prev) => ({ ...prev, [kit.id]: undefined }))}
+                      // "Tuck away", not "Close the maths kit": the window is
+                      // already named by its region, and a button whose name
+                      // CONTAINS the toolbox item's name is two controls a
+                      // screen reader (and a test) cannot tell apart.
+                      closeLabel="Tuck away"
+                    >
+                      <KitPalette
+                        u={u}
+                        kit={kit}
+                        activeGroupId={openGroup[kit.id] ?? null}
+                        onGroup={(id) => setOpenGroup((prev) => ({ ...prev, [kit.id]: id }))}
+                        onPlace={(preset) => addShape(preset, true)}
+                      />
+                    </FloatingWindow>
+                  );
+                })}
+
+              {isQuizAuthor && quizPanelOpen && quizWindow && (
+                <FloatingWindow
+                  u={u}
+                  paper={paper}
+                  icon="help"
+                  title="Quiz builder"
+                  pos={quizWindow}
+                  onPos={setQuizWindow}
+                  onClose={() => setQuizPanelOpen(false)}
+                  closeLabel="Tuck away"
+                >
+                  <QuizPanelBody
+                    u={u}
+                    questions={quizQuestions}
+                    currentPage={current}
+                    pageCount={pageCount}
+                    selectedId={selectedQuestionId}
+                    onAddQuestion={addQuestion}
+                    onSelectQuestion={(id) => {
+                      // Opening a question jumps to the page it lives on, so the
+                      // box being edited is always the one on screen. Collapsing
+                      // it (null) shouldn't move the teacher anywhere.
+                      if (id === null) {
+                        setSelectedQuestionId(null);
+                        return;
+                      }
+                      const q = quizRef.current.find((x) => x.id === id);
+                      if (q && q.pageIndex !== currentRef.current) goToPage(q.pageIndex);
+                      setSelectedQuestionId(id);
+                    }}
+                    onUpdatePrompt={(id, prompt) => updateQuestion(id, { prompt })}
+                    onDeleteQuestion={deleteQuestion}
+                    onAddOption={addOption}
+                    onRemoveOption={removeOption}
+                    onOptionText={(qid, oid, text) => setOptionField(qid, oid, { text })}
+                    onOptionImage={pickOptionImage}
+                    onClearOptionImage={(qid, oid) => setOptionField(qid, oid, { imagePath: undefined })}
+                    onSetCorrect={setCorrectOption}
+                  />
+                </FloatingWindow>
+              )}
+
+              {/* Only once there is a quiz to go back to. The way IN is the ＋
+                  fan; this is the way back, and a shortcut to a panel with
+                  nothing in it is a button that has to be explained. */}
+              {isQuizAuthor && !quizPanelOpen && quizQuestions.length > 0 && (
+                <QuizLauncher onOpen={openQuizPanel} />
+              )}
+
+              <Toast u={u} message={toast} />
+
+              {/* Told in the design system's own colours, not a stock utility.
+                  `bg-amber-500` is used nowhere else in the app, so it was never
+                  generated into the stylesheet — which left white text on a
+                  transparent pill: a message a child could not read, on the one
+                  screen where they are stuck and need telling why. */}
+              {holdUp && (
+                <div
+                  role="status"
+                  className="pointer-events-none absolute left-1/2 -translate-x-1/2"
+                  style={{
+                    top: u(96),
+                    zIndex: Z_CHROME,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    background: "var(--honey)",
+                    color: "var(--ink)",
+                    border: "3px solid var(--ink)",
+                    borderRadius: 999,
+                    padding: "12px 22px",
+                    font: "700 19px var(--font-atkinson)",
+                    boxShadow: "0 6px 18px rgba(34,48,74,.28)",
+                    maxWidth: "min(90%, 520px)",
+                    textAlign: "center",
+                  }}
+                >
+                  <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1 }}>
+                    ✋
+                  </span>
+                  {holdUp}
+                </div>
+              )}
+
+              {(importing || importError) && (
+                <div
+                  role="status"
+                  className={`absolute left-1/2 -translate-x-1/2 rounded-lg px-3 py-2 text-sm font-semibold shadow-lg ${
+                    importError ? "bg-rose-600 text-white" : "bg-white text-foreground"
+                  }`}
+                  style={{ top: u(96), zIndex: Z_CHROME }}
+                >
+                  {importError ?? "Adding your file…"}
+                </div>
+              )}
+
+              {withCaption && (
+                // Above the ＋ disc, not beside it: the disc owns the bottom
+                // corner, and a caption box overlapping it swallowed the taps
+                // meant for the toolbox.
+                <div className="absolute" style={{ left: u(16), bottom: u(150), width: u(280), zIndex: Z_BASE + 4 }}>
+                  <label
+                    htmlFor={captionId}
+                    className="mb-1 inline-block rounded-full bg-white/90 px-3 py-1 text-sm font-bold text-foreground shadow"
+                  >
+                    {captionLabel}
+                  </label>
+                  {/* min-h-16: a child taps into this to say what their picture
+                      is, so it carries the same 64px floor as everything else. */}
+                  <input
+                    id={captionId}
+                    ref={captionRef}
+                    name="caption"
+                    className="input min-h-16 bg-white/90 shadow"
+                    placeholder="💬 Add a caption…"
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -3903,36 +4288,6 @@ export function DrawingCanvas({
   );
 }
 
-function RoundBtn({
-  children,
-  label,
-  onClick,
-  disabled,
-}: {
-  children: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-      // 64px, not 44 (F37). SAFEGUARDING rule 18 asks for 64 on anything a child
-      // taps, and every tool on this canvas was under it — a screen a child is
-      // on for most of their time in Storyjar. The ICON is unchanged; the box
-      // around it grew, which is the cheapest way to owe a child a target they
-      // can hit without spending the drawing space on bigger glyphs.
-      className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 text-lg text-foreground shadow transition-colors hover:bg-white disabled:opacity-40"
-    >
-      {children}
-    </button>
-  );
-}
-
 // A palette button's art. Drawn from the same shapeParts the canvas renders
 // with, so a button can never show something the canvas doesn't draw — and so
 // apparatus with no Unicode glyph (a base-10 rod) needs no hand-drawn icon.
@@ -3940,72 +4295,6 @@ function RoundBtn({
 // The preview keeps the preset's PROPORTIONS inside a square box, letting the
 // long side fill it. Without that every base-10 button would be the same square
 // and a ten rod would be indistinguishable from a hundred flat.
-function ShapeThumb({ preset }: { preset: ShapePreset }) {
-  const PX = 26;
-  const pw = preset.w ?? SHAPE_DEFAULTS.w;
-  const ph = preset.h ?? SHAPE_DEFAULTS.h;
-  const scale = PX / Math.max(pw, ph);
-  // A number line is 4 units tall against 700 wide; drawn to scale it would be
-  // invisible, so very thin presets get a floor.
-  const w = Math.max(pw * scale, isVectorKind(preset.kind) ? 0 : 3);
-  const h = Math.max(ph * scale, isVectorKind(preset.kind) ? 2 : 3);
-  const geom = {
-    shape: preset.kind,
-    w,
-    h,
-    cols: preset.cols,
-    rows: preset.rows,
-    parts: preset.parts,
-    operator: preset.operator,
-    sides: preset.sides,
-    // A 26px button cannot show a readable number, and unreadable ones read as
-    // dirt on the glyph. The ticks are what tell one line from another at this
-    // size anyway — and the clock's thumb has always shown a blank face for the
-    // same reason.
-    numerals: false,
-    // Ten ticks across 26px is a dotted line, not a number line. The button is
-    // saying "this is a ruled line", so it shows few enough ticks to read as
-    // one; the real count is a stepper away.
-    ...(preset.kind === "numberline" ? { parts: 4 } : {}),
-  };
-  return (
-    <svg
-      viewBox={`${-(PX - w) / 2} ${-(PX - h) / 2} ${PX} ${PX}`}
-      width={PX}
-      height={PX}
-      aria-hidden="true"
-      className="overflow-visible"
-    >
-      {shapeParts(geom).map((part, i) => (
-        <path
-          key={i}
-          d={part.d}
-          fill={part.role === "detail" || preset.fill === "none" ? "none" : preset.fill ?? SHAPE_DEFAULTS.fill}
-          fillRule={shapeFillRule(preset.kind)}
-          stroke={preset.stroke ?? SHAPE_DEFAULTS.stroke}
-          strokeWidth={part.role === "detail" ? 0.4 : 1.2}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-      ))}
-      {preset.text && (
-        <text
-          x={w / 2}
-          y={h / 2}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontSize={preset.text.length > 2 ? 7 : 10}
-          fontWeight="700"
-          fill="#1f2430"
-          stroke="none"
-        >
-          {preset.text}
-        </text>
-      )}
-    </svg>
-  );
-}
-
 // A clock is deliberately absent: it has twelve hours and that is not a
 // setting. What a clock offers instead is whether the numbers are printed.
 function shapeHasParts(kind: ShapeKind): boolean {
@@ -4062,151 +4351,6 @@ function Rule() {
 //
 // The rubber gets a shorter version of the same bar: an eraser has no colour,
 // so offering it one would be offering a choice that does nothing.
-function ToolProperties({
-  color,
-  size,
-  isEraser,
-  canMove,
-  onClose,
-  onColor,
-  onSize,
-  onMove,
-}: {
-  color: string;
-  size: number;
-  isEraser: boolean;
-  canMove: boolean;
-  onClose: () => void;
-  onColor: (c: string) => void;
-  onSize: (n: number) => void;
-  onMove: () => void;
-}) {
-  // It shows because a pen was just picked, and goes when the canvas is touched
-  // — so it is never a thing sitting on the page waiting to be tidied away. The
-  // parent owns that, because picking the pen is what opens it.
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function onDown(e: PointerEvent) {
-      if (!ref.current?.contains(e.target as Node)) onClose();
-    }
-    // Capture, because the bar stops propagation on its own pointers so a
-    // stroke does not start underneath it.
-    document.addEventListener("pointerdown", onDown, true);
-    return () => document.removeEventListener("pointerdown", onDown, true);
-  }, [onClose]);
-
-  const heading = "whitespace-nowrap text-xs font-extrabold uppercase tracking-wide text-muted";
-
-  return (
-    <div
-      ref={ref}
-      onPointerDown={(e) => e.stopPropagation()}
-      className="pointer-events-auto absolute left-1/2 z-30 flex max-w-[92%] -translate-x-1/2 flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-2xl border-2 border-border bg-surface px-5 py-3 shadow-lg"
-      style={{ bottom: 116 }}
-    >
-      {!isEraser && (
-        <div className="flex items-center gap-3">
-          <span className={heading}>Pen colour</span>
-          <div className="flex items-center gap-1.5">
-            {SWATCHES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => onColor(c)}
-                // 64px of press around a 44px dot: the dot is what a child
-                // sees, the press is what they can hit (rule 18).
-                className="flex h-16 w-16 items-center justify-center rounded-full"
-                aria-label={`Colour ${c}`}
-                aria-pressed={color.toLowerCase() === c.toLowerCase()}
-              >
-                <span
-                  // The ring is what makes white a colour rather than a gap in
-                  // the row: on a cream bar a white dot with a white border is
-                  // nothing at all.
-                  className="block h-11 w-11 rounded-full border-4 ring-1 ring-black/15"
-                  style={{
-                    backgroundColor: c,
-                    borderColor: color.toLowerCase() === c.toLowerCase() ? "#1f2430" : "#ffffff",
-                  }}
-                />
-              </button>
-            ))}
-            {/* Anything the row does not carry. The rainbow ring says "any
-                colour" without pretending to be a colour itself. */}
-            <label
-              className="relative flex h-16 w-16 cursor-pointer items-center justify-center rounded-full"
-              title="Pick any colour"
-            >
-              <span
-                aria-hidden="true"
-                className="flex h-11 w-11 items-center justify-center rounded-full border-4 border-white ring-1 ring-black/15"
-                style={{
-                  background: "conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red)",
-                }}
-              >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm font-bold text-foreground">
-                  +
-                </span>
-              </span>
-              {/* The input fills the whole 64px press, not the 44px dot inside
-                  it. Left to itself a colour input takes its own intrinsic
-                  50×27, which is under the child touch floor however big the
-                  thing drawn behind it is. */}
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => onColor(e.target.value)}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                aria-label="Pick any colour"
-              />
-            </label>
-          </div>
-        </div>
-      )}
-
-      {!isEraser && <Rule />}
-
-      <div className="flex items-center gap-3">
-        <span className={heading}>How thick</span>
-        <div className="flex items-center gap-1.5">
-          {SIZES.map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onSize(n)}
-              className={`flex h-16 w-16 items-center justify-center rounded-2xl border-2 ${
-                size === n ? "border-foreground bg-background" : "border-transparent"
-              }`}
-              aria-label={`Thickness ${n}`}
-              aria-pressed={size === n}
-            >
-              <span
-                className="block rounded-full bg-foreground"
-                style={{ width: Math.max(8, n * 1.6), height: Math.max(8, n * 1.6) }}
-              />
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {canMove && <Rule />}
-      {canMove && (
-        <div className="flex items-center gap-3">
-          <span className={heading}>Move things</span>
-          <button
-            type="button"
-            onClick={onMove}
-            className="flex h-16 items-center gap-2 rounded-2xl border-2 border-border px-4 text-base font-bold text-foreground"
-            aria-label="Move — drag & resize things"
-          >
-            <Icon name="point" size={22} decorative /> Hand
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // The right-click menu: cut, copy, paste and duplicate on an object; duplicate
 // and reorder on a page.
 //
@@ -4440,102 +4584,6 @@ function Stepper({
   );
 }
 
-function FanBtn({
-  children,
-  label,
-  onClick,
-}: {
-  children: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-2.5 rounded-full bg-white py-2 pl-2 pr-5 text-left text-base font-bold text-foreground shadow-lg ring-1 ring-black/5 transition-transform hover:scale-105"
-    >
-      <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-background text-foreground">{children}</span>
-      <span className="whitespace-nowrap">{label}</span>
-    </button>
-  );
-}
-
-// The picker-cup tools, drawn tip-up on the design system's 36×88 keyline. Each
-// pen shows ITS OWN stored colour on the whole body + nib — always, whether or
-// not it's the one in use — so you can see at a glance that (say) the Pen is
-// still yellow while you're drawing with the Felt tip. Tools stay distinct by
-// nib shape and tray position. The Eraser is colourless (it rubs out).
-function ToolShape({ kind, color }: { kind: Tool; color: string }) {
-  const svg = {
-    width: 58,
-    height: 142,
-    viewBox: "0 0 36 88",
-    fill: "none" as const,
-    stroke: "#22304A",
-    strokeWidth: 2,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-  if (kind === "cursor") {
-    // The arrow (icon library's "select"), stood up at pen scale. It's a
-    // shorter shape than the pens, so it sits whole on the shelf rather than
-    // sinking to a nib — the lift on pick is what marks it as the live tool.
-    //
-    // A hand was tried here and reverted: it didn't read well on the shelf. The
-    // tool is still called Move (aria-label, tooltip) and — the part that
-    // actually protects a child — it is only OFFERED when there is something to
-    // move, so a wrong tap can no longer leave a child holding a tool that does
-    // nothing. See SHELF and `canMove`.
-    return (
-      <svg {...svg}>
-        <g transform="translate(-15 7)">
-          <path d="M18 13 L18 55 L28 46 L34 60 L41 57 L35 43 L48 43 Z" fill="#FFFDF7" />
-        </g>
-      </svg>
-    );
-  }
-  if (kind === "eraser") {
-    return (
-      <svg {...svg}>
-        <path d="M11 32 Q11 24 18 24 Q25 24 25 32 L25 79 Q25 83 18 83 Q11 83 11 79 Z" fill="#8AB9D6" />
-        <path d="M11 42 L25 34 L25 32 Q25 24 18 24 Q11 24 11 32 Z" fill="#E08A9B" />
-        <rect x="9.5" y="52" width="17" height="12" rx="2" fill="#F3E3C3" />
-      </svg>
-    );
-  }
-  if (kind === "highlighter") {
-    return (
-      <svg {...svg}>
-        <path d="M9 38 L27 38 L27 79 Q27 83 18 83 Q9 83 9 79 Z" fill={color} />
-        <path d="M11 38 L11 30 Q11 28 13 27.5 L23 27.5 Q25 28 25 30 L25 38 Z" fill={color} />
-        <path d="M12 27.5 L24 27.5 L24 23 L12 23 Z" fill="#FFFDF7" />
-        <path d="M12 23 L24 23 L21.5 9 L13.5 12 Z" fill={color} />
-      </svg>
-    );
-  }
-  if (kind === "pen") {
-    // Felt tip — bold marker.
-    return (
-      <svg {...svg}>
-        <path d="M11 36 L25 36 L25 79 Q25 83 18 83 Q11 83 11 79 Z" fill={color} />
-        <path d="M11 36 L11 30 Q11 27.5 13 27 L23 27 Q25 27.5 25 30 L25 36 Z" fill="#FFFDF7" />
-        <path d="M13.6 27 L14.6 16 Q14.6 12 18 12 Q21.4 12 21.4 16 L22.4 27 Z" fill={color} />
-      </svg>
-    );
-  }
-  // Pen — fine liner.
-  return (
-    <svg {...svg}>
-      <path d="M12 33 L24 33 L24 79 Q24 83 18 83 Q12 83 12 79 Z" fill={color} />
-      <path d="M13 33 L18 11 L23 33 Z" fill="#FFFDF7" />
-      <path d="M16.1 18 L18 9 L19.9 18 Z" fill={color} />
-      <path d="M24 37 Q27.5 37 27.5 42 L27.5 55 Q27.5 57.5 25 57" />
-      <line x1="12" y1="41" x2="24" y2="41" />
-    </svg>
-  );
-}
 
 type ObjHandlers = {
   scale: number;
@@ -4623,6 +4671,17 @@ function objCapabilities(o: Obj, author: boolean) {
 // placement is plain screen arithmetic off the turned box (`clear`), and `z-30`
 // resolves against the whole object layer again instead of being trapped in the
 // stacking context that `rotate()` creates.
+/**
+ * How much of the stage's bottom edge is its own furniture rather than page.
+ * Zero on the inline canvas, which has no tray under it.
+ */
+function chromeInset(stage: HTMLElement, side: "top" | "bottom" | "left" | "right"): number {
+  const raw = getComputedStyle(stage).getPropertyValue(`--sj-chrome-${side}`);
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+const chromeBottom = (stage: HTMLElement) => chromeInset(stage, "bottom");
+
 function ObjectToolbar({
   o,
   showAuthor,
@@ -4640,6 +4699,7 @@ function ObjectToolbar({
   onSize,
   onDuplicate,
   canDuplicate,
+  onEdit,
 }: {
   o: Obj;
   showAuthor: boolean; // teacher: show order + padlock
@@ -4682,13 +4742,32 @@ function ObjectToolbar({
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
   canDuplicate: boolean;
+  // Change the words: a shape's label, a frame's prompt, a text box's text.
+  // Absent where there are none (a picture). It lives here, not on a corner,
+  // because the design's four corners are the four things every piece can do,
+  // and a fifth disc at the top-centre landed on the settings row whenever a
+  // tall piece pushed the bar down onto it.
+  onEdit?: () => void;
 }) {
   const shape = o.type === "shape" ? (o as ShapeObj) : null;
   // Locked, seen by the person who locked it. Everything except the padlock is
   // a way of changing the object, so while it is pinned none of it is offered.
   const pinned = showAuthor && !!o.locked;
+  // An ink pill of round buttons, as the design draws it. A TEACHER's are 44px
+  // — the adult floor — and a child's stay at 64 (rule 18, F37): a child still
+  // gets this bar, because its turn and resize buttons are the only way to turn
+  // or resize anything from a keyboard (F50), and taking it away from them
+  // would take that with it.
+  const HIT = showAuthor ? 44 : 64;
+  const GLYPH = showAuthor ? 22 : 30;
   const btn =
-    "pointer-events-auto flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-background hover:bg-surface";
+    "pointer-events-auto flex items-center justify-center rounded-full text-[var(--paper)] hover:bg-white/15";
+  const btnStyle: React.CSSProperties = { width: HIT, height: HIT, flex: "0 0 auto" };
+  // Which colour menu is open under the bar: the fill's or the line's. The
+  // design offers the palette as a row of swatches rather than the browser's
+  // own colour dialog, so the ten a child knows from the pen fan are the ten
+  // a teacher is offered here — the same vocabulary in both places.
+  const [pick, setPick] = useState<"fill" | "stroke" | null>(null);
   // Whether this shape has any numbers to show, and so whether the second row
   // exists. A rectangle has none and gets one row, as it always did.
   const hasNumbers =
@@ -4730,8 +4809,14 @@ function ObjectToolbar({
     // questions below need no trigonometry — the browser has done it.
     const w = wrap.getBoundingClientRect();
     const s = stage.getBoundingClientRect();
+    const insetL = chromeInset(stage, "left");
+    const insetR = chromeInset(stage, "right");
+    // A couple of pixels of slack. Capping the bar at EXACTLY the free band
+    // makes the clamp's floor and ceiling equal to within a rounding error,
+    // which reads as "it does not fit" and drops it back to the middle of the
+    // whole stage — under the very window the inset was there to avoid.
     setMaxW((prev) => {
-      const next = Math.max(160, s.width - 16);
+      const next = Math.max(160, s.width - 20 - insetL - insetR);
       return Math.abs(prev - next) < 0.5 ? prev : next;
     });
     const tw = el.offsetWidth;
@@ -4739,10 +4824,32 @@ function ObjectToolbar({
     // What the toolbar needs beyond the object's own edge: half a corner press,
     // then the gap, then itself.
     const need = HIT_PX / 2 + TOOLBAR_GAP + th;
-    // Above if it fits above, otherwise below if it fits below.
-    const roomAbove = w.top - s.top >= need;
-    const roomBelow = s.bottom - w.bottom >= need;
-    const nextFlip = !roomAbove && roomBelow;
+    // Above if it fits above, otherwise below if it fits below, otherwise
+    // whichever side has more room.
+    //
+    // The page tray is a FLOOR. A toolbar clamped onto it is a toolbar whose
+    // settings row swallows the taps meant for "new page", and a teacher then
+    // cannot add a page while a number line is selected.
+    //
+    // The top row is deliberately NOT reserved in the same way. Reserving it
+    // wedged the bar between the object and a band it could not clear, which
+    // put a number line's steppers underneath the object's own resize corner —
+    // and every way out of that (laying the bar across the piece, out-ranking
+    // its corners) cost something worse: a piece that could not be dragged, or
+    // a short one that could not be resized. Sliding under the top row costs
+    // the bar some of its own visibility on a cramped page, the chrome is drawn
+    // above it, and nothing is trapped.
+    const insetB = chromeBottom(stage);
+    const insetT = chromeInset(stage, "top");
+    // Above the object, out from under the top row, if that fits; below it,
+    // above the tray, if that fits; else whichever side has more. The top row
+    // shapes the CHOICE and nothing else — the clamp further down still runs
+    // against the stage edge, because clamping against the row pushed the bar
+    // onto the object's own corners.
+    const roomAbove = w.top - s.top - insetT;
+    const roomBelow = s.bottom - insetB - w.bottom;
+    const nextFlip =
+      roomAbove >= need ? false : roomBelow >= need ? true : roomBelow > roomAbove;
     setFlip((prev) => (prev === nextFlip ? prev : nextFlip));
 
     // Computed from where the toolbar WOULD sit untransformed, not from where
@@ -4759,19 +4866,32 @@ function ObjectToolbar({
     // It is clamped to the stage EDGE and never to the object's middle, tempting
     // as that is: the corners are where the controls are, but the middle is
     // where a child puts a finger to drag the thing.
+    //
+    // The floor is the stage's bottom edge LESS whatever the stage reserves for
+    // its own chrome (`--sj-chrome-bottom`): on the full-screen canvas that is
+    // the page tray and the two fan discs, and a toolbar clamped onto them is a
+    // toolbar that stops a child adding a page.
+    const floor = s.bottom - insetB;
+    const ceiling = s.top;
     let dy = 0;
-    if (intendedTop < s.top + TOOLBAR_GAP) {
-      dy = s.top + TOOLBAR_GAP - intendedTop;
-    } else if (intendedTop + th > s.bottom - TOOLBAR_GAP) {
-      dy = s.bottom - TOOLBAR_GAP - (intendedTop + th);
+    if (intendedTop < ceiling + TOOLBAR_GAP) {
+      dy = ceiling + TOOLBAR_GAP - intendedTop;
+    } else if (intendedTop + th > floor - TOOLBAR_GAP) {
+      dy = floor - TOOLBAR_GAP - (intendedTop + th);
     }
     setLift((prev) => (Math.abs(prev - dy) < 0.5 ? prev : dy));
     const margin = 8;
     const naturalCentre = w.left + w.width / 2 - s.left; // canvas-space px
     const half = tw / 2;
-    const lo = margin + half;
-    const hi = s.width - margin - half;
-    const clamped = lo > hi ? s.width / 2 : Math.min(hi, Math.max(lo, naturalCentre));
+    const lo = margin + half + insetL;
+    const hi = s.width - margin - half - insetR;
+    // If it cannot fit in the free band at all, centre it IN THAT BAND rather
+    // than on the whole stage — otherwise "it doesn't fit" parks it back under
+    // the window the band was measured to avoid.
+    const clamped =
+      lo > hi
+        ? (insetL + (s.width - insetR)) / 2
+        : Math.min(hi, Math.max(lo, naturalCentre));
     const next = clamped - naturalCentre;
     setShift((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
   });
@@ -4799,14 +4919,17 @@ function ObjectToolbar({
           flip ? `${lift}px` : `calc(-100% + ${lift}px)`
         })`,
       }}
-      className="pointer-events-auto absolute z-30 flex flex-col items-center gap-2 whitespace-nowrap rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg"
+      className="pointer-events-auto absolute z-30 flex flex-col items-center gap-1.5 whitespace-nowrap"
     >
       {/* The top row is what a teacher does TO the object: where it sits in the
           stack, whether it is pinned, whether it is endless, whether there is
           another one — and then how it is filled and lined. The same controls
           in the same order whatever the object is, so the row a hand reaches
           for does not move when the shape does. */}
-      <div className="flex flex-wrap items-center justify-center gap-2">
+      <div
+        className="flex flex-wrap items-center justify-center gap-1.5 rounded-[28px] px-1.5 py-1.5"
+        style={{ background: "var(--ink)", boxShadow: "0 4px 0 rgba(34,48,74,.3)" }}
+      >
       {showAuthor && (
         <>
           {/* Locked pins the object for its author too, so while it is locked
@@ -4815,11 +4938,11 @@ function ObjectToolbar({
               just declared unchangeable. Unlock and they are all back. */}
           {!pinned && (
             <>
-          <button type="button" onClick={() => onSendToBack(o.id)} className={btn} title="Send behind other objects" aria-label="Send to back">
-            <Icon name="send-to-back" size={30} decorative />
+          <button type="button" onClick={() => onSendToBack(o.id)} className={btn} style={btnStyle} title="Send behind other objects" aria-label="Send to back">
+            <Icon name="send-to-back" size={GLYPH} decorative />
           </button>
-          <button type="button" onClick={() => onBringToFront(o.id)} className={btn} title="Bring in front of other objects" aria-label="Bring to front">
-            <Icon name="bring-to-front" size={30} decorative />
+          <button type="button" onClick={() => onBringToFront(o.id)} className={btn} style={btnStyle} title="Bring in front of other objects" aria-label="Bring to front">
+            <Icon name="bring-to-front" size={GLYPH} decorative />
           </button>
             </>
           )}
@@ -4830,6 +4953,7 @@ function ObjectToolbar({
             type="button"
             onClick={() => onToggleLock(o.id)}
             className={btn}
+            style={o.locked ? { ...btnStyle, background: "var(--paper)", color: "var(--ink)" } : btnStyle}
             aria-pressed={!!o.locked}
             aria-label={o.locked ? "Locked in place" : "Unlocked"}
             title={
@@ -4838,7 +4962,7 @@ function ObjectToolbar({
                 : "Unlocked — you and your pupils can move this. Tap to lock it in place."
             }
           >
-            <Icon name={o.locked ? "lock-closed" : "lock-open"} size={30} decorative />
+            <Icon name={o.locked ? "lock-closed" : "lock-open"} size={GLYPH} decorative />
           </button>
           )}
           {/* Make this a source. A child dragging it gets a new one and this
@@ -4857,8 +4981,8 @@ function ObjectToolbar({
               // accessible name both still say "on" or "off" (rule 18).
               style={
                 shape.infinite
-                  ? { background: "var(--honey-tint, #FBEED3)", borderColor: "var(--honey, #F0B441)", color: "var(--honey-ink, #8A5F1E)" }
-                  : undefined
+                  ? { ...btnStyle, background: "var(--honey-tint, #FBEED3)", color: "var(--honey-ink, #8A5F1E)" }
+                  : btnStyle
               }
               aria-pressed={!!shape.infinite}
               aria-label={shape.infinite ? "Endless supply on" : "Endless supply off"}
@@ -4868,7 +4992,7 @@ function ObjectToolbar({
                   : "Tap to make this endless: pupils drag a new one off it."
               }
             >
-              <Icon name="infinite" size={30} decorative />
+              <Icon name="infinite" size={GLYPH} decorative />
             </button>
           )}
         </>
@@ -4881,30 +5005,32 @@ function ObjectToolbar({
             type="button"
             onClick={() => onTurn(-1)}
             className={btn}
+            style={btnStyle}
             title="Turn it left a little"
             aria-label="Turn left"
           >
             <span className="flex items-center" style={{ transform: "scaleX(-1)" }}>
-              <Icon name="rotate" size={30} decorative />
+              <Icon name="rotate" size={GLYPH} decorative />
             </span>
           </button>
           <button
             type="button"
             onClick={() => onTurn(1)}
             className={btn}
+            style={btnStyle}
             title="Turn it right a little"
             aria-label="Turn right"
           >
-            <Icon name="rotate" size={30} decorative />
+            <Icon name="rotate" size={GLYPH} decorative />
           </button>
         </>
       )}
       {!pinned && onSize && (
         <>
-          <button type="button" onClick={() => onSize(-1)} className={`${btn} text-lg font-bold`} title="Make it smaller" aria-label="Make it smaller">
+          <button type="button" onClick={() => onSize(-1)} className={`${btn} text-lg font-bold`} style={btnStyle} title="Make it smaller" aria-label="Make it smaller">
             −
           </button>
-          <button type="button" onClick={() => onSize(1)} className={`${btn} text-lg font-bold`} title="Make it bigger" aria-label="Make it bigger">
+          <button type="button" onClick={() => onSize(1)} className={`${btn} text-lg font-bold`} style={btnStyle} title="Make it bigger" aria-label="Make it bigger">
             +
           </button>
         </>
@@ -4919,79 +5045,198 @@ function ObjectToolbar({
         onClick={() => onDuplicate(o.id)}
         disabled={!canDuplicate}
         className={`${btn} disabled:opacity-40`}
+        style={btnStyle}
         title={canDuplicate ? "Make another one" : "This page is full — no room for another"}
         aria-label="Make another one"
       >
-        <Icon name="duplicate" size={30} decorative />
+        <Icon name="duplicate" size={GLYPH} decorative />
       </button>
       )}
 
-      {showStyle && <span className="mx-0.5 h-9 w-px bg-border" />}
+      {!pinned && onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          className={btn}
+          style={btnStyle}
+          title="Change the words"
+          aria-label="Edit text"
+        >
+          <Icon name="edit" size={GLYPH} decorative />
+        </button>
+      )}
+
+      {showStyle && <span className="mx-0.5 h-7 w-px bg-white/25" />}
 
       {showStyle && shape && (
         <>
-          <span className="inline-flex items-center font-semibold text-muted"><Icon name="fill" size={28} decorative /></span>
-          {/* 68px, not 64: the border eats 2px a side and the <input> inside is
-              what receives the press, so the box has to be bigger than the
-              floor for the target to reach it. */}
-          <label className="relative block h-[68px] w-[68px] overflow-hidden rounded-full border-2 border-border">
-            <input
-              type="color"
-              value={shape.fill === "none" ? "#93c5fd" : shape.fill}
-              onChange={(e) => onStyle({ fill: e.target.value })}
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              aria-label="Fill colour"
-            />
+          {/* Fill and line: a swatch of each, opening a row of the ten under
+              the bar. The swatch IS the label — a paint-pot glyph beside a
+              colour dot was two things saying one thing. */}
+          <button
+            type="button"
+            onClick={() => setPick((p) => (p === "fill" ? null : "fill"))}
+            className={btn}
+            style={pick === "fill" ? { ...btnStyle, background: "var(--paper)" } : btnStyle}
+            aria-label="Fill colour"
+            aria-pressed={pick === "fill"}
+            title="Fill colour"
+          >
             <span
-              className="block h-full w-full"
+              aria-hidden="true"
               style={{
+                display: "block",
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                border: "2px solid var(--paper)",
+                boxSizing: "border-box",
                 background:
                   shape.fill === "none"
-                    ? "repeating-linear-gradient(45deg,#eee,#eee 4px,#fff 4px,#fff 8px)"
+                    ? "repeating-linear-gradient(45deg,#eee,#eee 3px,#fff 3px,#fff 6px)"
                     : shape.fill,
               }}
             />
-          </label>
+          </button>
           <button
             type="button"
-            onClick={() => onStyle({ fill: shape.fill === "none" ? "#93c5fd" : "none" })}
-            className="pointer-events-auto flex min-h-16 min-w-16 items-center justify-center rounded-lg border border-border px-3 text-sm font-semibold text-muted"
+            onClick={() => setPick((p) => (p === "stroke" ? null : "stroke"))}
+            className={btn}
+            style={pick === "stroke" ? { ...btnStyle, background: "var(--paper)" } : btnStyle}
+            aria-label="Line colour"
+            aria-pressed={pick === "stroke"}
+            title="Line colour"
           >
-            {shape.fill === "none" ? "Add fill" : "No fill"}
-          </button>
-
-          <span className="ml-1 inline-flex items-center font-semibold text-muted"><Icon name="line" size={28} decorative /></span>
-          {/* 68px, not 64: the border eats 2px a side and the <input> inside is
-              what receives the press, so the box has to be bigger than the
-              floor for the target to reach it. */}
-          <label className="relative block h-[68px] w-[68px] overflow-hidden rounded-full border-2 border-border">
-            <input
-              type="color"
-              value={shape.stroke}
-              onChange={(e) => onStyle({ stroke: e.target.value })}
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              aria-label="Line colour"
+            <span
+              aria-hidden="true"
+              style={{
+                display: "block",
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                border: "2px dashed var(--paper)",
+                boxSizing: "border-box",
+                background: shape.stroke,
+              }}
             />
-            <span className="block h-full w-full" style={{ background: shape.stroke }} />
-          </label>
-          <div className="flex gap-1.5">
+          </button>
+          <div className="flex gap-1">
             {[3, 6, 12].map((sw) => (
               <button
                 key={sw}
                 type="button"
                 onClick={() => onStyle({ strokeWidth: sw })}
-                className={`pointer-events-auto flex h-16 w-16 items-center justify-center rounded-lg border ${
-                  shape.strokeWidth === sw ? "border-brand bg-brand/10" : "border-border"
-                }`}
+                className="pointer-events-auto flex items-center justify-center rounded-full hover:bg-white/15"
+                style={{
+                  width: HIT,
+                  height: HIT,
+                  flex: "0 0 auto",
+                  background: shape.strokeWidth === sw ? "var(--paper)" : undefined,
+                }}
                 aria-label={`Line width ${sw}`}
               >
-                <span className="rounded-full bg-foreground" style={{ width: (sw + 2) * 1.6, height: (sw + 2) * 1.6 }} />
+                <span
+                  className="rounded-full"
+                  style={{
+                    width: 6 + sw,
+                    height: 6 + sw,
+                    background: shape.strokeWidth === sw ? "var(--ink)" : "var(--paper)",
+                  }}
+                />
               </button>
             ))}
           </div>
         </>
       )}
       </div>
+
+      {/* The colour row: the ten swatches, "No fill" for the fill, and the
+          any-colour disc for anything the ten do not carry. Picking one closes
+          the row and commits one undo step. */}
+      {pick && shape && (
+        <div
+          role="group"
+          aria-label={pick === "fill" ? "Fill colour" : "Line colour"}
+          className="flex items-center rounded-full"
+          style={{
+            gap: 6,
+            padding: "6px 8px",
+            background: "var(--cream)",
+            border: "3px solid var(--ink)",
+            boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+          }}
+        >
+          {SWATCHES.map((c) => {
+            const cur = (pick === "fill" ? shape.fill : shape.stroke).toLowerCase() === c.toLowerCase();
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  onStyle(pick === "fill" ? { fill: c } : { stroke: c });
+                  setPick(null);
+                }}
+                aria-label={`Colour ${c}`}
+                aria-pressed={cur}
+                className="pointer-events-auto rounded-full"
+                style={{
+                  width: HIT === 64 ? 44 : 36,
+                  height: HIT === 64 ? 44 : 36,
+                  flex: "0 0 auto",
+                  background: c,
+                  border: `3px solid ${cur ? "var(--ink)" : "var(--calm-border)"}`,
+                  boxSizing: "border-box",
+                  transform: cur ? "translateY(-3px)" : undefined,
+                  transition: "transform 120ms",
+                }}
+              />
+            );
+          })}
+          {pick === "fill" && (
+            <button
+              type="button"
+              onClick={() => {
+                onStyle({ fill: shape.fill === "none" ? "#93c5fd" : "none" });
+                setPick(null);
+              }}
+              aria-pressed={shape.fill === "none"}
+              className="pointer-events-auto rounded-full whitespace-nowrap"
+              style={{
+                height: HIT === 64 ? 44 : 36,
+                padding: "0 12px",
+                border: "2px solid var(--ink)",
+                background: shape.fill === "none" ? "var(--ink)" : "var(--cream)",
+                color: shape.fill === "none" ? "var(--paper)" : "var(--ink)",
+                font: "700 13px var(--font-atkinson)",
+              }}
+            >
+              {shape.fill === "none" ? "Add fill" : "No fill"}
+            </button>
+          )}
+          <label
+            className="pointer-events-auto relative flex cursor-pointer rounded-full"
+            title="Pick any colour"
+            style={{
+              width: HIT === 64 ? 44 : 36,
+              height: HIT === 64 ? 44 : 36,
+              flex: "0 0 auto",
+              border: "3px solid var(--ink)",
+              boxSizing: "border-box",
+              background: "conic-gradient(#bd3f63,#f0b441,#a6c979,#37796f,#8ab9d6,#8b5cf6,#e08a9b,#bd3f63)",
+            }}
+          >
+            <input
+              type="color"
+              value={
+                pick === "fill" ? (shape.fill === "none" ? "#fffdf7" : shape.fill) : shape.stroke
+              }
+              onChange={(e) => onStyle(pick === "fill" ? { fill: e.target.value } : { stroke: e.target.value })}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              aria-label={pick === "fill" ? "Fill colour" : "Line colour"}
+            />
+          </label>
+        </div>
+      )}
 
       {/* The second row is the NUMBERS behind a parameterised shape: a number
           line's segments, start and interval; a grid's columns and rows; a
@@ -5001,7 +5246,10 @@ function ObjectToolbar({
           enough of them to run off both edges of the canvas if they shared the
           top row. So they get a row of their own, under a rule. */}
       {hasNumbers && (
-        <div className="flex w-full flex-wrap items-center justify-center gap-2 border-t border-border pt-2">
+        <div
+          className="flex flex-wrap items-center justify-center gap-2 rounded-full px-3 py-1"
+          style={{ background: "var(--cream)", border: "3px solid var(--ink)" }}
+        >
       {/* The numbers behind a parameterised shape. This is what makes twelve
           fraction buttons unnecessary: halves, quarters and eighths are on the
           palette, and a teacher who wants ninths steps to nine here rather than
@@ -5170,7 +5418,7 @@ function ObjectToolbar({
               aria-label={OPERATOR_LABEL[k]}
             >
               <span aria-hidden="true" className="text-2xl font-bold">
-                {k === "add" ? "+" : k === "subtract" ? "−" : k === "multiply" ? "×" : "÷"}
+                {OPERATOR_GLYPH[k]}
               </span>
             </button>
           ))}
@@ -5568,11 +5816,7 @@ function MediaObjectView({
       className={`absolute touch-none ${
         canGrab ? "pointer-events-auto cursor-move" : "pointer-events-none"
       } ${
-        selected || grouped
-          ? "ring-2 ring-brand"
-          : author && o.locked
-            ? "ring-2 ring-amber-400"
-            : ""
+        selected || grouped ? "ring-2 ring-brand" : ""
       }`}
       style={{
         left: o.x * scale,
@@ -5594,25 +5838,31 @@ function MediaObjectView({
           told. Purely decorative: it is offset outside the shape's own box and
           never receives a pointer. */}
       {o.type === "shape" && o.infinite && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{ transform: `translate(${6 * scale}px, ${6 * scale}px)`, opacity: 0.45 }}
-        >
-          <svg viewBox={`0 0 ${o.w} ${o.h}`} width="100%" height="100%" preserveAspectRatio="none" className="block h-full w-full overflow-visible">
-            {shapeParts(o).map((part, i) => (
-              <path
-                key={i}
-                d={part.d}
-                fill={part.role === "detail" || o.fill === "none" ? "none" : o.fill}
-                fillRule={shapeFillRule(o.shape)}
-                stroke={o.stroke}
-                strokeWidth={part.role === "detail" ? detailStrokeWidth(o.strokeWidth) : o.strokeWidth}
-                strokeLinejoin="round"
-              />
-            ))}
-          </svg>
-        </div>
+        <>
+          {/* Two kraft cards behind, offset down and right — the stack the
+              design draws, in the tokens the design draws it in. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10"
+            style={{
+              transform: `translate(${10 * scale}px, ${10 * scale}px)`,
+              border: "3px solid var(--ink)",
+              borderRadius: o.shape === "ellipse" ? 999 : 8,
+              background: "var(--kraft-tag)",
+              opacity: 0.9,
+            }}
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10"
+            style={{
+              transform: `translate(${5 * scale}px, ${5 * scale}px)`,
+              border: "3px solid var(--ink)",
+              borderRadius: o.shape === "ellipse" ? 999 : 8,
+              background: "var(--honey-tint)",
+            }}
+          />
+        </>
       )}
 
       {o.type === "frame" ? (
@@ -5620,15 +5870,13 @@ function MediaObjectView({
           // `data-frame` names the kind and its state on the element that
           // draws it, as `data-shape` does for a shape.
           data-frame={o.src ? "filled" : "empty"}
-          className="pointer-events-none flex h-full w-full flex-col overflow-hidden rounded-lg"
-          style={
-            o.src
-              ? undefined
-              : {
-                  border: `${Math.max(2, 4 * scale)}px dashed #94a3b8`,
-                  background: "rgba(241, 245, 249, 0.7)",
-                }
-          }
+          className="pointer-events-none flex h-full w-full flex-col items-center justify-center overflow-hidden"
+          style={{
+            gap: 12 * scale,
+            borderRadius: 12,
+            border: `3px ${o.src ? "solid" : "dashed"} var(--ink)`,
+            background: o.src ? "var(--cream)" : "var(--paper)",
+          }}
         >
           {o.src ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -5643,24 +5891,22 @@ function MediaObjectView({
             <>
               {/* The teacher's prompt sits at the top, so the child's tap
                   button (centred, in the layer above) never covers it. */}
+              {/* The camera glyph, centred, then the teacher's prompt under it.
+                  A child's cue is the Take a photo button in FrameTapLayer,
+                  which sits over this box in the same place. */}
+              <Icon name="camera" size={40} decorative />
               {o.label && !editing && (
-                <div
-                  className="shrink-0 px-2 pt-1 text-center font-semibold text-slate-600"
+                <p
+                  className="m-0 text-center"
                   style={{
-                    fontFamily: FONT_STACK,
-                    fontSize: Math.min(o.h * 0.12, 30) * scale,
-                    lineHeight: 1.2,
+                    padding: "0 16px",
+                    font: "400 16px var(--font-atkinson)",
+                    color: "var(--ink-soft)",
+                    textWrap: "pretty",
                   }}
                 >
                   {o.label}
-                </div>
-              )}
-              {/* The camera glyph is the teacher's cue only; a child's cue is
-                  the tap button in FrameTapLayer, which sits over this box. */}
-              {author && (
-                <div className="flex flex-1 items-center justify-center text-slate-400">
-                  <Icon name="camera" size={Math.min(64, Math.max(24, o.h * scale * 0.3))} decorative />
-                </div>
+                </p>
               )}
             </>
           )}
@@ -5723,6 +5969,27 @@ function MediaObjectView({
         </svg>
       )}
 
+      {/* Locked, and not the thing in hand: a 28px ink padlock on the corner,
+          so a teacher can see at a glance which pieces a child cannot move. */}
+      {author && o.locked && !selected && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute flex items-center justify-center"
+          style={{
+            right: -8,
+            bottom: -8,
+            width: 28,
+            height: 28,
+            borderRadius: 999,
+            background: "var(--ink)",
+            color: "var(--paper)",
+            ...(unrotate ? { transform: unrotate } : {}),
+          }}
+        >
+          <Icon name="lock-closed" size={14} decorative />
+        </span>
+      )}
+
       {/* A shape's label, locked inside its usable area and auto-fitted. */}
       {label && region && !editing && (
         <div
@@ -5754,7 +6021,7 @@ function MediaObjectView({
           onChange={(e) => onTextChange(o.id, e.target.value)}
           onBlur={onFinishEditing}
           onPointerDown={(e) => e.stopPropagation()}
-          placeholder={o.type === "frame" ? "What should they photograph?" : "Type…"}
+          placeholder={o.type === "frame" ? "Your prompt, e.g. Take a photo of your model" : "Type…"}
           className="pointer-events-auto absolute inset-1 resize-none rounded border-2 border-brand bg-white/80 text-center outline-none"
           style={{
             color: o.type === "shape" ? o.textColor ?? "#1f2430" : "#1f2430",
@@ -5771,9 +6038,6 @@ function MediaObjectView({
           unrotate={unrotate}
           boxW={boxW}
           boxH={boxH}
-          // A picture has no words to change, so it has no pencil. A frame's
-          // words are the teacher's prompt.
-          onEdit={o.type === "shape" || o.type === "frame" ? () => onEditText(o.id) : undefined}
           onDelete={() => onDelete(o.id)}
           startRotate={o.type === "shape" ? startRotate : undefined}
           startResize={startResize}
@@ -5782,6 +6046,8 @@ function MediaObjectView({
           // reach (F50).
           nudgeRotate={o.type === "shape" ? (dir) => turnBy(dir * rotateStep) : undefined}
           nudgeSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
+          // No copy of a photo frame: a child fills the one the teacher placed.
+          onDuplicate={o.type !== "frame" && canDuplicate ? () => onDuplicate(o.id) : undefined}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           noun={o.type === "frame" ? "photo frame" : "shape"}
@@ -5812,6 +6078,9 @@ function MediaObjectView({
         // A picture has no `rot` — the export renderer draws it flat — so it is
         // offered no turn, exactly as it is offered no turn handle.
         onTurn={o.type === "shape" ? (dir) => turnBy(dir * ROTATE_STEP) : undefined}
+        // A picture has no words to change. A frame's words are the teacher's
+        // prompt; a shape's are its label.
+        onEdit={(o.type === "shape" || o.type === "frame") && cap.editable ? () => onEditText(o.id) : undefined}
         onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
         onStyle={(patch) => {
           onChange(o.id, patch);
@@ -5834,12 +6103,12 @@ function ObjectCorners({
   unrotate,
   boxW,
   boxH,
-  onEdit,
   onDelete,
   startRotate,
   startResize,
   nudgeRotate,
   nudgeSize,
+  onDuplicate,
   onPointerMove,
   onPointerUp,
   noun,
@@ -5850,8 +6119,6 @@ function ObjectCorners({
   // of them can be spread apart rather than piled up.
   boxW: number;
   boxH: number;
-  // Undefined where the object has no words to edit — a picture.
-  onEdit?: () => void;
   onDelete: () => void;
   // Undefined where turning is not offered: a picture has no `rot` and the
   // export renderer draws it flat, so a handle there would spin on screen and
@@ -5875,6 +6142,9 @@ function ObjectCorners({
    */
   nudgeRotate?: (dir: -1 | 1) => void;
   nudgeSize?: (dir: -1 | 1) => void;
+  // "Another one": a copy at +40, +40. Absent where a copy makes no sense (a
+  // photo frame, a full page).
+  onDuplicate?: () => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
   // What this object is called in the turn / resize labels a screen reader
@@ -5902,7 +6172,21 @@ function ObjectCorners({
     ...(corner.right ? { right: off - spread.x } : {}),
     ...(unrotate ? { transform: unrotate } : {}),
   });
-  const dot = "block h-5 w-5 rounded-full border-2 border-white shadow";
+  // The design's handle: a 44px cream disc, 3px ink, a flat shadow — the same
+  // face as every other child-touchable control on this canvas. It sits inside
+  // the 64px press, which is what a finger actually has to hit (rule 18).
+  const disc: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    background: "var(--cream)",
+    border: "3px solid var(--ink)",
+    boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+    color: "var(--ink)",
+  };
   // Arrow keys step, Enter and Space step once in the "more" direction. Arrows
   // rather than Enter alone because turning has two directions and a child
   // driving this from a keyboard should not have to go the long way round.
@@ -5920,34 +6204,21 @@ function ObjectCorners({
     };
   return (
     <>
-      {onEdit && (
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={onEdit}
-          style={at({ top: true, left: true })}
-          className={HANDLE_HIT}
-          title="Change the words"
-          aria-label="Edit text"
-        >
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
-            <Icon name="edit" size={14} decorative />
-          </span>
-        </button>
-      )}
+      {/* Top-left: take it away. */}
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={onDelete}
-        style={at({ top: true, right: true })}
+        style={at({ top: true, left: true })}
         className={HANDLE_HIT}
-        title="Remove"
+        title="Take it away"
         aria-label={deleteLabel}
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500 text-white shadow">
-          <Icon name="close" size={14} decorative />
+        <span style={disc}>
+          <Icon name="close" size={20} decorative />
         </span>
       </button>
+      {/* Top-right: turn — drag it round, or tap for a step. */}
       {startRotate && (
         <div
           onPointerDown={startRotate}
@@ -5956,17 +6227,34 @@ function ObjectCorners({
           onKeyDown={nudgeRotate ? stepKeys(nudgeRotate) : undefined}
           // Focusable, because it says it is a button. See `nudgeRotate`.
           tabIndex={nudgeRotate ? 0 : undefined}
-          style={at({ bottom: true, left: true })}
+          style={at({ top: true, right: true })}
           className={`${HANDLE_HIT} cursor-grab`}
           title="Turn"
           role="button"
           aria-label={`Turn ${noun}`}
         >
-          <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow">
-            <Icon name="rotate" size={11} decorative />
+          <span style={disc}>
+            <Icon name="rotate" size={20} decorative />
           </span>
         </div>
       )}
+      {/* Bottom-left: another one. */}
+      {onDuplicate && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onDuplicate}
+          style={at({ bottom: true, left: true })}
+          className={HANDLE_HIT}
+          title="Another one"
+          aria-label="Another one"
+        >
+          <span style={disc}>
+            <Icon name="duplicate" size={20} decorative />
+          </span>
+        </button>
+      )}
+      {/* Bottom-right: bigger or smaller, the one jam disc. */}
       <div
         onPointerDown={startResize}
         onPointerMove={onPointerMove}
@@ -5979,7 +6267,7 @@ function ObjectCorners({
         role="button"
         aria-label={`Resize ${noun}`}
       >
-        <span className={`${dot} bg-brand`} />
+        <span style={{ ...disc, background: "var(--jam)" }} />
       </div>
     </>
   );
@@ -6238,7 +6526,6 @@ function TextObjectView({
           unrotate={unrotate}
           boxW={box.w}
           boxH={box.h}
-          onEdit={() => onEditText(o.id)}
           onDelete={() => onDelete(o.id)}
           startRotate={startRotate}
           startResize={startResize}
@@ -6273,6 +6560,7 @@ function TextObjectView({
         canDuplicate={canDuplicate}
         onTurn={(dir) => turnBy(dir * ROTATE_STEP)}
         onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
+        onEdit={() => onEditText(o.id)}
         onStyle={() => {}}
       />
     )}
@@ -6320,18 +6608,22 @@ function FrameTapLayer({
               aria-label={againLabel}
               title={againLabel}
               onClick={() => onTap(o.id)}
-              className="pointer-events-auto absolute flex items-center justify-center rounded-xl border-2 border-border bg-white/90 shadow-lg hover:bg-surface"
+              className="pointer-events-auto absolute flex items-center justify-center rounded-full"
               // Bottom-right corner, inside the frame where it fits and
               // overflowing the frame — never the stage — where the frame is
               // drawn smaller than the floor.
               style={{
-                left: Math.max(left, left + w - RETAKE - 4),
-                top: Math.max(top, top + h - RETAKE - 4),
+                left: Math.max(left, left + w - RETAKE - 8),
+                top: Math.max(top, top + h - RETAKE - 8),
                 width: RETAKE,
                 height: RETAKE,
+                background: "var(--cream)",
+                border: "3px solid var(--ink)",
+                color: "var(--ink)",
+                boxShadow: "0 4px 0 rgba(34,48,74,.15)",
               }}
             >
-              <Icon name="camera" size={30} decorative />
+              <Icon name="camera" size={26} decorative />
             </button>
           );
         }
@@ -6342,11 +6634,28 @@ function FrameTapLayer({
             data-frame-tap={o.id}
             aria-label={takeLabel}
             onClick={() => onTap(o.id)}
-            className="pointer-events-auto absolute flex flex-col items-center justify-center gap-1 rounded-lg text-slate-600 hover:bg-brand/5"
-            style={{ left, top, width: Math.max(RETAKE, w), height: Math.max(RETAKE, h) }}
+            // The whole frame is the press (so a child cannot miss it), and
+            // the design's jam pill is what they see, sat in the lower half
+            // under the camera and the teacher's words.
+            className="pointer-events-auto absolute flex flex-col items-center justify-end rounded-xl"
+            style={{ left, top, width: Math.max(RETAKE, w), height: Math.max(RETAKE, h), paddingBottom: Math.max(8, h * 0.12) }}
           >
-            <Icon name="camera" size={Math.min(56, Math.max(28, h * 0.3))} decorative />
-            <span className="font-bold" style={{ fontSize: Math.min(24, Math.max(14, h * 0.1)), fontFamily: FONT_STACK }}>
+            <span
+              className="flex items-center"
+              style={{
+                gap: 10,
+                height: RETAKE,
+                padding: "0 24px",
+                borderRadius: 999,
+                background: "var(--jam)",
+                border: "3px solid var(--ink)",
+                color: "var(--paper)",
+                font: "600 20px var(--font-fredoka)",
+                boxShadow: "0 4px 0 #93304f",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Icon name="camera" size={26} decorative />
               {takeLabel}
             </span>
           </button>
@@ -6569,21 +6878,26 @@ function QuizBoxView({
       return;
     }
     if (d.mode === "move") {
+      // Clamped by the height the card is actually DRAWN at, not by a stored
+      // one. The card follows its content now, so `q.h` is the answer to a
+      // different question — clamping to it walled the box into the top of the
+      // page, and further up with every resize.
       onMove(q.id, {
         x: Math.max(0, Math.min(W - q.w, (e.clientX - d.ax) / scale)),
-        y: Math.max(0, Math.min(H - q.h, (e.clientY - d.ay) / scale)),
+        y: Math.max(0, Math.min(Math.max(0, H - liveH.current), (e.clientY - d.ay) / scale)),
       });
     } else {
+      // Width only. A question box is as tall as its answers — dragging the
+      // corner down asked for a height the card would not honour, and every
+      // drag left `q.h` further adrift from what was on screen.
       const w = Math.max(QUIZ_MIN_W, Math.min(W, d.sw + (e.clientX - d.ax) / scale));
-      const h = Math.max(QUIZ_MIN_H, Math.min(H, d.sh + (e.clientY - d.ay) / scale));
-      onMove(q.id, { w, h });
+      onMove(q.id, { w });
     }
   }
   function onPointerUp() {
     drag.current = null;
   }
 
-  const twoCol = q.options.length > 2;
   // The box is a second, equal editing surface for the same question the panel
   // edits — both write through the same mutators, so they mirror per keystroke.
   // Marking the correct answer is deliberately NOT here: it stays in the panel,
@@ -6624,7 +6938,14 @@ function QuizBoxView({
   // Which is only half of it, because the box does not have room for the answer
   // it now owes. See `grows` below: in answer mode the card grows to fit them
   // instead of clipping them, which is the other half of the same fix.
-  const touch = (n: number) => (author ? px(n) : Math.max(px(n), 64 / scale));
+  //
+  // Rounded up to a whole logical pixel, so that after the scale transform the
+  // result is never a hair UNDER the floor: 64/scale × scale is 64 in
+  // arithmetic and 63.98 once the browser has rounded the transformed box, and
+  // 63.98 is a failed touch target on the gate that exists to catch exactly
+  // this. A logical pixel of slack costs nothing and is always the safe way.
+  const touch = (n: number) =>
+    author ? px(n) : Math.max(px(n), Math.ceil(n / scale));
   // Whether this card is allowed to outgrow the size it was drawn at. Only a
   // child's, and only ever downwards in size terms — it never shrinks below the
   // teacher's box. The alternative, on a question box a teacher drew short, is
@@ -6632,15 +6953,20 @@ function QuizBoxView({
   // card: a target too small traded for one a child cannot see at all, which is
   // the worse of the two. A quiz card is opaque, so what it grows over is the
   // worksheet behind it, and the child still has every answer.
-  const grows = !author;
+  // Both cards follow their content. A child's may only outgrow the size it
+  // was drawn at (the touch floor below needs the room); a teacher's takes its
+  // content height either way, so there is never a band of empty card under
+  // the last answer — the design's box is exactly as tall as what is in it.
+  const grows = true;
+  // Type never goes below the design's small size, however the box is scaled:
+  // a question a teacher shrank to an aside still has to be readable.
+  const MIN_TEXT = 15;
+  const txt = (n: number) => Math.max(MIN_TEXT, px(n));
   // A listen button on the question is offered only when the caller asked for
   // one (a child, in a register that cannot read yet) AND the platform has an
   // on-device voice to say it with. Both, or nothing.
   const voiceReady = useOnDeviceVoiceReady();
   const canHear = !author && !!hearItLabel && !!q.prompt && voiceReady;
-  // The sync hint is an authoring affordance, not content: below about half
-  // size it's unreadable anyway and the space is better spent on the question.
-  const showSyncHint = editable && k > 0.55;
 
   // Answer rows stretch to share out the box's height, so their size has little
   // to do with how much text is in them: two short answers in a tall box left
@@ -6650,8 +6976,12 @@ function QuizBoxView({
   // One size for all of them, the largest that fits every answer — sizing each
   // independently would leave "Red" huge next to a small "It was raining".
   // Capped at the question's size so the question still reads as the question.
-  const answerCap = px(24);
-  const answerFloor = Math.min(8, answerCap);
+  // The prompt is the question: 20px, and 16px only once it runs long enough
+  // to need the room. The answers fit their 44px row but stop 2px short of
+  // the prompt, so nothing on the card is bigger than the question.
+  const promptPx = txt(q.prompt.length > 40 ? 16 : 20);
+  const answerCap = Math.max(MIN_TEXT, Math.min(promptPx - 2, px(18)));
+  const answerFloor = MIN_TEXT;
   const [answerFont, setAnswerFont] = useState(answerCap);
   const answerEls = useRef<Map<string, HTMLElement>>(new Map());
   const registerAnswer = useCallback((id: string, el: HTMLElement | null) => {
@@ -6716,6 +7046,9 @@ function QuizBoxView({
   // away by the crop.
   const cardRef = useRef<HTMLDivElement>(null);
   const [cardH, setCardH] = useState(q.h);
+  // The same number, readable from a pointer handler that runs outside render.
+  const liveH = useRef(q.h);
+  liveH.current = cardH;
   useLayoutEffect(() => {
     if (!grows) return;
     const el = cardRef.current;
@@ -6731,6 +7064,16 @@ function QuizBoxView({
     ro.observe(el);
     return () => ro.disconnect();
   }, [grows]);
+  // Write that height back to the question, so what is stored is what is on
+  // screen: the page-card miniature, the hand-in and the child's own view all
+  // read `h`, and a teacher who has never resized anything should not find
+  // them disagreeing with the box they laid out. Author only — a child's card
+  // has `minHeight: q.h` and syncing there would ratchet it upwards.
+  useEffect(() => {
+    if (!author || !interactive) return;
+    if (Math.abs(cardH - q.h) < 1) return;
+    onMove(q.id, { h: Math.round(cardH) });
+  }, [author, interactive, cardH, q.h, q.id, onMove]);
   const topUnits = grows ? Math.max(0, Math.min(q.y, H - cardH)) : q.y;
 
   return (
@@ -6738,9 +7081,9 @@ function QuizBoxView({
       onPointerDown={author ? startMove : undefined}
       onPointerMove={author ? onPointerMove : undefined}
       onPointerUp={author ? onPointerUp : undefined}
-      className={`absolute rounded-2xl ${
+      className={`absolute ${
         author ? (interactive ? "pointer-events-auto cursor-move" : "pointer-events-none") : "pointer-events-auto"
-      } ${selected ? "ring-2 ring-brand" : ""}`}
+      }`}
       style={{
         left: q.x * scale,
         top: topUnits * scale,
@@ -6755,85 +7098,86 @@ function QuizBoxView({
         ref={cardRef}
         role={editable ? "group" : undefined}
         aria-label={editable ? "Question box" : undefined}
-        className={`flex flex-col overflow-hidden rounded-2xl border-2 shadow-lg ${
-          author ? "border-brand bg-brand/5" : "border-brand/60 bg-white/95"
-        }`}
+        className="flex flex-col overflow-hidden"
         style={{
+          // The design's card: cream, 3px ink, radius 18, a flat shadow. The
+          // selected box's dashed jam outline is drawn round it, not by it.
+          background: "var(--cream)",
+          border: `3px ${selected && author ? "dashed" : "solid"} ${selected && author ? "var(--jam)" : "var(--ink)"}`,
+          borderRadius: 18,
+          boxShadow: "0 4px 0 rgba(34,48,74,.15)",
           width: q.w,
           // A CHILD's card grows to fit answers at the touch floor; a teacher's
           // is exactly the size they drew, because for them the box is a thing
           // being laid out on a worksheet. The transform does not affect layout,
           // so this height is in logical units either way.
-          ...(grows ? { minHeight: q.h } : { height: q.h }),
+          ...(author ? {} : { minHeight: q.h }),
           transform: `scale(${scale})`,
           transformOrigin: "top left",
-          padding: px(12),
-          gap: px(8),
+          padding: `${px(12)}px ${px(14)}px`,
+          gap: px(10),
           fontSize: px(16),
         }}
       >
         {editable ? (
           <>
-            {showSyncHint && (
-              <p
-                className="text-center font-bold uppercase tracking-wide text-brand"
-                style={{ fontSize: px(12) }}
-              >
-                Edits here also show in the Quiz panel
-              </p>
-            )}
-            <BoxField
-              value={q.prompt}
-              onChange={(v) => onPrompt(q.id, v)}
-              onPointerDown={stopDrag}
-              placeholder="Type your question here"
-              label="Question"
-              className="w-full font-bold leading-tight text-foreground"
-              style={{ fontSize: px(24) }}
-            />
+            {/* The prompt: an inline field with the design's dashed calm
+                border, in Fredoka, smaller once the question runs long. The
+                border and padding are on a WRAPPER, not the field: BoxField
+                sizes itself to its own scrollHeight, and a padded, bordered
+                textarea under border-box sizing can never catch its own tail. */}
+            <div
+              style={{
+                border: `${Math.max(1, px(2))}px dashed var(--calm-border)`,
+                borderRadius: px(12),
+                padding: `${px(6)}px ${px(10)}px`,
+              }}
+            >
+              <BoxField
+                value={q.prompt}
+                onChange={(v) => onPrompt(q.id, v)}
+                onPointerDown={stopDrag}
+                placeholder="Type your question here"
+                label="Question"
+                className="w-full leading-tight text-foreground"
+                style={{
+                  fontSize: promptPx,
+                  fontFamily: "var(--font-fredoka)",
+                  fontWeight: 600,
+                }}
+              />
+            </div>
           </>
         ) : (
           // Author mode with a drawing tool picked: the box goes non-interactive
           // so the teacher can draw across it, so echo the placeholder rather
           // than leaving a new question looking like an empty box.
-          <div className="flex items-center justify-center" style={{ gap: px(8) }}>
-            <p
-              className={`text-center font-bold leading-tight ${
-                q.prompt ? "text-foreground" : "text-muted"
-              }`}
-              style={{ fontSize: px(24) }}
-            >
-              {q.prompt || (author ? "Type your question here" : "")}
-            </p>
-            {/* In the register built for children who cannot read yet, the
-                question was the one silent thing on the screen — every other
-                word a young child meets in Storyjar can be heard, and the one
-                they actually have to answer could not. A child who cannot hear
-                the question cannot do the activity.
-
-                THE BUTTON IS CONDITIONAL, AND THAT IS THE SAFEGUARDING PART.
-                This is a teacher's own free text, not Storyjar's fixed copy, so
-                it is spoken only by a voice the platform reports as running on
-                the device (`readAloudOnDevice`, and the 2026-08-19 scope note
-                in SAFEGUARDING.md). Where there is no local voice the button is
-                not rendered at all and the question stays as text beside a
-                teacher — the correct failure, not a degraded one. Nothing is
-                ever sent to a network voice, and it never speaks by itself: a
-                child presses it, every time (WCAG 1.4.2). */}
+          <div className="flex items-center" style={{ gap: px(10) }}>
             {canHear && (
               <button
                 type="button"
                 aria-label={`${hearItLabel}: ${q.prompt}`}
                 onClick={() => readAloudOnDevice(q.prompt)}
-                // The real 64px floor, like the answers below it — this is the
-                // control that exists FOR the children who cannot read the words
-                // beside it (SAFEGUARDING rule 18).
-                className="flex shrink-0 items-center justify-center rounded-full border-2 border-brand/40 bg-white"
-                style={{ minHeight: touch(64), minWidth: touch(64), fontSize: px(22) }}
+                // The real 64px floor — this is the control that exists FOR
+                // the children who cannot read the words beside it (rule 18).
+                className="flex shrink-0 items-center justify-center rounded-full"
+                style={{
+                  minHeight: touch(64),
+                  minWidth: touch(64),
+                  fontSize: px(22),
+                  background: "var(--cream)",
+                  border: "3px solid var(--ink)",
+                }}
               >
                 <span aria-hidden="true">🔊</span>
               </button>
             )}
+            <p
+              className={`flex-1 leading-tight ${q.prompt ? "text-foreground" : "text-muted"}`}
+              style={{ fontSize: promptPx, fontFamily: "var(--font-fredoka)", fontWeight: 600, textWrap: "pretty" }}
+            >
+              {q.prompt || (author ? "Type your question here" : "")}
+            </p>
           </div>
         )}
         {/* Which questions to look at again, in WORDS.
@@ -6850,10 +7194,9 @@ function QuizBoxView({
           </p>
         )}
         <div
-          className={`grid ${grows ? "" : "min-h-0 flex-1"}`}
+          className={`flex flex-col ${grows ? "" : "min-h-0 flex-1"}`}
           style={{
-            gridTemplateColumns: twoCol ? "1fr 1fr" : "1fr",
-            gap: px(8),
+            gap: px(6),
             // `flex-1` is `flex: 1 1 0%`: the rows' own height counts for
             // nothing, so they share out whatever is left and a 64px floor is
             // simply clipped. Basing on content instead is what lets the card
@@ -6872,11 +7215,20 @@ function QuizBoxView({
                     // to its intrinsic `cols` width, unlike the span this used to
                     // hold. Without this the two columns refuse to shrink and the
                     // answers overflow the box and get clipped.
-                    className={`flex min-w-0 items-center justify-center rounded-xl border-2 text-center ${
-                      correct ? "border-emerald-500 bg-emerald-50" : "border-brand/25 bg-white"
-                    }`}
-                    style={{ minHeight: touch(64), padding: px(8), gap: px(8) }}
+                    className="flex min-w-0 items-center rounded-full text-left"
+                    style={{
+                      minHeight: touch(44),
+                      padding: `${px(4)}px ${px(14)}px ${px(4)}px ${px(8)}px`,
+                      gap: px(10),
+                      border: `${Math.max(1, px(2))}px solid var(--calm-border)`,
+                      background: "var(--cream)",
+                    }}
                   >
+                    <span
+                      aria-hidden="true"
+                      className="shrink-0 rounded-full"
+                      style={{ width: px(24), height: px(24), border: `${Math.max(1, px(2))}px solid var(--ink)`, background: "var(--cream)" }}
+                    />
                     {o.imagePath && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -6892,15 +7244,15 @@ function QuizBoxView({
                       onPointerDown={stopDrag}
                       placeholder="Type an answer"
                       label="Answer text"
-                      className="min-w-0 flex-1 break-words font-semibold text-foreground"
-                      style={{ fontSize: answerFont }}
+                      className="min-w-0 flex-1 break-words text-left font-bold text-foreground"
+                      style={{ fontSize: answerFont, textAlign: "left" }}
                       register={(el) => registerAnswer(o.id, el)}
                     />
                     {correct && (
                       <span
-                        title="Correct answer — set this in the Quiz panel"
-                        className="flex shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
-                        style={{ height: px(20), width: px(20), fontSize: px(11) }}
+                        title="Correct answer — set this in the Quiz builder"
+                        className="shrink-0 font-bold"
+                        style={{ color: "var(--glass)", fontSize: px(18) }}
                       >
                         ✓
                       </span>
@@ -6932,17 +7284,35 @@ function QuizBoxView({
                     aria-label={o.text || "Picture answer"}
                     aria-pressed={chosen}
                     onClick={author || locked ? undefined : () => onAnswer(q.id, o.id)}
-                    className={`flex min-w-0 items-center justify-center rounded-xl border-2 text-center transition-colors ${
-                      showCorrect
-                        ? "border-emerald-500 bg-emerald-50"
-                        : wasWrong
-                          ? "border-amber-500 bg-amber-50"
-                          : chosen
-                            ? "border-brand bg-brand/15"
-                            : "border-border bg-white"
-                    } ${author || locked ? "cursor-default" : "cursor-pointer hover:bg-brand/5"}`}
-                    style={{ minHeight: touch(64), padding: px(8), gap: px(8) }}
+                    className={`flex min-w-0 items-center rounded-full text-left transition-colors ${
+                      author || locked ? "cursor-default" : "cursor-pointer"
+                    }`}
+                    style={{
+                      minHeight: touch(64),
+                      padding: `${px(4)}px ${px(14)}px ${px(4)}px ${px(8)}px`,
+                      gap: px(10),
+                      // Picked: honey tint with an ink edge. Right (where a
+                      // child may be shown it): glass tint. Look-again: honey.
+                      border: `${Math.max(1, px(2))}px solid ${
+                        showCorrect ? "var(--glass)" : chosen || wasWrong ? "var(--ink)" : "var(--calm-border)"
+                      }`,
+                      background: showCorrect
+                        ? "var(--glass-light)"
+                        : chosen || wasWrong
+                          ? "var(--honey-tint)"
+                          : "var(--cream)",
+                    }}
                   >
+                    <span
+                      aria-hidden="true"
+                      className="shrink-0 rounded-full"
+                      style={{
+                        width: px(24),
+                        height: px(24),
+                        border: `${Math.max(1, px(2))}px solid var(--ink)`,
+                        background: chosen ? "var(--jam)" : "var(--cream)",
+                      }}
+                    />
                     {o.imagePath && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -6955,14 +7325,14 @@ function QuizBoxView({
                     {o.text && (
                       <span
                         ref={(el) => registerAnswer(o.id, el)}
-                        className="min-w-0 break-words font-semibold text-foreground"
-                        style={{ fontSize: answerFont }}
+                        className="min-w-0 flex-1 break-words text-left font-bold text-foreground"
+                        style={{ fontSize: answerFont, textAlign: "left" }}
                       >
                         {o.text}
                       </span>
                     )}
                     {showCorrect && (
-                      <span className="text-emerald-600" title="Correct answer">
+                      <span className="shrink-0 font-bold" style={{ color: "var(--glass)", fontSize: px(18) }} title="Correct answer">
                         ✓
                       </span>
                     )}
@@ -6978,30 +7348,45 @@ function QuizBoxView({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onDelete(q.id)}
-            className="pointer-events-auto absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs text-white shadow"
+            className="pointer-events-auto absolute flex items-center justify-center rounded-full"
+            style={{
+              left: -22,
+              top: -22,
+              width: 44,
+              height: 44,
+              background: "var(--cream)",
+              border: "3px solid var(--ink)",
+              color: "var(--ink)",
+              boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+            }}
             title="Remove question"
             aria-label="Remove question"
           >
-            ✕
+            <Icon name="close" size={20} decorative />
           </button>
           <div
             onPointerDown={startResize}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            className="pointer-events-auto absolute -bottom-2.5 -right-2.5 h-5 w-5 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-brand shadow"
+            className="pointer-events-auto absolute cursor-nwse-resize touch-none rounded-full"
+            style={{
+              right: -22,
+              bottom: -22,
+              width: 44,
+              height: 44,
+              background: "var(--jam)",
+              border: "3px solid var(--ink)",
+              boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+            }}
             title="Resize"
+            role="button"
+            aria-label="Bigger or smaller: drag"
           />
         </>
       )}
     </div>
   );
 }
-
-// Quiz panel geometry. The body is capped at the design's height; on a short
-// window the panel as a whole is capped to the room below it instead and the
-// body scrolls. MIN_PANEL_H keeps the header grabbable however short the stage.
-const MAX_PANEL_BODY_H = 456;
-const MIN_PANEL_H = 120;
 
 // The corner launcher the panel tucks away into. Shown whenever the teacher is
 // authoring a quiz but has closed the panel, so the quiz is always one tap away
@@ -7034,16 +7419,15 @@ function QuizLauncher({ onOpen }: { onOpen: () => void }) {
 // here highlights its box on the worksheet — and the box edits the same question
 // through the same mutators. Marking the correct answer lives here ONLY; the
 // worksheet box mirrors the marked answer but can't change it.
-function QuizPanel({
+// The Quiz builder's BODY. Its window — the header, the drag, the shrink-to-a-
+// pill, the close — is `FloatingWindow`, which the Maths kit uses too: they are
+// the same object to a teacher and used to be two different applications.
+function QuizPanelBody({
+  u,
   questions,
   currentPage,
   pageCount,
   selectedId,
-  pos,
-  collapsed,
-  onPosChange,
-  onCollapsedChange,
-  onClose,
   onAddQuestion,
   onSelectQuestion,
   onUpdatePrompt,
@@ -7055,15 +7439,12 @@ function QuizPanel({
   onClearOptionImage,
   onSetCorrect,
 }: {
+  // Design px, with a floor in real px for anything a finger has to hit.
+  u: (n: number, floor?: number) => number;
   questions: QuizQuestion[];
   currentPage: number;
   pageCount: number;
   selectedId: string | null;
-  pos: { x: number; y: number };
-  collapsed: boolean;
-  onPosChange: (pos: { x: number; y: number }) => void;
-  onCollapsedChange: (collapsed: boolean) => void;
-  onClose: () => void;
   onAddQuestion: () => void;
   onSelectQuestion: (id: string | null) => void;
   onUpdatePrompt: (id: string, prompt: string) => void;
@@ -7075,78 +7456,6 @@ function QuizPanel({
   onClearOptionImage: (qid: string, oid: string) => void;
   onSetCorrect: (qid: string, oid: string) => void;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
-
-  // The panel floats, so nothing else keeps it inside the editor. Track the
-  // stage so its body can be capped to the room actually available and its
-  // position pulled back in when the window shrinks — otherwise the question
-  // list runs off the bottom and the teacher can't reach it.
-  const [stageSize, setStageSize] = useState<{ w: number; h: number } | null>(null);
-  useLayoutEffect(() => {
-    const el = panelRef.current;
-    const stage = el?.offsetParent as HTMLElement | null;
-    if (!stage) return;
-    // Ignore zero readings — a stage that hasn't been laid out yet isn't a
-    // small stage, and treating it as one crushes the panel to its minimum.
-    const read = () => {
-      if (stage.clientWidth > 0 && stage.clientHeight > 0) {
-        setStageSize({ w: stage.clientWidth, h: stage.clientHeight });
-      }
-    };
-    read();
-    const obs = new ResizeObserver(read);
-    obs.observe(stage);
-    // Belt and braces: the observer covers the stage changing for any reason,
-    // the window listener covers the case this is really about.
-    window.addEventListener("resize", read);
-    return () => {
-      obs.disconnect();
-      window.removeEventListener("resize", read);
-    };
-  }, [collapsed]);
-
-  // Pull the panel back inside after the stage shrinks. Keeps the header (the
-  // only way to move it, and the way to reopen it) on screen.
-  useLayoutEffect(() => {
-    const el = panelRef.current;
-    if (!el || !stageSize) return;
-    const maxX = Math.max(6, stageSize.w - el.offsetWidth - 6);
-    // Leave the header's worth of panel on screen, not the whole panel — the
-    // point is only that it stays grabbable.
-    const maxY = Math.max(6, stageSize.h - MIN_PANEL_H);
-    if (pos.x > maxX || pos.y > maxY) {
-      onPosChange({ x: Math.min(pos.x, maxX), y: Math.min(pos.y, maxY) });
-    }
-  }, [stageSize, pos, onPosChange]);
-
-  // Drag the header to reposition, clamped inside the editor stage so the panel
-  // can never be dropped somewhere it can't be grabbed again.
-  function onHeaderDown(e: React.PointerEvent) {
-    dragRef.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-  }
-  function onHeaderMove(e: React.PointerEvent) {
-    const d = dragRef.current;
-    const el = panelRef.current;
-    if (!d || !el) return;
-    const stage = el.offsetParent as HTMLElement | null;
-    const maxX = Math.max(6, (stage?.clientWidth ?? 0) - el.offsetWidth - 6);
-    const maxY = Math.max(6, (stage?.clientHeight ?? 0) - el.offsetHeight - 6);
-    onPosChange({
-      x: Math.max(6, Math.min(maxX, e.clientX - d.dx)),
-      y: Math.max(6, Math.min(maxY, e.clientY - d.dy)),
-    });
-  }
-  function onHeaderUp() {
-    dragRef.current = null;
-  }
-  const stop = (e: React.PointerEvent) => e.stopPropagation();
-
   // Questions grouped by the page they sit on, pages in order. A page only
   // appears once it has a question.
   const groups: { pageIndex: number; items: QuizQuestion[] }[] = [];
@@ -7157,95 +7466,24 @@ function QuizPanel({
   }
   groups.sort((a, b) => a.pageIndex - b.pageIndex);
 
-  const dragBar = "cursor-grab touch-none select-none active:cursor-grabbing";
-  // Cap the whole panel to the room below it and let the body flex inside that,
-  // rather than guessing the header's height. On a short window the list
-  // scrolls inside the panel — as it did when the panel was pinned to the
-  // stage — instead of hanging off the bottom out of reach.
-  const panelMax = stageSize ? Math.max(MIN_PANEL_H, stageSize.h - pos.y - 6) : undefined;
-
-  if (collapsed) {
-    return (
-      <div ref={panelRef} className="absolute z-40" style={{ left: pos.x, top: pos.y }}>
-        <div
-          onPointerDown={onHeaderDown}
-          onPointerMove={onHeaderMove}
-          onPointerUp={onHeaderUp}
-          className={`${dragBar} flex items-center gap-2 rounded-full bg-foreground py-2 pl-3 pr-2 text-surface shadow-xl`}
-        >
-          <span aria-hidden className="text-sm opacity-60">
-            ⠿
-          </span>
-          <span className="text-sm font-bold">
-            ❓ Quiz · {questions.length} {questions.length === 1 ? "question" : "questions"}
-          </span>
-          <button
-            type="button"
-            onPointerDown={stop}
-            onClick={() => onCollapsedChange(false)}
-            title="Expand"
-            aria-label="Expand quiz panel"
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-[11px] leading-none text-surface hover:bg-white/25"
-          >
-            ▲
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div
-      ref={panelRef}
-      role="region"
-      aria-label="Quiz builder"
-      className="absolute z-40 flex w-[300px] max-w-[80vw] flex-col overflow-hidden rounded-2xl border-2 border-foreground bg-surface shadow-xl"
-      style={{ left: pos.x, top: pos.y, maxHeight: panelMax }}
-    >
-      <div
-        onPointerDown={onHeaderDown}
-        onPointerMove={onHeaderMove}
-        onPointerUp={onHeaderUp}
-        className={`${dragBar} flex shrink-0 items-center gap-2 bg-foreground px-2.5 py-2 text-surface`}
-      >
-        <span aria-hidden className="text-sm opacity-60">
-          ⠿
-        </span>
-        <h2 className="flex-1 text-sm font-bold">❓ Quiz</h2>
-        <button
-          type="button"
-          onPointerDown={stop}
-          onClick={() => onCollapsedChange(true)}
-          title="Shrink to a pill"
-          aria-label="Shrink quiz panel"
-          // ▼/▲ (the full-size triangles), not ▾/▴ — those are the *small*
-          // variants, whose ink stays a few pixels tall however large the font,
-          // so they read as a speck beside the ✕ however much you inflate them.
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-[11px] leading-none text-surface hover:bg-white/25"
-        >
-          ▼
-        </button>
-        <button
-          type="button"
-          onPointerDown={stop}
-          onClick={onClose}
-          title="Tuck away"
-          aria-label="Close quiz panel"
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-xs text-surface hover:bg-white/25"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-3" style={{ maxHeight: MAX_PANEL_BODY_H }}>
-        <p className="text-xs text-muted">
-          You&apos;re on <b className="text-foreground">page {currentPage + 1} of {pageCount}</b>. Questions can
-          live on any page.
+      <div>
+        <p style={{ font: `400 ${u(14)}px var(--font-atkinson)`, color: "var(--ink-soft)" }}>
+          You&apos;re on <b>page {currentPage + 1} of {pageCount}</b>. Questions can go on any page.
         </p>
         <button
           type="button"
           onClick={onAddQuestion}
-          className="mt-2 w-full rounded-xl bg-brand px-3 py-2.5 text-sm font-bold text-white shadow hover:brightness-105"
+          style={{
+            marginTop: u(8),
+            width: "100%",
+            height: u(48),
+            borderRadius: 999,
+            background: "var(--jam)",
+            color: "var(--paper)",
+            font: `600 ${u(17)}px var(--font-fredoka)`,
+            boxShadow: `0 ${u(4)}px 0 #93304f`,
+          }}
         >
           ＋ Add question to page {currentPage + 1}
         </button>
@@ -7254,155 +7492,207 @@ function QuizPanel({
           <p className="mt-3 px-1 text-xs text-muted">No questions yet. Add one to get started.</p>
         ) : (
           groups.map((g) => (
-            <div key={g.pageIndex}>
-              <div className="mb-1.5 mt-3 flex items-center gap-2">
-                <span
-                  className={`rounded-md px-2 py-0.5 text-xs font-bold ${
-                    g.pageIndex === currentPage
-                      ? "bg-brand text-white"
-                      : "bg-[var(--kraft-tag)] text-foreground"
-                  }`}
-                >
-                  Page {g.pageIndex + 1}
-                </span>
-                {g.pageIndex === currentPage && (
-                  <span className="rounded-md bg-[var(--honey-tint)] px-1.5 py-0.5 text-xs font-semibold text-[var(--honey-ink)]">
-                    you&apos;re here
-                  </span>
-                )}
-                <span className="h-px flex-1 bg-border" />
-              </div>
+            <div key={g.pageIndex} className="flex flex-col" style={{ gap: u(10) }}>
+              <p
+                className="m-0 uppercase"
+                style={{
+                  marginTop: u(6),
+                  font: `700 ${u(13)}px var(--font-atkinson)`,
+                  letterSpacing: ".08em",
+                  color: "var(--glass-ink)",
+                }}
+              >
+                Page {g.pageIndex + 1}
+                {g.pageIndex === currentPage ? " · you're here" : ""}
+              </p>
 
-              {g.items.map((q) => {
+              {g.items.map((q, qi) => {
                 const open = q.id === selectedId;
+                const n = questions.indexOf(q) + 1;
                 return (
+                  // A card per question, always open: the design lists every
+                  // answer so a teacher can see the whole quiz at once, and
+                  // tapping a card selects its box and jumps to its page.
                   <div
                     key={q.id}
-                    className={`mb-2 overflow-hidden rounded-xl border-2 ${
-                      open ? "border-brand bg-surface" : "border-border bg-background"
-                    }`}
+                    id={`quiz-q-${q.id}`}
+                    data-question-card={qi}
+                    onClick={() => onSelectQuestion(q.id)}
+                    className="flex flex-col"
+                    style={{
+                      gap: u(8),
+                      padding: u(10),
+                      borderRadius: u(14),
+                      border: `2px solid ${open ? "var(--ink)" : "var(--calm-border)"}`,
+                      background: open ? "var(--honey-tint)" : "var(--cream)",
+                    }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => onSelectQuestion(open ? null : q.id)}
-                      aria-expanded={open}
-                      // Only while open: the body is unmounted when closed, and
-                      // aria-controls pointing at a missing id is a broken
-                      // reference for a screen reader.
-                      aria-controls={open ? `quiz-q-${q.id}` : undefined}
-                      className="flex w-full items-center gap-2 px-2.5 py-2 text-left"
-                    >
-                      <span className="rounded border border-border bg-surface px-1.5 text-xs font-bold text-muted">
-                        P{q.pageIndex + 1}
+                    <div className="flex items-center" style={{ gap: u(8) }}>
+                      <span style={{ font: `600 ${u(15)}px var(--font-fredoka)`, color: "var(--ink)" }}>
+                        Question {n}
                       </span>
-                      <span className="flex-1 truncate text-sm text-foreground">
-                        {q.prompt || "Untitled question"}
-                      </span>
-                      {/* ▾/▸ sit small inside their em box, so this needs a
-                          bigger size than the label to read as a control. */}
-                      <span aria-hidden className="shrink-0 text-2xl leading-none text-muted">
-                        {open ? "▾" : "▸"}
-                      </span>
-                    </button>
-
-                    {open && (
-                      <div id={`quiz-q-${q.id}`} className="px-2.5 pb-3 pt-0.5">
-                        <label className="text-xs font-semibold text-muted" htmlFor={`quiz-prompt-${q.id}`}>
-                          Question
-                        </label>
-                        <input
-                          id={`quiz-prompt-${q.id}`}
-                          value={q.prompt}
-                          onChange={(e) => onUpdatePrompt(q.id, e.target.value)}
-                          placeholder="What do you want to ask?"
-                          className="input mt-1 w-full text-sm"
-                        />
-
-                        <p className="mt-3 text-xs font-semibold text-muted">Answers</p>
-                        <p className="mb-1.5 text-xs text-muted">Tap the circle to mark the right answer.</p>
-
-                        {q.options.map((o) => {
-                          const correct = q.correctOptionId === o.id;
-                          return (
-                            <div key={o.id}>
-                              <div
-                                className={`flex items-center gap-1.5 rounded-lg border p-1.5 ${
-                                  correct ? "border-emerald-500 bg-emerald-50" : "border-transparent"
-                                }`}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => onSetCorrect(q.id, o.id)}
-                                  title="Mark as the correct answer"
-                                  aria-label={`Mark "${o.text || "this answer"}" as correct`}
-                                  aria-pressed={correct}
-                                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-xs ${
-                                    correct
-                                      ? "border-emerald-500 bg-emerald-500 text-white"
-                                      : "border-border text-transparent"
-                                  }`}
-                                >
-                                  ✓
-                                </button>
-                                <input
-                                  value={o.text ?? ""}
-                                  onChange={(e) => onOptionText(q.id, o.id, e.target.value)}
-                                  placeholder="Type an answer"
-                                  aria-label="Answer text"
-                                  className="input min-w-0 flex-1 text-sm"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    o.imagePath ? onClearOptionImage(q.id, o.id) : onOptionImage(q.id, o.id)
-                                  }
-                                  title={o.imagePath ? "Remove picture" : "Add a picture"}
-                                  aria-label={o.imagePath ? "Remove answer picture" : "Add answer picture"}
-                                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-sm ${
-                                    o.imagePath ? "border-brand bg-brand/10" : "border-border"
-                                  }`}
-                                >
-                                  {o.imagePath ? "🖼️" : "＋🖼️"}
-                                </button>
-                                {q.options.length > MIN_OPTIONS && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onRemoveOption(q.id, o.id)}
-                                    aria-label="Remove answer"
-                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:text-rose-600"
-                                  >
-                                    ✕
-                                  </button>
-                                )}
-                              </div>
-                              {correct && (
-                                <p className="mb-1 ml-9 text-xs font-bold text-[var(--glass-ink)]">
-                                  ✓ correct answer
-                                </p>
-                              )}
-                            </div>
-                          );
-                        })}
-
-                        {q.options.length < MAX_OPTIONS && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteQuestion(q.id);
+                        }}
+                        aria-label="Remove question"
+                        className="ml-auto flex items-center rounded-full"
+                        style={{
+                          gap: u(6),
+                          height: u(36, 44),
+                          padding: `0 ${u(10)}px`,
+                          border: "2px solid var(--calm-border)",
+                          background: "var(--cream)",
+                          color: "var(--ink)",
+                          font: `700 ${u(13)}px var(--font-atkinson)`,
+                        }}
+                      >
+                        <Icon name="delete" size={u(16)} decorative /> Remove
+                      </button>
+                    </div>
+                    <label className="sr-only" htmlFor={`quiz-prompt-${q.id}`}>
+                      Question
+                    </label>
+                    <input
+                      id={`quiz-prompt-${q.id}`}
+                      value={q.prompt}
+                      onChange={(e) => onUpdatePrompt(q.id, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="What do you want to ask?"
+                      className="w-full outline-none"
+                      style={{
+                        padding: `${u(8)}px ${u(12)}px`,
+                        border: "2px solid var(--calm-border)",
+                        borderRadius: u(12),
+                        background: "var(--cream)",
+                        font: `600 ${u(16)}px var(--font-fredoka)`,
+                        color: "var(--ink)",
+                      }}
+                    />
+                    <p className="m-0" style={{ marginTop: u(4), font: `700 ${u(13)}px var(--font-atkinson)`, color: "var(--ink-soft)" }}>
+                      Answers
+                    </p>
+                    <p className="m-0" style={{ marginTop: u(-4), font: `400 ${u(13)}px var(--font-atkinson)`, color: "var(--ink-soft)" }}>
+                      Tap the circle to mark the right answer.
+                    </p>
+                    {q.options.map((o) => {
+                      const correct = q.correctOptionId === o.id;
+                      const cantRemove = q.options.length <= MIN_OPTIONS;
+                      const small: React.CSSProperties = {
+                        flex: "0 0 auto",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: u(36, 44),
+                        height: u(36, 44),
+                        borderRadius: 999,
+                        border: "2px solid var(--calm-border)",
+                        background: "var(--cream)",
+                        color: "var(--ink)",
+                      };
+                      return (
+                        <div key={o.id} className="flex items-center" style={{ gap: u(6) }}>
                           <button
                             type="button"
-                            onClick={() => onAddOption(q.id)}
-                            className="mt-1.5 text-xs font-semibold text-brand"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSetCorrect(q.id, o.id);
+                            }}
+                            title="Mark as the correct answer"
+                            aria-label={`Mark "${o.text || "this answer"}" as correct`}
+                            aria-pressed={correct}
+                            style={{ ...small, border: 0, background: "transparent" }}
                           >
-                            ＋ Add answer
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                display: "block",
+                                width: u(24),
+                                height: u(24),
+                                borderRadius: 999,
+                                border: "2px solid var(--ink)",
+                                background: correct ? "var(--glass)" : "var(--cream)",
+                              }}
+                            />
                           </button>
-                        )}
-                        <div className="mt-3 border-t border-border pt-2">
+                          {o.imagePath && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={o.imagePath}
+                              alt={o.imageAlt ?? ""}
+                              style={{ width: u(40), height: u(30), objectFit: "cover", borderRadius: u(6), border: "2px solid var(--ink)", flex: "0 0 auto" }}
+                            />
+                          )}
+                          <input
+                            value={o.text ?? ""}
+                            onChange={(e) => onOptionText(q.id, o.id, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Type an answer"
+                            aria-label="Answer text"
+                            className="min-w-0 flex-1 outline-none"
+                            style={{
+                              padding: `${u(6)}px ${u(10)}px`,
+                              border: "2px solid var(--calm-border)",
+                              borderRadius: u(10),
+                              background: "var(--cream)",
+                              font: `400 ${u(15)}px var(--font-atkinson)`,
+                              color: "var(--ink)",
+                            }}
+                          />
                           <button
                             type="button"
-                            onClick={() => onDeleteQuestion(q.id)}
-                            className="text-xs font-semibold text-rose-600 hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (o.imagePath) onClearOptionImage(q.id, o.id);
+                              else onOptionImage(q.id, o.id);
+                            }}
+                            title={o.imagePath ? "Remove picture" : "Add a picture"}
+                            aria-label={o.imagePath ? "Remove answer picture" : "Add answer picture"}
+                            aria-pressed={!!o.imagePath}
+                            style={
+                              o.imagePath
+                                ? { ...small, background: "var(--ink)", color: "var(--paper)", borderColor: "var(--ink)" }
+                                : small
+                            }
                           >
-                            Delete this question
+                            <Icon name="add-picture" size={u(18)} decorative />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemoveOption(q.id, o.id);
+                            }}
+                            aria-label="Remove answer"
+                            disabled={cantRemove}
+                            style={{ ...small, opacity: cantRemove ? 0.35 : 1 }}
+                          >
+                            <Icon name="close" size={u(16)} decorative />
                           </button>
                         </div>
-                      </div>
+                      );
+                    })}
+                    {q.options.length < MAX_OPTIONS && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddOption(q.id);
+                        }}
+                        className="self-start flex items-center rounded-full"
+                        style={{
+                          height: u(36, 44),
+                          padding: `0 ${u(14)}px`,
+                          border: "2px solid var(--ink)",
+                          background: "var(--cream)",
+                          color: "var(--ink)",
+                          font: `700 ${u(14)}px var(--font-atkinson)`,
+                        }}
+                      >
+                        ＋ Add answer
+                      </button>
                     )}
                   </div>
                 );
@@ -7411,7 +7701,6 @@ function QuizPanel({
           ))
         )}
       </div>
-    </div>
   );
 }
 

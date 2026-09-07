@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { PrismaClient } from "@prisma/client";
-import { teacherLogin, logout, demoClassCode, studentLogin, drawOnCanvas } from "./helpers";
+import { teacherLogin, logout, demoClassCode, studentLogin, drawOnCanvas, pickTool } from "./helpers";
 
 // The photo frame: a teacher places a box on a template, and a child fills it
 // from the device camera when they do the activity. Teacher-only to place,
@@ -148,7 +148,7 @@ async function buildTemplateWithFrame(page: Page, title: string, prompt?: string
   await expect(page.locator('div[data-frame="empty"]')).toHaveCount(1);
   if (prompt) {
     await frameWrapper(page).dblclick();
-    const box = page.getByPlaceholder("What should they photograph?");
+    const box = page.getByPlaceholder(/Your prompt/);
     await expect(box).toBeVisible();
     await box.fill(prompt);
     await box.blur();
@@ -240,7 +240,7 @@ test("a teacher adds, resizes, prompts, saves and removes a photo frame", async 
 
   // The teacher's prompt, typed by double-tapping the frame.
   await wrap.dblclick();
-  const box = page.getByPlaceholder("What should they photograph?");
+  const box = page.getByPlaceholder(/Your prompt/);
   await expect(box).toBeVisible();
   await box.fill("Your model");
   await box.blur();
@@ -257,7 +257,7 @@ test("a teacher adds, resizes, prompts, saves and removes a photo frame", async 
   await expect(page.locator("[data-frame]").getByText("Your model")).toBeVisible();
 
   // And can be removed.
-  await page.locator('button[aria-label="Move"]').click();
+  await pickTool(page, "Move");
   await frameWrapper(page).click();
   await page.getByRole("button", { name: "Remove object" }).click();
   await expect(page.locator("[data-frame]")).toHaveCount(0);
@@ -288,7 +288,11 @@ test("a child fills the frame under the pen, retakes, draws over it and hands it
 
   // Under the PEN — the tool a child is holding — the frame is still a button,
   // and one at the child touch floor.
-  await page.locator('button[title="Pen"]').click();
+  await page.locator('button[title="Pens"]').click();
+  // The fan springs out of the disc, so for a third of a second its buttons
+  // really are on top of each other. Audit the state it LANDS in — a target
+  // measured mid-flight is measuring the animation, not the control.
+  await page.waitForTimeout(600);
   const take = page.getByRole("button", { name: "Take a photo" });
   await expect(take).toBeVisible();
   const takeBox = (await take.boundingBox())!;
@@ -298,6 +302,10 @@ test("a child fills the frame under the pen, retakes, draws over it and hands it
   await expect(page.locator("[data-frame]").getByText("Your model")).toBeVisible();
   await expectNoSeriousA11y(page, "child canvas with an empty frame");
 
+  // Fold the fan before reaching past it. While one is open the paper is the
+  // way OUT of it and nothing on the paper takes a tap — which is what stops a
+  // child leaving a mark, or opening the camera, by reaching over an open fan.
+  await page.locator('button[title="Pens"]').click();
   await take.click();
   const dialog = page.getByRole("dialog", { name: "Take a photo" });
   await expect(dialog).toBeVisible();
@@ -353,7 +361,7 @@ test("a child cannot move, resize or remove the frame", async ({ page, context }
   await openAsChild(page, "Frame fixed");
 
   const wrap = frameWrapper(page);
-  await page.locator('button[aria-label="Move"]').click();
+  await pickTool(page, "Move");
   expect(await wrap.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("none");
 
   const dragAcross = async () => {

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { studentLogin, openDrawing } from "./helpers";
+import { studentLogin, openDrawing, openPenFan } from "./helpers";
 
 // SJ-09 — the canvas is the best child UI in the app, with one desktop residue:
 // a "Select" tool. A child tapping it found every pen had silently stopped
@@ -21,16 +21,19 @@ test.describe("The Move tool only exists when it can do something", () => {
     await openDrawing(page);
 
     // The pens are all there…
+    await openPenFan(page);
     await expect(page.locator('button[aria-label="Pen"]')).toBeVisible();
-    await expect(page.locator('button[aria-label="Eraser"]')).toBeVisible();
+    await expect(page.locator('button[aria-label="Rubber"]')).toBeVisible();
     // …and Move is not, because there is nothing on the page to move.
-    await expect(page.locator('button[aria-label="Move"]')).toHaveCount(0);
+    await expect(page.locator('button[aria-label="Move — drag & resize things"]')).toHaveCount(0);
   });
 
   test("adding a shape brings Move out, because now it means something", async ({ page }) => {
     await studentLogin(page, "Dev");
     await openDrawing(page);
-    await expect(page.locator('button[aria-label="Move"]')).toHaveCount(0);
+    await openPenFan(page);
+    await expect(page.locator('button[aria-label="Move — drag & resize things"]')).toHaveCount(0);
+    await page.locator('button[title="Pens"]').click();
 
     await page.locator('button[title="Add"]').click();
     await page.getByRole("button", { name: "Shapes" }).click();
@@ -38,7 +41,8 @@ test.describe("The Move tool only exists when it can do something", () => {
     await expect(page.locator("svg path[stroke]").first()).toBeVisible();
 
     // The shape exists → the tool that moves it exists.
-    await expect(page.locator('button[aria-label="Move"]')).toBeVisible();
+    await openPenFan(page);
+    await expect(page.locator('button[aria-label="Move — drag & resize things"]')).toBeVisible();
   });
 
   // The tool a child taps is a picture — the shelf renders only the glyph, so
@@ -51,7 +55,8 @@ test.describe("The Move tool only exists when it can do something", () => {
     await page.getByRole("button", { name: "Shapes" }).click();
     await page.getByRole("button", { name: "Rectangle" }).click();
 
-    const move = page.locator('button[aria-label="Move"]');
+    await openPenFan(page);
+    const move = page.locator('button[aria-label="Move — drag & resize things"]');
     await expect(move).toBeVisible();
     await expect(move).toHaveAttribute("title", /^Move/);
     await expect(page.locator('button[aria-label="Select"]')).toHaveCount(0);

@@ -120,11 +120,11 @@ test("a11y (AA): quiz builder in the template editor", async ({ page }) => {
   await expect(prompt).toBeVisible();
   assertNoSeriousViolations(await scan(page), "quiz builder (question open)");
 
-  // And again collapsed: the accordion's two states have different markup, and
-  // a reference to the unmounted body would only show up here.
-  await panel.getByRole("button", { name: /Untitled question/ }).click();
+  // And again shrunk to a pill: the window's two states have different markup
+  // (the body is unmounted), and a reference into it would only show up here.
+  await panel.getByRole("button", { name: "Shrink to a pill" }).click();
   await expect(prompt).toBeHidden();
-  assertNoSeriousViolations(await scan(page), "quiz builder (question closed)");
+  assertNoSeriousViolations(await scan(page), "quiz builder (shrunk to a pill)");
 });
 
 // A photo frame in the template editor: the frame itself (a dashed box with
@@ -144,7 +144,7 @@ test("a11y (AA): a photo frame in the template editor", async ({ page }) => {
 
   // With the prompt editor open.
   await page.locator("div[data-object]").filter({ has: page.locator("[data-frame]") }).dblclick();
-  await expect(page.getByPlaceholder("What should they photograph?")).toBeVisible();
+  await expect(page.getByPlaceholder(/Your prompt/)).toBeVisible();
   assertNoSeriousViolations(await scan(page), "photo frame (prompt open)");
 });
 

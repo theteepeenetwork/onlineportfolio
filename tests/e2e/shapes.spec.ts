@@ -16,8 +16,11 @@ test("a child can add a shape, recolour it, move and resize it", async ({ page }
   const shape = page.locator("svg path[stroke]").first();
   await expect(shape).toBeVisible();
 
-  // Change fill + line colour via the style bar.
+  // Change fill + line colour via the object bar. Each opens a row of swatches
+  // with the any-colour input at its end; the input carries the same name.
+  await page.getByRole("button", { name: "Fill colour" }).click();
   await page.locator('input[aria-label="Fill colour"]').fill("#ef4444");
+  await page.getByRole("button", { name: "Line colour" }).click();
   await page.locator('input[aria-label="Line colour"]').fill("#10b981");
   await expect(shape).toHaveAttribute("fill", "#ef4444");
   await expect(shape).toHaveAttribute("stroke", "#10b981");

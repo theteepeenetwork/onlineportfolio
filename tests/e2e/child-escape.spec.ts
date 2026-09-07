@@ -68,18 +68,24 @@ test("a child answering an activity can get back to their jar", async ({ page })
     expect(box, "the way back has a box to tap").not.toBeNull();
     expect(box!.height).toBeGreaterThanOrEqual(64);
 
-    // …and does not sit on the activity's own title while saying it. The title
-    // is centred inside a wide, click-through strip, so what matters is where
-    // the WORDS are, not where their container is — hence the range measure.
+    // …and does not sit on the activity's own title while saying it. What
+    // matters is where the WORDS are, not where their container is — hence the
+    // range measure — and BOTH axes, because on a narrow tablet the top-left
+    // cluster stacks and the title moves below it rather than beside it.
     const ink = await page.getByText(LONG_TITLE).evaluate((el) => {
       const range = document.createRange();
       range.selectNodeContents(el);
-      const { x, width } = range.getBoundingClientRect();
-      return { x, width };
+      const { x, y, width, height } = range.getBoundingClientRect();
+      return { x, y, width, height };
     });
     expect(ink.width, "the activity title is on screen").toBeGreaterThan(0);
+    const apart =
+      box!.x >= ink.x + ink.width ||
+      ink.x >= box!.x + box!.width ||
+      box!.y >= ink.y + ink.height ||
+      ink.y >= box!.y + box!.height;
     expect(
-      box!.x >= ink.x + ink.width || ink.x >= box!.x + box!.width,
+      apart,
       "the way back and the activity's title must not overlap on a 768px tablet",
     ).toBe(true);
 
@@ -171,7 +177,7 @@ test("a sent-back piece does not bury the way out under the teacher's note", asy
 
     // Every control in the top-left corner answers to its own centre. If the
     // note is over one of them, the browser names the note instead.
-    for (const label of [WAY_BACK, /^Undo$/, /^Redo$/, /^Clear page$/]) {
+    for (const label of [WAY_BACK, /^Undo$/, /^Redo$/]) {
       const control = page.getByRole("button", { name: label });
       await expect(control, `${label} should be on screen`).toBeVisible();
       const box = (await control.boundingBox())!;

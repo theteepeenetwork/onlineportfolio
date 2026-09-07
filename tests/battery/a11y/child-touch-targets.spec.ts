@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { SCHOOL_A, SCHOOL_B, loginStudent, loginTeacher } from "../helpers";
+import { pickTool } from "../../e2e/helpers";
 
 // ===========================================================================
 // B3 — Every control a CHILD taps is at least 64px
@@ -113,8 +114,8 @@ test("the controls that only appear once a child taps something meet the floor t
   // A shape, placed then tapped.
   await page.locator('button[title="Add"]').click();
   await page.getByRole("button", { name: "Shapes" }).click();
-  await page.locator('[role="group"] button').first().click();
-  await page.locator('button[aria-label="Move"]').click();
+  await page.getByRole("button", { name: "Rectangle", exact: true }).click();
+  await pickTool(page, "Move");
   await expect(page.getByRole("button", { name: "Remove object" })).toBeVisible();
   let small = await undersizedControls(page);
   expect(small, `controls below ${FLOOR}px around a selected shape: ${JSON.stringify(small)}`).toEqual(
@@ -123,12 +124,12 @@ test("the controls that only appear once a child taps something meet the floor t
 
   // A text box, placed then tapped. Same four corners, same floor.
   await page.locator('button[title="Add"]').click();
-  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.getByRole("button", { name: "Words", exact: true }).click();
   await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.7);
   await page.locator('textarea[placeholder="Type…"]').waitFor();
   await page.keyboard.type("Hi");
-  await page.locator('button[title="Pen"]').click();
-  await page.locator('button[aria-label="Move"]').click();
+  await page.locator('button[title="Pens"]').click();
+  await pickTool(page, "Move");
   const label = page.getByText("Hi", { exact: true });
   const lbox = (await label.boundingBox())!;
   await page.mouse.click(lbox.x + lbox.width / 2, lbox.y + lbox.height / 2);

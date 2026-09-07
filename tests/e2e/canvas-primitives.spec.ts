@@ -218,9 +218,9 @@ test("resizing a turned shape holds the corner it is not being dragged by", asyn
   await addShape(page, "Rectangle");
   await turn(page, 45);
 
-  // The pencil sits on the corner opposite the resize handle — the anchor.
+  // Take-it-away sits on the corner opposite the resize handle — the anchor.
   const anchor = async () => {
-    const b = (await page.locator('[aria-label="Edit text"]').boundingBox())!;
+    const b = (await page.locator('[aria-label="Remove object"]').boundingBox())!;
     return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
   };
   const before = await anchor();

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { studentLogin, openDrawing } from "./helpers";
+import { studentLogin, openDrawing, pickTool } from "./helpers";
 
 // Turning something, and being able to turn it at all.
 //
@@ -39,7 +39,7 @@ async function placeShape(page: Page, name: string) {
   await page.locator('button[title="Add"]').click();
   await page.getByRole("button", { name: "Shapes" }).click();
   await page.getByRole("button", { name, exact: true }).click();
-  await page.locator('button[aria-label="Move"]').click();
+  await pickTool(page, "Move");
   await expect(page.getByRole("button", { name: "Remove object" })).toBeVisible();
 }
 

@@ -23,6 +23,14 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: BASE_URL,
+    // The classroom iPad in landscape, at CSS px — the device the canvas is
+    // designed for (the design frame is 1194 × 834), and the one the a11y gate
+    // already measures against. Playwright's default is 1280 × 720, which is a
+    // laptop window: 114px shorter than any tablet a child uses, and short
+    // enough that a tall piece plus its handles, the object bar and the page
+    // tray genuinely do not all fit. A test that wants a different screen
+    // still sets its own — child-escape's 768px portrait, for one.
+    viewport: { width: 1194, height: 834 },
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },

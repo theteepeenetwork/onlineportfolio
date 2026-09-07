@@ -57,12 +57,12 @@ test("a teacher's apparatus renders for a child who is never offered it", async 
   // so this is reachable even though the class it is about to be assigned to is
   // Reception.
   await page.locator('button[title="Add"]').click();
-  await page.getByRole("button", { name: "Maths kit" }).click();
+  await page.getByRole("button", { name: "Maths kit", exact: true }).click();
   await page.getByRole("tab", { name: "Place value" }).click();
   await page.getByRole("button", { name: "Base 10 hundred flat", exact: true }).click();
 
-  await page.locator('button[title="Add"]').click();
-  await page.getByRole("button", { name: "Maths kit" }).click();
+  // No second trip to the ＋ fan: the kit is a WINDOW and stays open while a
+  // page is built, which is the whole reason it is a window.
   await page.getByRole("tab", { name: "Frames & arrays" }).click();
   await page.getByRole("button", { name: "Ten frame", exact: true }).click();
 
