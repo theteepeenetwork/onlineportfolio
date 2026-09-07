@@ -244,7 +244,22 @@ const TERMINAL_MODULES = new Set(["src/lib/db.ts"]);
 // adult-account operations need. Deletes are excluded: ruling R12 keeps school
 // deletion out of v1 until a restore has been rehearsed, and when it ships the
 // gate changes in the same PR.
-const ADULT_READABLE = ["Teacher", "School", "Subscription", "BillingEvent"];
+const ADULT_READABLE = [
+  "Teacher",
+  "School",
+  "Subscription",
+  "BillingEvent",
+  // Parent messaging's school-level settings (SAFEGUARDING rule 21). A switch,
+  // a zone, a weekday with two integers, and a closed date with a school's own
+  // label for it. No person is in any of them, and "is messaging on for this
+  // school, and what are its hours?" is ordinary support. The conversations
+  // themselves are in CREDENTIAL_NEVER below and are not reachable from here:
+  // `messageThreads` on School is a child relation (School is an adult target,
+  // MessageThread is not), so an include of it fails the relation rule.
+  "MessagingPolicy",
+  "OfficeHourWindow",
+  "OfficeHoursClosure",
+];
 
 // Children and everything hanging off them. Counts and school-level groupBy
 // only. Never a row, never a field, never a per-child figure (amendment C3:
@@ -337,6 +352,20 @@ const CREDENTIAL_NEVER = [
   "ApiToken",
   "OAuthClient",
   "OAuthGrant",
+  // Parent–teacher messages (SAFEGUARDING rule 21). The AuditLog precedent
+  // applies word for word: AuditLog sits here because its free text "routinely
+  // contains a child's first name", and a message between a parent and a
+  // teacher is ABOUT a named child and will name them constantly. The thread
+  // row is one join from the same child and carries a parent-to-child linkage
+  // (ruling R11); the share row is one join from the thread. All three are
+  // refused whole — no row, no count, no confirmation that one exists — which
+  // is the strictest class this gate has. A tightening, not a widening: the
+  // drift check refused them as OPS-MODEL-UNKNOWN until they were classified.
+  // Support never needs one: a school admin sees metadata on their own
+  // console, and the operator is told a thread exists by the school saying so.
+  "MessageThread",
+  "MessageThreadShare",
+  "Message",
 ];
 
 // The operator's own records.
@@ -514,6 +543,17 @@ const DENY_FIELDS = [
   "fieldsJson",
   "ownerKey",
   "contextKey",
+  // A parent–teacher message (SAFEGUARDING rule 21). `messageBody` matches none
+  // of SENSITIVE_NAME_PATTERNS, so the drift check would never ask for it — which
+  // is exactly why it is added by hand. (Not `body`: the ops handbook and any
+  // request handler say `body` for their own reasons, and a denied identifier
+  // has to be one nothing else has a reason to use.) the model is already CREDENTIAL_NEVER,
+  // and this is the second lock, the one that stops the identifier appearing
+  // under the ops roots at all. `handoverReason` beside it is a teacher's own
+  // words for an admin about why they stepped back from a family; the same
+  // R15 free-text reasoning applies and it is denied with the body.
+  "messageBody",
+  "handoverReason",
   // Teacher-authored activity content, which reaches children and can quote them
   "templatePathsJson",
   // The rendered picture of that same content — the worksheet, its movable

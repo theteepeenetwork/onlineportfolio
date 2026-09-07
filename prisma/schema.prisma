@@ -13,48 +13,62 @@ datasource db {
 
 // A teacher owns one or more classes and moderates the journal.
 model Teacher {
-  id             String             @id @default(cuid())
-  name           String // the teacher's full name (e.g. "Sam Pearson")
-  title          String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
-  displayStyle   String             @default("formal") // "formal" (title + surname) | "first"
-  displayName    String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
-  email          String             @unique
-  passwordHash   String
-  schoolName     String? // captured at signup (StoryJar onboarding); free text
-  country        String? // England / Scotland / Wales / NI / Elsewhere
-  role           String             @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
-  status         String             @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
+  id                     String               @id @default(cuid())
+  name                   String // the teacher's full name (e.g. "Sam Pearson")
+  title                  String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
+  displayStyle           String               @default("formal") // "formal" (title + surname) | "first"
+  displayName            String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
+  email                  String               @unique
+  passwordHash           String
+  schoolName             String? // captured at signup (StoryJar onboarding); free text
+  country                String? // England / Scotland / Wales / NI / Elsewhere
+  role                   String               @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
+  status                 String               @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
   // Signed up before launch day (1 Sept 2026) and promised free, unlimited
   // access permanently. STORED, never derived from `createdAt`: a promise you
   // can't identify the beneficiaries of is a promise you will break, and a
   // derived date stops being equivalent the first time rows are migrated or
   // imported. See docs/pricing-decisions.md. Not child data; no retention
   // implications beyond the teacher row itself.
-  foundingMember Boolean            @default(false)
-  school         School?            @relation(fields: [schoolId], references: [id], onDelete: SetNull)
-  schoolId       String?
-  createdAt      DateTime           @default(now())
-  classes        Class[]
-  sessions       Session[]
-  templates      ActivityTemplate[]
-  folders        Folder[]
-  drafts         Draft[] // in-progress template drafts (cross-device autosave)
+  foundingMember         Boolean              @default(false)
+  school                 School?              @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  schoolId               String?
+  createdAt              DateTime             @default(now())
+  classes                Class[]
+  sessions               Session[]
+  templates              ActivityTemplate[]
+  folders                Folder[]
+  drafts                 Draft[] // in-progress template drafts (cross-device autosave)
   // An individually-subscribing teacher's own subscription (null when the
   // teacher is covered by a school plan instead — see Subscription).
-  subscription   Subscription?
+  subscription           Subscription?
   // Bearer tokens this teacher has minted so Claude can build activities in
   // their library, and the claude.ai connector grants behind the OAuth ones.
-  apiTokens      ApiToken[]
-  oauthGrants    OAuthGrant[]
+  apiTokens              ApiToken[]
+  oauthGrants            OAuthGrant[]
+  // Parent messaging (SAFEGUARDING rule 21). May this member of staff read and
+  // reply to parents? NULL means "the default for their role": yes for a
+  // TEACHER or ADMIN, no for a TA. True/false is an admin's override, set on
+  // the Staff tab and nowhere else. Resolved ONLY through
+  // src/lib/messaging/policy.ts (mayMessageParents), never read raw — the same
+  // NULL-means-default convention as Class.ageMode. A staff member cannot set
+  // their own: parent contact is the school's to govern.
+  mayMessageParents      Boolean?
+  sentMessages           Message[]            @relation("MessageSenderTeacher")
+  threadShares           MessageThreadShare[] @relation("ShareTeacher")
+  sharesGiven            MessageThreadShare[] @relation("ShareSharedBy")
+  handledThreads         MessageThread[]      @relation("ThreadHandler")
+  closedThreads          MessageThread[]      @relation("ThreadClosedBy")
+  messagingPolicyUpdates MessagingPolicy[]    @relation("PolicyUpdatedBy")
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
 // staff, class assignment and billing — but never see children's work unless
 // they teach the class (that stays scoped to each teacher's own classes).
 model School {
-  id           String        @id @default(cuid())
-  name         String
-  createdAt    DateTime      @default(now())
+  id                  String           @id @default(cuid())
+  name                String
+  createdAt           DateTime         @default(now())
   // What this school IS. "SCHOOL" is a real customer; "DEMO" is StoryJar
   // Academy, the fictional school StoryJar staff work and troubleshoot in.
   //
@@ -67,18 +81,23 @@ model School {
   // What it IS for is figures. The Academy must never appear in the pupil rolls,
   // price bands or revenue the operator console reports, or StoryJar's own
   // numbers quietly include several hundred children who do not exist.
-  kind         String        @default("SCHOOL")
+  kind                String           @default("SCHOOL")
   // May staff of this school publish a template into the shared library?
   //
   // False everywhere except the Academy, and settable only by a seed or a
   // migration. There is deliberately no screen, no action and no operator
   // control that writes it, which is what keeps "only StoryJar publishes" true
   // while letting it be done on the real canvas, in a real teacher account.
-  canPublishToLibrary Boolean @default(false)
-  staff        Teacher[]
+  canPublishToLibrary Boolean          @default(false)
+  staff               Teacher[]
   // The school's billing subscription (school plan). Null until one is created;
   // the plan label shown in the admin console is derived from this, not stored.
-  subscription Subscription?
+  subscription        Subscription?
+  // Parent messaging: the school's office hours and switch (SAFEGUARDING rule
+  // 21), and the threads denormalised onto the school so a policy change can
+  // recompute every undelivered message in one query.
+  messagingPolicy     MessagingPolicy?
+  messageThreads      MessageThread[]
 }
 
 // A billing subscription that governs WRITE access for an account. An account is
@@ -139,9 +158,9 @@ model Folder {
 
 // A class groups students together and has a short code students use to log in.
 model Class {
-  id           String        @id @default(cuid())
-  name         String
-  yearGroup    String? // e.g. "Year 2" — captured at signup
+  id             String          @id @default(cuid())
+  name           String
+  yearGroup      String? // e.g. "Year 2" — captured at signup
   // Which child-facing register this class sees: "EYFS" (3–5), "KS1" (5–7) or
   // "KS2" (7–11). A teacher's per-class display choice, asked once at creation —
   // NOT data about a child. Nullable, and NULL means EYFS: the youngest, most
@@ -149,26 +168,27 @@ model Class {
   // protective; owner/DPO decision 2026-07-19), never inferred from `yearGroup`
   // (only the signup class has one, and it's free text). Resolve via
   // src/lib/ageMode.ts, never read this column raw. Retention: RETENTION.md.
-  ageMode      String? // "EYFS" | "KS1" | "KS2"; NULL → EYFS
-  classCode    String        @unique // e.g. "SUN234" — students type this to sign in
-  teacher      Teacher       @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  teacherId    String
-  createdAt    DateTime      @default(now())
-  students     Student[]
-  journalItems JournalItem[]
-  assignments  Assignment[]
-  drafts       Draft[]
+  ageMode        String? // "EYFS" | "KS1" | "KS2"; NULL → EYFS
+  classCode      String          @unique // e.g. "SUN234" — students type this to sign in
+  teacher        Teacher         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId      String
+  createdAt      DateTime        @default(now())
+  students       Student[]
+  journalItems   JournalItem[]
+  assignments    Assignment[]
+  drafts         Draft[]
+  messageThreads MessageThread[]
 }
 
 // A student has no password — they pick their name from the class after
 // entering the class code (mirrors how Seesaw handles young children).
 model Student {
-  id           String              @id @default(cuid())
-  name         String
-  avatarColor  String              @default("#4f46e5") // colour of their avatar bubble
-  class        Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
-  classId      String
-  createdAt    DateTime            @default(now())
+  id            String              @id @default(cuid())
+  name          String
+  avatarColor   String              @default("#4f46e5") // colour of their avatar bubble
+  class         Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId       String
+  createdAt     DateTime            @default(now())
   // When this child last opened their jar. Approval happens while they're away,
   // so without this the reward lands in an empty room: anything approved after
   // this timestamp is new to them and drops into the jar when they next look.
@@ -177,12 +197,15 @@ model Student {
   // wayfinding, never a measure of how often a child uses StoryJar. Never
   // aggregate, report or export it, and never show it to a parent: that is
   // profiling, which SAFEGUARDING rule 11 forbids. See RETENTION.md.
-  jarSeenAt    DateTime?
-  journalItems JournalItem[]
-  sessions     Session[]
-  assignments  AssignmentStudent[]
-  parents      Parent[]            @relation("ParentChildren")
-  drafts       Draft[] // in-progress activity-response drafts (cross-device autosave)
+  jarSeenAt     DateTime?
+  journalItems  JournalItem[]
+  sessions      Session[]
+  assignments   AssignmentStudent[]
+  parents       Parent[]            @relation("ParentChildren")
+  drafts        Draft[] // in-progress activity-response drafts (cross-device autosave)
+  // The one conversation between this child's guardians and their class
+  // teacher (SAFEGUARDING rule 21). Never readable by the child.
+  messageThread MessageThread?
 }
 
 // A parent/carer with a read-only family view of their own child(ren)'s jar.
@@ -201,14 +224,15 @@ model Student {
 // at most one family. Never look a parent up by an empty/absent address — see
 // requestMagicLink, which rejects a blank input before it reaches the database.
 model Parent {
-  id          String       @id @default(cuid())
-  name        String?
-  email       String?      @unique
-  familyCode  String       @unique // the code printed on the school's letter
-  createdAt   DateTime     @default(now())
-  children    Student[]    @relation("ParentChildren")
-  sessions    Session[]
-  magicTokens MagicToken[]
+  id           String       @id @default(cuid())
+  name         String?
+  email        String?      @unique
+  familyCode   String       @unique // the code printed on the school's letter
+  createdAt    DateTime     @default(now())
+  children     Student[]    @relation("ParentChildren")
+  sessions     Session[]
+  magicTokens  MagicToken[]
+  sentMessages Message[]    @relation("MessageSenderParent")
 }
 
 // A single-use, expiring token behind a parent "magic link" email.
@@ -224,12 +248,12 @@ model MagicToken {
 
 // A single piece of work in a student's journal.
 model JournalItem {
-  id              String      @id @default(cuid())
-  type            String // PHOTO | TEXT | DRAWING | AUDIO
-  caption         String? // optional short caption / the child's words
-  textContent     String? // body text for TEXT items
-  mediaPath       String? // relative /uploads path: cover image (PHOTO / DRAWING) or the voice-note file (AUDIO). Served ONLY via the authorising /uploads route, never publicly — same as photos (SAFEGUARDING rule 7).
-  mediaPathsJson  String? // JSON array of paths for multi-page drawings; when set it supersedes mediaPath
+  id               String      @id @default(cuid())
+  type             String // PHOTO | TEXT | DRAWING | AUDIO
+  caption          String? // optional short caption / the child's words
+  textContent      String? // body text for TEXT items
+  mediaPath        String? // relative /uploads path: cover image (PHOTO / DRAWING) or the voice-note file (AUDIO). Served ONLY via the authorising /uploads route, never publicly — same as photos (SAFEGUARDING rule 7).
+  mediaPathsJson   String? // JSON array of paths for multi-page drawings; when set it supersedes mediaPath
   // JSON array of PICTURE paths, one per page: the work as it LOOKED, with the
   // question boxes drawn on. Written only when the page carries a quiz, because
   // that is the only thing the flattened pages leave out for a pupil. The work
@@ -237,26 +261,26 @@ model JournalItem {
   // with question boxes baked into it — so these two are allowed to differ, and
   // only the read-only surfaces (the queue, the viewer, the jar) use this one.
   previewPathsJson String?
-  quizAnswersJson String? // JSON QuizAnswer[] — the child's multiple-choice selections (PENDING child content)
-  quizScore       Int? // server-computed number of correct answers at submit time (null = not a quiz response)
-  quizTotal       Int? // number of questions in the assignment snapshot at submit time
-  status          String      @default("PENDING") // PENDING | APPROVED | RETURNED
-  authorRole      String // STUDENT | TEACHER — who created the item
-  teacherNote     String? // feedback the teacher leaves when returning work
-  stickersJson    String? // JSON array of sticker KEYS (max 4) from the fixed catalog in src/lib/stickers.ts — keys only, look is derived
-  praiseNote      String? // the teacher's kind note attached at approval time (shown to the child with the stickers)
-  stickerReply    String? // "HEART" once the child sends one back — fixed value, never free text (SAFEGUARDING rule 2)
-  returnMode      String? // when RETURNED: "CONTINUE" (reopen with their work) | "FRESH" (blank restart). null = not returned / legacy (treated as FRESH)
-  student         Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId       String
-  class           Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
-  classId         String
-  skills          Skill[]     @relation("JournalItemSkills")
-  createdAt       DateTime    @default(now())
-  approvedAt      DateTime?
+  quizAnswersJson  String? // JSON QuizAnswer[] — the child's multiple-choice selections (PENDING child content)
+  quizScore        Int? // server-computed number of correct answers at submit time (null = not a quiz response)
+  quizTotal        Int? // number of questions in the assignment snapshot at submit time
+  status           String      @default("PENDING") // PENDING | APPROVED | RETURNED
+  authorRole       String // STUDENT | TEACHER — who created the item
+  teacherNote      String? // feedback the teacher leaves when returning work
+  stickersJson     String? // JSON array of sticker KEYS (max 4) from the fixed catalog in src/lib/stickers.ts — keys only, look is derived
+  praiseNote       String? // the teacher's kind note attached at approval time (shown to the child with the stickers)
+  stickerReply     String? // "HEART" once the child sends one back — fixed value, never free text (SAFEGUARDING rule 2)
+  returnMode       String? // when RETURNED: "CONTINUE" (reopen with their work) | "FRESH" (blank restart). null = not returned / legacy (treated as FRESH)
+  student          Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId        String
+  class            Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId          String
+  skills           Skill[]     @relation("JournalItemSkills")
+  createdAt        DateTime    @default(now())
+  approvedAt       DateTime?
   // When set, this item is a response to an assignment (a run of a template).
-  assignment      Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
-  assignmentId    String?
+  assignment       Assignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  assignmentId     String?
 }
 
 // A reusable, class-agnostic activity a teacher can run again and again. The
@@ -349,7 +373,7 @@ model SharedActivity {
   // alone. It needs a StoryJar-side review queue before anything is visible,
   // takedown mechanics, and its own DPIA: a teacher's template can carry a
   // photograph of a child, and no code can tell that from a file.
-  origin    String  @default("STORYJAR")
+  origin            String             @default("STORYJAR")
   published         Boolean            @default(false)
   // A deliberate sequence for the library, rather than whatever createdAt gives.
   sortOrder         Int                @default(0)
@@ -796,4 +820,153 @@ model OAuthGrant {
   accessTokens  ApiToken[]
 
   @@index([teacherId])
+}
+
+// ---------------------------------------------------------------------------
+// Parent–teacher messages, held to the school's office hours.
+// SAFEGUARDING.md rule 21; retention in RETENTION.md ("Parent–teacher
+// messages"); risk assessment docs/DPIA.md R18.
+// ---------------------------------------------------------------------------
+// THE ONE HARD RULE: a message is never delivered outside the school's office
+// hours, in either direction. `Message.deliverAt` is computed server-side at
+// insert from the school's MessagingPolicy and every read filters on it, so
+// time passing is the only thing that delivers a message — there is no job.
+// When a school changes its hours, every still-undelivered message in that
+// school is recomputed in the same transaction (src/lib/messaging/policy.ts).
+//
+// WHO IS IN A THREAD is derived, never stored: the child's linked parents
+// (Student.parents) and the class teacher (Class.teacherId), plus any
+// MessageThreadShare rows and the handler a teacher passed the family to.
+// A child moving class moves the thread with them; a guardian whose link is
+// removed loses it on their next request. No child session can read or write
+// a message and nothing here appears in the jar.
+//
+// Operator blindness: MessageThread, Message and MessageThreadShare are in the
+// gate's strictest class (CREDENTIAL_NEVER) — a message is about a named
+// child. The three policy tables hold no person and are ADULT_READABLE.
+
+// One per school: the switch and the zone. Windows and closures hang off it.
+// `enabled` defaults to false: the Children's Code high-privacy default, and
+// the only way it becomes true is a school ADMIN on the Messages tab.
+model MessagingPolicy {
+  id                 String               @id @default(cuid())
+  school             School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId           String               @unique
+  enabled            Boolean              @default(false)
+  // IANA zone the windows are evaluated in. Fixed to Europe/London today;
+  // stored so the assumption is visible in the data rather than in a comment.
+  timezone           String               @default("Europe/London")
+  updatedAt          DateTime             @updatedAt
+  updatedBy          Teacher?             @relation("PolicyUpdatedBy", fields: [updatedByTeacherId], references: [id], onDelete: SetNull)
+  updatedByTeacherId String?
+  windows            OfficeHourWindow[]
+  closures           OfficeHoursClosure[]
+}
+
+// One row per weekday the school is open. No row means closed that day, so a
+// weekend is closed unless a school says otherwise. Minutes after local
+// midnight; StoryJar's caps (06:00–20:00, ten hours) are enforced in
+// src/lib/messaging/officeHours.ts and re-checked by the server action.
+model OfficeHourWindow {
+  id          String          @id @default(cuid())
+  policy      MessagingPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  policyId    String
+  weekday     Int // 0 = Sunday … 6 = Saturday
+  openMinute  Int
+  closeMinute Int
+
+  @@unique([policyId, weekday])
+}
+
+// A date the school is shut regardless of weekday: an INSET day, a holiday.
+// "YYYY-MM-DD" in the policy's zone. `label` is the school's own short name for
+// it ("Half term") and holds nothing about a person.
+model OfficeHoursClosure {
+  id       String          @id @default(cuid())
+  policy   MessagingPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  policyId String
+  date     String
+  label    String          @default("")
+
+  @@unique([policyId, date])
+  @@index([policyId, date])
+}
+
+// The conversation about one child. Exactly one per child.
+//
+// `handlerTeacherId` is set when the class teacher has opted out of this
+// family and passed the thread to a colleague: that colleague then has
+// everything the class teacher had on it, and the class teacher has nothing
+// until they take it back. NULL means the class teacher handles it. The parent
+// is never told a thread was passed, and `handoverReason` — optional, the
+// teacher's own words for the admin — lives here, on a row the operator area
+// cannot read, rather than in AuditLog.detail.
+//
+// `closedAt` is a school admin stopping new messages (abuse, a complaint that
+// has moved to a formal process). Closing deletes nothing and reveals nothing.
+model MessageThread {
+  id                String               @id @default(cuid())
+  student           Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId         String               @unique
+  school            School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId          String
+  class             Class                @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId           String
+  createdAt         DateTime             @default(now())
+  lastMessageAt     DateTime?
+  closedAt          DateTime?
+  closedBy          Teacher?             @relation("ThreadClosedBy", fields: [closedByTeacherId], references: [id], onDelete: SetNull)
+  closedByTeacherId String?
+  handler           Teacher?             @relation("ThreadHandler", fields: [handlerTeacherId], references: [id], onDelete: SetNull)
+  handlerTeacherId  String?
+  passedAt          DateTime?
+  handoverReason    String?
+  messages          Message[]
+  shares            MessageThreadShare[]
+
+  @@index([schoolId, lastMessageAt])
+  @@index([classId])
+}
+
+// A colleague given the same ability on one thread as its teacher. Honoured
+// only while `teacher.schoolId` still equals the thread's school, checked at
+// read time, so a member of staff who leaves loses every share at once.
+model MessageThreadShare {
+  id                String        @id @default(cuid())
+  thread            MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId          String
+  teacher           Teacher       @relation("ShareTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId         String
+  sharedBy          Teacher?      @relation("ShareSharedBy", fields: [sharedByTeacherId], references: [id], onDelete: SetNull)
+  sharedByTeacherId String?
+  sharedAt          DateTime      @default(now())
+
+  @@unique([threadId, teacherId])
+  @@index([teacherId])
+}
+
+// One message. Text only — no attachments, no media, links never rendered as
+// links (rule 15, extended from child input to parent input). `deliverAt` is
+// the hard rule made concrete: the recipient sees nothing until it has passed.
+// The sender sees their own message at once, labelled with when it arrives.
+// Sender references are SetNull so a thread stays readable as a whole after a
+// guardian or a member of staff is erased: half a conversation is
+// unintelligible, and the school's record of what was said to a parent is the
+// school's (RETENTION.md).
+model Message {
+  id              String        @id @default(cuid())
+  thread          MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId        String
+  senderType      String // PARENT | TEACHER
+  senderParent    Parent?       @relation("MessageSenderParent", fields: [senderParentId], references: [id], onDelete: SetNull)
+  senderParentId  String?
+  senderTeacher   Teacher?      @relation("MessageSenderTeacher", fields: [senderTeacherId], references: [id], onDelete: SetNull)
+  senderTeacherId String?
+  messageBody     String
+  createdAt       DateTime      @default(now())
+  deliverAt       DateTime
+  readByParentAt  DateTime?
+  readByTeacherAt DateTime?
+
+  @@index([threadId, deliverAt])
 }
