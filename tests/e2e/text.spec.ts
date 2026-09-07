@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { studentLogin, openDrawing, pickTool } from "./helpers";
+import { studentLogin, openDrawing, pickTool, openPenFan } from "./helpers";
 
 // Text boxes are objects: after being placed they can be re-selected, moved,
 // and re-edited. (Dev has no seeded or other-test work.)
@@ -80,4 +80,40 @@ test("text can be placed, re-selected, moved and re-edited", async ({ page }) =>
   await page.getByRole("link", { name: /Back to my jar/ }).click();
   await page.waitForURL((url) => url.pathname === "/student");
   await expect(page.getByText(/Waiting for your teacher/)).toBeVisible();
+});
+
+// Words is a one-shot tool.
+//
+// Placing words is almost never done twice in a row — the job is place it,
+// type it, move it — but the tool stayed armed, so the tap AFTER committing an
+// edit dropped a second empty box on the page. The new box still opens for
+// typing; it is the tool that hands over to Move.
+test("Words places one box and then hands over to Move", async ({ page }) => {
+  await studentLogin(page, "Dev");
+  await openDrawing(page);
+  const canvas = page.locator("canvas").first();
+  const c = (await canvas.boundingBox())!;
+
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Words", exact: true }).click();
+  await page.mouse.click(c.x + c.width * 0.35, c.y + c.height * 0.35);
+
+  // Open for typing straight away — handing over must not cost the edit.
+  await page.locator('textarea[placeholder="Type…"]').waitFor();
+  await page.keyboard.type("Hello");
+
+  // Commit the way a child does, by tapping the paper; then tap again.
+  await page.mouse.click(c.x + c.width * 0.7, c.y + c.height * 0.6);
+  await page.mouse.click(c.x + c.width * 0.55, c.y + c.height * 0.75);
+  await expect(
+    page.locator("div[data-object]"),
+    "tapping after an edit made a second words box",
+  ).toHaveCount(1);
+
+  // And Move is what is in hand, so that tap picked things up instead.
+  await openPenFan(page);
+  await expect(page.locator('button[aria-label="Move — drag & resize things"]')).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });

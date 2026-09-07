@@ -1916,6 +1916,12 @@ export function DrawingCanvas({
       setSelectedId(id);
       setEditingId(id);
       editingRef.current = id;
+      // One tap, one box. Words are almost never placed two at a time — the
+      // job is place it, type it, move it — so the tool disarms itself and
+      // hands over to Move. The new box stays open for typing; it is the NEXT
+      // tap on the paper that would otherwise have made a second box nobody
+      // asked for.
+      setTool("cursor");
       return;
     }
     e.preventDefault();
