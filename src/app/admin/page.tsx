@@ -3,7 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accountStateForTeacher, governingSubscription, planLabel } from "@/lib/billing";
 import { stripeConfigured } from "@/lib/stripe";
-import { resolveMayMessageParents, schoolMessaging } from "@/lib/messaging/policy";
+import { messagingStaffForSchool, resolveMayMessageParents, schoolMessaging } from "@/lib/messaging/policy";
+import { oversightForSchool } from "@/lib/messaging/threads";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
@@ -54,13 +55,19 @@ export default async function AdminPage() {
   // The school's parent-messaging settings (SAFEGUARDING rule 21): the switch,
   // the office hours and the closed days. Settings only — no conversation and
   // no message body is loaded anywhere in this console (rule 5).
-  const messagingState = await schoolMessaging(school.id);
+  const [messagingState, oversight, messagingStaff] = await Promise.all([
+    schoolMessaging(school.id),
+    oversightForSchool(school.id),
+    messagingStaffForSchool(school.id),
+  ]);
   const messaging = {
     onSchoolPlan: messagingState.onSchoolPlan,
     frozen: account.status === "FROZEN",
     enabled: messagingState.enabled,
     windows: messagingState.policy.windows,
     closures: messagingState.closures,
+    oversight,
+    messagingStaff,
   };
 
   // School-wide classes (for the Classes tab and the "assign classes" picker).

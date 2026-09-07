@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { parentLogout } from "@/app/actions/family";
 import { FamilySettings } from "./FamilySettings";
+import { FamilyThread } from "./FamilyThread";
 import { relativeDay } from "@/lib/relativeDay";
 import type { ParentChild, ParentMoment, ParentSession } from "@/lib/parentAuth";
+import type { ThreadView } from "@/lib/messaging/threads";
 import { Icon, type IconName } from "@/components/icons/Icon";
 
 const TYPE_LABEL: Record<string, string> = { PHOTO: "Photo", DRAWING: "Drawing", TEXT: "Their words", AUDIO: "Voice" };
@@ -18,7 +20,7 @@ function avatarColor(seed: string) {
   return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
 }
 
-export function ParentHome({ parent }: { parent: ParentSession }) {
+export function ParentHome({ parent, threads = {}, unread = {} }: { parent: ParentSession; threads?: Record<string, ThreadView>; unread?: Record<string, number> }) {
   const [childId, setChildId] = useState(parent.children[0]?.id ?? "");
   const child = parent.children.find((c) => c.id === childId) ?? parent.children[0];
 
@@ -42,6 +44,9 @@ export function ParentHome({ parent }: { parent: ParentSession }) {
                 >
                   <span style={{ width: 26, height: 26, borderRadius: "50%", background: avatarColor(ch.id), display: "flex", alignItems: "center", justifyContent: "center", font: "600 13px var(--font-fredoka)", color: "#FFFDF7" }}>{ch.name[0]?.toUpperCase()}</span>
                   {ch.name}
+                  {(unread[ch.id] ?? 0) > 0 && (
+                    <span aria-label={`${unread[ch.id]} new message${unread[ch.id] === 1 ? "" : "s"}`} style={{ font: "700 12px var(--font-atkinson)", color: "var(--paper)", background: "var(--jam)", borderRadius: 999, padding: "1px 8px" }}>{unread[ch.id]}</span>
+                  )}
                 </button>
               );
             })}
@@ -53,7 +58,7 @@ export function ParentHome({ parent }: { parent: ParentSession }) {
       </header>
 
       {child ? (
-        <ChildView child={child} parent={parent} />
+        <ChildView child={child} parent={parent} thread={threads[child.id] ?? null} unread={unread} />
       ) : (
         // A family space with nobody in it. It should not outlive its last link
         // (removing the last child deletes the row), but if one is ever reached
@@ -72,7 +77,7 @@ export function ParentHome({ parent }: { parent: ParentSession }) {
   );
 }
 
-function ChildView({ child, parent }: { child: ParentChild; parent: ParentSession }) {
+function ChildView({ child, parent, thread, unread }: { child: ParentChild; parent: ParentSession; thread: ThreadView | null; unread: Record<string, number> }) {
   return (
     <main style={{ maxWidth: 940, margin: "0 auto", padding: "30px 32px 60px" }}>
       {/* jar hero */}
@@ -104,6 +109,8 @@ function ChildView({ child, parent }: { child: ParentChild; parent: ParentSessio
           ))}
         </div>
       )}
+
+      {thread && <FamilyThread view={thread} unread={unread[child.id] ?? 0} />}
 
       <p style={{ margin: "26px 2px 0", font: "400 14px/1.55 var(--font-atkinson)", color: "var(--sj-muted)" }}>
         Your child&apos;s storyjar is managed by their school. You can view it, but only their teacher can add or change what&apos;s inside. Questions? Speak to the school office.

@@ -58,6 +58,7 @@ const SECTIONS: { href: string; label: string; icon: IconName; exact?: boolean }
   { href: "/teacher/queue", label: "Queue", icon: "waiting" },
   { href: "/teacher", label: "Journals", icon: "jar", exact: true },
   { href: "/teacher/activities", label: "Activities", icon: "draw" },
+  { href: "/teacher/messages", label: "Messages", icon: "share" },
   { href: "/teacher/calendar", label: "Calendar", icon: "calendar" },
   { href: "/teacher/account", label: "Account", icon: "settings" },
 ];

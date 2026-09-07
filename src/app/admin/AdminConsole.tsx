@@ -491,7 +491,7 @@ function StaffTable({
               {/* Only the unusual case is labelled: a teacher who may not message
                   families, or a TA who may. The default says nothing. */}
               {p.mayMessage !== null && (
-                <span style={{ font: "700 11px var(--font-atkinson)", color: p.mayMessageResolved ? "#2E6B64" : "#B07A1E", whiteSpace: "nowrap" }}>
+                <span style={{ font: "700 11px var(--font-atkinson)", color: p.mayMessageResolved ? "#2E6B64" : "#7A5210", whiteSpace: "nowrap" }}>
                   {p.mayMessageResolved ? "May message families" : "No parent messages"}
                 </span>
               )}

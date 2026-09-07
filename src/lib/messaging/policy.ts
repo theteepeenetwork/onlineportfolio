@@ -187,6 +187,16 @@ export async function removeClosure(schoolId: string, closureId: string, byTeach
   });
 }
 
+/** Staff of a school who may message families: the admin's pickers. */
+export async function messagingStaffForSchool(schoolId: string): Promise<Array<{ id: string; name: string }>> {
+  const staff = await db.teacher.findMany({
+    where: { schoolId, status: "ACTIVE" },
+    select: { id: true, name: true, displayName: true, role: true, mayMessageParents: true },
+    orderBy: { name: "asc" },
+  });
+  return staff.filter(resolveMayMessageParents).map((t) => ({ id: t.id, name: t.displayName ?? t.name }));
+}
+
 /** An admin's per-staff override; null puts the role default back. */
 export async function setStaffMayMessage(schoolId: string, staffId: string, value: boolean | null): Promise<{ ok: boolean; name?: string }> {
   const staff = await db.teacher.findFirst({ where: { id: staffId, schoolId }, select: { id: true, name: true } });

@@ -1,12 +1,23 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { addOfficeHoursClosure, removeOfficeHoursClosure, saveOfficeHours } from "@/app/actions/messaging";
+import {
+  addOfficeHoursClosure,
+  adminSetFamilyHandler,
+  adminShareFamilyThread,
+  adminStopSharingFamilyThread,
+  removeOfficeHoursClosure,
+  saveOfficeHours,
+  setFamilyThreadClosed,
+} from "@/app/actions/messaging";
+import type { OversightRow } from "@/lib/messaging/threads";
 import {
   EARLIEST_OPEN_MINUTE,
   LATEST_CLOSE_MINUTE,
   MAX_WINDOW_MINUTES,
   WEEKDAY_NAMES,
+  formatClosureDay,
+  formatLondonStamp,
   formatMinute,
   toTimeValue,
 } from "@/lib/messaging/officeHours";
@@ -27,6 +38,10 @@ export type MessagingPaneProps = {
   enabled: boolean;
   windows: Array<{ weekday: number; openMinute: number; closeMinute: number }>;
   closures: Array<{ id: string; date: string; label: string }>;
+  /** Metadata about every conversation in the school — never a body. */
+  oversight: OversightRow[];
+  /** Staff who may message families, for the pickers. */
+  messagingStaff: Array<{ id: string; name: string }>;
 };
 
 const INPUT: React.CSSProperties = {
@@ -103,6 +118,7 @@ export function MessagesPane({ messaging, onGoTo }: { messaging: MessagingPanePr
       )}
       <HoursForm messaging={messaging} />
       <ClosuresCard closures={messaging.closures} />
+      <OversightCard rows={messaging.oversight} staff={messaging.messagingStaff} />
       <div style={{ ...CARD, marginTop: 18, padding: "18px 22px" }}>
         <h2 style={{ margin: 0, font: "600 18px var(--font-fredoka)" }}>What families are told</h2>
         <ul style={{ margin: "10px 0 0", paddingLeft: 20, font: "400 15px/1.6 var(--font-atkinson)", color: "#43506B" }}>
@@ -213,8 +229,104 @@ function ClosuresCard({ closures }: { closures: MessagingPaneProps["closures"] }
   );
 }
 
+// The oversight a head actually needs — "is anyone being ignored?" — with no
+// conversation in it. Counts, durations and staff names, per child. An admin
+// can close a thread, give it to a member of staff or change who holds it
+// from here, all without reading a word (SAFEGUARDING rules 5 and 21).
+function OversightCard({ rows, staff }: { rows: OversightRow[]; staff: Array<{ id: string; name: string }> }) {
+  const waiting = rows.reduce((a, r) => a + r.waiting, 0);
+  const oldest = rows.map((r) => r.oldestWaitingISO).filter((x): x is string => Boolean(x)).sort()[0] ?? null;
+  return (
+    <div style={{ ...CARD, marginTop: 18, padding: "20px 24px" }}>
+      <h2 style={{ margin: 0, font: "600 18px var(--font-fredoka)" }}>Conversations across the school</h2>
+      <p style={NOTE}>
+        What you can see: which families have a conversation going, who on the staff can read it, and whether anyone is
+        waiting for a reply. What you cannot see, by design: what was said. You can close a conversation, give it to a
+        colleague, or change who holds it — none of that shows you its contents.
+      </p>
+      <p style={{ margin: "10px 0 0", font: "700 15px var(--font-atkinson)", color: waiting > 0 ? "#7A5210" : "#2E6B64" }}>
+        {rows.length === 0
+          ? "No family has written yet."
+          : waiting === 0
+            ? `${rows.length} conversation${rows.length === 1 ? "" : "s"}, nobody waiting for a reply.`
+            : `${waiting} message${waiting === 1 ? "" : "s"} waiting for a reply${oldest ? `, the oldest since ${formatWhen(oldest)}` : ""}.`}
+      </p>
+      {rows.length > 0 && (
+        <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+          {rows.map((r) => (
+            <OversightRowView key={r.studentId} row={r} staff={staff} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OversightRowView({ row, staff }: { row: OversightRow; staff: Array<{ id: string; name: string }> }) {
+  const readers = [row.handlerName ?? row.classTeacherName, ...row.sharedWith.map((s) => s.name)];
+  const eligible = staff.filter((s) => s.name !== row.classTeacherName && !row.sharedWith.some((x) => x.id === s.id) && s.id !== row.handlerTeacherId);
+  return (
+    <div style={{ display: "grid", gap: 8, padding: "12px 14px", background: "#FAF6EE", border: "1px solid #EFE8D8", borderRadius: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ font: "700 16px var(--font-atkinson)" }}>{row.childName}</span>
+        <span style={{ font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>{row.className}</span>
+        {row.closed && <span style={{ font: "700 12px var(--font-atkinson)", color: "#C2476B" }}>closed</span>}
+        {row.waiting > 0 && (
+          <span style={{ font: "700 12px var(--font-atkinson)", color: "#FAF6EE", background: "#7A5210", borderRadius: 999, padding: "2px 9px" }}>
+            {row.waiting} waiting{row.oldestWaitingISO ? ` since ${formatWhen(row.oldestWaitingISO)}` : ""}
+          </span>
+        )}
+        <span style={{ marginLeft: "auto", font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+          {row.messages} message{row.messages === 1 ? "" : "s"}{row.lastMessageAtISO ? ` · last ${formatWhen(row.lastMessageAtISO)}` : ""}
+        </span>
+      </div>
+      <p style={{ margin: 0, font: "400 14px var(--font-atkinson)", color: "#43506B" }}>
+        Read by: {readers.join(", ")}{row.handlerName && <span style={{ color: "var(--sj-muted)" }}> (held by {row.handlerName} in place of {row.classTeacherName})</span>}
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <form action={setFamilyThreadClosed}>
+          <input type="hidden" name="studentId" value={row.studentId} />
+          <input type="hidden" name="closed" value={row.closed ? "0" : "1"} />
+          <button type="submit" style={QUIET_BTN}>{row.closed ? "Reopen" : "Close conversation"}</button>
+        </form>
+        {row.sharedWith.map((s) => (
+          <form key={s.id} action={adminStopSharingFamilyThread}>
+            <input type="hidden" name="studentId" value={row.studentId} />
+            <input type="hidden" name="teacherId" value={s.id} />
+            <button type="submit" style={QUIET_BTN} aria-label={`Stop sharing ${row.childName}’s conversation with ${s.name}`}>Stop sharing with {s.name}</button>
+          </form>
+        ))}
+        {eligible.length > 0 && (
+          <form action={adminShareFamilyThread} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="hidden" name="studentId" value={row.studentId} />
+            <label className="sj-sr-only" htmlFor={`share-${row.studentId}`}>Share with</label>
+            <select id={`share-${row.studentId}`} name="teacherId" defaultValue="" required style={{ ...INPUT, padding: "7px 9px", font: "400 14px var(--font-atkinson)" }}>
+              <option value="" disabled>Share with…</option>
+              {eligible.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <button type="submit" style={QUIET_BTN}>Share</button>
+          </form>
+        )}
+        <form action={adminSetFamilyHandler} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input type="hidden" name="studentId" value={row.studentId} />
+          <label className="sj-sr-only" htmlFor={`handler-${row.studentId}`}>Held by</label>
+          <select id={`handler-${row.studentId}`} name="teacherId" defaultValue={row.handlerTeacherId ?? ""} style={{ ...INPUT, padding: "7px 9px", font: "400 14px var(--font-atkinson)" }}>
+            <option value="">Class teacher ({row.classTeacherName})</option>
+            {staff.filter((s) => s.name !== row.classTeacherName).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <button type="submit" style={QUIET_BTN}>Set who holds it</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Both composed by hand (officeHours.ts): server and browser ICUs punctuate
+// en-GB differently, and this pane is server-rendered then hydrated.
+function formatWhen(iso: string): string {
+  return formatLondonStamp(new Date(iso));
+}
+
 function formatClosureDate(date: string): string {
-  const [y, m, d] = date.split("-").map(Number);
-  if (!y || !m || !d) return date;
-  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+  return formatClosureDay(date);
 }

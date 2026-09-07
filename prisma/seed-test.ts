@@ -643,6 +643,66 @@ async function main() {
     },
   });
 
+  // ── Parent messaging (SAFEGUARDING rule 21) ───────────────────────────────
+  //
+  // A policy per school, chosen so the office-hours rule is TESTABLE without
+  // faking the clock:
+  //
+  //   St Bede's (A): Monday–Friday 08:00–16:00 — a realistic school. Specs
+  //     that need "open now" rewrite this window around the real time, and
+  //     skip honestly when the real time is outside StoryJar's 06:00–20:00
+  //     caps, because then no valid window can be open.
+  //   Oakfield (B): open ONLY on tomorrow's weekday (London). Today is never
+  //     tomorrow, so a message sent to Oakfield is always held, and the
+  //     next opening always exists — the deterministic "held" fixture.
+  //   Larchwood (C): Monday–Friday, but FROZEN — read-only is asserted.
+  //
+  // Plus two more Oakfield staff: a teaching assistant (may not message
+  // families by default) and a second teacher with no class (eligible to be
+  // shared with or passed to).
+  console.log("[seed-test] Appending parent-messaging policies …");
+  const londonWeekday = (d: Date) => {
+    const name = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short" }).format(d);
+    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(name.slice(0, 3));
+  };
+  const tomorrow = (londonWeekday(new Date()) + 1) % 7;
+  const weekdays = [1, 2, 3, 4, 5].map((weekday) => ({ weekday, openMinute: 8 * 60, closeMinute: 16 * 60 }));
+  const bedesSchoolId = (await db.teacher.findUnique({ where: { email: "teacher@school.uk" }, select: { schoolId: true } }))?.schoolId;
+  if (!bedesSchoolId) throw new Error("[seed-test] expected St Bede's to have a school");
+  for (const [schoolId, windows] of [
+    [bedesSchoolId, weekdays],
+    [oak.id, [{ weekday: tomorrow, openMinute: 8 * 60, closeMinute: 16 * 60 }]],
+    [larch.id, weekdays],
+  ] as const) {
+    await db.messagingPolicy.create({ data: { schoolId, enabled: true, windows: { create: [...windows] } } });
+  }
+  await db.teacher.create({
+    data: {
+      name: "Priya Shah",
+      title: "Mrs",
+      displayStyle: "formal",
+      displayName: "Mrs Shah",
+      email: "ta@oakfield.sch.uk",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "TA",
+      status: "ACTIVE",
+      schoolId: oak.id,
+    },
+  });
+  await db.teacher.create({
+    data: {
+      name: "Daniel Okoro",
+      title: "Mr",
+      displayStyle: "formal",
+      displayName: "Mr Okoro",
+      email: "teacher2@oakfield.sch.uk",
+      passwordHash: await bcrypt.hash("password", 10),
+      role: "TEACHER",
+      status: "ACTIVE",
+      schoolId: oak.id,
+    },
+  });
+
   console.log("\n[seed-test] ✅ Two-tenant fixtures ready.");
   console.log("  School A (St Bede's):  admin  teacher@school.uk / password   class SUN234 (Sunflower)  parent FAM123");
   console.log("  School B (Oakfield):   admin  admin@oakfield.sch.uk / password");

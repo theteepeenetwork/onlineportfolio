@@ -222,3 +222,46 @@ test("a11y (AA): parent family home", async ({ page }) => {
   await loginParent(page, SCHOOL_A.parentFamilyCode);
   assertNoSeriousViolations(await scan(page), "parent family home");
 });
+
+// ---------------------------------------------------------------------------
+// Parent–teacher messages (SAFEGUARDING rule 21). Rule 18 makes AA a hard
+// requirement, and a channel a parent uses from a phone at night is exactly
+// where a missing label or an unannounced status costs somebody the message.
+// Oakfield's hours fall on tomorrow's weekday, so its composer renders the
+// "held" state; the send below exercises the status region too.
+// ---------------------------------------------------------------------------
+
+test("a11y (AA): family space with the message box, before and after sending", async ({ page }) => {
+  await loginParent(page, SCHOOL_B.parentFamilyCode);
+  await expect(page.getByLabel("Your message")).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "family space with the message box");
+  await page.getByLabel("Your message").fill("Just checking Zara has her PE kit for Thursday.");
+  await page.getByRole("button", { name: /^send$/i }).click();
+  await expect(page.getByRole("status")).toContainText(/sent/i);
+  assertNoSeriousViolations(await scan(page), "family space after a held send");
+});
+
+test("a11y (AA): teacher messages inbox and a family's thread", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_B.teacher);
+  await page.goto("/teacher/messages");
+  assertNoSeriousViolations(await scan(page), "teacher messages inbox");
+  await page.locator('a[href^="/teacher/messages/"]').first().click();
+  await page.waitForURL(/\/teacher\/messages\/.+/);
+  await expect(page.getByLabel("Your message")).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "a family's thread, staff side");
+});
+
+test("a11y (AA): admin office-hours and oversight tab", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_B.admin);
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "Messages", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /office hours/i })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "admin messages tab");
+});
+
+test("a11y (AA): a teaching assistant told what they may do", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_B.ta);
+  await page.goto("/teacher/messages");
+  await expect(page.getByText(/aren’t set up to message families/i)).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "messages inbox for a TA");
+});

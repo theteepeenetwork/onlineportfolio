@@ -92,6 +92,15 @@ function scan(file) {
     if (/\$(queryRaw|executeRaw)\s*\(/.test(line)) {
       violations.push(`${rel}:${n}  raw Prisma call not using a tagged template: ${line.trim()}`);
     }
+    // Parent–teacher messages (SAFEGUARDING rule 21). The office-hours hold and
+    // the who-can-read-this scoping are both enforced by one module,
+    // src/lib/messaging/threads.ts, and only hold if nothing else queries the
+    // three message tables. A second caller is a caller that can forget the
+    // delivery filter. (`messagingPolicy` is a different table and is not
+    // caught: the word boundary after `message` excludes it.)
+    if (/\b(db|tx|prisma)\.(message|messageThread|messageThreadShare)\b/.test(line) && rel !== "src/lib/messaging/threads.ts") {
+      violations.push(`${rel}:${n}  message tables may only be queried from src/lib/messaging/threads.ts (rule 21): ${line.trim()}`);
+    }
     // dangerouslySetInnerHTML — banned on user content (SAFEGUARDING rule 15).
     // Allowed only for explicitly reviewed, non-user-content uses.
     if (/dangerouslySetInnerHTML/.test(line)) {

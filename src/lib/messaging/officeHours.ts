@@ -283,6 +283,28 @@ export function describeOpening(opening: Date, now: Date, timezone: string = DEF
   return `at ${time} on ${WEEKDAY_NAMES[o.weekday]} ${o.day} ${month}`;
 }
 
+// Timestamps composed by hand rather than by Intl's combined format, because
+// Node's ICU and Chrome's ICU do not agree on the punctuation of en-GB
+// ("Mon 7 Sept" against "Mon, 7 Sept"), and a component rendered on the
+// server and hydrated in the browser then fails to hydrate over a comma.
+// Intl supplies only the zone-adjusted parts; the string is ours.
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"] as const;
+
+/** "Mon 7 Sept, 16:57" in the policy's zone. Identical on server and client. */
+export function formatLondonStamp(instant: Date, timezone: string = DEFAULT_TIMEZONE): string {
+  const p = localParts(instant, timezone);
+  return `${WEEKDAY_SHORT[p.weekday]} ${p.day} ${MONTH_SHORT[p.month - 1]}, ${toTimeValue(p.minute)}`;
+}
+
+/** "Mon 7 Sept 2026" for a "YYYY-MM-DD" closure date; the input back if malformed. */
+export function formatClosureDay(date: string): string {
+  if (!isClosureDate(date)) return date;
+  const [y, m, d] = date.split("-").map(Number);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return `${WEEKDAY_SHORT[weekday]} ${d} ${MONTH_SHORT[m - 1]} ${y}`;
+}
+
 /** "Monday to Friday, 8:00am to 4:00pm" style summary for a policy. */
 export function describePolicy(policy: Policy): string {
   const days = policy.windows

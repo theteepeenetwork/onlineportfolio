@@ -169,3 +169,38 @@ export async function clientIp(): Promise<string> {
 // The friendly message shown when throttled — plain English, no jargon.
 export const RATE_LIMITED_MESSAGE =
   "Too many attempts just now. Please wait a few minutes and try again.";
+
+// ---------------------------------------------------------------------------
+// A plain sliding budget, keyed on WHO rather than where from. Parent–teacher
+// messages (SAFEGUARDING rule 21) use it keyed on the sender's own id, never
+// the address: a school is one NAT IP (F16, above), so an IP-keyed limit on
+// sending would throttle a whole staffroom because one teacher was busy.
+//
+// The ceiling is an abuse brake, not a quota — a distressed parent writing a
+// handful of messages in a row must never hit it. In-memory, like the rest of
+// this file (F2's residual), and never stored.
+// ---------------------------------------------------------------------------
+type BudgetEntry = { count: number; firstAt: number };
+
+const budgetStore = new Map<string, BudgetEntry>();
+
+export const MESSAGE_SEND_MAX = 40;
+export const MESSAGE_SEND_WINDOW_MS = 15 * 60 * 1000;
+
+/** Spend one unit of the key's budget; false when the window's ceiling is reached. */
+export function allowWithinBudget(key: string, max: number = MESSAGE_SEND_MAX, windowMs: number = MESSAGE_SEND_WINDOW_MS): boolean {
+  const now = Date.now();
+  if (budgetStore.size >= 5000) {
+    for (const [k, e] of budgetStore) {
+      if (e.firstAt + windowMs < now) budgetStore.delete(k);
+    }
+  }
+  const e = budgetStore.get(key);
+  if (!e || e.firstAt + windowMs < now) {
+    budgetStore.set(key, { count: 1, firstAt: now });
+    return true;
+  }
+  if (e.count >= max) return false;
+  e.count += 1;
+  return true;
+}
