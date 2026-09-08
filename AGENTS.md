@@ -263,6 +263,7 @@ lives only in a chat session.
 | [`docs/launch-triage.md`](./docs/launch-triage.md) | Wave 1 evidence from the four surface leads |
 | [`docs/launch-batch-b.md`](./docs/launch-batch-b.md) | Batch B, the Railway variables table, and the Batch A outcome |
 | [`docs/ops-recovery.md`](./docs/ops-recovery.md) | How the operator gets back in. Read it while you can still sign in |
+| [`docs/restore-rehearsal.md`](./docs/restore-rehearsal.md) | Rehearsing a restore, which handbook R12 requires before any deletion path can ship. What to do, what counts as passing, and where to write down that it happened |
 | [`docs/ops-facts.md`](./docs/ops-facts.md), [`docs/ops-backup-options.md`](./docs/ops-backup-options.md) | The briefs checked against the repository; the backup options for decision D2 |
 | [`docs/TEST_LOGINS.md`](./docs/TEST_LOGINS.md) | Every fixture account, all four roles. Fictional data only, forever |
 | [`docs/agent-fleet.md`](./docs/agent-fleet.md) | Running several Claude sessions on this repo at once |

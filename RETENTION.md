@@ -165,7 +165,7 @@ The school remains the data controller regardless of who pays. Consequences:
       finding rather than a documentation update, because a stored sign-in email
       holds a working link.
 - [ ] **Confirm where Railway stores volume backups**, and record the answer here. Railway's documentation describes the backup schedule and pricing but does not state a region. SAFEGUARDING rule 10 commits StoryJar to UK or EU storage for all personal data, and a backup is a complete copy of every child's photograph, drawing and voice note. **Until this is answered, the privacy notice must not claim backups are held in the EU.** This is a question for Railway support, not something to infer from the service's own region.
-- [ ] **Rehearse a restore before the pilot.** Backups now exist, which is not the same as recovery. Handbook R12 blocks account deletion until one restore has been performed end to end with a media checksum sample. An untested backup is a belief.
+- [ ] **Rehearse a restore before the pilot** — the steps, and what counts as passing, are written down in [`docs/restore-rehearsal.md`](./docs/restore-rehearsal.md). Backups now exist, which is not the same as recovery. Handbook R12 blocks account deletion until one restore has been performed end to end with a media checksum sample. An untested backup is a belief.
 - [ ] Surface this schedule in the customer-facing privacy notice and DPA in
       plain language (Children's Code transparency standard).
 
