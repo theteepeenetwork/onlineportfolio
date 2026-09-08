@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import path from "node:path";
 import { loginTeacher } from "../helpers";
 
 // ===========================================================================
@@ -38,6 +40,13 @@ import { loginTeacher } from "../helpers";
 // ===========================================================================
 
 const db = new PrismaClient();
+
+// Where the media route actually looks. A `JournalItem` row pointing at a file
+// that does not exist is served as 404 — the same answer as "you may not have
+// this", because the route deliberately does not distinguish the two (rule 8,
+// deny by default and leak nothing). So a spec asserting AUTHORISATION has to
+// put a real file there, or it is asserting that a missing file is missing.
+const MEDIA_DIR = path.join(process.cwd(), ".media");
 
 /**
  * Sign in, and WAIT FOR THE REDIRECT TO LAND before anybody navigates.
@@ -89,6 +98,13 @@ type World = {
   familyCode: string;
 };
 
+/** Write a real file into the media directory and return the path the row stores. */
+function mediaFile(name: string): string {
+  mkdirSync(MEDIA_DIR, { recursive: true });
+  writeFileSync(path.join(MEDIA_DIR, name), '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>');
+  return `/uploads/${name}`;
+}
+
 async function makeSchool(tag: string): Promise<World> {
   const stamp = `${tag}-${Math.random().toString(36).slice(2, 7)}`;
   const school = await db.school.create({ data: { name: `Rollover ${stamp}`, verifiedAt: new Date() } });
@@ -121,7 +137,7 @@ async function makeSchool(tag: string): Promise<World> {
       // A media path, so the `/uploads` authorisation can be exercised: the
       // whole point of the audit's fix is that this file must still reach the
       // NEW teacher after the child has moved.
-      mediaPath: `/uploads/rollover-${stamp}.svg`,
+      mediaPath: mediaFile(`rollover-${stamp}.svg`),
       status: "APPROVED",
       studentId: pupil.id,
       classId: klass.id,
@@ -139,6 +155,8 @@ async function makeSchool(tag: string): Promise<World> {
 }
 
 async function teardown(w: World) {
+  const item = await db.journalItem.findUnique({ where: { id: w.momentId }, select: { mediaPath: true } });
+  if (item?.mediaPath) rmSync(path.join(MEDIA_DIR, path.basename(item.mediaPath)), { force: true });
   await db.journalItem.deleteMany({ where: { studentId: w.pupilId } });
   await db.parent.deleteMany({ where: { id: w.parentId } });
   await db.student.deleteMany({ where: { id: w.pupilId } });
@@ -226,7 +244,13 @@ test("after the move the new teacher reaches the child and last year's media, an
     await onMoveUp(page);
     await page.getByLabel(/Next year.s teacher/i).selectOption(w.incomingId);
     await page.getByRole("button", { name: /^Move 1 up$/ }).click();
-    await expect(page.getByText(/needs the new class code/i)).toBeVisible({ timeout: 15_000 });
+    // Read from "What you have moved", which the SERVER builds from the audit
+    // log. A success cannot be shown inside the row that produced it: archiving
+    // removes that row in the same commit that delivers the result. CI found
+    // that by waiting fifteen seconds for a message the screen could not show,
+    // and a first fix that kept the outcome in React state failed the same way,
+    // because the row unmounts before its effect can hand anything upwards.
+    await expect(page.getByText(/a new class code was issued/i)).toBeVisible({ timeout: 15_000 });
 
     const media = (await db.journalItem.findUniqueOrThrow({ where: { id: w.momentId } })).mediaPath!;
     const incoming = await db.teacher.findUniqueOrThrow({ where: { id: w.incomingId } });
@@ -241,8 +265,12 @@ test("after the move the new teacher reaches the child and last year's media, an
     await signIn(inPage, incoming.email);
     await inPage.goto(`/teacher/students/${w.pupilId}`);
     await expect(inPage.getByRole("heading", { name: /Amara/ })).toBeVisible();
+    // A REAL FILE IS ON DISK FOR THIS ONE (see `mediaFile`), so a 404 here can
+    // only mean the route refused — which is the thing being tested. Without it
+    // the assertion would pass or fail on whether a file existed, and the route
+    // answers 404 to both questions on purpose.
     const okay = await inPage.request.get(media);
-    expect(okay.status(), "the new teacher must be able to load last year's drawing").not.toBe(404);
+    expect(okay.status(), "the new teacher must be able to load last year's drawing").toBe(200);
     await inCtx.close();
 
     // THE OUTGOING TEACHER no longer teaches this child, and loses both.
@@ -293,6 +321,7 @@ test("leavers are archived, and every child's work survives it", async ({ page }
     await page.getByRole("button", { name: /They.re leaving/i }).click();
     await page.getByLabel(/Type .* to confirm/i).fill(w.className);
     await page.getByRole("button", { name: /Archive as leavers/i }).click();
+    // From the same server-read record, for the reason given in the move test.
     await expect(page.getByText(/Nothing was deleted/i).first()).toBeVisible({ timeout: 15_000 });
 
     const after = await counts(w);

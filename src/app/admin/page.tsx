@@ -213,6 +213,27 @@ export default async function AdminPage({
     }),
   ]);
   const pendingFor = new Map(pendingByClass.map((r) => [r.classId, r._count._all]));
+
+  // WHAT HAS ALREADY MOVED, READ FROM THE AUDIT LOG RATHER THAN HELD IN THE
+  // BROWSER, and that is a fix rather than a preference.
+  //
+  // The first version kept this in React state on the pane. It never rendered:
+  // a successful move ARCHIVES the class, so the row that produced the message
+  // is removed by the same revalidation that delivers it, and the row's effect
+  // never runs to hand it upwards. CI found that by waiting fifteen seconds,
+  // twice, for a message the screen could not show.
+  //
+  // The audit log is the right source anyway. It is already what this console
+  // trusts for class custody (see `inheritedOnRemoval` above), it says exactly
+  // what happened in the words the action recorded, and — unlike anything in the
+  // browser — it is still there tomorrow, which is what an admin working through
+  // fourteen classes over an afternoon actually needs.
+  const movedRows = await db.auditLog.findMany({
+    where: { schoolId: school.id, action: { in: ["CLASS_MOVED_UP", "CLASS_ARCHIVED"] } },
+    orderBy: { at: "desc" },
+    take: 30,
+    select: { id: true, detail: true },
+  });
   const rollover = {
     onSchoolPlan: account.kind === "SCHOOL",
     verified: Boolean(school.verifiedAt),
@@ -241,6 +262,7 @@ export default async function AdminPage({
     staff: school.staff
       .filter((t) => t.status === "ACTIVE")
       .map((t) => ({ id: t.id, name: t.displayName ?? t.name })),
+    moved: movedRows.map((r) => ({ id: r.id, detail: r.detail ?? "" })).filter((r) => r.detail),
   };
 
   const messaging = {

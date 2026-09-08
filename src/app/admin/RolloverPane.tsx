@@ -70,6 +70,12 @@ export type RolloverPaneProps = {
   /** Refused while the school plan is unpaid, like every other class move. */
   verified: boolean;
   classes: RolloverClass[];
+  /**
+   * What this school has already moved or archived, newest first, in the words
+   * the action recorded. Read from the audit log on the server — see the long
+   * comment where it is loaded, and do not move it back into the browser.
+   */
+  moved: { id: string; detail: string }[];
   /** Archived classes, so a school can see what it has finished with. */
   archived: { id: string; name: string; yearGroup: string | null; archivedAt: string }[];
   staff: { id: string; name: string }[];
@@ -126,6 +132,21 @@ export function RolloverPane({ rollover, onGoTo }: { rollover: RolloverPaneProps
         year&rsquo;s work still in it and still labelled with the class it was made in.
       </p>
 
+      {rollover.moved.length > 0 && (
+        // A RECORD, NOT A FLASH. Read from the audit log on the server, so it
+        // survives the row that produced it being replaced — and survives the
+        // tab being closed and reopened, which is what an admin working through
+        // a whole school over an afternoon needs.
+        <div role="status" style={{ ...CARD, marginTop: 18, padding: "16px 20px", background: "#D8ECE8", borderColor: "#2E6B64" }}>
+          <h2 style={{ margin: 0, font: "600 18px var(--font-fredoka)", color: "#2E6B64" }}>What you have moved</h2>
+          <ul style={{ margin: "8px 0 0", paddingLeft: 20, font: "400 15px/1.7 var(--font-atkinson)", color: "#22304A" }}>
+            {rollover.moved.map((m) => (
+              <li key={m.id}>{m.detail}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {!rollover.verified && (
         <Flash
           tone="bad"
@@ -167,7 +188,9 @@ export function RolloverPane({ rollover, onGoTo }: { rollover: RolloverPaneProps
           </p>
         </div>
       ) : (
-        rollover.classes.map((c) => <ClassRow key={c.id} klass={c} staff={rollover.staff} disabled={!rollover.verified} />)
+        rollover.classes.map((c) => (
+          <ClassRow key={c.id} klass={c} staff={rollover.staff} disabled={!rollover.verified} />
+        ))
       )}
 
       {rollover.archived.length > 0 && (
@@ -201,6 +224,7 @@ function ClassRow({ klass, staff, disabled }: { klass: RolloverClass; staff: { i
   const [leaveState, leaveAction, leavePending] = useActionState<RolloverState | undefined, FormData>(archiveLeavers, {});
   const [leaving, setLeaving] = useState(false);
   const blocked = klass.pending > 0;
+
 
   return (
     <div style={{ ...CARD, marginTop: 18, padding: "18px 22px" }}>
@@ -243,8 +267,11 @@ function ClassRow({ klass, staff, disabled }: { klass: RolloverClass; staff: { i
               Cancel
             </button>
           </div>
+          {/* Only the refusal. A SUCCESS cannot render here: archiving removes
+              this row in the same commit that delivers the result, so a "done"
+              flash inside it would be written into a component that no longer
+              exists. The outcome is the server-read record above. */}
           {leaveState?.error && <Flash tone="bad" text={leaveState.error} />}
-          {leaveState?.done && <Flash tone="good" text={leaveState.done} />}
         </form>
       ) : (
         <form action={moveAction} style={{ marginTop: 12 }}>
@@ -297,8 +324,8 @@ function ClassRow({ klass, staff, disabled }: { klass: RolloverClass; staff: { i
               They&rsquo;re leaving
             </button>
           </div>
+          {/* Only the refusal — see the note on the leavers form below. */}
           {moveState?.error && <Flash tone="bad" text={moveState.error} />}
-          {moveState?.done && <Flash tone="good" text={moveState.done} />}
         </form>
       )}
     </div>
