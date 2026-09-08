@@ -6,6 +6,7 @@ import { stripeConfigured } from "@/lib/stripe";
 import { messagingStaffForSchool, resolveMayMessageParents, schoolMessaging } from "@/lib/messaging/policy";
 import { oversightForSchool } from "@/lib/messaging/threads";
 import { readSchoolMailHealth } from "@/lib/schoolMailHealth";
+import { formsForSchool } from "@/lib/consentForms";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
@@ -282,6 +283,17 @@ export default async function AdminPage({
     moved: movedRows.map((r) => ({ id: r.id, detail: r.detail ?? "" })).filter((r) => r.detail),
   };
 
+  // PERMISSION SLIPS, AS COUNTS. `formsForSchool` returns a line per class per
+  // form — answered, given, not given, waiting, and the packed-lunch headcount
+  // if the form asked for one — and no child's name anywhere in it. Which child
+  // answered which way is on their class teacher's own screen (rule 5, and the
+  // "administrative records" clause in rule 21).
+  const forms = {
+    onSchoolPlan: account.kind === "SCHOOL",
+    classes: liveClasses.map((c) => ({ id: c.id, name: c.name })),
+    sent: await formsForSchool(school.id),
+  };
+
   const messaging = {
     onSchoolPlan: messagingState.onSchoolPlan,
     frozen: account.status === "FROZEN",
@@ -405,6 +417,7 @@ export default async function AdminPage({
       audit={audit}
       messaging={messaging}
       rollover={rollover}
+      forms={forms}
     />
   );
 }

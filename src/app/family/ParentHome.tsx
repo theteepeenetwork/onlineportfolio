@@ -4,6 +4,7 @@ import { useState } from "react";
 import { parentLogout } from "@/app/actions/family";
 import { FamilySettings } from "./FamilySettings";
 import { FamilyThread } from "./FamilyThread";
+import { FamilyForms, type FamilyFormView } from "./FamilyForms";
 import { relativeDay } from "@/lib/relativeDay";
 import type { ParentChild, ParentMoment, ParentSession } from "@/lib/parentAuth";
 import type { ThreadView } from "@/lib/messaging/threads";
@@ -20,7 +21,7 @@ function avatarColor(seed: string) {
   return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
 }
 
-export function ParentHome({ parent, threads = {}, unread = {} }: { parent: ParentSession; threads?: Record<string, ThreadView>; unread?: Record<string, number> }) {
+export function ParentHome({ parent, threads = {}, unread = {}, forms = {} }: { parent: ParentSession; threads?: Record<string, ThreadView>; unread?: Record<string, number>; forms?: Record<string, FamilyFormView[]> }) {
   const [childId, setChildId] = useState(parent.children[0]?.id ?? "");
   const child = parent.children.find((c) => c.id === childId) ?? parent.children[0];
 
@@ -58,7 +59,7 @@ export function ParentHome({ parent, threads = {}, unread = {} }: { parent: Pare
       </header>
 
       {child ? (
-        <ChildView child={child} parent={parent} thread={threads[child.id] ?? null} unread={unread} />
+        <ChildView child={child} parent={parent} thread={threads[child.id] ?? null} unread={unread} forms={forms[child.id] ?? []} />
       ) : (
         // A family space with nobody in it. It should not outlive its last link
         // (removing the last child deletes the row), but if one is ever reached
@@ -77,7 +78,7 @@ export function ParentHome({ parent, threads = {}, unread = {} }: { parent: Pare
   );
 }
 
-function ChildView({ child, parent, thread, unread }: { child: ParentChild; parent: ParentSession; thread: ThreadView | null; unread: Record<string, number> }) {
+function ChildView({ child, parent, thread, unread, forms }: { child: ParentChild; parent: ParentSession; thread: ThreadView | null; unread: Record<string, number>; forms: FamilyFormView[] }) {
   return (
     <main style={{ maxWidth: 940, margin: "0 auto", padding: "30px 32px 60px" }}>
       {/* jar hero */}
@@ -109,6 +110,10 @@ function ChildView({ child, parent, thread, unread }: { child: ParentChild; pare
           ))}
         </div>
       )}
+
+      {/* Forms first, then the conversation: a slip has a date on it and the
+          thread does not, so the thing with a deadline comes first. */}
+      <FamilyForms childId={child.id} childName={child.name} forms={forms} />
 
       {thread && <FamilyThread view={thread} unread={unread[child.id] ?? 0} />}
 

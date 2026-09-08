@@ -70,6 +70,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
           assignment: { select: { title: true, quizSnapshotJson: true } },
         },
       },
+      // Permission slips this child's household has answered (rule 22). Held
+      // about the child, so disclosed — and read here rather than through
+      // `consentForms.ts` because the scope is already established above: the
+      // child is in a class this teacher owns, which is the same check
+      // `registersForTeacher` makes.
+      consentAnswers: {
+        orderBy: { respondedAt: "asc" },
+        select: {
+          answer: true,
+          packedLunch: true,
+          respondedAt: true,
+          form: { select: { title: true, formBody: true, closesAt: true, asksPackedLunch: true, createdByName: true } },
+        },
+      },
     },
   });
   if (!student) return new NextResponse("Not found", { status: 404 });
@@ -157,6 +171,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
     // arrive (SAFEGUARDING rule 21).
     messages: thread && !thread.withheldBecause ? thread.messages : [],
     messageThreadReaders: thread && !thread.withheldBecause ? thread.readers : [],
+    // What the school asked permission for, and what the family answered. The
+    // form's own text is included because a bare "GIVEN" answers nothing: what
+    // was consented to is the point of the record.
+    permissionSlips: student.consentAnswers.map((r) => ({
+      title: r.form.title,
+      askedFor: r.form.formBody,
+      answersAskedForBy: r.form.closesAt ? r.form.closesAt.toISOString() : null,
+      sentBy: r.form.createdByName,
+      answer: r.answer,
+      packedLunchRequested: r.form.asksPackedLunch ? r.packedLunch : null,
+      answeredAt: r.respondedAt.toISOString(),
+    })),
     // Named rather than silently missing, so the reader knows what exists and
     // can ask the school for it. The school states how it handles those
     // requests; this file does not.
@@ -167,6 +193,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
         : []),
       "The media files themselves (photos, drawings, voice notes). Their paths are listed above; the files are supplied separately by the school.",
       "Unsubmitted drafts, which are private to the child and are deleted when the work is handed in, or 30 days after it was last touched.",
+      ...(student.consentAnswers.length === 0
+        ? ["No permission slips: the school has not sent one to this class, or this household has not answered one."]
+        : []),
       // The staff line used to say staff names were not included, three lines
       // below the name of the member of staff who produced the file. The
       // accountability is worth more than the omission, so `exportedBy` stays

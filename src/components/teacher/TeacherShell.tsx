@@ -70,6 +70,7 @@ const SECTIONS: { href: string; label: string; icon: IconName; exact?: boolean; 
   { href: "/teacher", label: "Journals", icon: "jar", exact: true },
   { href: "/teacher/activities", label: "Activities", icon: "draw" },
   { href: "/teacher/messages", label: "Messages", icon: "share", schoolOnly: true },
+  { href: "/teacher/forms", label: "Forms", icon: "done", schoolOnly: true },
   { href: "/teacher/calendar", label: "Calendar", icon: "calendar" },
   { href: "/teacher/account", label: "Account", icon: "settings" },
 ];

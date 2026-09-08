@@ -259,6 +259,14 @@ const ADULT_READABLE = [
   "MessagingPolicy",
   "OfficeHourWindow",
   "OfficeHoursClosure",
+  // A permission slip's own text and which classes it went to (8 September
+  // 2026). The school's words about a trip, a date, and a pair of ids — no
+  // child, no parent and no answer is reachable from either, because the ANSWER
+  // is a separate table in CREDENTIAL_NEVER and `responses` on the form is a
+  // child relation whose include fails the relation rule. "Did this school send
+  // a form out, and when" is ordinary support.
+  "ConsentForm",
+  "ConsentFormClass",
 ];
 
 // Children and everything hanging off them. Counts and school-level groupBy
@@ -512,6 +520,12 @@ const CREDENTIAL_NEVER = [
   // records dressed as workflow. Refused whole. Support never needs one: the
   // school sees its own requests on its own console.
   "ExportRequest",
+  // One household's answer on a permission slip (8 September 2026). A named
+  // child, a named household, and a decision an adult made about that child —
+  // the `Message` reasoning word for word, and one join from the child either
+  // way. Refused whole: no row, no count, no confirmation that an answer exists.
+  // The FORM is school text and is ADULT_READABLE above; the ANSWER is a person.
+  "ConsentResponse",
 ];
 
 // The operator's own records.

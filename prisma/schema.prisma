@@ -338,11 +338,124 @@ model School {
   messagingPolicy MessagingPolicy?
   messageThreads  MessageThread[]
   exportRequests  ExportRequest[]
+  consentForms    ConsentForm[]
   // The school's classes, held directly rather than through whoever teaches
   // them. See the long comment on `Class.schoolId`: this is what retires the
   // 29 August 2026 widening that made a removed colleague's classes land on the
   // admin who removed them.
   classes         Class[]
+}
+
+// ===========================================================================
+// PERMISSION SLIPS
+//
+// The biggest paper-and-phone burden in a primary office: a trip, a photograph
+// consent, a walk to the library, thirty slips in thirty book bags and a
+// fortnight of chasing the four that never came back.
+//
+// ---------------------------------------------------------------------------
+// THE ANSWER SET IS STORYJAR'S, NOT THE SCHOOL'S, AND THAT IS THE WHOLE DESIGN.
+// ---------------------------------------------------------------------------
+//
+// SAFEGUARDING rule 19 closes with: "A tag that records something about the
+// CHILD — SEN status, a diagnosis, a health need, ethnicity, religion — is
+// special category data and does not belong in StoryJar." Rule 21 refused
+// absence and illness reporting on the same ground, in the same words.
+//
+// A permission slip is exactly where that line gets crossed by accident. Let a
+// school type its own answer labels and within a term somebody writes "Does your
+// child have a nut allergy? Yes / No", and StoryJar is processing health data
+// about children — which flips the answer to the ICO's registration question,
+// makes appointing a DPO mandatory under Art. 37(1)(c), and requires a new DPIA
+// before any of it ships (rule 19 spells that cost out next to the temptation).
+//
+// So the school writes the QUESTION and never an answer. The answers are a
+// constant in src/lib/consent.ts, the way officeHours.ts holds the caps:
+//
+//   • I give permission  /  I do not give permission
+//   • and, only if the school switches it on, "my child needs a packed lunch
+//     provided" — a free-school-meals child on a trip day. That is a catering
+//     headcount, not a dietary record, and the distinction is the reason it is
+//     the ONE extra answer allowed (owner decision, 8 September 2026).
+//
+// There is NO free-text field on a response, anywhere, by construction. Every
+// form carries a standing line: anything medical, dietary or about access goes
+// to the school office, which already holds it.
+//
+// This keeps the DPIA's "no special category data" claim true BY CONSTRUCTION
+// rather than by asking a school to be careful.
+// ===========================================================================
+
+// A form the school sends out. School text only: no child, no parent, no answer.
+model ConsentForm {
+  id                 String    @id @default(cuid())
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId           String
+  title              String
+  // The school's own words: what the trip is, when, what the permission covers.
+  //
+  // NAMED `formBody` AND NOT `body`. The ops blindness gate denies `body` by
+  // name, and a denied identifier has to be one nothing else has a reason to
+  // use — the same reasoning that produced `messageBody`.
+  formBody           String
+  // When the school stops accepting answers. Advisory: a late answer is still
+  // an answer, and the register says who has not replied rather than shutting
+  // them out.
+  closesAt           DateTime?
+  // Does this form ask the packed-lunch question? False unless the school
+  // switches it on, because most permissions have nothing to do with a meal.
+  asksPackedLunch    Boolean   @default(false)
+  createdByTeacherId String
+  createdByName      String
+  createdAt          DateTime  @default(now())
+
+  classes   ConsentFormClass[]
+  responses ConsentResponse[]
+
+  @@index([schoolId, createdAt])
+}
+
+// Which classes a form went to. Two ids and nothing else.
+model ConsentFormClass {
+  id      String      @id @default(cuid())
+  form    ConsentForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  formId  String
+  class   Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId String
+
+  @@unique([formId, classId])
+  @@index([classId])
+}
+
+// One household's answer for one child.
+//
+// A PARENT'S DECISION ABOUT A NAMED CHILD, which is why this is
+// CREDENTIAL_NEVER in the ops blindness gate while the form itself is
+// ADULT_READABLE: the form is school text, the response is a person.
+//
+// `answer` is one of the values in src/lib/consent.ts and is never free text.
+// `packedLunch` is a boolean and is only ever asked when the form asks it.
+model ConsentResponse {
+  id          String      @id @default(cuid())
+  form        ConsentForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  formId      String
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  // Which household answered. SET NULL rather than cascade, so a register does
+  // not lose the answer when a family space is closed — the school acted on it,
+  // and "somebody gave permission" is the record.
+  parent      Parent?     @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  parentId    String?
+  answer      String
+  packedLunch Boolean     @default(false)
+  respondedAt DateTime    @default(now())
+
+  // ONE ANSWER PER CHILD PER FORM. Two guardians do not get a vote each: the
+  // second one to answer replaces the first, and the register shows the answer
+  // that stands. A school chasing a slip needs one row per child, not an
+  // argument.
+  @@unique([formId, studentId])
+  @@index([studentId])
 }
 
 // A school asking one of its teachers for a copy of a class's data.
@@ -738,6 +851,7 @@ model Class {
   drafts         Draft[]
   messageThreads MessageThread[]
   exportRequests ExportRequest[]
+  consentForms   ConsentFormClass[]
 
   @@index([schoolId])
 }
@@ -745,12 +859,12 @@ model Class {
 // A student has no password — they pick their name from the class after
 // entering the class code (mirrors how Seesaw handles young children).
 model Student {
-  id            String              @id @default(cuid())
-  name          String
-  avatarColor   String              @default("#4f46e5") // colour of their avatar bubble
-  class         Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
-  classId       String
-  createdAt     DateTime            @default(now())
+  id             String              @id @default(cuid())
+  name           String
+  avatarColor    String              @default("#4f46e5") // colour of their avatar bubble
+  class          Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId        String
+  createdAt      DateTime            @default(now())
   // When this child last opened their jar. Approval happens while they're away,
   // so without this the reward lands in an empty room: anything approved after
   // this timestamp is new to them and drops into the jar when they next look.
@@ -759,15 +873,18 @@ model Student {
   // wayfinding, never a measure of how often a child uses StoryJar. Never
   // aggregate, report or export it, and never show it to a parent: that is
   // profiling, which SAFEGUARDING rule 11 forbids. See RETENTION.md.
-  jarSeenAt     DateTime?
-  journalItems  JournalItem[]
-  sessions      Session[]
-  assignments   AssignmentStudent[]
-  parents       Parent[]            @relation("ParentChildren")
-  drafts        Draft[] // in-progress activity-response drafts (cross-device autosave)
+  jarSeenAt      DateTime?
+  journalItems   JournalItem[]
+  sessions       Session[]
+  assignments    AssignmentStudent[]
+  parents        Parent[]            @relation("ParentChildren")
+  drafts         Draft[] // in-progress activity-response drafts (cross-device autosave)
   // The one conversation between this child's guardians and their class
   // teacher (SAFEGUARDING rule 21). Never readable by the child.
-  messageThread MessageThread?
+  messageThread  MessageThread?
+  // Permission slips answered for this child. One row per form, whichever
+  // household answered.
+  consentAnswers ConsentResponse[]
 }
 
 // A parent/carer with a read-only family view of their own child(ren)'s jar.
@@ -786,15 +903,18 @@ model Student {
 // at most one family. Never look a parent up by an empty/absent address — see
 // requestMagicLink, which rejects a blank input before it reaches the database.
 model Parent {
-  id           String       @id @default(cuid())
-  name         String?
-  email        String?      @unique
-  familyCode   String       @unique // the code printed on the school's letter
-  createdAt    DateTime     @default(now())
-  children     Student[]    @relation("ParentChildren")
-  sessions     Session[]
-  magicTokens  MagicToken[]
-  sentMessages Message[]    @relation("MessageSenderParent")
+  id             String            @id @default(cuid())
+  name           String?
+  email          String?           @unique
+  familyCode     String            @unique // the code printed on the school's letter
+  createdAt      DateTime          @default(now())
+  children       Student[]         @relation("ParentChildren")
+  sessions       Session[]
+  magicTokens    MagicToken[]
+  sentMessages   Message[]         @relation("MessageSenderParent")
+  // Permission slips this household has answered. SET NULL on the response, so
+  // closing a family space does not take the school's record of the decision.
+  consentAnswers ConsentResponse[]
 }
 
 // A single-use, expiring token behind a parent "magic link" email.

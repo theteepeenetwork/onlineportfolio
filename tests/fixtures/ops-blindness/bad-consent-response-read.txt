@@ -1,0 +1,11 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-MODEL-METHOD
+import "server-only";
+import { db } from "@/lib/db";
+
+// A permission slip's ANSWER is a named child, a named household and a decision
+// an adult made about that child: CREDENTIAL_NEVER, exactly as a message is. The
+// FORM is school text and is ADULT_READABLE; this is not the form.
+export async function consentTally() {
+  return db.consentResponse.count({ where: { answer: "GIVEN" } });
+}
