@@ -298,17 +298,43 @@ model School {
   // school before touching anything.
   claimedByTeacherId String?
 
-  staff           Teacher[]
+  staff             Teacher[]
   // The school's billing subscription (school plan). Null until one is created;
   // the plan label shown in the admin console is derived from this, not stored.
-  subscription    Subscription?
+  subscription      Subscription?
   // Offers this school has made to teachers who already hold their own
   // account. Not a second staff list: a row here is a question, and only
   // `Teacher.schoolId` is an answer.
-  invitations     SchoolInvitation[]
+  invitations       SchoolInvitation[]
   // Parent messaging: the school's office hours and switch (SAFEGUARDING rule
   // 21), and the threads denormalised onto the school so a policy change can
   // recompute every undelivered message in one query.
+  // When this school closed its own account, and the instruction it gave.
+  //
+  // CLOSING IS NOT DELETING, AND THIS COLUMN MUST NEVER BE READ AS IF IT WERE.
+  // Handbook R12 forbids any deletion path until a restore has been rehearsed
+  // (docs/restore-rehearsal.md), and owner decision D5 (docs/ops-architecture.md,
+  // 17 Aug 2026) says school deletion does not exist in v1 at all. So a closed
+  // school is frozen, its staff are detached, and every row and file it holds is
+  // exactly where it was — waiting for RETENTION.md's schedule, which is carried
+  // out by hand until the frozen → deletion pipeline is built.
+  //
+  // WHAT IT IS FOR is that a school asking to be closed used to have no route
+  // but "emailing somebody and hoping" (the business-manager persona's words).
+  // This is the instruction, with a date on it, in the school's own audit log,
+  // which is what turns a hope into a record. `closureReason` is the admin's own
+  // sentence about why, kept because a deletion carried out later has to be
+  // traceable to the instruction that asked for it.
+  //
+  // The School ROW ITSELF IS KEPT even after the data goes: `Subscription`
+  // cascades from it and billing records are a six-year retention category, so
+  // the row outlives the school as the billing stub. Deleting it is not the same
+  // operation as erasing the school's children's work and must not be conflated
+  // with it.
+  closedAt          DateTime?
+  closedByTeacherId String?
+  closureReason     String?
+
   messagingPolicy MessagingPolicy?
   messageThreads  MessageThread[]
   // The school's classes, held directly rather than through whoever teaches

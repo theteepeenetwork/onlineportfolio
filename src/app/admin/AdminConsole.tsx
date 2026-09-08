@@ -132,6 +132,7 @@ const ACTION_LABEL: Record<string, string> = {
   SCHOOL_INVITATION_DECLINED: "Declined an invitation",
   CLASS_JOINED_SCHOOL: "Class came to the school",
   CLASS_LEFT_SCHOOL: "Class went back to its teacher",
+  SCHOOL_CLOSED: "School closed its account",
   SCHOOL_PLAN_ENDED_TEACHER_DETACHED: "Plan ended — staff back on their own plan",
   OFFICE_HOURS_SAVED: "Set office hours",
   MESSAGING_SWITCHED_OFF: "Switched parent messages off",
@@ -209,7 +210,7 @@ export function AdminConsole({
    * the same time, on purpose — and the three controls it withholds are named
    * one by one below rather than hidden behind a general "unavailable".
    */
-  billing: Omit<BillingProps, "invoiceRequested"> & { verified: boolean };
+  billing: Omit<BillingProps, "invoiceRequested" | "onGoTo"> & { verified: boolean };
   /** Why the admin arrived back here from an action that refused them, if they did. */
   blocked: "verify" | null;
   meId: string;
@@ -453,7 +454,7 @@ export function AdminConsole({
 
         {tab === "billing" && (
           <div onClick={(e) => e.stopPropagation()}>
-            <BillingPane {...billing} invoiceRequested={false} />
+            <BillingPane {...billing} invoiceRequested={false} onGoTo={(t) => { setTab(t); closeMenus(); }} />
           </div>
         )}
 

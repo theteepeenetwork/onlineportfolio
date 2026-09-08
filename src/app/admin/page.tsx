@@ -367,6 +367,11 @@ export default async function AdminPage({
     // everything being fine. The object holds no address, domain, school or
     // child, which is why it may cross to the browser at all.
     mailHealth: await readSchoolMailHealth(),
+    // Set once the school has closed its account. Read from the column rather
+    // than derived from the frozen state: a school can be frozen for a missed
+    // payment without ever having asked to leave, and the two must not look
+    // alike on a screen whose whole job is to say what has happened.
+    closedOnISO: school.closedAt ? school.closedAt.toISOString() : null,
   };
 
   return (

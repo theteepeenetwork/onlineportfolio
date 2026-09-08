@@ -109,6 +109,26 @@
    across several personal accounts before anybody has phoned the bank, and
    re-paying a subscription cannot un-detach a teacher.
 
+## Closing an account
+
+A school admin can close their own account from the Billing tab
+(`src/app/actions/closure.ts`, 8 September 2026). It **records the instruction**
+— the date, the admin who gave it, and their own sentence about why — in the
+school's audit log, releases every member of staff back to their own free plan
+with the classes they brought in, and freezes the plan.
+
+**Closing is not deleting, and the screen says so rather than implying
+otherwise.** Every class, every piece of work and every file stays exactly where
+it is and is removed on the schedule above. Two things on the record keep it that
+way: owner decision **D5** (`docs/ops-architecture.md`) says school deletion does
+not exist in v1, and handbook **R12** blocks every deletion path until a restore
+has been rehearsed end to end (`docs/restore-rehearsal.md`). Until then the
+erasure that follows a closure is the manual on-demand route below, which is what
+the closure card tells the school.
+
+That is deliberate rather than merely unfinished: it means a class somebody
+forgot to export is still there next week.
+
 ## On-demand deletion (right to erasure, Art. 17)
 
 A verified instruction from the school — or, for a free teacher account, the

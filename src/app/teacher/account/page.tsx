@@ -19,11 +19,11 @@ import { originUrl } from "@/lib/appOrigin";
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; frozen?: string; purchase?: string; joined?: string }>;
+  searchParams: Promise<{ checkout?: string; frozen?: string; purchase?: string; joined?: string; closed?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") return null;
-  const { checkout, frozen, purchase, joined } = await searchParams;
+  const { checkout, frozen, purchase, joined, closed } = await searchParams;
 
   const teacher = { id: user.teacher.id, schoolId: user.teacher.schoolId };
   const [profile, account, sub, tokens, apps, origin, planEnded] = await Promise.all([
@@ -134,6 +134,20 @@ export default async function AccountPage({
         {/* Set by the redirect at the end of `joinSchoolPlan`. It says what
             happened rather than "success", because what happened is the thing
             the acceptance screen spent five paragraphs on. */}
+        {closed === "1" && (
+          // The admin who just closed their school's account. They were detached
+          // with everybody else, so the console no longer knows them and sent
+          // them here — this is the only thing standing between them and no word
+          // at all about whether the most consequential action in the product
+          // worked. The durable record is the SCHOOL_CLOSED row in the school's
+          // audit log.
+          <Notice tone="good">
+            Your school&rsquo;s account is closed and the instruction is recorded, with today&rsquo;s date on it. You are
+            back on your own free StoryJar account, with any classes you brought with you when you joined.{" "}
+            <strong>Nothing has been deleted</strong> — the children&rsquo;s work is still held and is removed on the
+            retention schedule. If the school needs it sooner, or needs a copy first, write to us.
+          </Notice>
+        )}
         {planEnded && (
           // Said plainly, and without a number she would have to interpret: the
           // audit row's own detail already names the school, what came back with
