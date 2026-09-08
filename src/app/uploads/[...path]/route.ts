@@ -148,8 +148,33 @@ async function canAccess(urlPath: string): Promise<boolean> {
   //    entitled to — the most sensitive case, scoped straight into the query so
   //    a colliding stranger's row can never decide.
   if (user?.role === "TEACHER") {
+    // THROUGH THE CHILD, NOT THROUGH THE MOMENT'S OWN CLASS, and the difference
+    // is invisible today by construction.
+    //
+    // `JournalItem` carries its own `classId` beside `studentId`, and the
+    // teacher surface reads moments through both: the pupil page and both
+    // exports find the CHILD by `class: { teacherId }` and then take every
+    // moment the child has, whatever class it was made in, while this route and
+    // the approval queue asked the MOMENT which class it belonged to. Those are
+    // the same set for exactly as long as a child never changes class — which is
+    // true in this tree, because nothing updates `Student.classId` and
+    // `removeStudent` erases rather than moves.
+    //
+    // Year-end transfer is the first thing that makes them differ, and the
+    // failure would be silent and precise: the September teacher opens the
+    // child's page, reads the caption and the words of a moment made in Year 2,
+    // and the photograph attached to it 404s. No error, no log, no red test —
+    // the item renders and the picture is a broken box.
+    //
+    // So the file follows the child, exactly as the moment's text already does.
+    // It widens nothing: a teacher who can already read a moment on the pupil
+    // page gets the file attached to it, and no other row becomes reachable. It
+    // narrows correctly in the other direction — a teacher who no longer teaches
+    // a child loses the media at the same moment they lose the page.
+    //
+    // The audit that found this is in docs/paid-tier-plan.md, item 1.
     const mine = await db.journalItem.findFirst({
-      where: { AND: [pathMatch, { class: { teacherId: user.teacher.id } }] },
+      where: { AND: [pathMatch, { student: { class: { teacherId: user.teacher.id } } }] },
       select: { id: true },
     });
     if (mine) return true;

@@ -212,6 +212,96 @@ September by an admin in one sitting, with the audit log showing what happened,
 no child's work lost, and no teacher gaining sight of a class they do not teach.
 `npm run test:changed -- --all` green, plus a persona journey for the flow.
 
+### The access-path audit, done 8 September 2026
+
+The deliverable this item asked for before any code. Every path in `src/` that
+decides who may read a child or their work was read, not grepped for and
+assumed. `src/app/ops/` is excluded: the blindness gate already denies it these
+tables.
+
+**There are four authorisation idioms, and only four.**
+
+| Viewer | How the query proves entitlement | Where |
+|---|---|---|
+| Teacher | `class: { teacherId }`, or `teacherId` directly on a `Class` | everywhere on the teacher surface |
+| Child | `studentId: user.student.id`, or `classId: user.student.classId` | `src/app/student/`, `src/lib/drafts.ts` |
+| Parent | `children: { some: { id } }`, or `studentId: { in: childIds }` | `src/lib/parentAuth.ts`, `src/app/family/`, `src/lib/messaging/threads.ts` |
+| School admin | `teacher: { schoolId }` | `src/app/actions/admin.ts` only |
+
+**No teacher-side path authorises through a school.** A class belongs to a school
+only through whoever holds it, and every read says so in the same words. That is
+the fact `Class.schoolId` changes, and it is why adding the column does not
+require rewriting these queries — it adds a second fact rather than replacing the
+one they use.
+
+**The finding: two idioms disagree about whose class a moment belongs to, and
+today nothing can tell.**
+
+`JournalItem` carries its own `classId` alongside `studentId`, and the teacher
+surface reads moments through *both*:
+
+- **Through the child's current class** — `student.journalItems` on a student
+  found by `class: { teacherId }`. The pupil page
+  (`src/app/teacher/students/[studentId]/page.tsx:19`), the per-pupil export
+  (`export/pupil/[studentId]/route.ts:53`) and the class export
+  (`export/[classId]/route.ts`). Every moment the child has ever made comes back,
+  whatever class it was made in.
+- **Through the moment's own class** — `journalItem where class: { teacherId }`.
+  The approval queue (`queue/page.tsx:44`, `queue/[id]/page.tsx:29`), the
+  dashboard's approved count (`teacher/page.tsx:84`), `journalItemForTeacher`
+  (`actions/journal.ts:272`), and — the one that matters —
+  **`src/app/uploads/[...path]/route.ts:152`**, which is how the bytes of a photo,
+  a drawing or a voice note are authorised.
+
+These are the same set for as long as a child never changes class, which is true
+today: nothing in the repository updates `Student.classId`, and `removeStudent`
+erases rather than moves. **The rollover is the first thing that makes them
+differ**, and the failure is silent and specific: the September teacher opens the
+child's page, reads the caption and the words of a moment made in Year 2, and the
+photograph attached to it returns 404. No error, no log, no red test — the item
+renders, the picture is a broken box.
+
+**The fix, and it is a no-op until the day it is needed.** The uploads route's
+teacher branch authorises through the child rather than through the moment:
+
+```ts
+// was:  { class: { teacherId: user.teacher.id } }
+// now:  { student: { class: { teacherId: user.teacher.id } } }
+```
+
+Media then follows the child exactly as the moment's text already does, and the
+two idioms agree again. It widens nothing — a teacher who can already read a
+moment on the pupil page gets the file attached to it — and it narrows correctly
+in the other direction: a teacher who no longer teaches a child loses the media
+at the same moment they lose the page. Because `item.classId === student.classId`
+for every row that exists today, the change is provably inert until a pupil moves;
+the existing `uploads` and `data-protection` specs are the proof, and they must be
+run green **before** the rollover lands, not after.
+
+**Three smaller consequences, decided rather than discovered later.**
+
+1. **The approval queue keeps the moment's own class**, and that is right: you
+   approve work set in your class. But a `PENDING` moment made in July would sit
+   in the *outgoing* teacher's queue after the child has moved, and if that
+   teacher has left the school it is unreachable. The rollover screen therefore
+   **refuses to move a class with anything still pending** and says how many, in
+   the same sentence as the class code warning. A school's July queue should be
+   empty anyway; this makes that a precondition rather than a hope.
+2. **The dashboard's approved count** (`teacher/page.tsx:84`) stays on the
+   moment's class, so a September teacher's "approved this term" does not
+   retrospectively absorb last year's work. Intended, and stated here so nobody
+   "fixes" it.
+3. **`JournalItem.classId` is never rewritten by a move.** Last year's work stays
+   labelled with last year's class, which is what this item asked for. The
+   audit's fix is what makes that safe rather than merely tidy.
+
+**Unaffected, checked rather than assumed:** the child's own surface (scoped by
+`student.id`, never by class), the parent surface and the message threads (scoped
+by the `ParentChildren` link and re-derived per request), drafts
+(`src/lib/drafts.ts`, scoped by `student.id` and by the assignment), the family
+code and class code lookups, and `src/lib/erasure.ts`, which takes ids from
+callers that have already resolved ownership and is documented as doing so.
+
 ---
 
 ## 2. The procurement pack
