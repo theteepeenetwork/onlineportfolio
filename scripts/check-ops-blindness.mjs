@@ -501,6 +501,17 @@ const CREDENTIAL_NEVER = [
   "MessageThread",
   "MessageThreadShare",
   "Message",
+  // A school asking one of its teachers for a copy of a class's data
+  // (docs/paid-tier-plan.md item 3, 8 September 2026). Two reasons, and the
+  // first alone would be enough. `requestReason` is free text an ADMIN writes
+  // about why the copy is wanted, and the honest example is "SAR from Amara's
+  // mother" — the same R15 free-text problem `AuditLog` and `handoverReason` are
+  // in this class for. And the row is one join from a Class, which is
+  // AGGREGATE_ONLY: a per-class row an operator could list would say which
+  // classes a school is being asked about, which is a fact about children's
+  // records dressed as workflow. Refused whole. Support never needs one: the
+  // school sees its own requests on its own console.
+  "ExportRequest",
 ];
 
 // The operator's own records.
@@ -697,6 +708,14 @@ const DENY_FIELDS = [
   // R15 free-text reasoning applies and it is denied with the body.
   "messageBody",
   "handoverReason",
+  // The admin's own sentence about why a class's data has been asked for. Same
+  // free-text reasoning as `handoverReason` above; the model is already
+  // CREDENTIAL_NEVER and this is the second lock, which stops the identifier
+  // appearing under the ops roots at all. Named `requestReason` rather than
+  // `reason` deliberately: a denied identifier has to be one nothing else has a
+  // reason to use, and the operator area has reasons of its own for every
+  // lookup it records.
+  "requestReason",
   // Teacher-authored activity content, which reaches children and can quote them
   "templatePathsJson",
   // The rendered picture of that same content — the worksheet, its movable

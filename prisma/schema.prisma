@@ -337,11 +337,58 @@ model School {
 
   messagingPolicy MessagingPolicy?
   messageThreads  MessageThread[]
+  exportRequests  ExportRequest[]
   // The school's classes, held directly rather than through whoever teaches
   // them. See the long comment on `Class.schoolId`: this is what retires the
   // 29 August 2026 widening that made a removed colleague's classes land on the
   // admin who removed them.
   classes         Class[]
+}
+
+// A school asking one of its teachers for a copy of a class's data.
+//
+// WHY THIS EXISTS RATHER THAN A BUTTON ON THE ADMIN CONSOLE. A subject access
+// request lands on the school office, not on the class teacher — but
+// SAFEGUARDING rule 5 says an admin never sees a child's work, and
+// `src/app/teacher/export/[classId]/route.ts` is scoped to the teacher who holds
+// the class and says in terms that a request is "a reason to READ OUT what is
+// held, not a reason to widen who may read it". Both of those are right, and
+// between them they left a real gap: the person who receives the request had no
+// way to act on it at all. docs/paid-tier-plan.md item 3 calls that gap out and
+// leaves the shape as an open decision between two candidates.
+//
+// THE SHAPE CHOSEN (8 September 2026): the admin ASKS, the teacher who holds the
+// class FULFILS, and the file goes from the teacher to whoever is entitled to
+// it. The admin sees that the request was made and whether it has been done —
+// never what is inside. It needs no new token, no new expiry, and no new route
+// to a child's data; the rejected alternative, a one-time link the admin can
+// forward without opening, needs all three and puts a class of children's work
+// behind a URL somebody can paste.
+//
+// `requestReason` IS THE ADMIN'S OWN SENTENCE, and it is free text written by an
+// adult that will sometimes name a child ("SAR from Amara's mother"). That is
+// why this table is CREDENTIAL_NEVER in the ops blindness gate and why the field
+// is denied by name there as well: the same reasoning, in the same words, as
+// `MessageThread.handoverReason`. The form warns against it; nothing can do
+// better than a warning, and the residual is recorded rather than argued away.
+model ExportRequest {
+  id                   String    @id @default(cuid())
+  school               School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId             String
+  class                Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId              String
+  // The admin who asked. A bare id: if they leave the school, the request they
+  // made is still a fact about the school, and the audit log holds their name.
+  requestedByTeacherId String
+  requestedByName      String
+  requestReason        String
+  createdAt            DateTime  @default(now())
+  // Stamped when the teacher produces the file. NULL means outstanding, which is
+  // the only state the admin's screen needs to distinguish.
+  fulfilledAt          DateTime?
+
+  @@index([schoolId, fulfilledAt])
+  @@index([classId])
 }
 
 // An OFFER of school membership, made to a teacher who ALREADY HAS a StoryJar
@@ -690,6 +737,7 @@ model Class {
   assignments    Assignment[]
   drafts         Draft[]
   messageThreads MessageThread[]
+  exportRequests ExportRequest[]
 
   @@index([schoolId])
 }

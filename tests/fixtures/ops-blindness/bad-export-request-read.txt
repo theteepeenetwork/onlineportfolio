@@ -1,0 +1,12 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-MODEL-METHOD
+import "server-only";
+import { db } from "@/lib/db";
+
+// A school's request for a copy of a class's data sits in CREDENTIAL_NEVER: the
+// reason is free text an admin writes and will sometimes name a child in, and
+// the row is one join from a Class. No read of any shape, not even a count that
+// would say which schools are being asked for their records.
+export async function outstandingExportRequests() {
+  return db.exportRequest.findMany({ where: { fulfilledAt: null }, take: 20 });
+}

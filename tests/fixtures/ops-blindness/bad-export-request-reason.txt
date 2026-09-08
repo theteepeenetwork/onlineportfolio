@@ -1,0 +1,11 @@
+// @path: src/lib/ops/schools.ts
+// @expect: OPS-BANNED-IDENTIFIER
+import "server-only";
+
+// `requestReason` is denied by name as well as by its model's class: it is an
+// adult's free text about why a class's records were asked for, and the same
+// R15 reasoning that denies `handoverReason` applies. Naming it under the ops
+// roots at all is the thing this refuses.
+export function summarise(rows: Array<{ requestReason: string }>) {
+  return rows.map((r) => r.requestReason).join("; ");
+}

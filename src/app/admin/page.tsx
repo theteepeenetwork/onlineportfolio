@@ -191,7 +191,7 @@ export default async function AdminPage({
   // outgoing teacher's queue. The action refuses in that case; the screen says
   // so before the press, with the number and the person to ask.
   // ---------------------------------------------------------------------
-  const [liveClasses, archivedClasses, pendingByClass] = await Promise.all([
+  const [liveClasses, archivedClasses, pendingByClass, exportAsks] = await Promise.all([
     db.class.findMany({
       where: { schoolId: school.id, archivedAt: null },
       orderBy: [{ yearGroup: "asc" }, { name: "asc" }],
@@ -211,7 +211,24 @@ export default async function AdminPage({
       where: { status: "PENDING", class: { schoolId: school.id, archivedAt: null } },
       _count: { _all: true },
     }),
+    // Copies of a class's records the school has asked its teachers for
+    // (docs/paid-tier-plan.md item 3). A STATUS AND NOTHING ELSE: the newest per
+    // class, so the row can say "asked" or "done". There is no route from this
+    // console to the file itself, and there must not be — rule 5.
+    db.exportRequest.findMany({
+      where: { schoolId: school.id },
+      orderBy: { createdAt: "desc" },
+      select: { classId: true, createdAt: true, fulfilledAt: true },
+    }),
   ]);
+  const askByClass = new Map<string, { state: "WAITING" | "DONE"; askedOn: string }>();
+  for (const a of exportAsks) {
+    if (askByClass.has(a.classId)) continue; // newest wins
+    askByClass.set(a.classId, {
+      state: a.fulfilledAt ? "DONE" : "WAITING",
+      askedOn: a.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "long" }),
+    });
+  }
   const pendingFor = new Map(pendingByClass.map((r) => [r.classId, r._count._all]));
 
   // WHAT HAS ALREADY MOVED, READ FROM THE AUDIT LOG RATHER THAN HELD IN THE
@@ -284,6 +301,7 @@ export default async function AdminPage({
       teacherName: s.name,
       children: c._count.students,
       inherited: inheritedOnRemoval.get(c.id) ?? null,
+      exportAsk: askByClass.get(c.id) ?? { state: "NONE" as const, askedOn: null },
     })),
   );
 
