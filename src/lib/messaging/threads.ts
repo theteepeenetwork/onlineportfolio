@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireWritableAccountForClass } from "@/lib/billing";
 import { deliveryTimeFor, describeOpening, hasAnyOpening, isOpenAt, nextOpeningAfter, type Policy } from "./officeHours";
-import { messagingOpenForSending, resolveMayMessageParents, schoolMessaging, type SchoolMessaging } from "./policy";
+import { messagingOpenForSending, resolveIsSafeguardingLead, resolveMayMessageParents, schoolMessaging, type SchoolMessaging } from "./policy";
 
 // ===========================================================================
 // Parent–teacher message threads: the ONLY module that reads or writes
@@ -606,6 +606,9 @@ type ControlResult = { ok: true; schoolId: string; childName: string; targetName
 
 const NO_STANDING = "You can’t change who sees this conversation.";
 const BAD_COLLEAGUE = "Pick a colleague at your school who is set up to message families.";
+// Raising a conversation without saying why would be an access with no record
+// of why it was needed, which is the one thing that makes the access defensible.
+const NEEDS_REASON = "Say briefly why you are raising this. It goes to the safeguarding lead, not to the family.";
 
 /** The thread row, created if the family has never written, for share/pass. */
 async function ensureThread(studentId: string, schoolId: string, classId: string, tx: Prisma.TransactionClient) {
@@ -637,6 +640,95 @@ export async function shareThread(byTeacherId: string, studentId: string, withTe
     });
   });
   return { ok: true, schoolId, childName: child.name, targetName: greet(target) };
+}
+
+/**
+ * A teacher raises one conversation to a member of staff the school has NAMED a
+ * safeguarding lead, with a reason (SAFEGUARDING rule 21a).
+ *
+ * IT IS `shareThread` WITH A NAMED RECIPIENT AND A RECORDED REASON, and keeping
+ * it that way is the point. Escalation adds NO NEW ROUTE to a child's data: the
+ * lead reads on exactly the terms a colleague shared with does, the reader list
+ * the parent can already see gains a name, and nothing else about the thread
+ * changes. If per-thread sharing were unsafe, this would be unsafe, and the
+ * answer would be to fix sharing rather than to build a second mechanism beside
+ * it.
+ *
+ * THREE DELIBERATE DIFFERENCES FROM `shareThread`, each one a decision:
+ *
+ *   1. The target must be a NAMED LEAD, resolved through
+ *      `resolveIsSafeguardingLead`, which has no role default. A school with no
+ *      lead named has nobody to raise to, and is told so rather than being given
+ *      a guess.
+ *   2. The target does NOT have to hold the school's messaging permission.
+ *      Reading a raised conversation and writing to a family are two different
+ *      permissions, and the send gate enforces the second one on its own — so a
+ *      school whose DSL has messaging switched off can still escalate to them,
+ *      and that lead can read and not reply. `eligibleColleague` conflates the
+ *      two, correctly, for an ordinary share; here it would be wrong.
+ *   3. The REASON is stored, on the share row and nowhere else. It is free text
+ *      an adult writes about a child, which is exactly why it must not reach
+ *      `AuditLog.detail` — the `handoverReason` precedent, and the same argument
+ *      that keeps message bodies out of the log: a second copy on a different
+ *      retention clock is a copy nobody asked for.
+ *
+ * THE PARENT IS NOT TOLD, and the reader list is the transparency. Rule 21
+ * already shows a parent which staff can read their conversation; that list is
+ * what changes. A notice saying "this has been raised" would tell a parent that
+ * a concern exists about their household, which is a decision for the school's
+ * own safeguarding procedure and never for a piece of software.
+ */
+export async function raiseThreadWithLead(
+  byTeacherId: string,
+  studentId: string,
+  leadTeacherId: string,
+  reason: string,
+  now: Date = new Date(),
+): Promise<ControlResult> {
+  const [me, child] = await Promise.all([loadStaff(byTeacherId), loadChildForStaff(studentId)]);
+  const schoolId = child?.class.teacher.schoolId ?? null;
+  if (!me || !child || !schoolId || me.schoolId !== schoolId) return { ok: false, error: NO_STANDING };
+  // Only somebody who CONTROLS the thread may raise it: the class teacher, or
+  // the colleague they passed the family to. A reader who was shared with
+  // cannot pass it on again, exactly as they cannot share it on today.
+  if (!standingOf(byTeacherId, child.class.teacher.id, child.messageThread).controls) return { ok: false, error: NO_STANDING };
+  if (!leadTeacherId || leadTeacherId === byTeacherId) return { ok: false, error: BAD_COLLEAGUE };
+
+  const lead = await db.teacher.findFirst({
+    where: { id: leadTeacherId, schoolId, status: "ACTIVE" },
+    select: { ...staffSelect, isSafeguardingLead: true },
+  });
+  // A member of staff who is not a NAMED lead is refused with the same generic
+  // message as one who is not at this school at all: the refusal must not tell
+  // the asker which of the two it was (rule 8).
+  if (!lead || !resolveIsSafeguardingLead(lead)) return { ok: false, error: BAD_COLLEAGUE };
+
+  const trimmed = reason.trim();
+  if (!trimmed) return { ok: false, error: NEEDS_REASON };
+
+  await db.$transaction(async (tx) => {
+    const thread = await ensureThread(studentId, schoolId, child.classId, tx);
+    // Written in ONE transaction with the share, so a raise whose reason cannot
+    // be recorded does not happen — the shape `OpsAuditLog` uses for an adult
+    // lookup, and for the same reason: the record is what makes the access
+    // accountable, so the access must not outlive it.
+    await tx.messageThreadShare.upsert({
+      where: { threadId_teacherId: { threadId: thread.id, teacherId: lead.id } },
+      create: {
+        threadId: thread.id,
+        teacherId: lead.id,
+        sharedByTeacherId: byTeacherId,
+        raisedReason: trimmed.slice(0, 500),
+        raisedAt: now,
+      },
+      // A lead who was already an ordinary reader becomes a RAISED one, and the
+      // newer reason stands: raising again after something has changed is the
+      // ordinary case, not an error.
+      update: { raisedReason: trimmed.slice(0, 500), raisedAt: now, sharedByTeacherId: byTeacherId },
+    });
+  });
+
+  return { ok: true, schoolId, childName: child.name, targetName: greet(lead) };
 }
 
 export async function unshareThread(byTeacherId: string, studentId: string, teacherId: string): Promise<ControlResult> {
@@ -900,8 +992,12 @@ export type ThreadExport = {
  * PENDING work in the export.
  *
  * WHAT IS NOT HERE: `handoverReason`, which is the admin's alone and never
- * reaches a parent or an audit row; and nothing about any other child, because
- * a thread is per-child by construction.
+ * reaches a parent or an audit row; `raisedReason`, a teacher's words to the
+ * school's safeguarding lead about why they raised the conversation (rule 21a),
+ * which is the school's internal safeguarding record and is disclosed, if at
+ * all, by the school applying its own process and the exemptions that go with
+ * it, never by a file a teacher presses a button to make; and nothing about any
+ * other child, because a thread is per-child by construction.
  */
 export async function threadForExport(teacherId: string, studentId: string): Promise<ThreadExport | null> {
   const [me, child] = await Promise.all([loadStaff(teacherId), loadChildForStaff(studentId)]);

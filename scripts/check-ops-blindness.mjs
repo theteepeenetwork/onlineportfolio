@@ -746,6 +746,14 @@ const DENY_FIELDS = [
   // reason to use, and the operator area has reasons of its own for every
   // lookup it records.
   "requestReason",
+  // A teacher's own words for the safeguarding lead about why they raised a
+  // family conversation (SAFEGUARDING rule 21a, 8 September 2026). The most
+  // sensitive free text in the product by some distance — it is an adult writing
+  // a concern about a named child — and denied on exactly the reasoning that
+  // denied `handoverReason` and `requestReason` above. Named `raisedReason`
+  // rather than `reason` for the same rule those two follow: a denied identifier
+  // has to be one nothing else has a reason to use.
+  "raisedReason",
   // Teacher-authored activity content, which reaches children and can quote them
   "templatePathsJson",
   // The rendered picture of that same content — the worksheet, its movable

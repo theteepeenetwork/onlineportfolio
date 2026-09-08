@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { passFamilyToColleague, shareFamilyThread, stopSharingFamilyThread } from "@/app/actions/messaging";
+import { passFamilyToColleague, raiseFamilyThreadWithLead, shareFamilyThread, stopSharingFamilyThread } from "@/app/actions/messaging";
 import type { StaffReader } from "@/lib/messaging/threads";
 
 // The two things a teacher may do to a family's conversation, and the one
@@ -13,6 +13,10 @@ import type { StaffReader } from "@/lib/messaging/threads";
 //     colleague holds everything; the teacher sees nothing until they take it
 //     back from the inbox. The parent is not told. The reason is optional,
 //     for the school admin, and never reaches the audit log.
+//   • RAISE it with the school's named safeguarding lead, with a reason
+//     (rule 21a). Mechanically a share; what makes it its own control is that
+//     the recipient list is the school's leads rather than any colleague, and
+//     that the reason is required and recorded.
 //   • A colleague it was shared with can stop seeing it.
 //
 // Neither list offers anyone who is not set up to message families, so a share
@@ -52,6 +56,7 @@ export function StaffThreadControls({
   standing,
   readers,
   colleagues,
+  leads,
 }: {
   studentId: string;
   childName: string;
@@ -59,10 +64,19 @@ export function StaffThreadControls({
   standing: { reader: boolean; controls: boolean; isClassTeacher: boolean };
   readers: StaffReader[];
   colleagues: Array<{ id: string; name: string }>;
+  /** The staff this school has NAMED safeguarding leads (rule 21a). */
+  leads: Array<{ id: string; name: string }>;
 }) {
   const [shareState, shareAction, sharing] = useActionState(shareFamilyThread, {});
   const [passState, passAction, passing] = useActionState(passFamilyToColleague, {});
+  const [raiseState, raiseAction, raising] = useActionState(raiseFamilyThreadWithLead, {});
   const [showPass, setShowPass] = useState(false);
+  const [showRaise, setShowRaise] = useState(false);
+  // Controlled, so a refusal does not throw away the sentence somebody has just
+  // written about a child. Next resets an uncontrolled form after a server
+  // action, and being made to type this one twice is worse than most.
+  const [raiseReason, setRaiseReason] = useState("");
+  const otherLeads = leads.filter((l) => l.id !== meId);
   const shared = readers.filter((r) => r.role === "SHARED");
   const mine = readers.find((r) => r.id === meId);
 
@@ -150,6 +164,61 @@ export function StaffThreadControls({
           </form>
         )}
         {passState.error && <Flash tone="bad" text={passState.error} />}
+      </div>
+
+      {/* RAISING WITH THE SAFEGUARDING LEAD (rule 21a).
+          Deliberately the last card and deliberately the plainest: this is not a
+          feature to encourage use of, it is one to make available. The three
+          "what this is not" lines are the whole reason the card is worded rather
+          than iconed — a school that mistook this for a reporting channel would
+          be the worst outcome of having built it. */}
+      <div style={{ background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 14, padding: "16px 20px" }}>
+        <h2 style={{ margin: 0, font: "600 18px var(--font-fredoka)", color: "var(--ink)" }}>Raise this with your safeguarding lead</h2>
+        <p style={{ margin: "6px 0 0", font: "400 14px/1.55 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+          Gives your school&rsquo;s safeguarding lead this conversation to read, with the reason you give. {childName}&rsquo;s
+          family isn&rsquo;t told, and the reason is not shown to them.
+        </p>
+        <p style={{ margin: "8px 0 0", font: "400 14px/1.55 var(--font-atkinson)", color: "var(--ink)" }}>
+          <strong>This is not a report to StoryJar</strong>, it does not go anywhere outside your school, and it is not a
+          substitute for your school&rsquo;s own safeguarding procedure. If a child is at risk, follow that procedure now.
+        </p>
+        {otherLeads.length === 0 ? (
+          <p style={{ margin: "12px 0 0", font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+            Your school hasn&rsquo;t named a safeguarding lead in StoryJar yet. Your school admin can name one on the
+            Staff tab. This changes nothing about who your school&rsquo;s designated lead actually is.
+          </p>
+        ) : !showRaise ? (
+          <button onClick={() => setShowRaise(true)} style={{ ...QUIET_BTN, marginTop: 12 }}>Raise this conversation…</button>
+        ) : (
+          <form action={raiseAction} style={{ display: "grid", gap: 10, marginTop: 12, maxWidth: 520 }}>
+            <input type="hidden" name="studentId" value={studentId} />
+            <label style={{ display: "grid", gap: 5, font: "700 13px var(--font-atkinson)", color: "var(--ink)" }}>
+              Safeguarding lead
+              <select name="leadTeacherId" required defaultValue={otherLeads.length === 1 ? otherLeads[0].id : ""} style={SELECT}>
+                {otherLeads.length === 1 ? null : <option value="" disabled>Choose…</option>}
+                {otherLeads.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </label>
+            <label style={{ display: "grid", gap: 5, font: "700 13px var(--font-atkinson)", color: "var(--ink)" }}>
+              Why are you raising it? (they see this; the family does not)
+              <textarea
+                name="reason"
+                required
+                maxLength={500}
+                rows={3}
+                value={raiseReason}
+                onChange={(e) => setRaiseReason(e.target.value)}
+                style={{ ...SELECT, minWidth: 0, width: "100%", boxSizing: "border-box", resize: "vertical", font: "400 15px/1.5 var(--font-atkinson)" }}
+              />
+            </label>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button type="submit" disabled={raising} style={{ ...QUIET_BTN, background: "var(--ink)", color: "var(--paper)", opacity: raising ? 0.7 : 1 }}>{raising ? "Raising…" : "Raise it"}</button>
+              <button type="button" onClick={() => setShowRaise(false)} style={QUIET_BTN}>Cancel</button>
+            </div>
+          </form>
+        )}
+        {raiseState.error && <Flash tone="bad" text={raiseState.error} />}
+        {raiseState.done && <Flash tone="good" text={`\u2713 ${raiseState.done}`} />}
       </div>
     </section>
   );

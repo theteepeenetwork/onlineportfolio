@@ -10,7 +10,7 @@ import {
   resendInvite,
   setStaffRole,
 } from "@/app/actions/admin";
-import { setStaffMessaging } from "@/app/actions/messaging";
+import { setStaffLead, setStaffMessaging } from "@/app/actions/messaging";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { ImportClassForm } from "@/components/ImportClassForm";
 import { BillingPane } from "./BillingPane";
@@ -55,11 +55,13 @@ export type StaffRow = {
   invitationId: string | null;
   /** The stored override for parent messaging: NULL = the default for the role. */
   mayMessage: boolean | null;
+  /** Has the school named them a safeguarding lead? (rule 21a; no role default.) */
+  isLead: boolean;
   /** What that resolves to (src/lib/messaging/policy.ts). */
   mayMessageResolved: boolean;
 };
 
-type Submenu = "role" | "classes" | "messaging" | null;
+type Submenu = "role" | "classes" | "messaging" | "lead" | null;
 
 export type SchoolClass = {
   id: string;
@@ -159,6 +161,8 @@ const ACTION_LABEL: Record<string, string> = {
   OFFICE_HOURS_CLOSURE_ADDED: "Added a closed day",
   OFFICE_HOURS_CLOSURE_REMOVED: "Removed a closed day",
   STAFF_MESSAGING_CHANGED: "Changed who may message parents",
+  SAFEGUARDING_LEAD_CHANGED: "Changed who is a safeguarding lead",
+  THREAD_RAISED_WITH_LEAD: "Raised a family conversation with a safeguarding lead",
   THREAD_CLOSED: "Closed a family conversation",
   THREAD_REOPENED: "Reopened a family conversation",
   THREAD_SHARED: "Shared a family conversation",
@@ -829,6 +833,16 @@ function StaffTable({
                   {p.mayMessageResolved ? "May message families" : "No parent messages"}
                 </span>
               )}
+              {/* A lead IS always labelled, unlike the messaging switch above.
+                  That one only marks the unusual case; this one is a job a
+                  school needs to be able to see at a glance on its own staff
+                  list, and "who is our DSL in StoryJar" is exactly the question
+                  somebody asks at the wrong moment. */}
+              {p.isLead && (
+                <span style={{ font: "700 11px var(--font-atkinson)", color: "#7A2E4A", background: "#F7E0E6", borderRadius: 999, padding: "3px 9px", whiteSpace: "nowrap" }}>
+                  Safeguarding lead
+                </span>
+              )}
             </span>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {p.classes.length === 0 ? (
@@ -907,6 +921,8 @@ function StaffTable({
                   <ClassesSubmenu staff={p} classes={classes} verified={verified} onBack={() => onSubmenu(null)} />
                 ) : submenu === "messaging" ? (
                   <MessagingSubmenu staff={p} onBack={() => onSubmenu(null)} />
+                ) : submenu === "lead" ? (
+                  <LeadSubmenu staff={p} onBack={() => onSubmenu(null)} />
                 ) : p.invitationId ? (
                   /* A PENDING INVITATION, so the menu is one item.
 
@@ -927,6 +943,10 @@ function StaffTable({
                         staff (SAFEGUARDING rule 21). Not offered on a pending
                         invitation above: they are not staff of this school yet. */}
                     <MenuButton icon="share" label="Parent messages" onClick={() => onSubmenu("messaging")} />
+                    {/* Naming a safeguarding lead (rule 21a). Also not offered
+                        on a pending invitation: a school cannot make somebody
+                        its DSL before they have accepted a job. */}
+                    <MenuButton icon="lock-closed" label="Safeguarding lead" onClick={() => onSubmenu("lead")} />
                     {invited && <MenuForm action={resendInvite} staffId={p.id} icon="share" label="Resend invite" />}
                     {!p.isYou && <RemoveStaffItem staff={p} verified={verified} />}
                   </>
@@ -1274,6 +1294,44 @@ function MessagingSubmenu({ staff, onBack }: { staff: StaffRow; onBack: () => vo
           </button>
         </form>
       ))}
+    </>
+  );
+}
+
+// Naming a safeguarding lead (SAFEGUARDING rule 21a).
+//
+// TWO OPTIONS AND NO "DEFAULT", which is the visible difference from the
+// messaging submenu directly above and is the rule rather than a simplification:
+// nobody is a school's designated safeguarding lead until an admin says who is.
+// A default here — every admin, or the head — would put a real child's
+// conversation in front of somebody the school never chose.
+//
+// A school may name more than one, so this is per person rather than a single
+// picker: a primary school with a DSL and two deputies is the ordinary case.
+function LeadSubmenu({ staff, onBack }: { staff: StaffRow; onBack: () => void }) {
+  const options: Array<{ value: "yes" | "no"; label: string }> = [
+    { value: "yes", label: "Is a safeguarding lead" },
+    { value: "no", label: "Is not a safeguarding lead" },
+  ];
+  const current = staff.isLead ? "yes" : "no";
+  return (
+    <>
+      <button onClick={onBack} style={{ ...MENU_ITEM, color: "#43506B", font: "700 13px var(--font-atkinson)" }}>← Safeguarding lead</button>
+      <div style={{ height: 1, background: "#F0EADD", margin: "4px 0" }} />
+      {options.map((o) => (
+        <form key={o.value} action={setStaffLead}>
+          <input type="hidden" name="staffId" value={staff.id} />
+          <input type="hidden" name="value" value={o.value} />
+          <button role="menuitem" type="submit" disabled={current === o.value} style={{ ...MENU_ITEM, opacity: current === o.value ? 0.5 : 1 }}>
+            <span style={{ width: 18, textAlign: "center" }} aria-hidden>{current === o.value ? "✓" : "•"}</span>
+            {o.label}
+          </button>
+        </form>
+      ))}
+      <p style={{ margin: "6px 8px 4px", font: "400 12px/1.5 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+        A teacher can raise a family conversation with a lead, who then reads it. It gives them nothing else, and it is
+        not a report to StoryJar or a substitute for your own safeguarding procedure.
+      </p>
     </>
   );
 }

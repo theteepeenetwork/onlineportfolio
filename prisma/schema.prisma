@@ -13,14 +13,14 @@ datasource db {
 
 // A teacher owns one or more classes and moderates the journal.
 model Teacher {
-  id                     String                 @id @default(cuid())
-  name                   String // the teacher's full name (e.g. "Sam Pearson")
-  title                  String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
-  displayStyle           String                 @default("formal") // "formal" (title + surname) | "first"
-  displayName            String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
-  email                  String                 @unique
-  passwordHash           String
-  schoolName             String? // captured at signup (StoryJar onboarding); free text
+  id                    String                 @id @default(cuid())
+  name                  String // the teacher's full name (e.g. "Sam Pearson")
+  title                 String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
+  displayStyle          String                 @default("formal") // "formal" (title + surname) | "first"
+  displayName           String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
+  email                 String                 @unique
+  passwordHash          String
+  schoolName            String? // captured at signup (StoryJar onboarding); free text
   // The DfE URN of the school this teacher said they work at, when they picked
   // it from the register at signup rather than typing a name (Establishment).
   //
@@ -80,17 +80,17 @@ model Teacher {
   // Not personal data beyond the teacher row it sits on: it identifies an
   // institution, and every character of it is published by the DfE. Deleted with
   // the teacher by the same cascade as everything else on this row.
-  urn                    String?
-  country                String? // England / Scotland / Wales / NI / Elsewhere
-  role                   String                 @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
-  status                 String                 @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
+  urn                   String?
+  country               String? // England / Scotland / Wales / NI / Elsewhere
+  role                  String                 @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
+  status                String                 @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
   // Signed up before launch day (1 Sept 2026) and promised free, unlimited
   // access permanently. STORED, never derived from `createdAt`: a promise you
   // can't identify the beneficiaries of is a promise you will break, and a
   // derived date stops being equivalent the first time rows are migrated or
   // imported. See docs/pricing-decisions.md. Not child data; no retention
   // implications beyond the teacher row itself.
-  foundingMember         Boolean                @default(false)
+  foundingMember        Boolean                @default(false)
   // When this teacher PROVED they can receive mail at `email`, by opening a
   // link sent to it. Null means unproved — the ordinary state of every account,
   // because free signup asks for nothing (docs/dpo-decisions.md, 2 Sep 2026).
@@ -115,32 +115,32 @@ model Teacher {
   //
   // Not a new data category: it is a timestamp about an adult's own address,
   // which this row already holds. Deleted with the teacher by the same cascade.
-  emailConfirmedAt       DateTime?
-  school                 School?                @relation(fields: [schoolId], references: [id], onDelete: SetNull)
-  schoolId               String?
-  createdAt              DateTime               @default(now())
-  classes                Class[]
-  sessions               Session[]
-  templates              ActivityTemplate[]
-  folders                Folder[]
-  drafts                 Draft[] // in-progress template drafts (cross-device autosave)
+  emailConfirmedAt      DateTime?
+  school                School?                @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  schoolId              String?
+  createdAt             DateTime               @default(now())
+  classes               Class[]
+  sessions              Session[]
+  templates             ActivityTemplate[]
+  folders               Folder[]
+  drafts                Draft[] // in-progress template drafts (cross-device autosave)
   // An individually-subscribing teacher's own subscription (null when the
   // teacher is covered by a school plan instead — see Subscription).
-  subscription           Subscription?
+  subscription          Subscription?
   // Bearer tokens this teacher has minted so Claude can build activities in
   // their library, and the claude.ai connector grants behind the OAuth ones.
-  apiTokens              ApiToken[]
-  oauthGrants            OAuthGrant[]
+  apiTokens             ApiToken[]
+  oauthGrants           OAuthGrant[]
   // Outstanding password-reset and staff-invite tokens. Cascade on delete, the
   // same as sessions: deleting a teacher must not leave a live link behind.
-  passwordTokens         TeacherPasswordToken[]
+  passwordTokens        TeacherPasswordToken[]
   // Offers of school membership made TO this teacher, and separately the ones
   // they made as an admin. Two relations because both ends of a
   // SchoolInvitation are a Teacher; the names are the disambiguator Prisma
   // requires and carry no meaning beyond that. Both cascade on delete, the
   // same as sessions and password tokens.
-  schoolInvitations      SchoolInvitation[]     @relation("SchoolInvitationInvitee")
-  sentSchoolInvitations  SchoolInvitation[]     @relation("SchoolInvitationInviter")
+  schoolInvitations     SchoolInvitation[]     @relation("SchoolInvitationInvitee")
+  sentSchoolInvitations SchoolInvitation[]     @relation("SchoolInvitationInviter")
   // Parent messaging (SAFEGUARDING rule 21). May this member of staff read and
   // reply to parents? NULL means "the default for their role": yes for a
   // TEACHER or ADMIN, no for a TA. True/false is an admin's override, set on
@@ -148,14 +148,29 @@ model Teacher {
   // src/lib/messaging/policy.ts (resolveMayMessageParents), never read raw —
   // the same NULL-means-default convention as Class.ageMode. A staff member
   // cannot set their own: parent contact is the school's to govern.
-  mayMessageParents      Boolean?
-  sentMessages           Message[]              @relation("MessageSenderTeacher")
-  threadShares           MessageThreadShare[]   @relation("ShareTeacher")
-  sharesGiven            MessageThreadShare[]   @relation("ShareSharedBy")
-  handledThreads         MessageThread[]        @relation("ThreadHandler")
-  closedThreads          MessageThread[]        @relation("ThreadClosedBy")
-  messagingPolicyUpdates MessagingPolicy[]      @relation("PolicyUpdatedBy")
-  meetingSlots           MeetingSlot[]          @relation("MeetingSlotTeacher")
+  mayMessageParents     Boolean?
+
+  // Has the school named this member of staff a SAFEGUARDING LEAD?
+  // (SAFEGUARDING rule 21a, 8 September 2026.)
+  //
+  // NULLABLE WITH NO ROLE DEFAULT, and the difference from `mayMessageParents`
+  // beside it is the whole point. That column's NULL means "whatever the role
+  // implies"; this one's NULL means NOT A LEAD. Nobody is a school's designated
+  // safeguarding lead until an admin says who is — rule 8, deny by default, in
+  // the one place a helpful default would be worst. Resolved through
+  // `resolveIsSafeguardingLead` and never read raw, the same as its neighbour.
+  //
+  // NOT A FOURTH `staffRole`. That vocabulary is ADMIN / TEACHER / TA and is
+  // load-bearing in six places, and a primary school's DSL is very often also
+  // its head — a role cannot be two things. A school may name more than one.
+  isSafeguardingLead     Boolean?
+  sentMessages           Message[]            @relation("MessageSenderTeacher")
+  threadShares           MessageThreadShare[] @relation("ShareTeacher")
+  sharesGiven            MessageThreadShare[] @relation("ShareSharedBy")
+  handledThreads         MessageThread[]      @relation("ThreadHandler")
+  closedThreads          MessageThread[]      @relation("ThreadClosedBy")
+  messagingPolicyUpdates MessagingPolicy[]    @relation("PolicyUpdatedBy")
+  meetingSlots           MeetingSlot[]        @relation("MeetingSlotTeacher")
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
@@ -1864,6 +1879,18 @@ model MessageThreadShare {
   sharedBy          Teacher?      @relation("ShareSharedBy", fields: [sharedByTeacherId], references: [id], onDelete: SetNull)
   sharedByTeacherId String?
   sharedAt          DateTime      @default(now())
+  // Set only when the share was made by RAISING the conversation to a
+  // safeguarding lead (rule 21a). An ordinary share leaves both NULL, so
+  // "was this raised?" is a fact on the row rather than something inferred
+  // from who the reader happens to be.
+  //
+  // `raisedReason` IS FREE TEXT AN ADULT WRITES ABOUT A CHILD, which is why it
+  // lives here and NOT in `AuditLog.detail` — the `handoverReason` precedent,
+  // word for word: a second copy on the audit log's own retention clock is a
+  // copy nobody asked for. It is denied by name in the ops blindness gate for
+  // the same reason `handoverReason` and `requestReason` are.
+  raisedReason      String?
+  raisedAt          DateTime?
 
   @@unique([threadId, teacherId])
   @@index([teacherId])

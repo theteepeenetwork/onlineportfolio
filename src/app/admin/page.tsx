@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accountStateForTeacher, governingSubscription, planLabel } from "@/lib/billing";
 import { stripeConfigured } from "@/lib/stripe";
-import { messagingStaffForSchool, resolveMayMessageParents, schoolMessaging } from "@/lib/messaging/policy";
+import { messagingStaffForSchool, resolveIsSafeguardingLead, resolveMayMessageParents, schoolMessaging } from "@/lib/messaging/policy";
 import { oversightForSchool } from "@/lib/messaging/threads";
 import { readSchoolMailHealth } from "@/lib/schoolMailHealth";
 import { formsForSchool } from "@/lib/consentForms";
@@ -116,6 +116,9 @@ export default async function AdminPage({
       // Parent messaging (SAFEGUARDING rule 21): the stored override and what
       // it resolves to for this person's role.
       mayMessage: s.mayMessageParents,
+      // No role default (rule 21a): resolved through the helper so the console
+      // and the escalation action cannot disagree about who a school's leads are.
+      isLead: resolveIsSafeguardingLead(s),
       mayMessageResolved: resolveMayMessageParents(s),
       sortAt: s.createdAt.getTime(),
     })),
@@ -137,6 +140,9 @@ export default async function AdminPage({
       // resolve. The row's own menu (invitationId non-null) does not offer one.
       mayMessage: null,
       mayMessageResolved: false,
+      // Nor can a school make somebody its safeguarding lead before they have
+      // accepted the job. Same reasoning, one line down.
+      isLead: false,
       sortAt: inv.createdAt.getTime(),
     })),
   ]

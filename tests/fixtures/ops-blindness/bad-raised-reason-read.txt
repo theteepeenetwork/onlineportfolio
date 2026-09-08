@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-BANNED-IDENTIFIER
+import "server-only";
+import { db } from "@/lib/db";
+
+// A teacher's own words to the safeguarding lead about why they raised a family
+// conversation. The model is already CREDENTIAL_NEVER; this is the second lock,
+// the one that stops the identifier appearing under the ops roots at all — the
+// same treatment `handoverReason` and `requestReason` get, and for a field that
+// is more sensitive than either.
+export async function raisedReasons() {
+  return db.messageThreadShare.findMany({ select: { raisedReason: true } });
+}

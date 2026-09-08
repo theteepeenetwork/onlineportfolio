@@ -215,6 +215,57 @@ Each rule is testable. A change that breaks one does not ship.
    and a channel shut overnight must never be where something urgent is
    reported).
 
+21a. **A teacher may raise one conversation to the school's named safeguarding
+   lead, with a recorded reason.** *(Added 2026-09-08; rule 21's "not covered by
+   this rule" list named this as needing its own amendment, and this is it. Rule
+   21 governs everything about the conversation itself; this governs only who
+   else may read one, and why.)*
+
+   - **A lead is named by the school, one member of staff at a time.** A nullable
+     `Teacher.isSafeguardingLead`, set by an ADMIN on the Staff tab and resolved
+     through one helper, never read raw — the `mayMessageParents` pattern. It is
+     **not** a fourth value in `staffRole`: that vocabulary is
+     `ADMIN`/`TEACHER`/`TA` and is load-bearing in six places, and a school's DSL
+     is frequently also its head. A school may name more than one, and **there is
+     no default**: nobody is a lead until an admin says so, which is rule 8 in the
+     one place a wrong default would be worst.
+   - **Raising is a share, not a new mechanism.** The lead gets the conversation
+     on exactly the terms a colleague shared with does — the reader list the
+     parent can already see gains a name, and nothing about the thread changes.
+     This deliberately adds **no new route to a child's data**: if per-thread
+     sharing were unsafe, this would be unsafe, and the answer would be to fix
+     sharing.
+   - **The lead may READ. Whether they may REPLY is a separate question already
+     answered.** Reading a raised conversation and writing to a family are two
+     permissions, and a lead who does not hold the school's messaging permission
+     gets the first and not the second — the existing `mayMessageParents` check
+     on sending is what enforces it, unchanged. This is why a lead does **not**
+     have to hold that permission to be raised to: a school whose DSL has
+     messaging switched off must still be able to escalate to them.
+   - **The reason is recorded, and it is not in the audit log.** It lives on the
+     share row, on the `handoverReason` precedent and for the same reason: a
+     reason for a safeguarding escalation is free text an adult writes about a
+     child, and a second copy of it on the audit log's own retention clock is a
+     copy nobody asked for. The audit log records that a thread was raised, to
+     whom, and by whom.
+   - **The parent is not told, and the reader list is the transparency.** Rule 21
+     already shows a parent which staff can read their conversation, and that
+     list is what changes. A notice saying "this has been raised with the
+     safeguarding lead" would tell a parent that a concern exists about their
+     household, which is a decision for the school's own safeguarding procedure
+     and never for a piece of software. The parent's pages never carry the word
+     "safeguarding" or the lead's role.
+   - **What it is NOT, said on the screen and not only here.** It is not a report
+     to StoryJar. It is not a route to anything outside the school. It is not a
+     substitute for the school's own safeguarding procedure — rule 17 routes a
+     concern to the school's DSL by the school's own process, and StoryJar is not
+     that process. The composer says all three in plain words, because a school
+     that mistook this for a reporting channel would be the worst outcome of
+     having built it.
+   - **A lead reads only what has been raised to them.** Being a lead grants
+     nothing on its own: no list of conversations, no school-wide view, no
+     standing access to a class they do not teach.
+
    **Administrative records are not a child's work, and rule 5 does not reach
    them.** *(Clause added 2026-09-08 with rule 22.)* Rule 5 says an admin never
    sees a child's work; it has never said an admin may not see a record of a
@@ -504,6 +555,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-08 | 21a (new) | A teacher may raise one conversation to a member of staff the school has named as a safeguarding lead, with a reason recorded on the share row. The lead reads only what is raised to them; whether they may reply is decided by the existing per-staff messaging permission, unchanged; the parent is not told, because the reader list rule 21 already shows them is the transparency. | Product owner | Rule 21 named this in its own "not covered" list as needing an amendment, and `COMPETITIVE_POSITIONING.md` said in terms not to promise it to a school until it existed. It is smaller than it sounds because per-thread sharing is already the mechanism: this is a share with a named recipient and a recorded reason, which is why it adds **no new route to a child's data**. **What was traded away:** nothing structural — one more adult can read one conversation, chosen by a teacher, from a list the school itself set. **What was not:** the lead has no standing access to anything not raised to them; reading is not writing; the reason never reaches the audit log; and the parent's pages still never carry the word "safeguarding". The risk actually worth naming is a school mistaking this for a reporting channel, which is answered on the screen rather than in this document. |
 | 2026-09-08 | 23 (new) | Rule 23 permits parents'-evening booking: a school lays out appointments, a family takes one for their own child, a taken slot shows as taken and never who by, and office hours deliberately do not cap it. | Product owner | The highest-value reuse of the office-hours time machinery, and the one place where applying the office-hours *hold* would refuse the feature rather than govern it — a parents' evening is the night a school has asked its staff to be there. Two risks decided rather than left: a bookable list is a disclosure surface between families, so the child id is reduced to a boolean on the server; and two parents pressing one slot is a real race, so booking is a conditional update against a row the school created rather than a create. **What was traded away:** nothing in rule 21 — the hold on *messages* is untouched, and a booking carries no free text for a message to hide in. **What was not:** the operator still reads nothing (rule 20), and the school office still sees counts rather than children. |
 | 2026-09-08 | 5 (clause), 22 (new) | Rule 22 permits permission slips: the school writes the question, StoryJar owns the two answers, and there is no free-text response field in the product. Rule 5 gains an **administrative records** clause — an admin may see a record of a decision an *adult* made, as counts per class, and never which child answered which way. | Product owner | A permission slip is the biggest paper-and-phone job in a primary office and is adult decision data, not a child's work, so it belongs on a school plan. The whole risk is in one place: a form is where Art. 9 data gets collected by accident rather than by argument, because "does your child have a nut allergy?" sounds like an administrative question. The answer is structural — the school never authors an answer label, so there is no route by which an allergy or a SEN status can be typed in — and the one extra answer permitted is a catering headcount for a trip day, decided by the owner on 2026-09-08. **What was traded away:** rule 5's absolute "an admin sees no record about a child", which was always about *work* and is now said in words instead of inferred. **What was not:** an admin still sees no child's name against an answer, no journal item, no message body; the operator sees nothing at all (rule 20). |
 | 2026-09-07 | 6 (exception), 21 (new) | Rule 6 said parents are **read-only**. Rule 21 carves out one write: a conversation with the child's class teacher, held to office hours the **school** sets inside StoryJar's caps (at most ten hours a day, 06:00–20:00), delivered in neither direction outside them, with no override; off by default; school-plan only; text only; never reachable by a child; readers always shown to the parent; a teacher may share a thread with a colleague or pass a family to one, and the parent is not told of a pass; the school sees metadata and closes or reassigns without reading; audited without quoting. | Product owner | `COMPETITIVE_POSITIONING.md` rejected two-way messaging outright until 2026-08-24, when it moved to BUILD on the reasoning that the verdict was right about *direct messaging* and wrong to assume a DM was the only available shape; that note named this rule as its governor before a line of it existed, and this amendment is that rule arriving. The two original grounds — teachers' evenings, and an adult in a child's space — are met structurally rather than by absence: the hold is two-way, so a teacher writing at 22:00 cannot set an out-of-hours expectation either, and the conversation never touches the child's product. The commercial reason is the one `docs/pricing-decisions.md` already gives for the school tier: it sells *oversight*, and school-set office hours are the first feature that makes that concrete. **What was traded away:** rule 6's clean "parents can only look", and the "no DMs" line in the positioning. **What was not:** rule 6a (nothing is emailed), rule 5 (no admin reads a body), rule 20 (the operator reads nothing), and the approval queue, which this does not touch. Data-protection review: the DPIA is amended (R19) and still awaits professional review with the rest. |

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { markReadByStaff, threadForStaff } from "@/lib/messaging/threads";
 import { sendStaffMessage } from "@/app/actions/messaging";
+import { safeguardingLeadsForSchool } from "@/lib/messaging/policy";
 import { ThreadPanel } from "@/components/messaging/ThreadPanel";
 import { StaffThreadControls } from "./StaffThreadControls";
 
@@ -23,6 +24,12 @@ export default async function StaffThreadPage({ params }: { params: Promise<{ st
   await markReadByStaff(user.teacher.id, studentId);
 
   const readerNames = view.readers.map((r) => (r.id === user.teacher.id ? `${r.name} (you)` : r.name));
+
+  // The staff this school has NAMED safeguarding leads (rule 21a). Loaded here
+  // rather than folded into `threadForStaff`: it is a fact about the school, not
+  // about this thread, and `colleagues` beside it is filtered by who may message
+  // families — which a lead deliberately does not have to be.
+  const leads = user.teacher.schoolId ? await safeguardingLeadsForSchool(user.teacher.schoolId) : [];
 
   return (
     <main style={{ maxWidth: 920, margin: "0 auto", padding: "28px 32px 60px" }}>
@@ -52,6 +59,7 @@ export default async function StaffThreadPage({ params }: { params: Promise<{ st
         standing={view.standing}
         readers={view.readers}
         colleagues={view.colleagues}
+        leads={leads}
       />
     </main>
   );
