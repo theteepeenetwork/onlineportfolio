@@ -5,9 +5,11 @@ import { parentLogout } from "@/app/actions/family";
 import { FamilySettings } from "./FamilySettings";
 import { FamilyThread } from "./FamilyThread";
 import { FamilyForms, type FamilyFormView } from "./FamilyForms";
+import { FamilyMeetings } from "./FamilyMeetings";
 import { relativeDay } from "@/lib/relativeDay";
 import type { ParentChild, ParentMoment, ParentSession } from "@/lib/parentAuth";
 import type { ThreadView } from "@/lib/messaging/threads";
+import type { FamilyEvening } from "@/lib/meetingBookings";
 import { Icon, type IconName } from "@/components/icons/Icon";
 
 const TYPE_LABEL: Record<string, string> = { PHOTO: "Photo", DRAWING: "Drawing", TEXT: "Their words", AUDIO: "Voice" };
@@ -21,7 +23,7 @@ function avatarColor(seed: string) {
   return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
 }
 
-export function ParentHome({ parent, threads = {}, unread = {}, forms = {} }: { parent: ParentSession; threads?: Record<string, ThreadView>; unread?: Record<string, number>; forms?: Record<string, FamilyFormView[]> }) {
+export function ParentHome({ parent, threads = {}, unread = {}, forms = {}, meetings = {} }: { parent: ParentSession; threads?: Record<string, ThreadView>; unread?: Record<string, number>; forms?: Record<string, FamilyFormView[]>; meetings?: Record<string, FamilyEvening[]> }) {
   const [childId, setChildId] = useState(parent.children[0]?.id ?? "");
   const child = parent.children.find((c) => c.id === childId) ?? parent.children[0];
 
@@ -59,7 +61,7 @@ export function ParentHome({ parent, threads = {}, unread = {}, forms = {} }: { 
       </header>
 
       {child ? (
-        <ChildView child={child} parent={parent} thread={threads[child.id] ?? null} unread={unread} forms={forms[child.id] ?? []} />
+        <ChildView child={child} parent={parent} thread={threads[child.id] ?? null} unread={unread} forms={forms[child.id] ?? []} meetings={meetings[child.id] ?? []} />
       ) : (
         // A family space with nobody in it. It should not outlive its last link
         // (removing the last child deletes the row), but if one is ever reached
@@ -78,7 +80,7 @@ export function ParentHome({ parent, threads = {}, unread = {}, forms = {} }: { 
   );
 }
 
-function ChildView({ child, parent, thread, unread, forms }: { child: ParentChild; parent: ParentSession; thread: ThreadView | null; unread: Record<string, number>; forms: FamilyFormView[] }) {
+function ChildView({ child, parent, thread, unread, forms, meetings }: { child: ParentChild; parent: ParentSession; thread: ThreadView | null; unread: Record<string, number>; forms: FamilyFormView[]; meetings: FamilyEvening[] }) {
   return (
     <main style={{ maxWidth: 940, margin: "0 auto", padding: "30px 32px 60px" }}>
       {/* jar hero */}
@@ -114,6 +116,10 @@ function ChildView({ child, parent, thread, unread, forms }: { child: ParentChil
       {/* Forms first, then the conversation: a slip has a date on it and the
           thread does not, so the thing with a deadline comes first. */}
       <FamilyForms childId={child.id} childName={child.name} forms={forms} />
+
+      {/* Then the evening: it also has a date on it, and a slot somebody else
+          takes first is gone, which the thread below never is. */}
+      <FamilyMeetings childId={child.id} childName={child.name} evenings={meetings} />
 
       {thread && <FamilyThread view={thread} unread={unread[child.id] ?? 0} />}
 

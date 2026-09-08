@@ -267,6 +267,14 @@ const ADULT_READABLE = [
   // a form out, and when" is ordinary support.
   "ConsentForm",
   "ConsentFormClass",
+  // A parents' evening, without its appointments (8 September 2026). The
+  // school's name for the evening, the date, how long a slot is and when
+  // booking opens. No person is in it — `createdByTeacherId` names the admin who
+  // made it, an adult, exactly as `ConsentForm.createdByTeacherId` does — and
+  // the appointments are a separate table in CREDENTIAL_NEVER whose include
+  // fails the relation rule. "Has this school set an evening up, and when does
+  // booking open" is ordinary support; who is coming to it is not.
+  "MeetingEvent",
 ];
 
 // Children and everything hanging off them. Counts and school-level groupBy
@@ -526,6 +534,14 @@ const CREDENTIAL_NEVER = [
   // way. Refused whole: no row, no count, no confirmation that an answer exists.
   // The FORM is school text and is ADULT_READABLE above; the ANSWER is a person.
   "ConsentResponse",
+  // One parents'-evening appointment (8 September 2026). Empty it names nobody
+  // — and that is exactly why it cannot be read: an operator cannot know which
+  // rows are empty without reading rows, and a booked one names a CHILD, their
+  // FAMILY and the member of staff they are seeing, at a stated time on a stated
+  // evening. That is the `Message` reasoning again, plus a location and a clock.
+  // Refused whole: no row, no count, no confirmation that a booking exists. The
+  // EVENT is school text and is ADULT_READABLE above; the APPOINTMENT is people.
+  "MeetingSlot",
 ];
 
 // The operator's own records.

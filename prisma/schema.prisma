@@ -155,6 +155,7 @@ model Teacher {
   handledThreads         MessageThread[]        @relation("ThreadHandler")
   closedThreads          MessageThread[]        @relation("ThreadClosedBy")
   messagingPolicyUpdates MessagingPolicy[]      @relation("PolicyUpdatedBy")
+  meetingSlots           MeetingSlot[]          @relation("MeetingSlotTeacher")
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
@@ -339,6 +340,7 @@ model School {
   messageThreads  MessageThread[]
   exportRequests  ExportRequest[]
   consentForms    ConsentForm[]
+  meetingEvents   MeetingEvent[]
   // The school's classes, held directly rather than through whoever teaches
   // them. See the long comment on `Class.schoolId`: this is what retires the
   // 29 August 2026 widening that made a removed colleague's classes land on the
@@ -455,6 +457,105 @@ model ConsentResponse {
   // that stands. A school chasing a slip needs one row per child, not an
   // argument.
   @@unique([formId, studentId])
+  @@index([studentId])
+}
+
+// ===========================================================================
+// Parents' evening.
+//
+// A school picks an evening, says how long a slot is and which classes are
+// holding appointments; each teacher's slots are laid out for that evening, and
+// a family takes ONE for each of their children.
+//
+// WHY OFFICE HOURS DO NOT CAP THIS, said here because it looks like an
+// inconsistency and is not. SAFEGUARDING rule 21's hold exists so that a
+// teacher's evening is not a workplace: a message written at nine at night must
+// not arrive at nine at night. A parents' evening IS the evening — it is the one
+// occasion a school deliberately asks staff to be there after hours, agreed in
+// advance and in the diary. What this reuses from `src/lib/messaging/officeHours.ts`
+// is the TIME MACHINERY, and it must: `localToInstant` to turn a wall-clock slot
+// into an instant, `formatLondonStamp`/`formatMinute` for every label, and
+// `policy.closures` for "the school is shut that day". Never `toLocaleDateString`
+// for a time — a 4:20pm slot formatted that way is a BST bug on a non-UK server
+// and the exact hydration failure officeHours.ts documents.
+//
+// TWO TABLES AND NOT ONE, and the split is the access-control line. A
+// `MeetingEvent` holds no person: the evening, its name, how long a slot is,
+// when booking opens. A `MeetingSlot` that has been taken names a CHILD and a
+// FAMILY, which is why the two sit in different classes of the operator
+// blindness gate — ADULT_READABLE for the event, CREDENTIAL_NEVER for the slot,
+// on the `MessagingPolicy` / `Message` precedent. One table doing both jobs
+// could only take the stricter class, and the school console would then have no
+// readable record of its own evening.
+// ===========================================================================
+model MeetingEvent {
+  id                 String    @id @default(cuid())
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId           String
+  title              String
+  // The evening itself, as "YYYY-MM-DD" in the school's own zone — the same
+  // shape `MessagingPolicy.closures` uses, and for the same reason: a calendar
+  // date is a wall-clock fact about a school day, not an instant. The instants
+  // live on the slots, computed from this date through `localToInstant`.
+  eventDate          String
+  /// How long one appointment is. Ten minutes is the primary-school norm.
+  slotMinutes        Int       @default(10)
+  // When families may start booking. NULL means "as soon as it exists"; a date
+  // in the future is how a school opens the whole year group at once rather
+  // than to whoever happens to be looking.
+  opensAt            DateTime?
+  createdByTeacherId String
+  // Snapshotted, so the record still reads correctly after the admin leaves —
+  // the `SchoolInvitation.invitedByName` precedent.
+  createdByName      String
+  createdAt          DateTime  @default(now())
+
+  slots MeetingSlot[]
+
+  @@index([schoolId, eventDate])
+}
+
+// One appointment: a teacher, a time, and — once a family takes it — a child.
+//
+// AN EMPTY SLOT NAMES NOBODY AND A TAKEN ONE NAMES A CHILD. The row is created
+// empty by the school and filled by the family, which is what makes booking a
+// CONDITIONAL UPDATE rather than a create: `updateMany({ where: { id,
+// studentId: null }, … })` returns 1 for the first family and 0 for the second,
+// so two parents pressing the same slot at the same instant cannot both get it.
+// A `create` would have let both succeed and left the school to notice.
+//
+// `studentId` and `parentId` are SET NULL rather than Cascade, so a child who
+// leaves the school FREES the slot instead of deleting the school's own
+// appointment. That is the opposite choice from `ConsentResponse`, deliberately:
+// a consent answer is worthless without the child, and an empty appointment on
+// an evening that is still happening is worth exactly what it was before
+// anybody booked it.
+model MeetingSlot {
+  id        String       @id @default(cuid())
+  event     MeetingEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId   String
+  // Whose appointment it is. Cascade, like `Class.teacher`: a teacher's slots
+  // have no meaning without the teacher.
+  teacher   Teacher      @relation("MeetingSlotTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  // The class whose families may book it. The scope of who may see this slot at
+  // all, resolved server-side from the parent↔child link (rule 4).
+  class     Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId   String
+  /// The instant the appointment starts, computed from the event's local date.
+  startsAt  DateTime
+
+  student   Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  studentId String?
+  parent    Parent?   @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  parentId  String?
+  bookedAt  DateTime?
+
+  // No two slots at the same minute for the same teacher on the same evening.
+  // A school that presses "lay out the slots" twice gets the second one refused
+  // by the database rather than a teacher with two of every appointment.
+  @@unique([eventId, teacherId, startsAt])
+  @@index([classId])
   @@index([studentId])
 }
 
@@ -852,6 +953,7 @@ model Class {
   messageThreads MessageThread[]
   exportRequests ExportRequest[]
   consentForms   ConsentFormClass[]
+  meetingSlots   MeetingSlot[]
 
   @@index([schoolId])
 }
@@ -885,6 +987,7 @@ model Student {
   // Permission slips answered for this child. One row per form, whichever
   // household answered.
   consentAnswers ConsentResponse[]
+  meetingSlots   MeetingSlot[]
 }
 
 // A parent/carer with a read-only family view of their own child(ren)'s jar.
@@ -915,6 +1018,7 @@ model Parent {
   // Permission slips this household has answered. SET NULL on the response, so
   // closing a family space does not take the school's record of the decision.
   consentAnswers ConsentResponse[]
+  meetingSlots   MeetingSlot[]
 }
 
 // A single-use, expiring token behind a parent "magic link" email.

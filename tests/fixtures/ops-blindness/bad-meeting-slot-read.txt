@@ -1,0 +1,13 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-MODEL-METHOD
+import "server-only";
+import { db } from "@/lib/db";
+
+// A parents'-evening APPOINTMENT is CREDENTIAL_NEVER: booked, it names a child,
+// their family and the member of staff they are seeing, at a stated time. An
+// operator cannot know which rows are empty without reading rows, so the table
+// is refused whole — a count included. The EVENT is school text and is
+// ADULT_READABLE; this is not the event.
+export async function bookedSlots() {
+  return db.meetingSlot.count({ where: { bookedAt: { not: null } } });
+}

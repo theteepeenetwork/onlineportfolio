@@ -1,6 +1,7 @@
 import { getCurrentParent } from "@/lib/parentAuth";
 import { markReadByParent, parentUnreadFor, threadForParent, type ThreadView } from "@/lib/messaging/threads";
 import { formsForParent } from "@/lib/consentForms";
+import { eveningsForParent, type FamilyEvening } from "@/lib/meetingBookings";
 import { FamilySignIn } from "./FamilySignIn";
 import { ParentHome } from "./ParentHome";
 import type { FamilyFormView } from "./FamilyForms";
@@ -44,5 +45,13 @@ export default async function FamilyPage({
     forms[child.id] = await formsForParent(parent.id, child.id);
   }
 
-  return <ParentHome parent={parent} threads={threads} unread={unread} forms={forms} />;
+  // Parents' evening, per child, through the same parent↔child link. A taken
+  // slot is reduced to a boolean on the server before it gets here, so no other
+  // family's child crosses into this browser.
+  const meetings: Record<string, FamilyEvening[]> = {};
+  for (const child of parent.children) {
+    meetings[child.id] = await eveningsForParent(parent.id, child.id);
+  }
+
+  return <ParentHome parent={parent} threads={threads} unread={unread} forms={forms} meetings={meetings} />;
 }

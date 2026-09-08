@@ -281,6 +281,55 @@ Each rule is testable. A change that breaks one does not ship.
    (rule 19 forbids it and no amendment is contemplated); a free-text answer of
    any kind; a form sent to one named child rather than a class; a child seeing
    or answering one.
+
+23. **A parents' evening is booked by the family, and who is coming is the class
+   teacher's list.** *(Added 2026-09-08; see "Amendments" below.)* A school lays
+   out appointments for whole classes; a linked parent takes one for their own
+   child and may move or give it up until the evening. The constraints, every one
+   of which is a blocking test:
+
+   - **A taken appointment says taken and never who by.** A bookable list with
+     names on it tells one family exactly when another family will be in the
+     building; the reduction to a boolean happens on the **server**
+     (`src/lib/meetingBookings.ts`), so no other child's id reaches a parent's
+     browser at all. Separated households are the ordinary case that hurts here,
+     not an edge case — the same reasoning that took the per-household detail out
+     of the subject access export on 2026-08-23.
+   - **Two families cannot take one slot.** Booking is a conditional update
+     against an empty row the school created, so the database decides and the
+     second family is told at once. Not a check that was true a moment ago.
+   - **One appointment per child per evening**, and pressing again moves rather
+     than accumulates: a second appointment is one the rest of the class cannot
+     have.
+   - **Scoped server-side like any other child data** (rule 4), one query per
+     reader: a **parent** through the parent↔child link; a **class teacher** by
+     the appointment's own `teacherId`; the **school** as counts per class, by
+     the administrative-records clause under rule 21 above. No child touches it,
+     and nothing from an evening appears in the jar or the student area.
+   - **Office hours do not cap it, and that is deliberate.** Rule 21's hold
+     exists so a teacher's evening is not a workplace; a parents' evening is the
+     one night the school has asked them to be there, agreed in advance. What is
+     reused is the *time* machinery — every instant computed in the school's own
+     zone, every label formatted on the server — and StoryJar's own bounds apply
+     instead: 07:00 to 21:00, at most sixty appointments for one teacher in one
+     evening, and never on a day the school has marked closed.
+   - **Audited, never quoted** (rule 16): the evening set up, a place booked, a
+     place given up — each recorded with who did it. **The time is not in the
+     audit row**: the teacher's list is where a school reads who is coming when,
+     and a logged time would be a second copy on a different clock. An audit row
+     about a booking names the child only to the member of staff entitled to it.
+   - **The operator reads none of it** (rule 20): `MeetingSlot` is in the
+     blindness gate's strictest class — an operator cannot know which rows are
+     empty without reading rows, and a booked one names a child, their family,
+     the staff member and a time.
+   - **Retention line before it ships** (rule 9): `RETENTION.md`, "Parents'
+     evening".
+
+   **Not covered by this rule**, and each needing its own amendment: a note or
+   free-text message attached to a booking (that is a message, and rule 21
+   governs messages); a video or telephone appointment of any kind; anything
+   that tells a family who else is attending; a reminder by email or push (rule
+   6a governs).
 7. **Uploaded media is access-controlled, not public.** Photos and drawings of
    children **must not** be served from guessable or unauthenticated URLs. Every
    media request is authorised against the same rules as rule 4 before the bytes
@@ -455,6 +504,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-08 | 23 (new) | Rule 23 permits parents'-evening booking: a school lays out appointments, a family takes one for their own child, a taken slot shows as taken and never who by, and office hours deliberately do not cap it. | Product owner | The highest-value reuse of the office-hours time machinery, and the one place where applying the office-hours *hold* would refuse the feature rather than govern it — a parents' evening is the night a school has asked its staff to be there. Two risks decided rather than left: a bookable list is a disclosure surface between families, so the child id is reduced to a boolean on the server; and two parents pressing one slot is a real race, so booking is a conditional update against a row the school created rather than a create. **What was traded away:** nothing in rule 21 — the hold on *messages* is untouched, and a booking carries no free text for a message to hide in. **What was not:** the operator still reads nothing (rule 20), and the school office still sees counts rather than children. |
 | 2026-09-08 | 5 (clause), 22 (new) | Rule 22 permits permission slips: the school writes the question, StoryJar owns the two answers, and there is no free-text response field in the product. Rule 5 gains an **administrative records** clause — an admin may see a record of a decision an *adult* made, as counts per class, and never which child answered which way. | Product owner | A permission slip is the biggest paper-and-phone job in a primary office and is adult decision data, not a child's work, so it belongs on a school plan. The whole risk is in one place: a form is where Art. 9 data gets collected by accident rather than by argument, because "does your child have a nut allergy?" sounds like an administrative question. The answer is structural — the school never authors an answer label, so there is no route by which an allergy or a SEN status can be typed in — and the one extra answer permitted is a catering headcount for a trip day, decided by the owner on 2026-09-08. **What was traded away:** rule 5's absolute "an admin sees no record about a child", which was always about *work* and is now said in words instead of inferred. **What was not:** an admin still sees no child's name against an answer, no journal item, no message body; the operator sees nothing at all (rule 20). |
 | 2026-09-07 | 6 (exception), 21 (new) | Rule 6 said parents are **read-only**. Rule 21 carves out one write: a conversation with the child's class teacher, held to office hours the **school** sets inside StoryJar's caps (at most ten hours a day, 06:00–20:00), delivered in neither direction outside them, with no override; off by default; school-plan only; text only; never reachable by a child; readers always shown to the parent; a teacher may share a thread with a colleague or pass a family to one, and the parent is not told of a pass; the school sees metadata and closes or reassigns without reading; audited without quoting. | Product owner | `COMPETITIVE_POSITIONING.md` rejected two-way messaging outright until 2026-08-24, when it moved to BUILD on the reasoning that the verdict was right about *direct messaging* and wrong to assume a DM was the only available shape; that note named this rule as its governor before a line of it existed, and this amendment is that rule arriving. The two original grounds — teachers' evenings, and an adult in a child's space — are met structurally rather than by absence: the hold is two-way, so a teacher writing at 22:00 cannot set an out-of-hours expectation either, and the conversation never touches the child's product. The commercial reason is the one `docs/pricing-decisions.md` already gives for the school tier: it sells *oversight*, and school-set office hours are the first feature that makes that concrete. **What was traded away:** rule 6's clean "parents can only look", and the "no DMs" line in the positioning. **What was not:** rule 6a (nothing is emailed), rule 5 (no admin reads a body), rule 20 (the operator reads nothing), and the approval queue, which this does not touch. Data-protection review: the DPIA is amended (R19) and still awaits professional review with the rest. |
 | 2026-08-23 | 3 (scope note) | Approval determines visibility **inside StoryJar** and never limits disclosure to a data subject or their representative. The per-child subject-access export discloses every status, including `PENDING` and `RETURNED`. | Product owner | Rule 3 governs what the product *shows*. It does not and cannot narrow what a subject access request must disclose: approval is a workflow state, and a workflow state does not limit Article 15. An export that omitted `PENDING` work would be the defective one — it would answer "what have you published" to a question that asked "what do you hold". The risk rule 3 exists for is real here and is answered by a different means rather than by withholding: the export counts the unapproved items at the top of the file and the screen beside the button says so, so a human reads it before it is released. Recorded as a **scope note, not a carve-out** — nothing about what the product shows a parent, another child or a public URL has changed. |

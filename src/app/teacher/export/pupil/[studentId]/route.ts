@@ -75,6 +75,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
       // `consentForms.ts` because the scope is already established above: the
       // child is in a class this teacher owns, which is the same check
       // `registersForTeacher` makes.
+      // Parents'-evening appointments this household has booked (rule 23), by
+      // the same reasoning and the same already-established scope.
+      meetingSlots: {
+        orderBy: { startsAt: "asc" },
+        select: {
+          startsAt: true,
+          bookedAt: true,
+          event: { select: { title: true, eventDate: true } },
+          teacher: { select: { displayName: true, name: true } },
+        },
+      },
       consentAnswers: {
         orderBy: { respondedAt: "asc" },
         select: {
@@ -183,6 +194,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
       packedLunchRequested: r.form.asksPackedLunch ? r.packedLunch : null,
       answeredAt: r.respondedAt.toISOString(),
     })),
+    // Appointments booked for this child. The TIME is here because it is what
+    // is held; it is not in the audit log, for the reason RETENTION.md gives.
+    parentsEveningAppointments: student.meetingSlots.map((m) => ({
+      evening: m.event.title,
+      on: m.event.eventDate,
+      startsAt: m.startsAt.toISOString(),
+      with: m.teacher.displayName ?? m.teacher.name,
+      bookedAt: m.bookedAt ? m.bookedAt.toISOString() : null,
+    })),
     // Named rather than silently missing, so the reader knows what exists and
     // can ask the school for it. The school states how it handles those
     // requests; this file does not.
@@ -195,6 +215,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
       "Unsubmitted drafts, which are private to the child and are deleted when the work is handed in, or 30 days after it was last touched.",
       ...(student.consentAnswers.length === 0
         ? ["No permission slips: the school has not sent one to this class, or this household has not answered one."]
+        : []),
+      ...(student.meetingSlots.length === 0
+        ? ["No parents'-evening appointments: the school has not held one for this class, or this household has not booked."]
         : []),
       // The staff line used to say staff names were not included, three lines
       // below the name of the member of staff who produced the file. The

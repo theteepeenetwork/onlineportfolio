@@ -7,6 +7,7 @@ import { messagingStaffForSchool, resolveMayMessageParents, schoolMessaging } fr
 import { oversightForSchool } from "@/lib/messaging/threads";
 import { readSchoolMailHealth } from "@/lib/schoolMailHealth";
 import { formsForSchool } from "@/lib/consentForms";
+import { eveningsForSchool } from "@/lib/meetingBookings";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
@@ -294,6 +295,21 @@ export default async function AdminPage({
     sent: await formsForSchool(school.id),
   };
 
+  // PARENTS' EVENINGS, AS COUNTS. `eveningsForSchool` returns a line per class
+  // per evening — how many appointments there are and how many are taken — and
+  // reduces the child id to a count on the server before it leaves. Who is
+  // coming at which time is on that class teacher's own screen (rule 5's
+  // administrative-records clause, the same one permission slips rely on).
+  const evenings = {
+    onSchoolPlan: account.kind === "SCHOOL",
+    classes: liveClasses.map((c) => ({
+      id: c.id,
+      name: c.name,
+      teacherName: c.teacher.displayName ?? c.teacher.name,
+    })),
+    evenings: await eveningsForSchool(school.id),
+  };
+
   const messaging = {
     onSchoolPlan: messagingState.onSchoolPlan,
     frozen: account.status === "FROZEN",
@@ -418,6 +434,7 @@ export default async function AdminPage({
       messaging={messaging}
       rollover={rollover}
       forms={forms}
+      evenings={evenings}
     />
   );
 }
