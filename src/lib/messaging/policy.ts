@@ -43,6 +43,26 @@ export function resolveMayMessageParents(staff: StaffMessaging): boolean {
   return staff.role === "TEACHER" || staff.role === "ADMIN";
 }
 
+export type StaffLead = { isSafeguardingLead: boolean | null };
+
+/**
+ * Has the school NAMED this member of staff a safeguarding lead?
+ * (SAFEGUARDING rule 21a.)
+ *
+ * NO ROLE DEFAULT, and that is the difference from `resolveMayMessageParents`
+ * directly above. There, NULL means "whatever the role implies" — a sensible
+ * default for a permission every teacher normally has. Here, NULL means NOT A
+ * LEAD: nobody is a school's designated safeguarding lead until an admin says
+ * who is. Guessing that the head, or every admin, must be one would put a real
+ * child's conversation in front of somebody the school never chose, which is
+ * rule 8 in the one place a helpful default would be worst.
+ *
+ * Never read the column raw; this is the only place the rule lives.
+ */
+export function resolveIsSafeguardingLead(staff: StaffLead): boolean {
+  return staff.isSafeguardingLead === true;
+}
+
 export type SchoolMessaging = {
   /** The school has a SCHOOL subscription, whatever its status. */
   onSchoolPlan: boolean;
@@ -202,5 +222,33 @@ export async function setStaffMayMessage(schoolId: string, staffId: string, valu
   const staff = await db.teacher.findFirst({ where: { id: staffId, schoolId }, select: { id: true, name: true } });
   if (!staff) return { ok: false };
   await db.teacher.update({ where: { id: staff.id }, data: { mayMessageParents: value } });
+  return { ok: true, name: staff.name };
+}
+
+/**
+ * The staff a school has named as safeguarding leads (rule 21a).
+ *
+ * ACTIVE staff only, and deliberately NOT filtered by `mayMessageParents`:
+ * reading a conversation that has been raised and writing to a family are two
+ * different permissions, and the send gate in `threads.ts` still enforces the
+ * second one on its own. A school whose DSL has messaging switched off must
+ * still be able to escalate to them.
+ */
+export async function safeguardingLeadsForSchool(schoolId: string): Promise<Array<{ id: string; name: string }>> {
+  const rows = await db.teacher.findMany({
+    where: { schoolId, status: "ACTIVE", isSafeguardingLead: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, displayName: true },
+  });
+  return rows.map((t) => ({ id: t.id, name: t.displayName ?? t.name }));
+}
+
+/** An admin names, or unnames, a safeguarding lead. There is no role default. */
+export async function setStaffSafeguardingLead(schoolId: string, staffId: string, value: boolean): Promise<{ ok: boolean; name?: string }> {
+  const staff = await db.teacher.findFirst({ where: { id: staffId, schoolId }, select: { id: true, name: true } });
+  if (!staff) return { ok: false };
+  // Stored as `true` or NULL rather than `true`/`false`: there is no third
+  // state to express, and NULL is what every existing row already holds.
+  await db.teacher.update({ where: { id: staff.id }, data: { isSafeguardingLead: value ? true : null } });
   return { ok: true, name: staff.name };
 }

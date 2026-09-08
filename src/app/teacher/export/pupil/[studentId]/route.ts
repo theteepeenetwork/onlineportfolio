@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recordAudit } from "@/lib/audit";
 import { jsonAttachment, momentRecord, slugify } from "@/lib/exportBundle";
+import { threadForExport } from "@/lib/messaging/threads";
 
 // Per-pupil export — the answer to "what do you hold about my child".
 //
@@ -40,6 +41,17 @@ import { jsonAttachment, momentRecord, slugify } from "@/lib/exportBundle";
 //    the act of honouring a request.
 //  - **Media bytes.** Paths are named so nothing is hidden; the files themselves
 //    come by a separate identity-checked route.
+//
+// WHAT WAS ADDED ON 8 SEPTEMBER 2026: the child's message thread with their
+// family (SAFEGUARDING rule 21). It is held about this child, so a request that
+// asks what the school holds must have it — the same reasoning rule 3's scope
+// note already applied to work still in the approval queue. It is resolved
+// through `threadForExport`, which is in src/lib/messaging/threads.ts because
+// that is the only module allowed to touch those tables, and which withholds
+// the conversation from a member of staff who may not read it in the product
+// rather than widening rule 21 for the sake of a file. When it is withheld, the
+// file SAYS SO in `notIncluded` — the school can then supply it, which is a
+// better answer to a subject access request than a silent omission.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ studentId: string }> }) {
   const { studentId } = await params;
   const user = await getCurrentUser();
@@ -56,6 +68,31 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
         include: {
           skills: { select: { name: true } },
           assignment: { select: { title: true, quizSnapshotJson: true } },
+        },
+      },
+      // Permission slips this child's household has answered (rule 22). Held
+      // about the child, so disclosed — and read here rather than through
+      // `consentForms.ts` because the scope is already established above: the
+      // child is in a class this teacher owns, which is the same check
+      // `registersForTeacher` makes.
+      // Parents'-evening appointments this household has booked (rule 23), by
+      // the same reasoning and the same already-established scope.
+      meetingSlots: {
+        orderBy: { startsAt: "asc" },
+        select: {
+          startsAt: true,
+          bookedAt: true,
+          event: { select: { title: true, eventDate: true } },
+          teacher: { select: { displayName: true, name: true } },
+        },
+      },
+      consentAnswers: {
+        orderBy: { respondedAt: "asc" },
+        select: {
+          answer: true,
+          packedLunch: true,
+          respondedAt: true,
+          form: { select: { title: true, formBody: true, closesAt: true, asksPackedLunch: true, createdByName: true } },
         },
       },
     },
@@ -85,6 +122,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
   const familyPlaces = await db.parent.count({
     where: { children: { some: { id: student.id } } },
   });
+
+  // The conversation between this child's family and the school. Null when
+  // there has never been one; `withheldBecause` when there is one this member
+  // of staff may not read.
+  const thread = await threadForExport(user.teacher.id, student.id);
 
   // Work in this file that no adult has yet decided is suitable to share.
   //
@@ -133,12 +175,50 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
     familyAccess: {
       places: familyPlaces,
     },
+    // Every message either side has written, in order, INCLUDING any still
+    // waiting for the school's office hours to open — the hold governs when a
+    // message is delivered, not whether it is held, so one written at nine at
+    // night is on the school's disk and is disclosed with the time it will
+    // arrive (SAFEGUARDING rule 21).
+    messages: thread && !thread.withheldBecause ? thread.messages : [],
+    messageThreadReaders: thread && !thread.withheldBecause ? thread.readers : [],
+    // What the school asked permission for, and what the family answered. The
+    // form's own text is included because a bare "GIVEN" answers nothing: what
+    // was consented to is the point of the record.
+    permissionSlips: student.consentAnswers.map((r) => ({
+      title: r.form.title,
+      askedFor: r.form.formBody,
+      answersAskedForBy: r.form.closesAt ? r.form.closesAt.toISOString() : null,
+      sentBy: r.form.createdByName,
+      answer: r.answer,
+      packedLunchRequested: r.form.asksPackedLunch ? r.packedLunch : null,
+      answeredAt: r.respondedAt.toISOString(),
+    })),
+    // Appointments booked for this child. The TIME is here because it is what
+    // is held; it is not in the audit log, for the reason RETENTION.md gives.
+    parentsEveningAppointments: student.meetingSlots.map((m) => ({
+      evening: m.event.title,
+      on: m.event.eventDate,
+      startsAt: m.startsAt.toISOString(),
+      with: m.teacher.displayName ?? m.teacher.name,
+      bookedAt: m.bookedAt ? m.bookedAt.toISOString() : null,
+    })),
     // Named rather than silently missing, so the reader knows what exists and
     // can ask the school for it. The school states how it handles those
     // requests; this file does not.
     notIncluded: [
+      ...(thread?.withheldBecause ? [thread.withheldBecause] : []),
+      ...(thread === null
+        ? ["No messages: this child's family and the school have never used StoryJar's messages, or the school does not have them switched on."]
+        : []),
       "The media files themselves (photos, drawings, voice notes). Their paths are listed above; the files are supplied separately by the school.",
       "Unsubmitted drafts, which are private to the child and are deleted when the work is handed in, or 30 days after it was last touched.",
+      ...(student.consentAnswers.length === 0
+        ? ["No permission slips: the school has not sent one to this class, or this household has not answered one."]
+        : []),
+      ...(student.meetingSlots.length === 0
+        ? ["No parents'-evening appointments: the school has not held one for this class, or this household has not booked."]
+        : []),
       // The staff line used to say staff names were not included, three lines
       // below the name of the member of staff who produced the file. The
       // accountability is worth more than the omission, so `exportedBy` stays
@@ -160,7 +240,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
     schoolId: user.teacher.schoolId,
     subjectType: "STUDENT",
     subjectId: student.id,
-    detail: `Exported one pupil's data (${data.moments.length} moment${data.moments.length === 1 ? "" : "s"}, ${notApproved} not approved; file paths only, no media files)`,
+    detail:
+      `Exported one pupil's data (${data.moments.length} moment${data.moments.length === 1 ? "" : "s"}, ` +
+      `${notApproved} not approved; file paths only, no media files; ` +
+      `${data.messages.length} message${data.messages.length === 1 ? "" : "s"} with their family)`,
   });
 
   const filename = `storyjar-${slugify(student.name, "pupil")}-${data.exportedAt.slice(0, 10)}.json`;

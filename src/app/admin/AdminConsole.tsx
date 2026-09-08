@@ -10,12 +10,16 @@ import {
   resendInvite,
   setStaffRole,
 } from "@/app/actions/admin";
-import { setStaffMessaging } from "@/app/actions/messaging";
+import { setStaffLead, setStaffMessaging } from "@/app/actions/messaging";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { ImportClassForm } from "@/components/ImportClassForm";
 import { BillingPane } from "./BillingPane";
 import { Guide } from "./Guide";
 import { MessagesPane, type MessagingPaneProps } from "./MessagesPane";
+import { FormsPane, type FormsPaneProps } from "./FormsPane";
+import { EveningsPane, type EveningsPaneProps } from "./EveningsPane";
+import { RolloverPane, type RolloverPaneProps } from "./RolloverPane";
+import { requestClassExport } from "@/app/actions/exportRequest";
 import { Promises } from "./Promises";
 import { CARD, TABS, TAB_HEADING, type Tab } from "./tabs";
 
@@ -51,11 +55,13 @@ export type StaffRow = {
   invitationId: string | null;
   /** The stored override for parent messaging: NULL = the default for the role. */
   mayMessage: boolean | null;
+  /** Has the school named them a safeguarding lead? (rule 21a; no role default.) */
+  isLead: boolean;
   /** What that resolves to (src/lib/messaging/policy.ts). */
   mayMessageResolved: boolean;
 };
 
-type Submenu = "role" | "classes" | "messaging" | null;
+type Submenu = "role" | "classes" | "messaging" | "lead" | null;
 
 export type SchoolClass = {
   id: string;
@@ -74,6 +80,16 @@ export type SchoolClass = {
    * can see and act on rather than a silent dump.
    */
   inherited: string | null;
+  /**
+   * Whether the school has asked this class's teacher for a copy of its
+   * records, and whether they have done it (docs/paid-tier-plan.md item 3).
+   *
+   * A STATUS, NEVER A FILE. The admin sees that they asked and whether it is
+   * sorted; the export itself is the teacher's, because rule 5 keeps an admin
+   * out of children's work. That is the whole design, and it is why this is
+   * three words rather than a download.
+   */
+  exportAsk: { state: "NONE" | "WAITING" | "DONE"; askedOn: string | null };
 };
 
 export type AuditEntry = {
@@ -130,11 +146,23 @@ const ACTION_LABEL: Record<string, string> = {
   SCHOOL_INVITATION_ACCEPTED: "Joined the school",
   SCHOOL_INVITATION_DECLINED: "Declined an invitation",
   CLASS_JOINED_SCHOOL: "Class came to the school",
+  CLASS_LEFT_SCHOOL: "Class went back to its teacher",
+  SCHOOL_CLOSED: "School closed its account",
+  CLASS_EXPORT_REQUESTED: "Asked a teacher for a copy of a class",
+  CLASS_EXPORT_FULFILLED: "Teacher produced the copy that was asked for",
+  SCHOOL_PLAN_ENDED_TEACHER_DETACHED: "Plan ended — staff back on their own plan",
+  CONSENT_FORM_SENT: "Sent a permission slip",
+  CONSENT_ANSWERED: "A family answered a permission slip",
+  MEETING_EVENT_CREATED: "Set up a parents' evening",
+  MEETING_BOOKED: "A family booked a parents'-evening place",
+  MEETING_CANCELLED: "A family gave up a parents'-evening place",
   OFFICE_HOURS_SAVED: "Set office hours",
   MESSAGING_SWITCHED_OFF: "Switched parent messages off",
   OFFICE_HOURS_CLOSURE_ADDED: "Added a closed day",
   OFFICE_HOURS_CLOSURE_REMOVED: "Removed a closed day",
   STAFF_MESSAGING_CHANGED: "Changed who may message parents",
+  SAFEGUARDING_LEAD_CHANGED: "Changed who is a safeguarding lead",
+  THREAD_RAISED_WITH_LEAD: "Raised a family conversation with a safeguarding lead",
   THREAD_CLOSED: "Closed a family conversation",
   THREAD_REOPENED: "Reopened a family conversation",
   THREAD_SHARED: "Shared a family conversation",
@@ -195,6 +223,9 @@ export function AdminConsole({
   childrenCount,
   audit,
   messaging,
+  rollover,
+  forms,
+  evenings,
 }: {
   schoolName: string;
   plan: string;
@@ -205,7 +236,7 @@ export function AdminConsole({
    * the same time, on purpose — and the three controls it withholds are named
    * one by one below rather than hidden behind a general "unavailable".
    */
-  billing: Omit<BillingProps, "invoiceRequested"> & { verified: boolean };
+  billing: Omit<BillingProps, "invoiceRequested" | "onGoTo"> & { verified: boolean };
   /** Why the admin arrived back here from an action that refused them, if they did. */
   blocked: "verify" | null;
   meId: string;
@@ -214,6 +245,9 @@ export function AdminConsole({
   childrenCount: number;
   audit: AuditEntry[];
   messaging: MessagingPaneProps;
+  rollover: RolloverPaneProps;
+  forms: FormsPaneProps;
+  evenings: EveningsPaneProps;
 }) {
   const [tab, setTab] = useState<Tab>("staff");
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -357,6 +391,11 @@ export function AdminConsole({
             register — that saves them the typing, and it does not give you access to the children&rsquo;s work.
             Only the teacher who teaches a class ever sees what is in its jar.
           </p>
+          <p style={{ margin: "10px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "var(--sj-muted)", maxWidth: 720 }}>
+            If a subject access request comes in, or the school needs a copy of a class for any other reason,{" "}
+            <strong>ask that class&rsquo;s teacher for it here</strong>. They produce the file and pass it on. You will
+            see that you asked and that it was done — never what is in it.
+          </p>
           {importing && (
             <div style={{ marginTop: 18 }}>
               <ImportClassForm
@@ -405,7 +444,10 @@ export function AdminConsole({
                     in a staff row's ⋯ menu. It IS the access control (whoever
                     holds the class is the only one who sees its children's work),
                     so it belongs on the class, in the open, and it is audited. */}
-                <ClassTeacherPicker klass={c} staff={assignable} verified={billing.verified} />
+                <div>
+                  <ClassTeacherPicker klass={c} staff={assignable} verified={billing.verified} />
+                  <ExportAsk klass={c} />
+                </div>
                 <span style={{ font: "700 15px var(--font-atkinson)" }}>{c.children === 0 ? <span style={{ color: "var(--sj-muted)", fontWeight: 400 }}>none yet</span> : c.children}</span>
               </div>
             ))}
@@ -448,11 +490,14 @@ export function AdminConsole({
 
         {tab === "billing" && (
           <div onClick={(e) => e.stopPropagation()}>
-            <BillingPane {...billing} invoiceRequested={false} />
+            <BillingPane {...billing} invoiceRequested={false} onGoTo={(t) => { setTab(t); closeMenus(); }} />
           </div>
         )}
 
-        {tab === "messages" && <MessagesPane messaging={messaging} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
+        {tab === "moveup" && <RolloverPane rollover={rollover} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
+      {tab === "messages" && <MessagesPane messaging={messaging} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
+      {tab === "forms" && <FormsPane forms={forms} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
+      {tab === "evenings" && <EveningsPane evenings={evenings} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
       </main>
     </div>
   );
@@ -788,6 +833,16 @@ function StaffTable({
                   {p.mayMessageResolved ? "May message families" : "No parent messages"}
                 </span>
               )}
+              {/* A lead IS always labelled, unlike the messaging switch above.
+                  That one only marks the unusual case; this one is a job a
+                  school needs to be able to see at a glance on its own staff
+                  list, and "who is our DSL in StoryJar" is exactly the question
+                  somebody asks at the wrong moment. */}
+              {p.isLead && (
+                <span style={{ font: "700 11px var(--font-atkinson)", color: "#7A2E4A", background: "#F7E0E6", borderRadius: 999, padding: "3px 9px", whiteSpace: "nowrap" }}>
+                  Safeguarding lead
+                </span>
+              )}
             </span>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {p.classes.length === 0 ? (
@@ -866,6 +921,8 @@ function StaffTable({
                   <ClassesSubmenu staff={p} classes={classes} verified={verified} onBack={() => onSubmenu(null)} />
                 ) : submenu === "messaging" ? (
                   <MessagingSubmenu staff={p} onBack={() => onSubmenu(null)} />
+                ) : submenu === "lead" ? (
+                  <LeadSubmenu staff={p} onBack={() => onSubmenu(null)} />
                 ) : p.invitationId ? (
                   /* A PENDING INVITATION, so the menu is one item.
 
@@ -886,6 +943,10 @@ function StaffTable({
                         staff (SAFEGUARDING rule 21). Not offered on a pending
                         invitation above: they are not staff of this school yet. */}
                     <MenuButton icon="share" label="Parent messages" onClick={() => onSubmenu("messaging")} />
+                    {/* Naming a safeguarding lead (rule 21a). Also not offered
+                        on a pending invitation: a school cannot make somebody
+                        its DSL before they have accepted a job. */}
+                    <MenuButton icon="lock-closed" label="Safeguarding lead" onClick={() => onSubmenu("lead")} />
                     {invited && <MenuForm action={resendInvite} staffId={p.id} icon="share" label="Resend invite" />}
                     {!p.isYou && <RemoveStaffItem staff={p} verified={verified} />}
                   </>
@@ -1237,6 +1298,44 @@ function MessagingSubmenu({ staff, onBack }: { staff: StaffRow; onBack: () => vo
   );
 }
 
+// Naming a safeguarding lead (SAFEGUARDING rule 21a).
+//
+// TWO OPTIONS AND NO "DEFAULT", which is the visible difference from the
+// messaging submenu directly above and is the rule rather than a simplification:
+// nobody is a school's designated safeguarding lead until an admin says who is.
+// A default here — every admin, or the head — would put a real child's
+// conversation in front of somebody the school never chose.
+//
+// A school may name more than one, so this is per person rather than a single
+// picker: a primary school with a DSL and two deputies is the ordinary case.
+function LeadSubmenu({ staff, onBack }: { staff: StaffRow; onBack: () => void }) {
+  const options: Array<{ value: "yes" | "no"; label: string }> = [
+    { value: "yes", label: "Is a safeguarding lead" },
+    { value: "no", label: "Is not a safeguarding lead" },
+  ];
+  const current = staff.isLead ? "yes" : "no";
+  return (
+    <>
+      <button onClick={onBack} style={{ ...MENU_ITEM, color: "#43506B", font: "700 13px var(--font-atkinson)" }}>← Safeguarding lead</button>
+      <div style={{ height: 1, background: "#F0EADD", margin: "4px 0" }} />
+      {options.map((o) => (
+        <form key={o.value} action={setStaffLead}>
+          <input type="hidden" name="staffId" value={staff.id} />
+          <input type="hidden" name="value" value={o.value} />
+          <button role="menuitem" type="submit" disabled={current === o.value} style={{ ...MENU_ITEM, opacity: current === o.value ? 0.5 : 1 }}>
+            <span style={{ width: 18, textAlign: "center" }} aria-hidden>{current === o.value ? "✓" : "•"}</span>
+            {o.label}
+          </button>
+        </form>
+      ))}
+      <p style={{ margin: "6px 8px 4px", font: "400 12px/1.5 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+        A teacher can raise a family conversation with a lead, who then reads it. It gives them nothing else, and it is
+        not a report to StoryJar or a substitute for your own safeguarding procedure.
+      </p>
+    </>
+  );
+}
+
 function ClassesSubmenu({
   staff,
   classes,
@@ -1403,5 +1502,88 @@ function JarMark() {
       <rect x="30" y="76" width="16" height="16" rx="3" fill="#C2476B" transform="rotate(-8 38 84)" />
       <rect x="52" y="82" width="16" height="16" rx="3" fill="#F0B441" transform="rotate(6 60 90)" />
     </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// "Ask this class's teacher for a copy."
+// ---------------------------------------------------------------------------
+// docs/paid-tier-plan.md item 3. A subject access request lands on the school
+// office; the office cannot answer it, because SAFEGUARDING rule 5 keeps an
+// admin out of children's work and the export route is scoped to the class's own
+// teacher. Until this existed the admin's only move was to find the teacher and
+// ask them out of band, which is exactly the "emailing somebody and hoping" the
+// business manager described about closing an account.
+//
+// WHAT THE ADMIN GETS IS A STATUS, NEVER A FILE. Asked, and then done. There is
+// no route from this control to a child's work, and there is deliberately no
+// "view what they sent": that would be rule 5 falling over at the last step,
+// after being upheld everywhere else on this console.
+function ExportAsk({ klass }: { klass: SchoolClass }) {
+  const [state, action, pending] = useActionState(requestClassExport, {});
+  const [open, setOpen] = useState(false);
+  // CONTROLLED, because a refusal must not throw away what they typed. Next
+  // resets an uncontrolled form after a server action, so an admin whose ask was
+  // refused — the class had moved, or they were too brief — lost the sentence
+  // they had just written and had to think of it again. The same defect the
+  // closure form had, found the same way: by a positive control that pressed the
+  // button a second time.
+  const [reason, setReason] = useState("");
+
+  if (klass.exportAsk.state === "WAITING") {
+    return (
+      <p style={{ margin: "6px 0 0", font: "400 13px/1.5 var(--font-atkinson)", color: "#7A5210" }}>
+        Copy asked for on {klass.exportAsk.askedOn} — waiting for their teacher.
+      </p>
+    );
+  }
+  if (klass.exportAsk.state === "DONE") {
+    return (
+      <p style={{ margin: "6px 0 0", font: "400 13px/1.5 var(--font-atkinson)", color: "#2E6B64" }}>
+        Copy produced by their teacher. StoryJar never showed you what was in it.
+      </p>
+    );
+  }
+  return (
+    <div style={{ marginTop: 6 }}>
+      {!open ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+          style={{ font: "600 13px var(--font-atkinson)", color: "#22304A", background: "none", border: "none", padding: 0, textDecoration: "underline", cursor: "pointer", minHeight: 44 }}
+        >
+          Ask for a copy of this class
+        </button>
+      ) : (
+        <form action={action} onClick={(e) => e.stopPropagation()}>
+          <input type="hidden" name="classId" value={klass.id} />
+          <label style={{ display: "block", font: "600 13px var(--font-atkinson)", color: "#22304A" }}>
+            What is it for?
+            <input
+              name="requestReason"
+              maxLength={200}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. a subject access request from a family"
+              style={{ display: "block", marginTop: 4, width: "min(320px, 100%)", boxSizing: "border-box", font: "400 14px var(--font-atkinson)", padding: "7px 9px", border: "2px solid #22304A", borderRadius: 8, background: "#FAF6EE", color: "#22304A" }}
+            />
+          </label>
+          <p style={{ margin: "4px 0 0", font: "400 12px/1.45 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+            Their teacher sees this. <strong>Please don&rsquo;t name a child in it</strong> — it is kept as the record
+            of the request.
+          </p>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <button type="submit" disabled={pending} style={{ font: "700 13px var(--font-atkinson)", color: "#FAF6EE", background: "#C2476B", border: "none", borderRadius: 999, padding: "9px 16px", cursor: "pointer", minHeight: 44 }}>
+              {pending ? "Asking…" : "Ask"}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} style={{ font: "600 13px var(--font-atkinson)", color: "#22304A", background: "none", border: "none", padding: 0, textDecoration: "underline", cursor: "pointer", minHeight: 44 }}>
+              Cancel
+            </button>
+          </div>
+          {state?.error && (
+            <p role="alert" style={{ margin: "6px 0 0", font: "700 13px var(--font-atkinson)", color: "#C2476B" }}>{state.error}</p>
+          )}
+        </form>
+      )}
+    </div>
   );
 }

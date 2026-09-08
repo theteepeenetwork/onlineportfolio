@@ -259,6 +259,22 @@ const ADULT_READABLE = [
   "MessagingPolicy",
   "OfficeHourWindow",
   "OfficeHoursClosure",
+  // A permission slip's own text and which classes it went to (8 September
+  // 2026). The school's words about a trip, a date, and a pair of ids — no
+  // child, no parent and no answer is reachable from either, because the ANSWER
+  // is a separate table in CREDENTIAL_NEVER and `responses` on the form is a
+  // child relation whose include fails the relation rule. "Did this school send
+  // a form out, and when" is ordinary support.
+  "ConsentForm",
+  "ConsentFormClass",
+  // A parents' evening, without its appointments (8 September 2026). The
+  // school's name for the evening, the date, how long a slot is and when
+  // booking opens. No person is in it — `createdByTeacherId` names the admin who
+  // made it, an adult, exactly as `ConsentForm.createdByTeacherId` does — and
+  // the appointments are a separate table in CREDENTIAL_NEVER whose include
+  // fails the relation rule. "Has this school set an evening up, and when does
+  // booking open" is ordinary support; who is coming to it is not.
+  "MeetingEvent",
 ];
 
 // Children and everything hanging off them. Counts and school-level groupBy
@@ -501,6 +517,31 @@ const CREDENTIAL_NEVER = [
   "MessageThread",
   "MessageThreadShare",
   "Message",
+  // A school asking one of its teachers for a copy of a class's data
+  // (docs/paid-tier-plan.md item 3, 8 September 2026). Two reasons, and the
+  // first alone would be enough. `requestReason` is free text an ADMIN writes
+  // about why the copy is wanted, and the honest example is "SAR from Amara's
+  // mother" — the same R15 free-text problem `AuditLog` and `handoverReason` are
+  // in this class for. And the row is one join from a Class, which is
+  // AGGREGATE_ONLY: a per-class row an operator could list would say which
+  // classes a school is being asked about, which is a fact about children's
+  // records dressed as workflow. Refused whole. Support never needs one: the
+  // school sees its own requests on its own console.
+  "ExportRequest",
+  // One household's answer on a permission slip (8 September 2026). A named
+  // child, a named household, and a decision an adult made about that child —
+  // the `Message` reasoning word for word, and one join from the child either
+  // way. Refused whole: no row, no count, no confirmation that an answer exists.
+  // The FORM is school text and is ADULT_READABLE above; the ANSWER is a person.
+  "ConsentResponse",
+  // One parents'-evening appointment (8 September 2026). Empty it names nobody
+  // — and that is exactly why it cannot be read: an operator cannot know which
+  // rows are empty without reading rows, and a booked one names a CHILD, their
+  // FAMILY and the member of staff they are seeing, at a stated time on a stated
+  // evening. That is the `Message` reasoning again, plus a location and a clock.
+  // Refused whole: no row, no count, no confirmation that a booking exists. The
+  // EVENT is school text and is ADULT_READABLE above; the APPOINTMENT is people.
+  "MeetingSlot",
 ];
 
 // The operator's own records.
@@ -697,6 +738,22 @@ const DENY_FIELDS = [
   // R15 free-text reasoning applies and it is denied with the body.
   "messageBody",
   "handoverReason",
+  // The admin's own sentence about why a class's data has been asked for. Same
+  // free-text reasoning as `handoverReason` above; the model is already
+  // CREDENTIAL_NEVER and this is the second lock, which stops the identifier
+  // appearing under the ops roots at all. Named `requestReason` rather than
+  // `reason` deliberately: a denied identifier has to be one nothing else has a
+  // reason to use, and the operator area has reasons of its own for every
+  // lookup it records.
+  "requestReason",
+  // A teacher's own words for the safeguarding lead about why they raised a
+  // family conversation (SAFEGUARDING rule 21a, 8 September 2026). The most
+  // sensitive free text in the product by some distance — it is an adult writing
+  // a concern about a named child — and denied on exactly the reasoning that
+  // denied `handoverReason` and `requestReason` above. Named `raisedReason`
+  // rather than `reason` for the same rule those two follow: a denied identifier
+  // has to be one nothing else has a reason to use.
+  "raisedReason",
   // Teacher-authored activity content, which reaches children and can quote them
   "templatePathsJson",
   // The rendered picture of that same content — the worksheet, its movable

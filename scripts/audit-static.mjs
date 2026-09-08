@@ -98,7 +98,37 @@ function scan(file) {
     // three message tables. A second caller is a caller that can forget the
     // delivery filter. (`messagingPolicy` is a different table and is not
     // caught: the word boundary after `message` excludes it.)
-    if (/\b(db|tx|prisma)\.(message|messageThread|messageThreadShare)\b/.test(line) && rel !== "src/lib/messaging/threads.ts") {
+    //
+    // ONE NARROW SECOND MODULE, added 2026-09-08 with rule 6a's notification
+    // (src/lib/messaging/notify.ts), and this is a WIDENING of a rule-21 gate so
+    // it says exactly what it permits and why rather than quietly growing a
+    // list:
+    //
+    //   • `notify.ts` may query `message` ONLY. `messageThread` and
+    //     `messageThreadShare` — the two tables that decide who is in the room —
+    //     stay single-caller, because that is the half of rule 21 this gate is
+    //     really guarding and nothing about notification needs them.
+    //   • It reads no body. Its select is an id and the child's linked parents;
+    //     the email it produces deliberately carries no content at all.
+    //   • It could not live in threads.ts. The nightly sweep runs under `tsx`
+    //     outside Next, where `threads.ts`'s own `server-only` import throws —
+    //     the same constraint that shaped `schoolPlanEnd.ts` and `freePlan.ts`.
+    //   • It cannot forget the delivery filter, which is the failure this gate
+    //     exists to prevent: `deliverAt: { lte: now }` is the CONDITION it
+    //     selects on rather than a filter applied to a wider read, so a version
+    //     of that file without it selects nothing rather than everything.
+    //
+    // A third module is not an extension of this. It is a new argument, in a
+    // new comment, with the owner's agreement.
+    const messageTableCallers = ["src/lib/messaging/threads.ts"];
+    const messageOnlyCallers = ["src/lib/messaging/notify.ts"];
+    if (/\b(db|tx|prisma)\.(messageThread|messageThreadShare)\b/.test(line) && !messageTableCallers.includes(rel)) {
+      violations.push(`${rel}:${n}  thread tables may only be queried from src/lib/messaging/threads.ts (rule 21): ${line.trim()}`);
+    } else if (
+      /\b(db|tx|prisma)\.message\b/.test(line) &&
+      !messageTableCallers.includes(rel) &&
+      !messageOnlyCallers.includes(rel)
+    ) {
       violations.push(`${rel}:${n}  message tables may only be queried from src/lib/messaging/threads.ts (rule 21): ${line.trim()}`);
     }
     // dangerouslySetInnerHTML — banned on user content (SAFEGUARDING rule 15).

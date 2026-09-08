@@ -3,7 +3,9 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireWritableAccountForClass } from "@/lib/billing";
 import { deliveryTimeFor, describeOpening, hasAnyOpening, isOpenAt, nextOpeningAfter, type Policy } from "./officeHours";
-import { messagingOpenForSending, resolveMayMessageParents, schoolMessaging, type SchoolMessaging } from "./policy";
+import { messagingOpenForSending, resolveIsSafeguardingLead, resolveMayMessageParents, schoolMessaging, type SchoolMessaging } from "./policy";
+import { sendMail } from "@/lib/mailer";
+import { notifyDeliveredMessages } from "./notify";
 
 // ===========================================================================
 // Parent–teacher message threads: the ONLY module that reads or writes
@@ -415,6 +417,30 @@ export async function inboxForStaff(teacherId: string, now: Date = new Date()): 
   const schoolId = me.schoolId;
   const messaging = await schoolMessaging(schoolId);
 
+  // THE LAZY HALF of the notification model (rule 6a, src/lib/messaging/notify.ts).
+  //
+  // Here rather than in `sendStaffMessage`, and that is the whole point: a
+  // message written at 21:40 is DELIVERED when the school opens, and an email
+  // raised at the moment of writing would put the hold's own leak in a parent's
+  // pocket at ten at night. This runs on a staff read, which in the ordinary
+  // case is somebody at the school opening StoryJar during the morning the
+  // message lands.
+  //
+  // NOT SCOPED TO THIS SCHOOL, deliberately: it is the same bounded batch the
+  // nightly sweep runs, and scoping it would mean a school whose staff never
+  // open the inbox is served only by the job while a busy one is served twice.
+  // `Message.notifiedAt` makes the overlap harmless.
+  //
+  // AWAITED RATHER THAN FIRED AND FORGOTTEN. A floating promise in a server
+  // component is a promise nothing keeps alive; the cost is one bounded query on
+  // a page a teacher opens a few times a day, and `notifyDeliveredMessages`
+  // returns early when there is nothing due.
+  // The mailer is passed in rather than imported by `notify.ts`, so that the
+  // same function is reachable from a job and from a test outside Next. This is
+  // the server side of that arrangement and the only place the real sender is
+  // supplied.
+  await notifyDeliveredMessages(db, sendMail, now);
+
   const [own, given] = await Promise.all([
     db.student.findMany({
       where: { class: { teacherId } },
@@ -606,6 +632,9 @@ type ControlResult = { ok: true; schoolId: string; childName: string; targetName
 
 const NO_STANDING = "You can’t change who sees this conversation.";
 const BAD_COLLEAGUE = "Pick a colleague at your school who is set up to message families.";
+// Raising a conversation without saying why would be an access with no record
+// of why it was needed, which is the one thing that makes the access defensible.
+const NEEDS_REASON = "Say briefly why you are raising this. It goes to the safeguarding lead, not to the family.";
 
 /** The thread row, created if the family has never written, for share/pass. */
 async function ensureThread(studentId: string, schoolId: string, classId: string, tx: Prisma.TransactionClient) {
@@ -637,6 +666,95 @@ export async function shareThread(byTeacherId: string, studentId: string, withTe
     });
   });
   return { ok: true, schoolId, childName: child.name, targetName: greet(target) };
+}
+
+/**
+ * A teacher raises one conversation to a member of staff the school has NAMED a
+ * safeguarding lead, with a reason (SAFEGUARDING rule 21a).
+ *
+ * IT IS `shareThread` WITH A NAMED RECIPIENT AND A RECORDED REASON, and keeping
+ * it that way is the point. Escalation adds NO NEW ROUTE to a child's data: the
+ * lead reads on exactly the terms a colleague shared with does, the reader list
+ * the parent can already see gains a name, and nothing else about the thread
+ * changes. If per-thread sharing were unsafe, this would be unsafe, and the
+ * answer would be to fix sharing rather than to build a second mechanism beside
+ * it.
+ *
+ * THREE DELIBERATE DIFFERENCES FROM `shareThread`, each one a decision:
+ *
+ *   1. The target must be a NAMED LEAD, resolved through
+ *      `resolveIsSafeguardingLead`, which has no role default. A school with no
+ *      lead named has nobody to raise to, and is told so rather than being given
+ *      a guess.
+ *   2. The target does NOT have to hold the school's messaging permission.
+ *      Reading a raised conversation and writing to a family are two different
+ *      permissions, and the send gate enforces the second one on its own — so a
+ *      school whose DSL has messaging switched off can still escalate to them,
+ *      and that lead can read and not reply. `eligibleColleague` conflates the
+ *      two, correctly, for an ordinary share; here it would be wrong.
+ *   3. The REASON is stored, on the share row and nowhere else. It is free text
+ *      an adult writes about a child, which is exactly why it must not reach
+ *      `AuditLog.detail` — the `handoverReason` precedent, and the same argument
+ *      that keeps message bodies out of the log: a second copy on a different
+ *      retention clock is a copy nobody asked for.
+ *
+ * THE PARENT IS NOT TOLD, and the reader list is the transparency. Rule 21
+ * already shows a parent which staff can read their conversation; that list is
+ * what changes. A notice saying "this has been raised" would tell a parent that
+ * a concern exists about their household, which is a decision for the school's
+ * own safeguarding procedure and never for a piece of software.
+ */
+export async function raiseThreadWithLead(
+  byTeacherId: string,
+  studentId: string,
+  leadTeacherId: string,
+  reason: string,
+  now: Date = new Date(),
+): Promise<ControlResult> {
+  const [me, child] = await Promise.all([loadStaff(byTeacherId), loadChildForStaff(studentId)]);
+  const schoolId = child?.class.teacher.schoolId ?? null;
+  if (!me || !child || !schoolId || me.schoolId !== schoolId) return { ok: false, error: NO_STANDING };
+  // Only somebody who CONTROLS the thread may raise it: the class teacher, or
+  // the colleague they passed the family to. A reader who was shared with
+  // cannot pass it on again, exactly as they cannot share it on today.
+  if (!standingOf(byTeacherId, child.class.teacher.id, child.messageThread).controls) return { ok: false, error: NO_STANDING };
+  if (!leadTeacherId || leadTeacherId === byTeacherId) return { ok: false, error: BAD_COLLEAGUE };
+
+  const lead = await db.teacher.findFirst({
+    where: { id: leadTeacherId, schoolId, status: "ACTIVE" },
+    select: { ...staffSelect, isSafeguardingLead: true },
+  });
+  // A member of staff who is not a NAMED lead is refused with the same generic
+  // message as one who is not at this school at all: the refusal must not tell
+  // the asker which of the two it was (rule 8).
+  if (!lead || !resolveIsSafeguardingLead(lead)) return { ok: false, error: BAD_COLLEAGUE };
+
+  const trimmed = reason.trim();
+  if (!trimmed) return { ok: false, error: NEEDS_REASON };
+
+  await db.$transaction(async (tx) => {
+    const thread = await ensureThread(studentId, schoolId, child.classId, tx);
+    // Written in ONE transaction with the share, so a raise whose reason cannot
+    // be recorded does not happen — the shape `OpsAuditLog` uses for an adult
+    // lookup, and for the same reason: the record is what makes the access
+    // accountable, so the access must not outlive it.
+    await tx.messageThreadShare.upsert({
+      where: { threadId_teacherId: { threadId: thread.id, teacherId: lead.id } },
+      create: {
+        threadId: thread.id,
+        teacherId: lead.id,
+        sharedByTeacherId: byTeacherId,
+        raisedReason: trimmed.slice(0, 500),
+        raisedAt: now,
+      },
+      // A lead who was already an ordinary reader becomes a RAISED one, and the
+      // newer reason stands: raising again after something has changed is the
+      // ordinary case, not an error.
+      update: { raisedReason: trimmed.slice(0, 500), raisedAt: now, sharedByTeacherId: byTeacherId },
+    });
+  });
+
+  return { ok: true, schoolId, childName: child.name, targetName: greet(lead) };
 }
 
 export async function unshareThread(byTeacherId: string, studentId: string, teacherId: string): Promise<ControlResult> {
@@ -850,4 +968,101 @@ export async function recomputeHeldDeliveries(
     await tx.message.update({ where: { id: m.id }, data: { deliverAt: when ?? HELD_INDEFINITELY } });
   }
   return waiting.length;
+}
+
+// ===========================================================================
+// The conversation, for a subject access request.
+// ===========================================================================
+
+export type ThreadExport = {
+  /** Wording for the export's `notIncluded` list when the answer is null. */
+  withheldBecause?: string;
+  messages: Array<{
+    from: "A grown-up at home" | "The school";
+    /** The member of staff who wrote it, for a school message. Families see this name in the product already. */
+    staffName: string | null;
+    text: string;
+    writtenAt: string;
+    /** When it reached the other side. Held messages carry a future date, and that is disclosed rather than hidden. */
+    deliveredAt: string | null;
+  }>;
+  readers: string[];
+};
+
+/**
+ * A child's message thread, for the per-pupil subject access export.
+ *
+ * WHY IT IS DISCLOSED AT ALL. A subject access request asks what the school
+ * HOLDS, and since 7 September that includes a conversation between the child's
+ * guardians and their teacher, about the child. `SAFEGUARDING.md` rule 3's scope
+ * note settled the same question for work still in the approval queue —
+ * "approval determines visibility inside StoryJar and never limits disclosure to
+ * a data subject or their representative" — and a workflow state does not narrow
+ * Article 15 here either. An export that omitted the thread would answer "what
+ * have you shown us" to a question that asked "what do you hold".
+ *
+ * IT DOES NOT WIDEN RULE 21 BY ONE PERSON. The reader is resolved exactly as the
+ * product resolves it: this member of staff must be the class teacher, the
+ * handler, or somebody the thread was shared with, still at the school and still
+ * permitted to message families. If they are not, this returns the thread as
+ * WITHHELD rather than as absent — the export names it so the school can supply
+ * it, which is the same treatment media bytes and drafts already get. A file
+ * that quietly omits a conversation is a worse answer to a SAR than one that
+ * says a conversation exists and who to ask for it.
+ *
+ * EVERY MESSAGE, INCLUDING ONE STILL WAITING FOR OFFICE HOURS. The hold governs
+ * DELIVERY, not what is held: a message written at nine at night is on the
+ * school's disk from the moment it is written, so it is disclosed, with the time
+ * it will arrive. This is the one place that deliberately does not apply
+ * `visibleMessages`' delivery filter, and the reason is the same one that put
+ * PENDING work in the export.
+ *
+ * WHAT IS NOT HERE: `handoverReason`, which is the admin's alone and never
+ * reaches a parent or an audit row; `raisedReason`, a teacher's words to the
+ * school's safeguarding lead about why they raised the conversation (rule 21a),
+ * which is the school's internal safeguarding record and is disclosed, if at
+ * all, by the school applying its own process and the exemptions that go with
+ * it, never by a file a teacher presses a button to make; and nothing about any
+ * other child, because a thread is per-child by construction.
+ */
+export async function threadForExport(teacherId: string, studentId: string): Promise<ThreadExport | null> {
+  const [me, child] = await Promise.all([loadStaff(teacherId), loadChildForStaff(studentId)]);
+  if (!me || !child) return null;
+  const thread = child.messageThread;
+  if (!thread) return null; // Nothing was ever said. Nothing to disclose or to name.
+
+  const classTeacher = child.class.teacher;
+  const schoolId = classTeacher.schoolId;
+  if (!schoolId || me.schoolId !== schoolId) return null;
+
+  const standing = standingOf(teacherId, classTeacher.id, thread);
+  if (!standing.reader || !resolveMayMessageParents(me)) {
+    return {
+      withheldBecause:
+        "A message thread between this child’s family and the school is held, and is not in this file because " +
+        "the member of staff who produced it is not one of the people who may read it. Ask the school office for it.",
+      messages: [],
+      readers: [],
+    };
+  }
+
+  const rows = await db.message.findMany({
+    where: { threadId: thread.id },
+    orderBy: { createdAt: "asc" },
+    include: { senderTeacher: { select: staffSelect } },
+  });
+
+  return {
+    messages: rows.map((m) => ({
+      from: m.senderType === "PARENT" ? ("A grown-up at home" as const) : ("The school" as const),
+      staffName: m.senderTeacher ? greet(m.senderTeacher) : null,
+      text: m.messageBody,
+      writtenAt: m.createdAt.toISOString(),
+      // A message still waiting for the school to open carries a future date,
+      // and `HELD_INDEFINITELY` means the school has no hours it could arrive
+      // in. Both are said plainly rather than shown as delivered.
+      deliveredAt: m.deliverAt.getTime() === HELD_INDEFINITELY.getTime() ? null : m.deliverAt.toISOString(),
+    })),
+    readers: readersOf(thread, classTeacher, schoolId).map((r) => r.name),
+  };
 }

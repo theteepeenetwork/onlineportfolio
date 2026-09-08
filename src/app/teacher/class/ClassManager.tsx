@@ -7,6 +7,7 @@ import { createClass, deleteClass, rotateClassCode, updateAgeMode } from "@/app/
 import { addStudents, removeStudent } from "@/app/actions/roster";
 import { ImportClassForm } from "@/components/ImportClassForm";
 import { Icon } from "@/components/icons/Icon";
+import { markExportDone } from "@/app/actions/exportRequest";
 import { AGE_MODE_OPTIONS, type AgeMode } from "@/lib/ageMode";
 
 export type RosterChild = {
@@ -21,6 +22,17 @@ export type RosterChild = {
 
 export type ClassCard = {
   id: string;
+  /**
+   * The school has asked this teacher for a copy of this class's records, and
+   * nobody has produced it yet (docs/paid-tier-plan.md item 3). Null the rest of
+   * the time, which is almost always.
+   *
+   * It carries the ADMIN'S OWN WORDS about why. A subject access request lands
+   * on the office and the office cannot answer it — rule 5 keeps an admin out of
+   * children's work — so the ask has to arrive here, where the person who may
+   * answer it will see it.
+   */
+  exportRequest: { id: string; reason: string; askedBy: string; askedOn: string } | null;
   name: string;
   year: string;
   ageMode: AgeMode;
@@ -277,6 +289,8 @@ function RosterView({
           <button onClick={onToggleAdd} style={{ ...JAM_BTN, padding: "11px 20px", fontSize: 14 }} aria-pressed={addingChild}>＋ Add pupil</button>
         </div>
       </div>
+
+      {klass.exportRequest && <ExportRequestBand request={klass.exportRequest} classId={klass.id} />}
 
       {settings && <SettingsStrip klass={klass} />}
       {addingChild && <AddChildForm classId={klass.id} />}
@@ -721,5 +735,60 @@ function AddChildForm({ classId }: { classId: string }) {
         {state.error && <p role="alert" style={{ margin: 0, font: "700 14px var(--font-atkinson)", color: "var(--jam)" }}>{state.error}</p>}
       </div>
     </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// "Your school has asked you for a copy of this class."
+// ---------------------------------------------------------------------------
+// docs/paid-tier-plan.md item 3. A subject access request lands on the school
+// office, and the office cannot answer it: rule 5 keeps an admin out of
+// children's work, and the export route is scoped to the teacher who holds the
+// class. So the ask arrives HERE, where the person who may answer it will see
+// it, carrying the admin's own words about what it is for.
+//
+// IT IS NOT A DEMAND AND IT DOES NOT NAG. One band, on the class it is about,
+// with the reason and who asked. There is no email, no badge and no count
+// anywhere else: a teacher opens their class in the ordinary way and it is
+// there. Nothing about this is urgent enough to interrupt a lesson with.
+//
+// TWO STEPS ON PURPOSE — download, then say you have. The export is a GET that
+// streams a file, and a route that also marked the request done would be one a
+// preview fetch or a double-click could clear without anybody holding the file.
+function ExportRequestBand({
+  request,
+  classId,
+}: {
+  request: NonNullable<ClassCard["exportRequest"]>;
+  classId: string;
+}) {
+  const [state, action, pending] = useActionState(markExportDone, {});
+  return (
+    <section
+      aria-labelledby={`export-ask-${classId}`}
+      style={{ marginTop: 18, background: "#FBEED3", border: "2px solid #E4D2AC", borderRadius: 14, padding: "16px 20px" }}
+    >
+      <h2 id={`export-ask-${classId}`} style={{ margin: 0, font: "600 18px var(--font-fredoka)", color: "#7A5210" }}>
+        Your school has asked you for a copy of this class
+      </h2>
+      <p style={{ margin: "8px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "#43506B" }}>
+        {request.askedBy} asked on {request.askedOn}. Their reason: &ldquo;{request.reason}&rdquo;
+      </p>
+      <p style={{ margin: "8px 0 0", font: "400 14px/1.55 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+        Export the class above, then mark this done. The school can see that you have; they cannot see what is in the
+        file — an admin never sees children&rsquo;s work in StoryJar, which is why they had to ask you.
+      </p>
+      <form action={action} style={{ marginTop: 12 }}>
+        <input type="hidden" name="requestId" value={request.id} />
+        <button type="submit" disabled={pending} style={{ ...OUTLINE_BTN, minHeight: 44 }}>
+          {pending ? "Marking…" : "I have sent it — mark this done"}
+        </button>
+      </form>
+      {state?.error && (
+        <p role="alert" style={{ margin: "10px 0 0", font: "700 15px var(--font-atkinson)", color: "#C2476B" }}>
+          {state.error}
+        </p>
+      )}
+    </section>
   );
 }

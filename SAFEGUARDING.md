@@ -206,14 +206,220 @@ Each rule is testable. A change that breaks one does not ship.
      new messages on both sides; nothing is deleted for non-payment.
 
    **Not covered by this rule**, and each needing its own amendment: an admin
-   or a designated safeguarding lead reading message content; any notification
-   by email or push (rule 6a governs — nothing is sent, a badge in the family
-   space is the whole notification model); attachments; translation through a
+   or a designated safeguarding lead reading message content — **now covered by
+   rule 21a above**; **notification by push** (rule 6a governs; nothing is sent);
+   attachments; translation through a
    third party (a message names a child); read receipts on a personal thread
    (a parent seeing "read 19:04" manufactures the obligation the hold exists to
    remove); absence or illness reporting (a reason for absence is health data,
    and a channel shut overnight must never be where something urgent is
    reported).
+
+21a. **A teacher may raise one conversation to the school's named safeguarding
+   lead, with a recorded reason.** *(Added 2026-09-08; rule 21's "not covered by
+   this rule" list named this as needing its own amendment, and this is it. Rule
+   21 governs everything about the conversation itself; this governs only who
+   else may read one, and why.)*
+
+   - **A lead is named by the school, one member of staff at a time.** A nullable
+     `Teacher.isSafeguardingLead`, set by an ADMIN on the Staff tab and resolved
+     through one helper, never read raw — the `mayMessageParents` pattern. It is
+     **not** a fourth value in `staffRole`: that vocabulary is
+     `ADMIN`/`TEACHER`/`TA` and is load-bearing in six places, and a school's DSL
+     is frequently also its head. A school may name more than one, and **there is
+     no default**: nobody is a lead until an admin says so, which is rule 8 in the
+     one place a wrong default would be worst.
+   - **Raising is a share, not a new mechanism.** The lead gets the conversation
+     on exactly the terms a colleague shared with does — the reader list the
+     parent can already see gains a name, and nothing about the thread changes.
+     This deliberately adds **no new route to a child's data**: if per-thread
+     sharing were unsafe, this would be unsafe, and the answer would be to fix
+     sharing.
+   - **The lead may READ. Whether they may REPLY is a separate question already
+     answered.** Reading a raised conversation and writing to a family are two
+     permissions, and a lead who does not hold the school's messaging permission
+     gets the first and not the second — the existing `mayMessageParents` check
+     on sending is what enforces it, unchanged. This is why a lead does **not**
+     have to hold that permission to be raised to: a school whose DSL has
+     messaging switched off must still be able to escalate to them.
+   - **The reason is recorded, and it is not in the audit log.** It lives on the
+     share row, on the `handoverReason` precedent and for the same reason: a
+     reason for a safeguarding escalation is free text an adult writes about a
+     child, and a second copy of it on the audit log's own retention clock is a
+     copy nobody asked for. The audit log records that a thread was raised, to
+     whom, and by whom.
+   - **The parent is not told, and the reader list is the transparency.** Rule 21
+     already shows a parent which staff can read their conversation, and that
+     list is what changes. A notice saying "this has been raised with the
+     safeguarding lead" would tell a parent that a concern exists about their
+     household, which is a decision for the school's own safeguarding procedure
+     and never for a piece of software. The parent's pages never carry the word
+     "safeguarding" or the lead's role.
+   - **What it is NOT, said on the screen and not only here.** It is not a report
+     to StoryJar. It is not a route to anything outside the school. It is not a
+     substitute for the school's own safeguarding procedure — rule 17 routes a
+     concern to the school's DSL by the school's own process, and StoryJar is not
+     that process. The composer says all three in plain words, because a school
+     that mistook this for a reporting channel would be the worst outcome of
+     having built it.
+   - **A lead reads only what has been raised to them.** Being a lead grants
+     nothing on its own: no list of conversations, no school-wide view, no
+     standing access to a class they do not teach.
+
+   **Administrative records are not a child's work, and rule 5 does not reach
+   them.** *(Clause added 2026-09-08 with rule 22.)* Rule 5 says an admin never
+   sees a child's work; it has never said an admin may not see a record of a
+   decision **an adult made**. A permission slip, a booked meeting, a class list
+   for a trip — these are the office's own paperwork, held in a school office
+   long before StoryJar existed, and an admin who could not see whether the slips
+   were back could not run the trip. The clause is narrow and its edge is the
+   test: **counts, not children.** The school console shows how many have
+   answered in 4B and which way; **which child answered which way is the class
+   teacher's screen**, because that is the adult who takes them out of the
+   building. Nothing in this clause opens a child's *work* — a journal item, a
+   drawing, a photograph, a message body — to an admin, and a feature that
+   needed it to would be a new amendment, not this one.
+
+22. **A permission slip asks for permission and nothing else, and StoryJar owns
+   the answers.** *(Added 2026-09-08; see "Amendments" below.)* A school may send
+   a form to whole classes and a linked parent may answer it, for their own
+   child. The constraints, every one of which is a blocking test:
+
+   - **The school writes the question; it never writes an answer.** The answer
+     set is a constant in `src/lib/consent.ts` — *I give permission* / *I do not
+     give permission* — and **there is no free-text response field anywhere in
+     the product.** This is what keeps the DPIA's "no special category data"
+     claim true by construction rather than by asking a school to be careful: a
+     school free to type its own answer labels writes "nut allergy? yes / no"
+     within a term, and StoryJar would then be processing health data about
+     children. Rule 19's closing paragraph is the ground; rule 21 refused illness
+     reporting on the same one.
+   - **One extra answer, and it is a catering headcount.** *"My child needs a
+     packed lunch provided"*, offered only when the school switches it on for
+     that form, for a free-school-meals child on a trip day. It says how many
+     lunches to make and nothing about what a child may eat (owner decision,
+     2026-09-08).
+   - **Every form says where the other things go.** A standing line to the
+     family, in the same words on the form and in the builder: anything medical,
+     dietary, or about how a child is looked after goes to the school office,
+     which already holds it.
+   - **Scoped server-side like any other child data** (rule 4), in one module
+     (`src/lib/consentForms.ts`), with a query per reader rather than a filter a
+     caller must remember: a **parent** sees the forms sent to their own child's
+     class and their own household's answer, never another child's and never a
+     tally; a **class teacher** sees the register for a class they hold; the
+     **school** sees counts per class, by the administrative-records clause
+     above. No child ever touches it, and nothing from a form appears in the jar
+     or the student area.
+   - **One answer per child per form**, enforced by a unique index and not by a
+     screen. Two guardians do not get a vote each, and the later answer stands;
+     a family may change it, and the register shows who has not answered rather
+     than shutting a late one out.
+   - **Audited, never quoted** (rule 16): the form sent, and that a family
+     answered. **The answer itself is not in the audit row** — the register is
+     where a school reads answers, and a log that carried one would be a second
+     copy on a different retention clock. An audit row about an answer names the
+     child only to the member of staff who is entitled to it (rule 5's redaction
+     on the school console).
+   - **The operator reads none of it** (rule 20): `ConsentResponse` is in the
+     blindness gate's strictest class, on the `Message` precedent — it names a
+     child and carries a parent↔child linkage.
+   - **Retention line before it ships** (rule 9): `RETENTION.md`, "Permission
+     slips".
+
+   **Not covered by this rule**, and each needing its own amendment: any question
+   about a child's health, diet, access needs, SEN status, religion or ethnicity
+   (rule 19 forbids it and no amendment is contemplated); a free-text answer of
+   any kind; a form sent to one named child rather than a class; a child seeing
+   or answering one.
+
+6b. **The one email a parent may be sent about a message says only that there is
+   one.** *(Added 2026-09-08. A scope note under rule 6a, not a carve-out: rule
+   6a already permits "notifications they switched on themselves", and until now
+   nothing used it. This says what the first use may contain.)*
+
+   - **Off by default, per parent, and only the parent may turn it on.** There is
+     no action anywhere that writes the switch on somebody else's behalf — not a
+     teacher, not an admin, not the operator. It is not offered at all to a
+     household with no address on file, because many never give one and the badge
+     in the family space stays the whole notification model for them. Taking the
+     address off takes the switch off with it.
+   - **The email carries nothing.** Not the message, not the teacher's name, not
+     the child's name, class or school, not how many are waiting. It says a
+     school has written and links to the family space. An email is a copy on a
+     different retention clock, travelling a path StoryJar does not control, to a
+     mailbox that may be shared, forwarded, or read over a shoulder — the same
+     argument that keeps message text out of `AuditLog.detail`, applied to a
+     weaker channel.
+   - **No sign-in token in it.** The link goes to the family space, which asks
+     for a family code or sends a magic link exactly as it always does. A
+     notification carrying a token would be a second sign-in route created by a
+     message arriving, minted for whoever is watching the mailbox rather than for
+     somebody who asked.
+   - **Sent at DELIVERY, never at send.** Rule 21 holds a message written at
+     21:40 until the school opens; an email raised when the teacher pressed send
+     would arrive at 21:40 and the hold would leak through the mail. The trigger
+     is `deliverAt` passing, and a blocking test asserts a held message produces
+     nothing until then.
+   - **A suppressed address is not written to.** Bounced, blocked, marked as
+     spam or unsubscribed: checked before the send, not after another bounce.
+   - **Once per message, and considered exactly once.** `Message.notifiedAt` is
+     stamped whatever happened — including for a parent with the switch off — so
+     a switch turned on in March cannot produce a flood about February.
+
+   **Not covered by this note**, and each needing its own amendment: push or SMS
+   of any kind; a notification about anything other than a message; any digest,
+   summary or reminder; and telling a parent anything at all about a permission
+   slip, a parents' evening or a safeguarding escalation by email.
+
+23. **A parents' evening is booked by the family, and who is coming is the class
+   teacher's list.** *(Added 2026-09-08; see "Amendments" below.)* A school lays
+   out appointments for whole classes; a linked parent takes one for their own
+   child and may move or give it up until the evening. The constraints, every one
+   of which is a blocking test:
+
+   - **A taken appointment says taken and never who by.** A bookable list with
+     names on it tells one family exactly when another family will be in the
+     building; the reduction to a boolean happens on the **server**
+     (`src/lib/meetingBookings.ts`), so no other child's id reaches a parent's
+     browser at all. Separated households are the ordinary case that hurts here,
+     not an edge case — the same reasoning that took the per-household detail out
+     of the subject access export on 2026-08-23.
+   - **Two families cannot take one slot.** Booking is a conditional update
+     against an empty row the school created, so the database decides and the
+     second family is told at once. Not a check that was true a moment ago.
+   - **One appointment per child per evening**, and pressing again moves rather
+     than accumulates: a second appointment is one the rest of the class cannot
+     have.
+   - **Scoped server-side like any other child data** (rule 4), one query per
+     reader: a **parent** through the parent↔child link; a **class teacher** by
+     the appointment's own `teacherId`; the **school** as counts per class, by
+     the administrative-records clause under rule 21 above. No child touches it,
+     and nothing from an evening appears in the jar or the student area.
+   - **Office hours do not cap it, and that is deliberate.** Rule 21's hold
+     exists so a teacher's evening is not a workplace; a parents' evening is the
+     one night the school has asked them to be there, agreed in advance. What is
+     reused is the *time* machinery — every instant computed in the school's own
+     zone, every label formatted on the server — and StoryJar's own bounds apply
+     instead: 07:00 to 21:00, at most sixty appointments for one teacher in one
+     evening, and never on a day the school has marked closed.
+   - **Audited, never quoted** (rule 16): the evening set up, a place booked, a
+     place given up — each recorded with who did it. **The time is not in the
+     audit row**: the teacher's list is where a school reads who is coming when,
+     and a logged time would be a second copy on a different clock. An audit row
+     about a booking names the child only to the member of staff entitled to it.
+   - **The operator reads none of it** (rule 20): `MeetingSlot` is in the
+     blindness gate's strictest class — an operator cannot know which rows are
+     empty without reading rows, and a booked one names a child, their family,
+     the staff member and a time.
+   - **Retention line before it ships** (rule 9): `RETENTION.md`, "Parents'
+     evening".
+
+   **Not covered by this rule**, and each needing its own amendment: a note or
+   free-text message attached to a booking (that is a message, and rule 21
+   governs messages); a video or telephone appointment of any kind; anything
+   that tells a family who else is attending; a reminder by email or push (rule
+   6a governs).
 7. **Uploaded media is access-controlled, not public.** Photos and drawings of
    children **must not** be served from guessable or unauthenticated URLs. Every
    media request is authorised against the same rules as rule 4 before the bytes
@@ -388,6 +594,10 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-08 | 6a (scope note), 6b (new), 21 (list) | Rule 6a's "notifications they switched on themselves" gets its first use, and 6b says what that one email may contain: only that a message is waiting, with no content, no names, and no sign-in token, sent when the message is DELIVERED rather than when it is written. Rule 21's "not covered" list loses the email-notification entry, which this answers, and the safeguarding-lead entry, which 21a answers. | Product owner | Rule 6a was written on 2026-08-17 deliberately wider than "StoryJar never emails a parent", so that a preference a parent set themselves would not be banned before it existed. This is that preference. The risk it carries is not the sending but the CONTENT: a notification is the natural place for "Mrs Hartley wrote about Amara" to appear, and that sentence in a shared mailbox is a disclosure the product cannot take back. So the email says nothing, and the omissions are the feature. **What was traded away:** the clean absolute that StoryJar emails a parent only a link they asked for. **What was not:** the office-hours hold, which the delivery-time trigger preserves rather than works around; the badge model for the many households with no address; and rule 21's ban on message content leaving the product. Worth recording that this makes FINDINGS F30 and F31 cost more: every earlier email was one somebody was waiting for, so a failure was noticed by the person who did not get it. Nobody waits for this one. |
+| 2026-09-08 | 21a (new) | A teacher may raise one conversation to a member of staff the school has named as a safeguarding lead, with a reason recorded on the share row. The lead reads only what is raised to them; whether they may reply is decided by the existing per-staff messaging permission, unchanged; the parent is not told, because the reader list rule 21 already shows them is the transparency. | Product owner | Rule 21 named this in its own "not covered" list as needing an amendment, and `COMPETITIVE_POSITIONING.md` said in terms not to promise it to a school until it existed. It is smaller than it sounds because per-thread sharing is already the mechanism: this is a share with a named recipient and a recorded reason, which is why it adds **no new route to a child's data**. **What was traded away:** nothing structural — one more adult can read one conversation, chosen by a teacher, from a list the school itself set. **What was not:** the lead has no standing access to anything not raised to them; reading is not writing; the reason never reaches the audit log; and the parent's pages still never carry the word "safeguarding". The risk actually worth naming is a school mistaking this for a reporting channel, which is answered on the screen rather than in this document. |
+| 2026-09-08 | 23 (new) | Rule 23 permits parents'-evening booking: a school lays out appointments, a family takes one for their own child, a taken slot shows as taken and never who by, and office hours deliberately do not cap it. | Product owner | The highest-value reuse of the office-hours time machinery, and the one place where applying the office-hours *hold* would refuse the feature rather than govern it — a parents' evening is the night a school has asked its staff to be there. Two risks decided rather than left: a bookable list is a disclosure surface between families, so the child id is reduced to a boolean on the server; and two parents pressing one slot is a real race, so booking is a conditional update against a row the school created rather than a create. **What was traded away:** nothing in rule 21 — the hold on *messages* is untouched, and a booking carries no free text for a message to hide in. **What was not:** the operator still reads nothing (rule 20), and the school office still sees counts rather than children. |
+| 2026-09-08 | 5 (clause), 22 (new) | Rule 22 permits permission slips: the school writes the question, StoryJar owns the two answers, and there is no free-text response field in the product. Rule 5 gains an **administrative records** clause — an admin may see a record of a decision an *adult* made, as counts per class, and never which child answered which way. | Product owner | A permission slip is the biggest paper-and-phone job in a primary office and is adult decision data, not a child's work, so it belongs on a school plan. The whole risk is in one place: a form is where Art. 9 data gets collected by accident rather than by argument, because "does your child have a nut allergy?" sounds like an administrative question. The answer is structural — the school never authors an answer label, so there is no route by which an allergy or a SEN status can be typed in — and the one extra answer permitted is a catering headcount for a trip day, decided by the owner on 2026-09-08. **What was traded away:** rule 5's absolute "an admin sees no record about a child", which was always about *work* and is now said in words instead of inferred. **What was not:** an admin still sees no child's name against an answer, no journal item, no message body; the operator sees nothing at all (rule 20). |
 | 2026-09-07 | 6 (exception), 21 (new) | Rule 6 said parents are **read-only**. Rule 21 carves out one write: a conversation with the child's class teacher, held to office hours the **school** sets inside StoryJar's caps (at most ten hours a day, 06:00–20:00), delivered in neither direction outside them, with no override; off by default; school-plan only; text only; never reachable by a child; readers always shown to the parent; a teacher may share a thread with a colleague or pass a family to one, and the parent is not told of a pass; the school sees metadata and closes or reassigns without reading; audited without quoting. | Product owner | `COMPETITIVE_POSITIONING.md` rejected two-way messaging outright until 2026-08-24, when it moved to BUILD on the reasoning that the verdict was right about *direct messaging* and wrong to assume a DM was the only available shape; that note named this rule as its governor before a line of it existed, and this amendment is that rule arriving. The two original grounds — teachers' evenings, and an adult in a child's space — are met structurally rather than by absence: the hold is two-way, so a teacher writing at 22:00 cannot set an out-of-hours expectation either, and the conversation never touches the child's product. The commercial reason is the one `docs/pricing-decisions.md` already gives for the school tier: it sells *oversight*, and school-set office hours are the first feature that makes that concrete. **What was traded away:** rule 6's clean "parents can only look", and the "no DMs" line in the positioning. **What was not:** rule 6a (nothing is emailed), rule 5 (no admin reads a body), rule 20 (the operator reads nothing), and the approval queue, which this does not touch. Data-protection review: the DPIA is amended (R19) and still awaits professional review with the rest. |
 | 2026-08-23 | 3 (scope note) | Approval determines visibility **inside StoryJar** and never limits disclosure to a data subject or their representative. The per-child subject-access export discloses every status, including `PENDING` and `RETURNED`. | Product owner | Rule 3 governs what the product *shows*. It does not and cannot narrow what a subject access request must disclose: approval is a workflow state, and a workflow state does not limit Article 15. An export that omitted `PENDING` work would be the defective one — it would answer "what have you published" to a question that asked "what do you hold". The risk rule 3 exists for is real here and is answered by a different means rather than by withholding: the export counts the unapproved items at the top of the file and the screen beside the button says so, so a human reads it before it is released. Recorded as a **scope note, not a carve-out** — nothing about what the product shows a parent, another child or a public URL has changed. |
 | 2026-08-23 | 10, 11 (scope note) | Read-aloud may also speak **a quiz question**, on the same terms as the 2026-08-19 amendment below and by the same mechanism: only through a voice the platform reports as running on the device (`SpeechSynthesisVoice.localService === true`), with no listen button rendered where there is no local voice, and **deny by default** where the platform does not report `localService`. This amendment does not cover the answer options; extending to them would need the same on-device condition and its own entry here. | Product owner | A quiz question is teacher-*adopted* text exactly as a returned-work note is — note "adopted" rather than "authored": `create_activity` on the MCP connector means a model may write a question, and a teacher must open the activity and set it for a class before a child sees it. In the register built for children who cannot read, the question being silent is the gap that matters most: an EYFS child who cannot hear the question cannot do the activity at all, which makes this rule 18 as well as 10 and 11. Worded identically to the 19 August entry on purpose — a quiz question and a teacher's note get the same mechanism because **two nearly-identical rules is how one of them gets forgotten**. |

@@ -2,10 +2,11 @@
 
 import { useActionState, useState } from "react";
 import { startCheckout, requestSchoolInvoice, openCustomerPortal } from "@/app/actions/billing";
+import { closeSchoolAccount } from "@/app/actions/closure";
 import type { AccountStatus, PlanKind } from "@/lib/billing";
 import { SCHOOL_BANDS, bandFor, bandForPupils, formatPrice, priceNote, type PlanKey } from "@/lib/billing-plans";
 import type { SchoolMailHealth, SchoolMailHealthState } from "@/lib/schoolMailHealth";
-import { CARD } from "./tabs";
+import { CARD, type Tab } from "./tabs";
 
 // ---------------------------------------------------------------------------
 // The admin Billing tab.
@@ -40,6 +41,10 @@ type Props = {
   /** Children across all classes in this school — used to suggest a band, never to charge. */
   pupilsOnRoll: number;
   invoiceRequested: boolean;
+  /** Set once the school has closed its account, so the pane says so instead of offering it again. */
+  closedOnISO: string | null;
+  /** Cross-tab link, the console's own convention. */
+  onGoTo: (t: Tab) => void;
   /** Whether StoryJar's outgoing email is working. Read on the server; it holds
    *  no address, no domain, no school and no child, which is why it can be a
    *  prop at all. See src/lib/schoolMailHealth.ts. */
@@ -101,12 +106,22 @@ export function BillingPane(props: Props) {
   const {
     schoolName, status, kind, trialDaysLeft, trialEndsISO, currentPeriodEndISO, frozenAtISO,
     currentPlanKey, hasCustomer, hasLiveSubscription, configured, billingEmail, pupilsOnRoll, invoiceRequested,
-    mailHealth,
+    mailHealth, closedOnISO, onGoTo,
   } = props;
 
   const [checkoutState, checkoutAction, checkoutPending] = useActionState(startCheckout, {});
   const [invoiceState, invoiceAction, invoicePending] = useActionState(requestSchoolInvoice, {});
   const [portalState, portalAction, portalPending] = useActionState(openCustomerPortal, {});
+  const [closeState, closeAction, closePending] = useActionState(closeSchoolAccount, {});
+  const [closing, setClosing] = useState(false);
+  // CONTROLLED, because a refusal must not throw away what they typed. Next
+  // resets an uncontrolled form after a server action, so an admin who mistyped
+  // the school's name lost the sentence they had just written and had to think
+  // of it again — on the one form in the product where a reason is required and
+  // is kept as a record. A test found it; a school would have found it at the
+  // worst possible moment.
+  const [closeReason, setCloseReason] = useState("");
+  const [closeName, setCloseName] = useState("");
 
   // Pre-select the band the school's own roll falls into. A suggestion only —
   // the band is the school's to confirm, and nothing here meters pupils.
@@ -376,6 +391,100 @@ export function BillingPane(props: Props) {
           Nothing about a child is ever sent to our payment provider — only the school&rsquo;s name and the billing
           contact&rsquo;s email.
         </p>
+      </section>
+
+      {/* ── Closing the account ───────────────────────────────────────────
+          The business manager's words, which this exists to answer: "There is
+          no way for me to close our account and have the children's data
+          deleted… the only route I can see is emailing somebody and hoping."
+
+          IT SAYS WHAT IT DOES AND WHAT IT DOES NOT. Closing records the
+          school's instruction, releases the staff and freezes the plan.
+          Deleting is a separate thing that does not exist in the product yet
+          (owner decision D5, and handbook R12 blocks every deletion path until
+          a restore has been rehearsed). Writing "close and delete" on a button
+          that only closes would be the worst kind of copy: the school would
+          believe the job was done. So the card says the erasure follows the
+          retention schedule, and how to ask for it sooner. */}
+      <section style={{ ...CARD, padding: "22px 24px" }} aria-labelledby="closing">
+        <h2 id="closing" style={H2}>Closing this account</h2>
+        {closedOnISO ? (
+          <Notice tone="info">
+            This account was closed on {ukDate(closedOnISO)}. Nothing has been deleted: the children&rsquo;s work is
+            still held and is removed on the retention schedule. If you need it sooner, or need a copy first, write to
+            us and we will confirm in writing when it is done.
+          </Notice>
+        ) : (
+          <>
+            <p style={{ ...BODY, margin: "6px 0 0" }}>
+              Closing records your instruction, with today&rsquo;s date on it, in this school&rsquo;s audit log. Every
+              member of staff goes back to their own free StoryJar account, keeping any classes they brought with them
+              when they joined, and the school&rsquo;s plan is paused.
+            </p>
+            <p style={{ ...BODY, margin: "10px 0 0" }}>
+              <strong>Nothing is deleted by closing.</strong> Every class, every piece of work and every photograph is
+              still held, and is removed on the retention schedule in the{" "}
+              <button onClick={() => onGoTo("promises")} style={{ font: "inherit", color: "#22304A", background: "none", border: "none", padding: 0, textDecoration: "underline", cursor: "pointer" }}>
+                Promises
+              </button>{" "}
+              tab. That is deliberate: it means a class somebody forgot to export is still there next week.
+            </p>
+            <p style={{ ...BODY, margin: "10px 0 0" }}>
+              <strong>Ask your teachers to export their classes first.</strong> Each teacher can do it from My classes
+              &rarr; Export class data. We cannot do it for you from here — an admin never sees children&rsquo;s work
+              in StoryJar, and a button on this page that produced it would be that promise breaking at the last
+              moment.
+            </p>
+            {!closing ? (
+              <button type="button" onClick={() => setClosing(true)} style={{ ...OUTLINE, marginTop: 16 }}>
+                Close this account…
+              </button>
+            ) : (
+              <form action={closeAction} style={{ marginTop: 16 }}>
+                <label style={{ display: "block", ...BODY, fontWeight: 700 }}>
+                  Why is the school closing its account?
+                  <textarea
+                    name="reason"
+                    rows={3}
+                    maxLength={300}
+                    value={closeReason}
+                    onChange={(e) => setCloseReason(e.target.value)}
+                    style={{ display: "block", marginTop: 6, width: "min(560px, 100%)", boxSizing: "border-box", font: "400 15px var(--font-atkinson)", padding: "9px 11px", border: "3px solid #22304A", borderRadius: 10, background: "#FAF6EE", color: "#22304A" }}
+                  />
+                </label>
+                <p style={{ ...BODY, margin: "6px 0 0", fontSize: 14 }}>
+                  A sentence is enough. <strong>Please don&rsquo;t put a child&rsquo;s name in it</strong> — this is
+                  kept as the record of the instruction and is read by people who do not teach your classes.
+                </p>
+                <label style={{ display: "block", marginTop: 12, ...BODY, fontWeight: 700 }}>
+                  Type <strong>{schoolName}</strong> to confirm
+                  <input
+                    name="confirmName"
+                    value={closeName}
+                    onChange={(e) => setCloseName(e.target.value)}
+                    style={{ display: "block", marginTop: 6, width: "min(360px, 100%)", boxSizing: "border-box", font: "400 16px var(--font-atkinson)", padding: "9px 11px", border: "3px solid #22304A", borderRadius: 10, background: "#FAF6EE", color: "#22304A" }}
+                  />
+                </label>
+                <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                  <button type="submit" disabled={closePending} style={PRIMARY}>
+                    {closePending ? "Closing…" : "Close the account"}
+                  </button>
+                  <button type="button" onClick={() => setClosing(false)} style={OUTLINE}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+            {/* Only the refusal. A SUCCESS cannot render here: closing sets
+                `closedAt`, so the revalidation that delivers the result also
+                switches this card to the branch above — and that branch's
+                notice is the better confirmation anyway, because it is read
+                from the server and is still there tomorrow. Same shape as the
+                rollover pane, where the row that produced the message was the
+                row the move removed. */}
+            {closeState?.error && <Notice tone="warn">{closeState.error}</Notice>}
+          </>
+        )}
       </section>
     </div>
   );

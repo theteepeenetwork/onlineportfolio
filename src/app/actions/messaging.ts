@@ -8,7 +8,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getCurrentParent } from "@/lib/parentAuth";
 import { allowWithinBudget, RATE_LIMITED_MESSAGE } from "@/lib/rateLimit";
 import { parseMinute, WEEKDAY_NAMES, type DayWindow } from "@/lib/messaging/officeHours";
-import { addClosure, removeClosure, saveWindows, setStaffMayMessage } from "@/lib/messaging/policy";
+import { addClosure, removeClosure, saveWindows, setStaffMayMessage, setStaffSafeguardingLead } from "@/lib/messaging/policy";
 import {
   adminSetHandler,
   adminShareThread,
@@ -16,6 +16,7 @@ import {
   passThread,
   sendMessage,
   setThreadClosed,
+  raiseThreadWithLead,
   shareThread,
   takeBackThread,
   unshareThread,
@@ -104,6 +105,41 @@ export async function shareFamilyThread(_prev: ControlState | undefined, formDat
   });
   revalidatePath(`/teacher/messages/${studentId}`);
   return { done: `${result.targetName} can now see this conversation.` };
+}
+
+// Raise a family's conversation with the school's safeguarding lead
+// (SAFEGUARDING rule 21a).
+//
+// THE REASON IS NOT IN THE AUDIT ROW, and that is the one thing about this
+// action worth reading twice. It is free text a teacher writes about a child, it
+// lives on the share row where the school admin can find it, and a second copy
+// on the audit log's own retention clock is a copy nobody asked for — the
+// `handoverReason` precedent, and the same argument that keeps message bodies
+// out of the log. The log records that a thread was raised, by whom, to whom.
+export async function raiseFamilyThreadWithLead(_prev: ControlState | undefined, formData: FormData): Promise<ControlState> {
+  const user = await getCurrentUser();
+  if (user?.role !== "TEACHER") redirect("/login/teacher");
+  const studentId = String(formData.get("studentId") ?? "");
+  const leadTeacherId = String(formData.get("leadTeacherId") ?? "");
+  const reason = String(formData.get("reason") ?? "");
+  const result = await raiseThreadWithLead(user.teacher.id, studentId, leadTeacherId, reason);
+  if (!result.ok) return { error: result.error };
+  await recordAudit({
+    action: "THREAD_RAISED_WITH_LEAD",
+    actorType: "TEACHER",
+    actorId: user.teacher.id,
+    actorName: user.teacher.displayName,
+    schoolId: result.schoolId,
+    subjectType: "STUDENT",
+    subjectId: studentId,
+    // Who, to whom, and when. NOT why: see the note above.
+    detail: `Raised ${result.childName}\u2019s family conversation with ${result.targetName}`,
+  });
+  revalidatePath(`/teacher/messages/${studentId}`);
+  revalidatePath("/teacher/messages");
+  return {
+    done: `${result.targetName} can now see this conversation, with the reason you gave. The family is not told.`,
+  };
 }
 
 export async function stopSharingFamilyThread(formData: FormData): Promise<void> {
@@ -351,6 +387,31 @@ export async function adminSetFamilyHandler(formData: FormData): Promise<void> {
     });
   }
   revalidatePath("/admin");
+}
+
+// Naming, or unnaming, a safeguarding lead (rule 21a). An admin's decision
+// alone: a staff member cannot make themselves one, and there is no action that
+// would let them. Unlike the messaging switch beside it there is NO ROLE
+// DEFAULT — nobody is a lead until this is used.
+export async function setStaffLead(formData: FormData): Promise<void> {
+  const { teacherId, schoolId, actorName } = await requireAdmin();
+  const staffId = String(formData.get("staffId") ?? "");
+  const value = String(formData.get("value") ?? "") === "yes";
+  const result = await setStaffSafeguardingLead(schoolId, staffId, value);
+  if (result.ok) {
+    await recordAudit({
+      action: "SAFEGUARDING_LEAD_CHANGED",
+      actorType: "ADMIN",
+      actorId: teacherId,
+      actorName,
+      schoolId,
+      subjectType: "TEACHER",
+      subjectId: staffId,
+      detail: `${result.name} ${value ? "is now" : "is no longer"} a safeguarding lead`,
+    });
+  }
+  revalidatePath("/admin");
+  revalidatePath("/teacher/messages");
 }
 
 // The per-staff switch on the Staff tab: "default" (the role decides), "yes"

@@ -1,0 +1,18 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-RELATION
+import "server-only";
+import { db } from "@/lib/db";
+
+// The EVENT is ADULT_READABLE, so reading it is allowed — but reaching its
+// appointments through it is the whole point of the relation rule: an include
+// of a stricter model must fail even when the model at the top of the query is
+// permitted. `slots` is a child relation because MeetingSlot is not an adult
+// target, which the gate derives from the schema rather than from a list — so
+// this refusal was already true the moment the model was classified, and this
+// fixture is what proves it fires rather than asserting that it would.
+export async function eveningWithBookings(schoolId: string) {
+  return db.meetingEvent.findMany({
+    where: { schoolId },
+    select: { id: true, title: true, slots: { select: { startsAt: true, bookedAt: true } } },
+  });
+}

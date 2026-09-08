@@ -179,6 +179,69 @@ ${button(url, "Sign in to StoryJar")}
 }
 
 /**
+ * "There is a reply waiting for you in StoryJar."
+ *
+ * SAFEGUARDING rule 6a permits a notification a parent has switched on for
+ * themselves, and this is the first thing in the product to use it. Off by
+ * default, per parent, and only ever sent to an address that parent gave.
+ *
+ * WHAT IS NOT IN IT, AND WHY, because the omissions ARE the feature. Not the
+ * message. Not the teacher's name. Not the child's name, class or school. Not
+ * even how many messages are waiting. An email is a copy of something on a
+ * different retention clock, travelling a path StoryJar does not control, to a
+ * mailbox that may be shared, forwarded, on a stolen phone or read over a
+ * shoulder — which is the same argument that keeps message text out of
+ * `AuditLog.detail`, applied to a channel with weaker properties than the log.
+ * "Your child's" is as specific as the magic-link email gets, and this one does
+ * not even go that far: it says a school has written, and the school is not
+ * named either.
+ *
+ * NO LINK THAT SIGNS ANYBODY IN. It points at the family space, which asks for
+ * a family code or sends a magic link exactly as it always does. A notification
+ * that carried a token would be a second sign-in route created by a message
+ * arriving, and it would be minted for whoever is watching the mailbox rather
+ * than for somebody who asked.
+ */
+export function messageWaitingEmail(familyUrl: string): { subject: string; text: string; html: string } {
+  const subject = "There's a message waiting for you in StoryJar";
+  const preheader = "Sign in to StoryJar to read it.";
+
+  const text = [
+    "There's a message waiting for you",
+    "",
+    "Somebody at school has written to you in StoryJar. Sign in to read it:",
+    "",
+    familyUrl,
+    "",
+    "We don't put messages in email. You'll need to sign in with your family code",
+    "or ask for a sign-in link, the same as always.",
+    "",
+    "You asked for these emails. You can turn them off in StoryJar whenever you",
+    "like, on the same page you turned them on.",
+    "",
+    "If something is urgent, please phone the school office rather than replying",
+    "in StoryJar.",
+    "",
+    "---",
+    FOOTER_TEXT,
+    REPLY_TEXT,
+  ].join("\n");
+
+  const html = shell(
+    preheader,
+    `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;font-weight:700;color:${INK};">There's a message waiting for you</h1>
+<p style="margin:0;font-size:16px;line-height:1.6;color:${BODY};">Somebody at school has written to you in StoryJar. Sign in to read it.</p>
+${button(familyUrl, "Sign in to StoryJar")}
+<p style="margin:0;font-size:15px;line-height:1.6;color:${BODY};">We don't put messages in email. You'll need to sign in with your family code or ask for a sign-in link, the same as always.</p>
+<div style="height:1px;background:${RULE};margin:24px 0;line-height:1px;font-size:0;">&nbsp;</div>
+<p style="margin:0 0 10px;font-size:13px;line-height:1.6;color:${MUTED};">You asked for these emails. You can turn them off in StoryJar whenever you like, on the same page you turned them on.</p>
+<p style="margin:0;font-size:13px;line-height:1.6;color:${MUTED};">If something is urgent, please phone the school office rather than replying in StoryJar.</p>`,
+  );
+
+  return { subject, text, html };
+}
+
+/**
  * A teacher's password reset link.
  *
  * Named nowhere in it: the school, the class, any child, and the teacher

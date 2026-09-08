@@ -60,11 +60,15 @@ positioning attacks: adding them makes us the thing teachers are leaving.
 > different feature wearing a similar name. Governed by SAFEGUARDING rule 21,
 > which was written before a line of it was built.
 >
-> **Shipped 2026-09-07**, in the shape this note describes, with one part of it
-> deferred and named rather than quietly dropped: a teacher can hand a family's
-> conversation to a colleague and a school can close it, but **escalation to a
-> named safeguarding lead is not built yet** — it needs a DSL role and its own
-> amendment. Do not promise it to a school until it exists.
+> **Shipped 2026-09-07**, in the shape this note describes. The one part
+> deferred at the time — escalation to a named safeguarding lead — **shipped
+> 2026-09-08** under its own amendment (SAFEGUARDING rule 21a): a school names
+> one or more leads on the Staff tab, and a teacher can raise a conversation to
+> one with a recorded reason. Say what it is and no more: it gives the lead the
+> conversation, and it is **not** a report to StoryJar, not a route to anything
+> outside the school, and not a substitute for the school's own safeguarding
+> procedure. The composer says so in those words, because a school that mistook
+> it for one would be the worst possible outcome of building it.
 
 > **Replies to feedback, from either direction: rejected 2026-08-24.** A parent
 > sees their child's approved work and that is the whole of it. A child sees the

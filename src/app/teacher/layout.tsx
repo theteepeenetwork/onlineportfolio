@@ -46,7 +46,10 @@ export default async function TeacherLayout({
       select: { schoolName: true, school: { select: { name: true } } },
     }),
     db.class.findMany({
-      where: { teacherId },
+      // `archivedAt: null` — a class that stopped teaching at the end of last
+      // year is not in the rail. Its children have moved on and its work is
+      // reachable through each child's own page; archiving is not deletion.
+      where: { teacherId, archivedAt: null },
       orderBy: { createdAt: "asc" },
       select: { id: true, name: true },
     }),
@@ -152,6 +155,11 @@ export default async function TeacherLayout({
       teacher={{ name: user.teacher.displayName, initials: initialsOf(user.teacher.name) }}
       schoolName={profile?.school?.name ?? profile?.schoolName ?? null}
       isAdmin={user.teacher.staffRole === "ADMIN"}
+      // The rail's school-only sections. Derived from the plan that GOVERNS her
+      // — `accountStateForTeacher` prefers the school's subscription whenever
+      // she has a school — and never from `schoolName`, which every free teacher
+      // has because they typed one at signup.
+      onSchoolPlan={account.kind === "SCHOOL"}
       classes={shellClasses}
       pending={pending}
       banner={banner}

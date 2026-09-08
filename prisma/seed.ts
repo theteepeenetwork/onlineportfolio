@@ -123,24 +123,29 @@ async function main() {
     data: { name: "J. Reed", displayName: "J", email: "j.reed@stbedes.sch.uk", passwordHash: "", role: "TEACHER", status: "INVITED", schoolId: school.id },
   });
   // Miss Malik teaches her own class (so admins can see class ownership).
+  //
+  // `schoolId` ON EVERY CLASS BELOW. A class belongs to its school directly as
+  // of 2026-09-08, not only through whoever holds it, and a fixture that leaves
+  // it null models a free teacher's personal class rather than a school's —
+  // which is the one thing these classes are not.
   await db.class.create({
-    data: { name: "Butterflies", yearGroup: "Reception", classCode: "BTF789", teacherId: malik.id },
+    data: { name: "Butterflies", yearGroup: "Reception", classCode: "BTF789", teacherId: malik.id, schoolId: school.id },
   });
 
   // Sunflower is the demo's KS1 (younger) class. Set EXPLICITLY to "KS1": the
   // NULL default is now EYFS (SJ-06, owner / data-protection lead, 2026-07-19), so a class that must
   // read as KS1 has to say so — leaving it null would now render the EYFS shell.
   const sunflower = await db.class.create({
-    data: { name: "Sunflower Class", classCode: "SUN234", ageMode: "KS1", teacherId: teacher.id },
+    data: { name: "Sunflower Class", classCode: "SUN234", ageMode: "KS1", teacherId: teacher.id, schoolId: school.id },
   });
   // Ladybird is the demo's OLDER class (KS2 register) and Acorns (below) is the
   // EYFS one, so all three registers are visible in the demo and testable.
   const ladybird = await db.class.create({
-    data: { name: "Ladybird Class", classCode: "BUG456", ageMode: "KS2", teacherId: teacher.id },
+    data: { name: "Ladybird Class", classCode: "BUG456", ageMode: "KS2", teacherId: teacher.id, schoolId: school.id },
   });
   // Acorns is the demo's EYFS (3–5) class — the icon-only register (design 6a).
   const acorns = await db.class.create({
-    data: { name: "Acorns Class", classCode: "ACO789", ageMode: "EYFS", teacherId: teacher.id },
+    data: { name: "Acorns Class", classCode: "ACO789", ageMode: "EYFS", teacherId: teacher.id, schoolId: school.id },
   });
 
   // The REAL palette, not a lookalike. This used to be six hardcoded Tailwind

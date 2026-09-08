@@ -31,6 +31,12 @@ export type ParentSession = {
   // name and email are empty is the normal case, not a broken row.
   name: string | null;
   email: string | null;
+  /**
+   * Has this parent asked to be emailed when a message is waiting?
+   * (SAFEGUARDING rule 6a.) False for everybody until they say otherwise, and
+   * meaningless without `email` above.
+   */
+  notifyByEmail: boolean;
   children: ParentChild[];
 };
 
@@ -72,6 +78,7 @@ export async function getCurrentParent(): Promise<ParentSession | null> {
     id: p.id,
     name: p.name,
     email: p.email,
+    notifyByEmail: p.notifyByEmail,
     children: p.children.map((c) => ({
       id: c.id,
       name: c.name,

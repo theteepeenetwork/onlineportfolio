@@ -255,111 +255,90 @@ export function Guide({ onGoTo }: { onGoTo: (tab: Tab) => void }) {
   );
 }
 
-// September, written out by hand.
+// September.
 //
-// StoryJar does not roll a school over, and saying nothing about that leaves an
-// admin in September with a screen full of last year's classes and no idea what
-// they are supposed to do with them. This is the process, in the order it has to
-// happen, with the awkward parts named rather than skated over.
+// REWRITTEN 8 SEPTEMBER 2026, WHEN THE JOB STOPPED BEING MANUAL. This card used
+// to be a hand-written procedure, because StoryJar could not roll a school over
+// and saying nothing left an admin in September with a screen full of last
+// year's classes. The Move-up tab now does it (docs/paid-tier-plan.md item 1),
+// so what belongs here is what the screen cannot say for itself: the order, the
+// two costs, and the one thing that is still real erasure.
 //
-// Every claim below was checked against the code on 23 August 2026, because a
-// wrong instruction here costs a school a year of children's work:
-//   - a class's name and year group CANNOT be changed. db.class.update is called
-//     in exactly three places and it writes ageMode, classCode and teacherId and
-//     nothing else (actions/classes.ts:93,148 and actions/admin.ts:87).
-//   - there is no "move a pupil to another class". removeStudent calls
-//     eraseStudent (actions/roster.ts:82) — rows, media files and any family
-//     space left behind. It is real erasure, so it is never a way to move a
-//     child.
-//   - a class has ONE teacher (Class.teacherId), and assignClassToStaff moves it
-//     rather than sharing it.
-// If any of those three change, this card is wrong and must change with them.
+// The old card's header made this rewrite a condition of the change, and it was
+// right to. It listed three facts and said "if any of those three change, this
+// card is wrong and must change with them". Two of them have:
+//   - a class's name and year group CAN now change, by moving it up: the class
+//     is recreated for next year and the children move across
+//     (src/app/actions/rollover.ts).
+//   - there IS now a way to move a child to another class and keep their
+//     journal — `Student.classId` moves and `JournalItem.classId` does not, so
+//     last year's work stays labelled with last year's class. `removeStudent`
+//     is still real erasure and is still never the way to move anybody.
+// The third is unchanged: a class has ONE teacher, and moving it hands it over
+// rather than sharing it.
+//
+// Checked against the code on 8 September 2026. If the rollover stops archiving
+// and starts deleting, or starts inferring the register from a year group, this
+// card is wrong and must change with it.
 function September() {
   return (
     <div className="sj-card" style={{ ...CARD, padding: "22px 24px" }}>
       <h2 style={{ margin: 0, font: "600 20px var(--font-fredoka)" }}>September: moving your classes up a year</h2>
       <p style={{ margin: "10px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
-        StoryJar does not do this for you. It is a job you work through class by class, and it takes
-        an afternoon for a one-form-entry school. The order matters, because one of the steps cannot
-        be undone.
+        StoryJar does this for you now. The <strong>Move up</strong> tab lists every class with a row
+        each: choose next year&rsquo;s teacher, name and year group, and the children move across with
+        everything they have made. <strong>Nothing is deleted.</strong> Last year&rsquo;s class is kept,
+        with last year&rsquo;s work still in it and still labelled with the class it was made in.
       </p>
 
-      <h3 style={{ margin: "18px 0 0", font: "700 16px var(--font-atkinson)" }}>Before you change anything</h3>
+      <h3 style={{ margin: "18px 0 0", font: "700 16px var(--font-atkinson)" }}>The order it has to happen in</h3>
       <ol style={{ margin: "8px 0 0", paddingLeft: 22, font: "400 16px/1.7 var(--font-atkinson)", color: "#43506B" }}>
         <li style={{ marginTop: 6 }}>
-          <strong>Take a copy of every class you are finishing with.</strong> My classes &rarr; Export
-          class data, one class at a time. Keep the files somewhere your school keeps records. This
-          is the only copy that survives anything you do next.
+          <strong>Ask every teacher to clear their approval queue.</strong> Work still waiting stays
+          with the teacher who set it, so a class with anything pending will not move &mdash; the row
+          says how many and whose it is.
         </li>
         <li style={{ marginTop: 6 }}>
-          <strong>Take a copy for each child who is leaving you</strong> &mdash; Year 6, or anyone
-          moving school. Open them from Journals and use &ldquo;Export their data&rdquo; under their
-          name. It is the same file, for one child, and it is what you keep, or send on, if a
-          family asks what the school holds.
+          <strong>Move each class up.</strong> One row at a time, in any order. The register &mdash;
+          early years, younger, older &mdash; is carried across as it is; StoryJar never works it out
+          from the year group, so change it on the row if the children have moved between them.
+        </li>
+        <li style={{ marginTop: 6 }}>
+          <strong>Year 6 and anyone else finishing:</strong> use &ldquo;They&rsquo;re leaving&rdquo; on
+          the row. Ask their teacher to export the class first if the school wants a copy to hand on
+          &mdash; that is the teacher&rsquo;s to do, from My classes &rarr; Export class data.
+        </li>
+        <li style={{ marginTop: 6 }}>
+          <strong>Print the new class codes and put them up.</strong> This is the one job that is still
+          yours, and it cannot be avoided: see below.
         </li>
       </ol>
 
-      <h3 style={{ margin: "18px 0 0", font: "700 16px var(--font-atkinson)" }}>Then, for each class, one of two things</h3>
-      <p style={{ margin: "8px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
-        It depends on what the class name means at your school.
-      </p>
-      <p style={{ margin: "10px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
-        <strong>If the class is the children</strong> &mdash; the name follows the same group up the
-        school, like &ldquo;Miss Osei&rsquo;s class&rdquo; &mdash; then keep it. There is nothing to
-        rebuild:
-      </p>
-      <ol style={{ margin: "8px 0 0", paddingLeft: 22, font: "400 16px/1.7 var(--font-atkinson)", color: "#43506B" }}>
-        <li style={{ marginTop: 6 }}>Classes &rarr; change the teacher on that row, to whoever has them this year.</li>
-        <li style={{ marginTop: 6 }}>The new teacher opens My classes &rarr; Class settings and sets the age group if the children have moved between EYFS, KS1 and KS2.</li>
-        <li style={{ marginTop: 6 }}>Give the class a new code, so last year&rsquo;s stops letting anyone in. My classes &rarr; New class code&hellip; Print it and put it up.</li>
-        <li style={{ marginTop: 6 }}>Add anyone who has joined, remove anyone who has left (see the warning below).</li>
-      </ol>
-      <p style={{ margin: "8px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "var(--sj-muted)" }}>
-        Everything the children have made stays with them, and their families keep the codes they
-        already have. This is much the least work &mdash; take this path if your school can.
-      </p>
-
-      <p style={{ margin: "14px 0 0", font: "400 16px/1.6 var(--font-atkinson)", color: "#43506B" }}>
-        <strong>If the class is the room</strong> &mdash; &ldquo;Ducklings&rdquo; is always Reception
-        and a new set of children arrives in it &mdash; then make a new class for the new children:
-      </p>
-      <ol style={{ margin: "8px 0 0", paddingLeft: 22, font: "400 16px/1.7 var(--font-atkinson)", color: "#43506B" }}>
-        <li style={{ marginTop: 6 }}>
-          Classes &rarr; Paste a class list, and paste the names column straight out of SIMS, Arbor or
-          Bromcom. Choose whose class it is and set the age group as you go. First names only &mdash;
-          surnames are dropped as they arrive.
-        </li>
-        <li style={{ marginTop: 6 }}>Print the new class code and put it up where the children can see it.</li>
-        <li style={{ marginTop: 6 }}>
-          Send each family their code. Open the child from Journals &rarr; Family access &rarr; print
-          the letter. <strong>A family code belongs to a child&rsquo;s record</strong>, so a child in
-          a new class record needs a new code and a new letter, even if their family already had one.
-          This is the slow part and there is no way round it.
-        </li>
-        <li style={{ marginTop: 6 }}>
-          Leave last year&rsquo;s class alone for now. It is the record of what those children did,
-          and you can still open it, read it and export it.
-        </li>
-      </ol>
-
-      <h3 style={{ margin: "18px 0 0", font: "700 16px var(--font-atkinson)" }}>Three things to know before you start</h3>
+      <h3 style={{ margin: "18px 0 0", font: "700 16px var(--font-atkinson)" }}>Two costs, and one warning</h3>
       <ul style={{ margin: "8px 0 0", paddingLeft: 20, font: "400 16px/1.7 var(--font-atkinson)", color: "#43506B" }}>
         <li style={{ marginTop: 6 }}>
-          <strong>Removing a child really deletes their work.</strong> It takes their moments and
-          their photos and drawings with it, and it cannot be undone. Export first, always. Only
-          remove a child once you are sure &mdash; and never as a way of moving them somewhere else.
+          <strong>Every class gets a new class code, so every child needs telling.</strong> There is no
+          way round it. The old code signs somebody in as any child in that class, and a class that has
+          changed hands must not keep it.
         </li>
         <li style={{ marginTop: 6 }}>
-          <strong>A class name and its year group cannot be changed once the class exists.</strong>
-          So a class called &ldquo;Year 2 2025-26&rdquo; will still say that next September. If you
-          are naming classes now, a name that does not carry a year in it will save you this job.
+          <strong>Family codes do not change.</strong> A code belongs to a household rather than to a
+          class, so no family letter has to be re-issued and no family loses sight of their child.
+          This used to be the slow part of September and it is not any more.
         </li>
         <li style={{ marginTop: 6 }}>
-          <strong>There is no way to move a child from one class to another and keep their journal.</strong>
-          If a child changes class mid-year, the work they have already done stays in the class it
-          was made in.
+          <strong>Removing a child still really deletes their work.</strong> It takes their moments and
+          their photos and drawings with it, and it cannot be undone. It is not, and has never been, a
+          way of moving a child somewhere else &mdash; moving them up is. Export first, always.
         </li>
       </ul>
+
+      <p style={{ margin: "14px 0 0", font: "400 15px/1.6 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+        A class that has finished stops appearing in this year&rsquo;s registers, rails and calendars,
+        and is listed under &ldquo;Finished classes&rdquo; on the Move-up tab. Everything in it is still
+        held, and every child&rsquo;s own page still shows everything they have ever made. How long it
+        is kept is on the Promises tab.
+      </p>
     </div>
   );
 }

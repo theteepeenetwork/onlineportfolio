@@ -3,9 +3,11 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accountStateForTeacher, governingSubscription, planLabel } from "@/lib/billing";
 import { stripeConfigured } from "@/lib/stripe";
-import { messagingStaffForSchool, resolveMayMessageParents, schoolMessaging } from "@/lib/messaging/policy";
+import { messagingStaffForSchool, resolveIsSafeguardingLead, resolveMayMessageParents, schoolMessaging } from "@/lib/messaging/policy";
 import { oversightForSchool } from "@/lib/messaging/threads";
 import { readSchoolMailHealth } from "@/lib/schoolMailHealth";
+import { formsForSchool } from "@/lib/consentForms";
+import { eveningsForSchool } from "@/lib/meetingBookings";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
@@ -31,6 +33,13 @@ export default async function AdminPage({
         orderBy: { createdAt: "asc" },
         include: {
           classes: {
+            // THIS YEAR'S CLASSES. An archived one stopped teaching at the end of
+            // last year and its children have moved on (`Class.archivedAt`,
+            // year-end transfer). A register with last year's rooms in it is a
+            // register somebody has to read past, so they are excluded here and
+            // shown on the Move-up pane instead. Archiving is not deletion: every
+            // child's work is still held and still reachable through that child.
+            where: { archivedAt: null },
             orderBy: { createdAt: "asc" },
             select: { id: true, name: true, _count: { select: { students: true } } },
           },
@@ -107,6 +116,9 @@ export default async function AdminPage({
       // Parent messaging (SAFEGUARDING rule 21): the stored override and what
       // it resolves to for this person's role.
       mayMessage: s.mayMessageParents,
+      // No role default (rule 21a): resolved through the helper so the console
+      // and the escalation action cannot disagree about who a school's leads are.
+      isLead: resolveIsSafeguardingLead(s),
       mayMessageResolved: resolveMayMessageParents(s),
       sortAt: s.createdAt.getTime(),
     })),
@@ -128,6 +140,9 @@ export default async function AdminPage({
       // resolve. The row's own menu (invitationId non-null) does not offer one.
       mayMessage: null,
       mayMessageResolved: false,
+      // Nor can a school make somebody its safeguarding lead before they have
+      // accepted the job. Same reasoning, one line down.
+      isLead: false,
       sortAt: inv.createdAt.getTime(),
     })),
   ]
@@ -173,6 +188,134 @@ export default async function AdminPage({
     oversightForSchool(school.id),
     messagingStaffForSchool(school.id),
   ]);
+  // ---------------------------------------------------------------------
+  // The September job (docs/paid-tier-plan.md item 1). Class names, counts and
+  // staff names only — rule 5 holds on this screen exactly as it does on the
+  // rest of the console, so no moment and no child's name is loaded.
+  //
+  // `pending` IS LOADED HERE BECAUSE IT IS A PRECONDITION, NOT A STATISTIC. A
+  // moment waiting for approval is scoped to the class it was made in, so
+  // moving the children out of a class that still has one strands it in the
+  // outgoing teacher's queue. The action refuses in that case; the screen says
+  // so before the press, with the number and the person to ask.
+  // ---------------------------------------------------------------------
+  const [liveClasses, archivedClasses, pendingByClass, exportAsks] = await Promise.all([
+    db.class.findMany({
+      where: { schoolId: school.id, archivedAt: null },
+      orderBy: [{ yearGroup: "asc" }, { name: "asc" }],
+      select: {
+        id: true, name: true, yearGroup: true, ageMode: true, teacherId: true,
+        teacher: { select: { name: true, displayName: true } },
+        _count: { select: { students: true } },
+      },
+    }),
+    db.class.findMany({
+      where: { schoolId: school.id, archivedAt: { not: null } },
+      orderBy: { archivedAt: "desc" },
+      select: { id: true, name: true, yearGroup: true, archivedAt: true },
+    }),
+    db.journalItem.groupBy({
+      by: ["classId"],
+      where: { status: "PENDING", class: { schoolId: school.id, archivedAt: null } },
+      _count: { _all: true },
+    }),
+    // Copies of a class's records the school has asked its teachers for
+    // (docs/paid-tier-plan.md item 3). A STATUS AND NOTHING ELSE: the newest per
+    // class, so the row can say "asked" or "done". There is no route from this
+    // console to the file itself, and there must not be — rule 5.
+    db.exportRequest.findMany({
+      where: { schoolId: school.id },
+      orderBy: { createdAt: "desc" },
+      select: { classId: true, createdAt: true, fulfilledAt: true },
+    }),
+  ]);
+  const askByClass = new Map<string, { state: "WAITING" | "DONE"; askedOn: string }>();
+  for (const a of exportAsks) {
+    if (askByClass.has(a.classId)) continue; // newest wins
+    askByClass.set(a.classId, {
+      state: a.fulfilledAt ? "DONE" : "WAITING",
+      askedOn: a.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "long" }),
+    });
+  }
+  const pendingFor = new Map(pendingByClass.map((r) => [r.classId, r._count._all]));
+
+  // WHAT HAS ALREADY MOVED, READ FROM THE AUDIT LOG RATHER THAN HELD IN THE
+  // BROWSER, and that is a fix rather than a preference.
+  //
+  // The first version kept this in React state on the pane. It never rendered:
+  // a successful move ARCHIVES the class, so the row that produced the message
+  // is removed by the same revalidation that delivers it, and the row's effect
+  // never runs to hand it upwards. CI found that by waiting fifteen seconds,
+  // twice, for a message the screen could not show.
+  //
+  // The audit log is the right source anyway. It is already what this console
+  // trusts for class custody (see `inheritedOnRemoval` above), it says exactly
+  // what happened in the words the action recorded, and — unlike anything in the
+  // browser — it is still there tomorrow, which is what an admin working through
+  // fourteen classes over an afternoon actually needs.
+  const movedRows = await db.auditLog.findMany({
+    where: { schoolId: school.id, action: { in: ["CLASS_MOVED_UP", "CLASS_ARCHIVED"] } },
+    orderBy: { at: "desc" },
+    take: 30,
+    select: { id: true, detail: true },
+  });
+  const rollover = {
+    onSchoolPlan: account.kind === "SCHOOL",
+    verified: Boolean(school.verifiedAt),
+    classes: liveClasses.map((c) => ({
+      id: c.id,
+      name: c.name,
+      yearGroup: c.yearGroup,
+      ageMode: c.ageMode,
+      teacherId: c.teacherId,
+      teacherName: c.teacher.displayName ?? c.teacher.name,
+      children: c._count.students,
+      pending: pendingFor.get(c.id) ?? 0,
+    })),
+    archived: archivedClasses.map((c) => ({
+      id: c.id,
+      name: c.name,
+      yearGroup: c.yearGroup,
+      // Formatted on the server, as every other date on this console is, so a
+      // server render and a browser hydration cannot disagree about how en-GB
+      // punctuates a date (the hydration failure documented in officeHours.ts).
+      archivedAt: c.archivedAt ? c.archivedAt.toISOString().slice(0, 10) : "",
+    })),
+    // Anybody on the staff may hold a class next year, including a TA the school
+    // has given one to. Ordering matches the Staff tab so the same list reads the
+    // same way in both places.
+    staff: school.staff
+      .filter((t) => t.status === "ACTIVE")
+      .map((t) => ({ id: t.id, name: t.displayName ?? t.name })),
+    moved: movedRows.map((r) => ({ id: r.id, detail: r.detail ?? "" })).filter((r) => r.detail),
+  };
+
+  // PERMISSION SLIPS, AS COUNTS. `formsForSchool` returns a line per class per
+  // form — answered, given, not given, waiting, and the packed-lunch headcount
+  // if the form asked for one — and no child's name anywhere in it. Which child
+  // answered which way is on their class teacher's own screen (rule 5, and the
+  // "administrative records" clause in rule 21).
+  const forms = {
+    onSchoolPlan: account.kind === "SCHOOL",
+    classes: liveClasses.map((c) => ({ id: c.id, name: c.name })),
+    sent: await formsForSchool(school.id),
+  };
+
+  // PARENTS' EVENINGS, AS COUNTS. `eveningsForSchool` returns a line per class
+  // per evening — how many appointments there are and how many are taken — and
+  // reduces the child id to a count on the server before it leaves. Who is
+  // coming at which time is on that class teacher's own screen (rule 5's
+  // administrative-records clause, the same one permission slips rely on).
+  const evenings = {
+    onSchoolPlan: account.kind === "SCHOOL",
+    classes: liveClasses.map((c) => ({
+      id: c.id,
+      name: c.name,
+      teacherName: c.teacher.displayName ?? c.teacher.name,
+    })),
+    evenings: await eveningsForSchool(school.id),
+  };
+
   const messaging = {
     onSchoolPlan: messagingState.onSchoolPlan,
     frozen: account.status === "FROZEN",
@@ -192,6 +335,7 @@ export default async function AdminPage({
       teacherName: s.name,
       children: c._count.students,
       inherited: inheritedOnRemoval.get(c.id) ?? null,
+      exportAsk: askByClass.get(c.id) ?? { state: "NONE" as const, askedOn: null },
     })),
   );
 
@@ -275,6 +419,11 @@ export default async function AdminPage({
     // everything being fine. The object holds no address, domain, school or
     // child, which is why it may cross to the browser at all.
     mailHealth: await readSchoolMailHealth(),
+    // Set once the school has closed its account. Read from the column rather
+    // than derived from the frozen state: a school can be frozen for a missed
+    // payment without ever having asked to leave, and the two must not look
+    // alike on a screen whose whole job is to say what has happened.
+    closedOnISO: school.closedAt ? school.closedAt.toISOString() : null,
   };
 
   return (
@@ -289,6 +438,9 @@ export default async function AdminPage({
       childrenCount={childrenCount}
       audit={audit}
       messaging={messaging}
+      rollover={rollover}
+      forms={forms}
+      evenings={evenings}
     />
   );
 }

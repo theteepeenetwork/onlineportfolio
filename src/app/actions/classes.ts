@@ -41,7 +41,21 @@ export async function createClass(
 
   const classCode = await uniqueClassCode();
   await db.class.create({
-    data: { name, ageMode, classCode, teacherId: user.teacher.id },
+    // `schoolId` FROM THE CREATOR, and NOT `broughtInByTeacherId`. A class made
+    // by a member of staff inside a school is the school's from the moment it
+    // exists; only a class a teacher ARRIVED with is hers to take away again
+    // (see the comments on both columns). For a free teacher this is NULL, which
+    // is the complete answer rather than a missing one.
+    //
+    // FROM THE GATE, NOT FROM THE SESSION, and that distinction is load-bearing
+    // rather than stylistic. `requireWritableAccount` settles the end of a
+    // school plan (src/lib/schoolPlanEnd.ts), so for a teacher whose school
+    // lapsed more than the retention window ago it has JUST detached her — and
+    // `user.teacher.schoolId`, read a few lines above, still names the school she
+    // no longer belongs to. Creating into that value files her new class inside a
+    // dead school she cannot reach, and a spec caught it doing exactly that
+    // before this comment existed.
+    data: { name, ageMode, classCode, teacherId: user.teacher.id, schoolId: gate.teacher.schoolId },
   });
 
   revalidatePath("/teacher/class");

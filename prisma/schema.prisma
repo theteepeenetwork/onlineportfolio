@@ -13,14 +13,14 @@ datasource db {
 
 // A teacher owns one or more classes and moderates the journal.
 model Teacher {
-  id                     String                 @id @default(cuid())
-  name                   String // the teacher's full name (e.g. "Sam Pearson")
-  title                  String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
-  displayStyle           String                 @default("formal") // "formal" (title + surname) | "first"
-  displayName            String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
-  email                  String                 @unique
-  passwordHash           String
-  schoolName             String? // captured at signup (StoryJar onboarding); free text
+  id                    String                 @id @default(cuid())
+  name                  String // the teacher's full name (e.g. "Sam Pearson")
+  title                 String? // Mr / Miss / Mrs / Ms / Mx, or "" for "prefer not to say"
+  displayStyle          String                 @default("formal") // "formal" (title + surname) | "first"
+  displayName           String? // computed greeting name, e.g. "Mr Pearson" or "Sam" — never derive the greeting from `name`
+  email                 String                 @unique
+  passwordHash          String
+  schoolName            String? // captured at signup (StoryJar onboarding); free text
   // The DfE URN of the school this teacher said they work at, when they picked
   // it from the register at signup rather than typing a name (Establishment).
   //
@@ -80,17 +80,17 @@ model Teacher {
   // Not personal data beyond the teacher row it sits on: it identifies an
   // institution, and every character of it is published by the DfE. Deleted with
   // the teacher by the same cascade as everything else on this row.
-  urn                    String?
-  country                String? // England / Scotland / Wales / NI / Elsewhere
-  role                   String                 @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
-  status                 String                 @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
+  urn                   String?
+  country               String? // England / Scotland / Wales / NI / Elsewhere
+  role                  String                 @default("TEACHER") // ADMIN | TEACHER | TA — position within the school
+  status                String                 @default("ACTIVE") // ACTIVE | INVITED (invited staff haven't set a password yet)
   // Signed up before launch day (1 Sept 2026) and promised free, unlimited
   // access permanently. STORED, never derived from `createdAt`: a promise you
   // can't identify the beneficiaries of is a promise you will break, and a
   // derived date stops being equivalent the first time rows are migrated or
   // imported. See docs/pricing-decisions.md. Not child data; no retention
   // implications beyond the teacher row itself.
-  foundingMember         Boolean                @default(false)
+  foundingMember        Boolean                @default(false)
   // When this teacher PROVED they can receive mail at `email`, by opening a
   // link sent to it. Null means unproved — the ordinary state of every account,
   // because free signup asks for nothing (docs/dpo-decisions.md, 2 Sep 2026).
@@ -115,32 +115,32 @@ model Teacher {
   //
   // Not a new data category: it is a timestamp about an adult's own address,
   // which this row already holds. Deleted with the teacher by the same cascade.
-  emailConfirmedAt       DateTime?
-  school                 School?                @relation(fields: [schoolId], references: [id], onDelete: SetNull)
-  schoolId               String?
-  createdAt              DateTime               @default(now())
-  classes                Class[]
-  sessions               Session[]
-  templates              ActivityTemplate[]
-  folders                Folder[]
-  drafts                 Draft[] // in-progress template drafts (cross-device autosave)
+  emailConfirmedAt      DateTime?
+  school                School?                @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  schoolId              String?
+  createdAt             DateTime               @default(now())
+  classes               Class[]
+  sessions              Session[]
+  templates             ActivityTemplate[]
+  folders               Folder[]
+  drafts                Draft[] // in-progress template drafts (cross-device autosave)
   // An individually-subscribing teacher's own subscription (null when the
   // teacher is covered by a school plan instead — see Subscription).
-  subscription           Subscription?
+  subscription          Subscription?
   // Bearer tokens this teacher has minted so Claude can build activities in
   // their library, and the claude.ai connector grants behind the OAuth ones.
-  apiTokens              ApiToken[]
-  oauthGrants            OAuthGrant[]
+  apiTokens             ApiToken[]
+  oauthGrants           OAuthGrant[]
   // Outstanding password-reset and staff-invite tokens. Cascade on delete, the
   // same as sessions: deleting a teacher must not leave a live link behind.
-  passwordTokens         TeacherPasswordToken[]
+  passwordTokens        TeacherPasswordToken[]
   // Offers of school membership made TO this teacher, and separately the ones
   // they made as an admin. Two relations because both ends of a
   // SchoolInvitation are a Teacher; the names are the disambiguator Prisma
   // requires and carry no meaning beyond that. Both cascade on delete, the
   // same as sessions and password tokens.
-  schoolInvitations      SchoolInvitation[]     @relation("SchoolInvitationInvitee")
-  sentSchoolInvitations  SchoolInvitation[]     @relation("SchoolInvitationInviter")
+  schoolInvitations     SchoolInvitation[]     @relation("SchoolInvitationInvitee")
+  sentSchoolInvitations SchoolInvitation[]     @relation("SchoolInvitationInviter")
   // Parent messaging (SAFEGUARDING rule 21). May this member of staff read and
   // reply to parents? NULL means "the default for their role": yes for a
   // TEACHER or ADMIN, no for a TA. True/false is an admin's override, set on
@@ -148,13 +148,29 @@ model Teacher {
   // src/lib/messaging/policy.ts (resolveMayMessageParents), never read raw —
   // the same NULL-means-default convention as Class.ageMode. A staff member
   // cannot set their own: parent contact is the school's to govern.
-  mayMessageParents      Boolean?
-  sentMessages           Message[]              @relation("MessageSenderTeacher")
-  threadShares           MessageThreadShare[]   @relation("ShareTeacher")
-  sharesGiven            MessageThreadShare[]   @relation("ShareSharedBy")
-  handledThreads         MessageThread[]        @relation("ThreadHandler")
-  closedThreads          MessageThread[]        @relation("ThreadClosedBy")
-  messagingPolicyUpdates MessagingPolicy[]      @relation("PolicyUpdatedBy")
+  mayMessageParents     Boolean?
+
+  // Has the school named this member of staff a SAFEGUARDING LEAD?
+  // (SAFEGUARDING rule 21a, 8 September 2026.)
+  //
+  // NULLABLE WITH NO ROLE DEFAULT, and the difference from `mayMessageParents`
+  // beside it is the whole point. That column's NULL means "whatever the role
+  // implies"; this one's NULL means NOT A LEAD. Nobody is a school's designated
+  // safeguarding lead until an admin says who is — rule 8, deny by default, in
+  // the one place a helpful default would be worst. Resolved through
+  // `resolveIsSafeguardingLead` and never read raw, the same as its neighbour.
+  //
+  // NOT A FOURTH `staffRole`. That vocabulary is ADMIN / TEACHER / TA and is
+  // load-bearing in six places, and a primary school's DSL is very often also
+  // its head — a role cannot be two things. A school may name more than one.
+  isSafeguardingLead     Boolean?
+  sentMessages           Message[]            @relation("MessageSenderTeacher")
+  threadShares           MessageThreadShare[] @relation("ShareTeacher")
+  sharesGiven            MessageThreadShare[] @relation("ShareSharedBy")
+  handledThreads         MessageThread[]      @relation("ThreadHandler")
+  closedThreads          MessageThread[]      @relation("ThreadClosedBy")
+  messagingPolicyUpdates MessagingPolicy[]    @relation("PolicyUpdatedBy")
+  meetingSlots           MeetingSlot[]        @relation("MeetingSlotTeacher")
 }
 
 // A school groups staff (teachers/TAs/admins) under one roof. Admins manage
@@ -298,19 +314,310 @@ model School {
   // school before touching anything.
   claimedByTeacherId String?
 
-  staff           Teacher[]
+  staff             Teacher[]
   // The school's billing subscription (school plan). Null until one is created;
   // the plan label shown in the admin console is derived from this, not stored.
-  subscription    Subscription?
+  subscription      Subscription?
   // Offers this school has made to teachers who already hold their own
   // account. Not a second staff list: a row here is a question, and only
   // `Teacher.schoolId` is an answer.
-  invitations     SchoolInvitation[]
+  invitations       SchoolInvitation[]
   // Parent messaging: the school's office hours and switch (SAFEGUARDING rule
   // 21), and the threads denormalised onto the school so a policy change can
   // recompute every undelivered message in one query.
+  // When this school closed its own account, and the instruction it gave.
+  //
+  // CLOSING IS NOT DELETING, AND THIS COLUMN MUST NEVER BE READ AS IF IT WERE.
+  // Handbook R12 forbids any deletion path until a restore has been rehearsed
+  // (docs/restore-rehearsal.md), and owner decision D5 (docs/ops-architecture.md,
+  // 17 Aug 2026) says school deletion does not exist in v1 at all. So a closed
+  // school is frozen, its staff are detached, and every row and file it holds is
+  // exactly where it was — waiting for RETENTION.md's schedule, which is carried
+  // out by hand until the frozen → deletion pipeline is built.
+  //
+  // WHAT IT IS FOR is that a school asking to be closed used to have no route
+  // but "emailing somebody and hoping" (the business-manager persona's words).
+  // This is the instruction, with a date on it, in the school's own audit log,
+  // which is what turns a hope into a record. `closureReason` is the admin's own
+  // sentence about why, kept because a deletion carried out later has to be
+  // traceable to the instruction that asked for it.
+  //
+  // The School ROW ITSELF IS KEPT even after the data goes: `Subscription`
+  // cascades from it and billing records are a six-year retention category, so
+  // the row outlives the school as the billing stub. Deleting it is not the same
+  // operation as erasing the school's children's work and must not be conflated
+  // with it.
+  closedAt          DateTime?
+  closedByTeacherId String?
+  closureReason     String?
+
   messagingPolicy MessagingPolicy?
   messageThreads  MessageThread[]
+  exportRequests  ExportRequest[]
+  consentForms    ConsentForm[]
+  meetingEvents   MeetingEvent[]
+  // The school's classes, held directly rather than through whoever teaches
+  // them. See the long comment on `Class.schoolId`: this is what retires the
+  // 29 August 2026 widening that made a removed colleague's classes land on the
+  // admin who removed them.
+  classes         Class[]
+}
+
+// ===========================================================================
+// PERMISSION SLIPS
+//
+// The biggest paper-and-phone burden in a primary office: a trip, a photograph
+// consent, a walk to the library, thirty slips in thirty book bags and a
+// fortnight of chasing the four that never came back.
+//
+// ---------------------------------------------------------------------------
+// THE ANSWER SET IS STORYJAR'S, NOT THE SCHOOL'S, AND THAT IS THE WHOLE DESIGN.
+// ---------------------------------------------------------------------------
+//
+// SAFEGUARDING rule 19 closes with: "A tag that records something about the
+// CHILD — SEN status, a diagnosis, a health need, ethnicity, religion — is
+// special category data and does not belong in StoryJar." Rule 21 refused
+// absence and illness reporting on the same ground, in the same words.
+//
+// A permission slip is exactly where that line gets crossed by accident. Let a
+// school type its own answer labels and within a term somebody writes "Does your
+// child have a nut allergy? Yes / No", and StoryJar is processing health data
+// about children — which flips the answer to the ICO's registration question,
+// makes appointing a DPO mandatory under Art. 37(1)(c), and requires a new DPIA
+// before any of it ships (rule 19 spells that cost out next to the temptation).
+//
+// So the school writes the QUESTION and never an answer. The answers are a
+// constant in src/lib/consent.ts, the way officeHours.ts holds the caps:
+//
+//   • I give permission  /  I do not give permission
+//   • and, only if the school switches it on, "my child needs a packed lunch
+//     provided" — a free-school-meals child on a trip day. That is a catering
+//     headcount, not a dietary record, and the distinction is the reason it is
+//     the ONE extra answer allowed (owner decision, 8 September 2026).
+//
+// There is NO free-text field on a response, anywhere, by construction. Every
+// form carries a standing line: anything medical, dietary or about access goes
+// to the school office, which already holds it.
+//
+// This keeps the DPIA's "no special category data" claim true BY CONSTRUCTION
+// rather than by asking a school to be careful.
+// ===========================================================================
+
+// A form the school sends out. School text only: no child, no parent, no answer.
+model ConsentForm {
+  id                 String    @id @default(cuid())
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId           String
+  title              String
+  // The school's own words: what the trip is, when, what the permission covers.
+  //
+  // NAMED `formBody` AND NOT `body`. The ops blindness gate denies `body` by
+  // name, and a denied identifier has to be one nothing else has a reason to
+  // use — the same reasoning that produced `messageBody`.
+  formBody           String
+  // When the school stops accepting answers. Advisory: a late answer is still
+  // an answer, and the register says who has not replied rather than shutting
+  // them out.
+  closesAt           DateTime?
+  // Does this form ask the packed-lunch question? False unless the school
+  // switches it on, because most permissions have nothing to do with a meal.
+  asksPackedLunch    Boolean   @default(false)
+  createdByTeacherId String
+  createdByName      String
+  createdAt          DateTime  @default(now())
+
+  classes   ConsentFormClass[]
+  responses ConsentResponse[]
+
+  @@index([schoolId, createdAt])
+}
+
+// Which classes a form went to. Two ids and nothing else.
+model ConsentFormClass {
+  id      String      @id @default(cuid())
+  form    ConsentForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  formId  String
+  class   Class       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId String
+
+  @@unique([formId, classId])
+  @@index([classId])
+}
+
+// One household's answer for one child.
+//
+// A PARENT'S DECISION ABOUT A NAMED CHILD, which is why this is
+// CREDENTIAL_NEVER in the ops blindness gate while the form itself is
+// ADULT_READABLE: the form is school text, the response is a person.
+//
+// `answer` is one of the values in src/lib/consent.ts and is never free text.
+// `packedLunch` is a boolean and is only ever asked when the form asks it.
+model ConsentResponse {
+  id          String      @id @default(cuid())
+  form        ConsentForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  formId      String
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId   String
+  // Which household answered. SET NULL rather than cascade, so a register does
+  // not lose the answer when a family space is closed — the school acted on it,
+  // and "somebody gave permission" is the record.
+  parent      Parent?     @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  parentId    String?
+  answer      String
+  packedLunch Boolean     @default(false)
+  respondedAt DateTime    @default(now())
+
+  // ONE ANSWER PER CHILD PER FORM. Two guardians do not get a vote each: the
+  // second one to answer replaces the first, and the register shows the answer
+  // that stands. A school chasing a slip needs one row per child, not an
+  // argument.
+  @@unique([formId, studentId])
+  @@index([studentId])
+}
+
+// ===========================================================================
+// Parents' evening.
+//
+// A school picks an evening, says how long a slot is and which classes are
+// holding appointments; each teacher's slots are laid out for that evening, and
+// a family takes ONE for each of their children.
+//
+// WHY OFFICE HOURS DO NOT CAP THIS, said here because it looks like an
+// inconsistency and is not. SAFEGUARDING rule 21's hold exists so that a
+// teacher's evening is not a workplace: a message written at nine at night must
+// not arrive at nine at night. A parents' evening IS the evening — it is the one
+// occasion a school deliberately asks staff to be there after hours, agreed in
+// advance and in the diary. What this reuses from `src/lib/messaging/officeHours.ts`
+// is the TIME MACHINERY, and it must: `localToInstant` to turn a wall-clock slot
+// into an instant, `formatLondonStamp`/`formatMinute` for every label, and
+// `policy.closures` for "the school is shut that day". Never `toLocaleDateString`
+// for a time — a 4:20pm slot formatted that way is a BST bug on a non-UK server
+// and the exact hydration failure officeHours.ts documents.
+//
+// TWO TABLES AND NOT ONE, and the split is the access-control line. A
+// `MeetingEvent` holds no person: the evening, its name, how long a slot is,
+// when booking opens. A `MeetingSlot` that has been taken names a CHILD and a
+// FAMILY, which is why the two sit in different classes of the operator
+// blindness gate — ADULT_READABLE for the event, CREDENTIAL_NEVER for the slot,
+// on the `MessagingPolicy` / `Message` precedent. One table doing both jobs
+// could only take the stricter class, and the school console would then have no
+// readable record of its own evening.
+// ===========================================================================
+model MeetingEvent {
+  id                 String    @id @default(cuid())
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId           String
+  title              String
+  // The evening itself, as "YYYY-MM-DD" in the school's own zone — the same
+  // shape `MessagingPolicy.closures` uses, and for the same reason: a calendar
+  // date is a wall-clock fact about a school day, not an instant. The instants
+  // live on the slots, computed from this date through `localToInstant`.
+  eventDate          String
+  /// How long one appointment is. Ten minutes is the primary-school norm.
+  slotMinutes        Int       @default(10)
+  // When families may start booking. NULL means "as soon as it exists"; a date
+  // in the future is how a school opens the whole year group at once rather
+  // than to whoever happens to be looking.
+  opensAt            DateTime?
+  createdByTeacherId String
+  // Snapshotted, so the record still reads correctly after the admin leaves —
+  // the `SchoolInvitation.invitedByName` precedent.
+  createdByName      String
+  createdAt          DateTime  @default(now())
+
+  slots MeetingSlot[]
+
+  @@index([schoolId, eventDate])
+}
+
+// One appointment: a teacher, a time, and — once a family takes it — a child.
+//
+// AN EMPTY SLOT NAMES NOBODY AND A TAKEN ONE NAMES A CHILD. The row is created
+// empty by the school and filled by the family, which is what makes booking a
+// CONDITIONAL UPDATE rather than a create: `updateMany({ where: { id,
+// studentId: null }, … })` returns 1 for the first family and 0 for the second,
+// so two parents pressing the same slot at the same instant cannot both get it.
+// A `create` would have let both succeed and left the school to notice.
+//
+// `studentId` and `parentId` are SET NULL rather than Cascade, so a child who
+// leaves the school FREES the slot instead of deleting the school's own
+// appointment. That is the opposite choice from `ConsentResponse`, deliberately:
+// a consent answer is worthless without the child, and an empty appointment on
+// an evening that is still happening is worth exactly what it was before
+// anybody booked it.
+model MeetingSlot {
+  id        String       @id @default(cuid())
+  event     MeetingEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId   String
+  // Whose appointment it is. Cascade, like `Class.teacher`: a teacher's slots
+  // have no meaning without the teacher.
+  teacher   Teacher      @relation("MeetingSlotTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  // The class whose families may book it. The scope of who may see this slot at
+  // all, resolved server-side from the parent↔child link (rule 4).
+  class     Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId   String
+  /// The instant the appointment starts, computed from the event's local date.
+  startsAt  DateTime
+
+  student   Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  studentId String?
+  parent    Parent?   @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  parentId  String?
+  bookedAt  DateTime?
+
+  // No two slots at the same minute for the same teacher on the same evening.
+  // A school that presses "lay out the slots" twice gets the second one refused
+  // by the database rather than a teacher with two of every appointment.
+  @@unique([eventId, teacherId, startsAt])
+  @@index([classId])
+  @@index([studentId])
+}
+
+// A school asking one of its teachers for a copy of a class's data.
+//
+// WHY THIS EXISTS RATHER THAN A BUTTON ON THE ADMIN CONSOLE. A subject access
+// request lands on the school office, not on the class teacher — but
+// SAFEGUARDING rule 5 says an admin never sees a child's work, and
+// `src/app/teacher/export/[classId]/route.ts` is scoped to the teacher who holds
+// the class and says in terms that a request is "a reason to READ OUT what is
+// held, not a reason to widen who may read it". Both of those are right, and
+// between them they left a real gap: the person who receives the request had no
+// way to act on it at all. docs/paid-tier-plan.md item 3 calls that gap out and
+// leaves the shape as an open decision between two candidates.
+//
+// THE SHAPE CHOSEN (8 September 2026): the admin ASKS, the teacher who holds the
+// class FULFILS, and the file goes from the teacher to whoever is entitled to
+// it. The admin sees that the request was made and whether it has been done —
+// never what is inside. It needs no new token, no new expiry, and no new route
+// to a child's data; the rejected alternative, a one-time link the admin can
+// forward without opening, needs all three and puts a class of children's work
+// behind a URL somebody can paste.
+//
+// `requestReason` IS THE ADMIN'S OWN SENTENCE, and it is free text written by an
+// adult that will sometimes name a child ("SAR from Amara's mother"). That is
+// why this table is CREDENTIAL_NEVER in the ops blindness gate and why the field
+// is denied by name there as well: the same reasoning, in the same words, as
+// `MessageThread.handoverReason`. The form warns against it; nothing can do
+// better than a warning, and the residual is recorded rather than argued away.
+model ExportRequest {
+  id                   String    @id @default(cuid())
+  school               School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId             String
+  class                Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId              String
+  // The admin who asked. A bare id: if they leave the school, the request they
+  // made is still a fact about the school, and the audit log holds their name.
+  requestedByTeacherId String
+  requestedByName      String
+  requestReason        String
+  createdAt            DateTime  @default(now())
+  // Stamped when the teacher produces the file. NULL means outstanding, which is
+  // the only state the admin's screen needs to distinguish.
+  fulfilledAt          DateTime?
+
+  @@index([schoolId, fulfilledAt])
+  @@index([classId])
 }
 
 // An OFFER of school membership, made to a teacher who ALREADY HAS a StoryJar
@@ -554,9 +861,9 @@ model Folder {
 
 // A class groups students together and has a short code students use to log in.
 model Class {
-  id             String          @id @default(cuid())
-  name           String
-  yearGroup      String? // e.g. "Year 2" — captured at signup
+  id        String   @id @default(cuid())
+  name      String
+  yearGroup String? // e.g. "Year 2" — captured at signup
   // Which child-facing register this class sees: "EYFS" (3–5), "KS1" (5–7) or
   // "KS2" (7–11). A teacher's per-class display choice, asked once at creation —
   // NOT data about a child. Nullable, and NULL means EYFS: the youngest, most
@@ -564,27 +871,117 @@ model Class {
   // protective; owner/DPO decision 2026-07-19), never inferred from `yearGroup`
   // (only the signup class has one, and it's free text). Resolve via
   // src/lib/ageMode.ts, never read this column raw. Retention: RETENTION.md.
-  ageMode        String? // "EYFS" | "KS1" | "KS2"; NULL → EYFS
-  classCode      String          @unique // e.g. "SUN234" — students type this to sign in
-  teacher        Teacher         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  teacherId      String
-  createdAt      DateTime        @default(now())
+  ageMode   String? // "EYFS" | "KS1" | "KS2"; NULL → EYFS
+  classCode String   @unique // e.g. "SUN234" — students type this to sign in
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  createdAt DateTime @default(now())
+
+  // ---------------------------------------------------------------------------
+  // WHOSE CLASS THIS IS, AND WHICH YEAR IT BELONGS TO. Year-end transfer
+  // (docs/paid-tier-plan.md item 1), and the lapse detach that depends on it.
+  // ---------------------------------------------------------------------------
+
+  // The school this class belongs to, INDEPENDENTLY OF WHO HOLDS IT.
+  //
+  // Until this column, a class belonged to a school only through its teacher.
+  // That is the fact FINDINGS F59 was about on the removal side, and it is why
+  // `removeStaff` has to dump a departing colleague's classes on the admin who
+  // pressed the button — there was nowhere else for them to be. That widening of
+  // SAFEGUARDING rule 5 was accepted on 29 August 2026 WITH AN EXPIRY written
+  // into docs/dpo-decisions.md: "superseded the day `Class.schoolId` lands with
+  // the school-identity work".
+  //
+  // THIS COLUMN IS THE PREREQUISITE FOR THAT EXPIRY, NOT THE EXPIRY ITSELF, and
+  // the difference matters enough to write down. `Class.teacherId` is still NOT
+  // NULL, so a class STILL NEEDS A HOLDER and `removeStaff` still has to give a
+  // departing colleague's classes to somebody. Making `teacherId` nullable is
+  // what would finish the job, and it is a far larger change: F68's whole safety
+  // argument rests on `Class.teacher` being `onDelete: Cascade`, and a nullable
+  // holder would have to answer what a class with no teacher shows, to whom, and
+  // for how long. Do not read this column's arrival as the widening being over —
+  // the status of that decision is the owner's, not a side effect of a
+  // migration.
+  //
+  // NULLABLE, because a free teacher's class has no school and never did. NULL
+  // is not "unknown": it is a complete answer meaning this class is the personal
+  // property of the teacher who holds it.
+  //
+  // `onDelete: SetNull`, MATCHING `Teacher.school` AND FOR THE SAME REASON. The
+  // rejected option is Cascade, which would delete a school's every class, pupil
+  // and photograph the moment a School row went — the shape of F68 one size
+  // larger. A school row survives closure as the billing stub in any case
+  // (RETENTION.md, six years), so the cascade would fire only on a delete that
+  // does not exist in v1 (docs/ops-architecture.md D5) and must not be
+  // pre-authorised here.
+  //
+  // WHO WRITES IT: `joinSchoolPlan` when a teacher brings her classes into a
+  // school, `createClass` / `classImport` for a class made by school staff, and
+  // the year-end transfer. NOT `assignClassToStaff` — moving a class between two
+  // members of the same school does not change which school it is.
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  schoolId String?
+
+  // Which teacher brought this class INTO the school with her, if any.
+  //
+  // ONE WRITER, AND ONLY ONE: `joinSchoolPlan`, for the classes she already held
+  // at the moment she accepted the invitation. Nothing else may write it. It is
+  // the precise form of the `CLASS_JOINED_SCHOOL` audit rows, which say the same
+  // thing in prose and which src/app/admin/page.tsx has already shown is a
+  // fragile way to decide who owns a class.
+  //
+  // WHAT IT IS FOR: when a school plan ends, a teacher who had her own StoryJar
+  // account before she joined gets that account back, and she takes the classes
+  // she arrived with. Classes the school gave her, and classes she created as
+  // school staff, stay with the school and follow its retention (owner decision,
+  // 8 September 2026, recorded in docs/dpo-decisions.md).
+  //
+  // THE DETACH READS IT TOGETHER WITH `teacherId`, never alone: a class goes back
+  // only if she brought it in AND still holds it. If the school reassigned it to
+  // a colleague, the school exercised control over it and it is the school's.
+  // That compound condition is why this column does not need clearing when a
+  // class moves, which is what keeps it to one writer.
+  //
+  // A BARE ID WITH NO FOREIGN KEY, on the `School.claimedByTeacherId` precedent.
+  // A relation would have to be SetNull, and SetNull would erase the one fact
+  // this column exists to record at exactly the moment somebody asks about it.
+  // EVERY READER MUST TREAT IT AS POSSIBLY DANGLING.
+  broughtInByTeacherId String?
+
+  // The academic year this class is teaching, e.g. "2026-27". Free text, like
+  // `yearGroup`, and like `yearGroup` NEVER used to infer the register: that is
+  // `ageMode`, resolved through src/lib/ageMode.ts, and a class moving up a year
+  // is a choice a person makes rather than a sum (SAFEGUARDING rule 8).
+  academicYear String?
+
+  // When this class stopped teaching — a Year 6 that left, or a class rolled up
+  // and closed behind. ARCHIVED IS NOT DELETED and must never become a synonym
+  // for it: the children, their work and their media are all still here, and
+  // when they go it is RETENTION.md's schedule that takes them, through
+  // src/lib/erasure.ts. An archived class is read-only and out of the way.
+  archivedAt DateTime?
+
   students       Student[]
   journalItems   JournalItem[]
   assignments    Assignment[]
   drafts         Draft[]
   messageThreads MessageThread[]
+  exportRequests ExportRequest[]
+  consentForms   ConsentFormClass[]
+  meetingSlots   MeetingSlot[]
+
+  @@index([schoolId])
 }
 
 // A student has no password — they pick their name from the class after
 // entering the class code (mirrors how Seesaw handles young children).
 model Student {
-  id            String              @id @default(cuid())
-  name          String
-  avatarColor   String              @default("#4f46e5") // colour of their avatar bubble
-  class         Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
-  classId       String
-  createdAt     DateTime            @default(now())
+  id             String              @id @default(cuid())
+  name           String
+  avatarColor    String              @default("#4f46e5") // colour of their avatar bubble
+  class          Class               @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId        String
+  createdAt      DateTime            @default(now())
   // When this child last opened their jar. Approval happens while they're away,
   // so without this the reward lands in an empty room: anything approved after
   // this timestamp is new to them and drops into the jar when they next look.
@@ -593,15 +990,19 @@ model Student {
   // wayfinding, never a measure of how often a child uses StoryJar. Never
   // aggregate, report or export it, and never show it to a parent: that is
   // profiling, which SAFEGUARDING rule 11 forbids. See RETENTION.md.
-  jarSeenAt     DateTime?
-  journalItems  JournalItem[]
-  sessions      Session[]
-  assignments   AssignmentStudent[]
-  parents       Parent[]            @relation("ParentChildren")
-  drafts        Draft[] // in-progress activity-response drafts (cross-device autosave)
+  jarSeenAt      DateTime?
+  journalItems   JournalItem[]
+  sessions       Session[]
+  assignments    AssignmentStudent[]
+  parents        Parent[]            @relation("ParentChildren")
+  drafts         Draft[] // in-progress activity-response drafts (cross-device autosave)
   // The one conversation between this child's guardians and their class
   // teacher (SAFEGUARDING rule 21). Never readable by the child.
-  messageThread MessageThread?
+  messageThread  MessageThread?
+  // Permission slips answered for this child. One row per form, whichever
+  // household answered.
+  consentAnswers ConsentResponse[]
+  meetingSlots   MeetingSlot[]
 }
 
 // A parent/carer with a read-only family view of their own child(ren)'s jar.
@@ -620,15 +1021,33 @@ model Student {
 // at most one family. Never look a parent up by an empty/absent address — see
 // requestMagicLink, which rejects a blank input before it reaches the database.
 model Parent {
-  id           String       @id @default(cuid())
-  name         String?
-  email        String?      @unique
-  familyCode   String       @unique // the code printed on the school's letter
-  createdAt    DateTime     @default(now())
-  children     Student[]    @relation("ParentChildren")
-  sessions     Session[]
-  magicTokens  MagicToken[]
-  sentMessages Message[]    @relation("MessageSenderParent")
+  id             String            @id @default(cuid())
+  name           String?
+  email          String?           @unique
+  // Does this parent want an email when a message is waiting?
+  // (SAFEGUARDING rule 6a, first used 8 September 2026.)
+  //
+  // OFF BY DEFAULT AND ONLY THE PARENT MAY CHANGE IT. Rule 6a permits exactly
+  // one kind of message StoryJar may send unasked-for — one the recipient
+  // switched on themselves — and this is the switch. No teacher, admin or
+  // operator sets it: there is no action anywhere that writes this column on
+  // somebody else's behalf, which is the same shape as the PIN in rule 1.
+  //
+  // USELESS WITHOUT `email` ABOVE, and many households never give one: the badge
+  // in the family space stays the whole notification model for them. The switch
+  // is not rendered at all for a parent with no address, rather than rendered
+  // and inert.
+  notifyByEmail  Boolean           @default(false)
+  familyCode     String            @unique // the code printed on the school's letter
+  createdAt      DateTime          @default(now())
+  children       Student[]         @relation("ParentChildren")
+  sessions       Session[]
+  magicTokens    MagicToken[]
+  sentMessages   Message[]         @relation("MessageSenderParent")
+  // Permission slips this household has answered. SET NULL on the response, so
+  // closing a family space does not take the school's record of the decision.
+  consentAnswers ConsentResponse[]
+  meetingSlots   MeetingSlot[]
 }
 
 // A single-use, expiring token behind a parent "magic link" email.
@@ -1474,6 +1893,18 @@ model MessageThreadShare {
   sharedBy          Teacher?      @relation("ShareSharedBy", fields: [sharedByTeacherId], references: [id], onDelete: SetNull)
   sharedByTeacherId String?
   sharedAt          DateTime      @default(now())
+  // Set only when the share was made by RAISING the conversation to a
+  // safeguarding lead (rule 21a). An ordinary share leaves both NULL, so
+  // "was this raised?" is a fact on the row rather than something inferred
+  // from who the reader happens to be.
+  //
+  // `raisedReason` IS FREE TEXT AN ADULT WRITES ABOUT A CHILD, which is why it
+  // lives here and NOT in `AuditLog.detail` — the `handoverReason` precedent,
+  // word for word: a second copy on the audit log's own retention clock is a
+  // copy nobody asked for. It is denied by name in the ops blindness gate for
+  // the same reason `handoverReason` and `requestReason` are.
+  raisedReason      String?
+  raisedAt          DateTime?
 
   @@unique([threadId, teacherId])
   @@index([teacherId])
@@ -1491,6 +1922,21 @@ model Message {
   id              String        @id @default(cuid())
   thread          MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   threadId        String
+  // When a notification about this message was raised, or NULL if none was.
+  //
+  // THE ONLY THING STOPPING A SECOND EMAIL. Two paths raise notifications — a
+  // lazy one on a read and the nightly sweep — and they will race each other on
+  // an ordinary morning. The stamp is what makes "tell the family once" a
+  // property of the row rather than of whichever path happened to run first.
+  //
+  // IT IS NOT A DELIVERY RECEIPT. It records that StoryJar handed a message to
+  // Mailjet, or decided not to; the mailer has no delivery receipt to record
+  // (see the note on MAIL_OUTCOMES). Stamped even when nothing is sent — a
+  // parent with the switch off, no address, or a suppressed one — because the
+  // question this column answers is "has this message been considered?", and
+  // re-considering it every night forever is how a switch turned on in March
+  // produces a flood about February.
+  notifiedAt      DateTime?
   senderType      String // PARENT | TEACHER
   senderParent    Parent?       @relation("MessageSenderParent", fields: [senderParentId], references: [id], onDelete: SetNull)
   senderParentId  String?

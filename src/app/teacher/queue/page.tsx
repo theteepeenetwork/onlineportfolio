@@ -58,7 +58,10 @@ export default async function ApprovalQueue() {
   // concluding the screen was broken or that she was not allowed. Access in
   // StoryJar comes from the classes you hold, not from your job title, so this
   // is the fact that answers her.
-  const classCount = await db.class.count({ where: { teacherId: user.teacher.id } });
+  // Counted for the empty state's wording only. Archived classes are excluded,
+  // or a teacher whose only classes are last year's is told to wait for work
+  // from children who have moved on.
+  const classCount = await db.class.count({ where: { teacherId: user.teacher.id, archivedAt: null } });
 
   const mapped = items.map((it) => ({
     id: it.id,

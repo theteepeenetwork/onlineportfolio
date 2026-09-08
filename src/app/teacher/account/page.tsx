@@ -19,14 +19,14 @@ import { originUrl } from "@/lib/appOrigin";
 export default async function AccountPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; frozen?: string; purchase?: string; joined?: string }>;
+  searchParams: Promise<{ checkout?: string; frozen?: string; purchase?: string; joined?: string; closed?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") return null;
-  const { checkout, frozen, purchase, joined } = await searchParams;
+  const { checkout, frozen, purchase, joined, closed } = await searchParams;
 
   const teacher = { id: user.teacher.id, schoolId: user.teacher.schoolId };
-  const [profile, account, sub, tokens, apps, origin] = await Promise.all([
+  const [profile, account, sub, tokens, apps, origin, planEnded] = await Promise.all([
     db.teacher.findUnique({
       where: { id: user.teacher.id },
       select: { name: true, title: true, displayStyle: true, email: true, schoolName: true, urn: true, country: true, foundingMember: true },
@@ -47,6 +47,20 @@ export default async function AccountPage({
       orderBy: { createdAt: "desc" },
     }),
     originUrl(),
+    // Did a school plan end under this teacher, and did she get her account back?
+    //
+    // Read ONLY when she has no school, and only as the most recent row: this is
+    // a card on one page, not a state the app carries around. `settleSchoolPlanEnd`
+    // writes it (src/lib/schoolPlanEnd.ts) and promises she is "told so in words
+    // rather than finding an empty dashboard" — this is that promise, and if this
+    // read is ever removed, remove the promise with it.
+    user.teacher.schoolId
+      ? null
+      : db.auditLog.findFirst({
+          where: { action: "SCHOOL_PLAN_ENDED_TEACHER_DETACHED", subjectType: "TEACHER", subjectId: user.teacher.id },
+          orderBy: { at: "desc" },
+          select: { at: true, detail: true },
+        }),
   ]);
   if (!profile) return null;
 
@@ -120,6 +134,30 @@ export default async function AccountPage({
         {/* Set by the redirect at the end of `joinSchoolPlan`. It says what
             happened rather than "success", because what happened is the thing
             the acceptance screen spent five paragraphs on. */}
+        {closed === "1" && (
+          // The admin who just closed their school's account. They were detached
+          // with everybody else, so the console no longer knows them and sent
+          // them here — this is the only thing standing between them and no word
+          // at all about whether the most consequential action in the product
+          // worked. The durable record is the SCHOOL_CLOSED row in the school's
+          // audit log.
+          <Notice tone="good">
+            Your school&rsquo;s account is closed and the instruction is recorded, with today&rsquo;s date on it. You are
+            back on your own free StoryJar account, with any classes you brought with you when you joined.{" "}
+            <strong>Nothing has been deleted</strong> — the children&rsquo;s work is still held and is removed on the
+            retention schedule. If the school needs it sooner, or needs a copy first, write to us.
+          </Notice>
+        )}
+        {planEnded && (
+          // Said plainly, and without a number she would have to interpret: the
+          // audit row's own detail already names the school, what came back with
+          // her and that nothing was deleted, so it is shown rather than
+          // paraphrased into a second version that can drift from it.
+          <Notice tone="info">
+            {planEnded.detail} If your school starts a new plan, you can join it again from an
+            invitation — nothing here has to be set up twice.
+          </Notice>
+        )}
         {joined === "1" && (
           <Notice tone="good">
             You have joined the school. Your classes and the children in them are the

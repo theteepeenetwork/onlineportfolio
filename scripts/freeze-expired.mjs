@@ -38,6 +38,7 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { sweepFrozenUnverifiedUrns } from "@/lib/urnRelease";
+import { settleSchoolPlanEnd, windowHasClosed } from "@/lib/schoolPlanEnd";
 
 const db = new PrismaClient();
 
@@ -85,9 +86,63 @@ async function main() {
     "the school froze without ever being verified",
   );
 
+  // THE SECOND BY-STATE PASS: school plans whose frozen window has closed, and
+  // the staff who are owed their own accounts back (src/lib/schoolPlanEnd.ts;
+  // owner decision, 8 September 2026).
+  //
+  // FROM STATE, LIKE THE URN SWEEP ABOVE AND FOR ITS REASON. The other path to
+  // this is lazy: `requireWritableAccount` settles it when the teacher herself
+  // next tries to do something. A teacher who never signs in again would then
+  // stay attached to a dead school for ever, and — more to the point — the rule
+  // would only be true of people who happened to visit. Asking the database what
+  // is true makes it a property of the data instead of a claim about the code.
+  //
+  // ONE TEACHER AT A TIME, through the same function the request path uses, so
+  // the two cannot drift into disagreeing about who gets what. It is guarded and
+  // idempotent, so a second run, or a run racing a sign-in, does nothing twice.
+  //
+  // IF A DELETION JOB IS EVER BUILT, IT RUNS AFTER THIS ONE. RETENTION.md's
+  // frozen → deletion pipeline is still an open item; a teacher's own classes
+  // must leave the school before anything deletes the school, or they go with it.
+  const ended = await db.subscription.findMany({
+    where: { kind: "SCHOOL", status: "FROZEN", schoolId: { not: null }, frozenAt: { not: null } },
+    select: { schoolId: true, frozenAt: true },
+  });
+  let detachedStaff = 0;
+  let classesReturned = 0;
+  for (const plan of ended) {
+    if (!plan.schoolId || !windowHasClosed(plan.frozenAt, now)) continue;
+    const staff = await db.teacher.findMany({ where: { schoolId: plan.schoolId }, select: { id: true } });
+    for (const member of staff) {
+      const outcome = await settleSchoolPlanEnd(db, member.id, plan.schoolId, now);
+      if (outcome.detached) {
+        detachedStaff += 1;
+        classesReturned += outcome.classesReturned;
+      }
+    }
+  }
+
+  // A THIRD BY-STATE PASS BELONGS HERE AND IS NOT BUILT: messages that have
+  // become deliverable and whose notification question has not been settled
+  // (src/lib/messaging/notify.ts, SAFEGUARDING rule 6b). FINDINGS F73.
+  //
+  // WHY IT IS NOT HERE. This script runs under `tsx` outside Next — that is what
+  // the header above is about — and `@/lib/mailer` throws on its own
+  // `server-only` line when loaded that way. Wiring it would mean moving the
+  // Mailjet transport out from behind that guard or writing a second sender
+  // here, and neither is a decision to take as a side effect of adding a job.
+  //
+  // WHAT IS MISSING, exactly: the lazy path in `inboxForStaff` settles this
+  // whenever a member of staff opens their messages, which on an ordinary
+  // morning is everybody. A school where nobody opens StoryJar notifies late
+  // rather than wrongly — the office-hours hold is enforced by `deliverAt` and
+  // not by who happens to look. `notifyDeliveredMessages` already takes its
+  // client and its sender as arguments for exactly this call.
+
   console.log(
     `[freeze-expired] checked ${expired.length}, froze ${frozen} account(s), ` +
-      `released ${released.length} register claim(s)${released.length ? `: URN ${released.join(", ")}` : ""}.`,
+      `released ${released.length} register claim(s)${released.length ? `: URN ${released.join(", ")}` : ""}, ` +
+      `returned ${detachedStaff} member(s) of staff to their own plan with ${classesReturned} class(es).`,
   );
 }
 

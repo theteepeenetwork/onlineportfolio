@@ -196,26 +196,32 @@ async function main() {
 
   // -------------------------------------------------------------------------
   // Classes: one per register, so every child-facing shell is reachable.
+  //
+  // Every one carries `schoolId`. Bramblewood is a real school in this fixture
+  // and its classes belong to it directly (2026-09-08); a class left school-less
+  // here would model a free teacher's own class, which is the one thing the
+  // persona school is not, and the September journeys would then be walking
+  // through the wrong case.
   // -------------------------------------------------------------------------
   const ducklings = await db.class.create({
-    data: { name: "Ducklings", yearGroup: "Reception", ageMode: "EYFS", classCode: "DUCK01", teacherId: reeves.id },
+    data: { name: "Ducklings", yearGroup: "Reception", ageMode: "EYFS", classCode: "DUCK01", teacherId: reeves.id, schoolId: school.id },
   });
   const robins = await db.class.create({
-    data: { name: "Robins", yearGroup: "Year 2", ageMode: "KS1", classCode: "ROBN01", teacherId: reeves.id },
+    data: { name: "Robins", yearGroup: "Year 2", ageMode: "KS1", classCode: "ROBN01", teacherId: reeves.id, schoolId: school.id },
   });
   const herons = await db.class.create({
-    data: { name: "Herons", yearGroup: "Year 6", ageMode: "KS2", classCode: "HERN01", teacherId: reeves.id },
+    data: { name: "Herons", yearGroup: "Year 6", ageMode: "KS2", classCode: "HERN01", teacherId: reeves.id, schoolId: school.id },
   });
   // Miss Osei's class: the other side of "hand this class over" and "move the
   // year group on".
   const kestrels = await db.class.create({
-    data: { name: "Kestrels", yearGroup: "Year 1", ageMode: "KS1", classCode: "KEST01", teacherId: osei.id },
+    data: { name: "Kestrels", yearGroup: "Year 1", ageMode: "KS1", classCode: "KEST01", teacherId: osei.id, schoolId: school.id },
   });
   // Exists to be deleted by the admin persona. Deleting a class with a child and
   // a moment in it is the destructive path that matters; an empty one proves
   // nothing.
   const spare = await db.class.create({
-    data: { name: "Wrens (old)", yearGroup: "Year 3", ageMode: "KS1", classCode: "WREN01", teacherId: reeves.id },
+    data: { name: "Wrens (old)", yearGroup: "Year 3", ageMode: "KS1", classCode: "WREN01", teacherId: reeves.id, schoolId: school.id },
   });
 
   const COLOURS = ["#F2B5A0", "#A8CBB7", "#F5D08A", "#B7C7E8", "#E4B7D4", "#9FC8C8"];
