@@ -138,7 +138,7 @@ async function main() {
   });
 
   const acorn = await db.class.create({
-    data: { name: "Acorn Class", yearGroup: "Year 1", classCode: "ACRN22", teacherId: oakTeacher.id },
+    data: { name: "Acorn Class", yearGroup: "Year 1", classCode: "ACRN22", teacherId: oakTeacher.id, schoolId: oak.id },
   });
 
   const oakColors = ["#2e7d32", "#1565c0", "#6a1b9a"];
@@ -387,7 +387,7 @@ async function main() {
     },
   });
   const larchClass = await db.class.create({
-    data: { name: "Willow Class", yearGroup: "Year 2", classCode: "ARCH22", teacherId: larchTeacher.id },
+    data: { name: "Willow Class", yearGroup: "Year 2", classCode: "ARCH22", teacherId: larchTeacher.id, schoolId: larch.id },
   });
   const [pip] = await Promise.all(
     ["Pip", "Robin", "Sage"].map((name, i) =>
@@ -725,7 +725,7 @@ async function main() {
   // is the escalation `assignClassToStaff` is, and the reason it is gated at all
   // (docs/school-identity.md §5).
   await db.class.create({
-    data: { name: "Kestrel Class", yearGroup: "Year 4", classCode: "PENN44", teacherId: pennyTeacher.id },
+    data: { name: "Kestrel Class", yearGroup: "Year 4", classCode: "PENN44", teacherId: pennyTeacher.id, schoolId: penny.id },
   });
 
   // -------------------------------------------------------------------------
@@ -796,6 +796,9 @@ async function main() {
     data: { kind: "FREE", status: "ACTIVE", trialEndsAt: null, teacherId: freeTeacher.id },
   });
   const bluebell = await db.class.create({
+    // NO `schoolId`, DELIBERATELY. She has no school, so her class has none —
+    // NULL here is the complete answer rather than a fixture somebody forgot,
+    // and it is what makes her the control case for every school-scoped test.
     data: { name: "Bluebell Class", yearGroup: "Year 2", classCode: "BLUE33", teacherId: freeTeacher.id },
   });
   await Promise.all(

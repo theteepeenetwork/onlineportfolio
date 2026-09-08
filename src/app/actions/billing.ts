@@ -1001,6 +1001,32 @@ export async function joinSchoolPlan(
       });
       if (attached.count === 0) throw new Error("teacher already had a school");
 
+      // 2a. AND HER CLASSES BECOME THE SCHOOL'S, MARKED AS HERS.
+      //
+      //     This is the `class.updateMany` the header above said this
+      //     transaction would gain when `Class.schoolId` landed. It has, so it
+      //     has. Before it, "her classes and the children in them become the
+      //     school's" was one `Teacher.schoolId` write and nothing else — true,
+      //     and unable to express the other half: which of the school's classes
+      //     were hers to begin with.
+      //
+      //     `broughtInByTeacherId` IS THE POINT OF THIS WRITE. It is written
+      //     here and nowhere else in the codebase, and it is what lets a school
+      //     plan end without taking a teacher's own work with it: when the plan
+      //     lapses she goes back to her own free account and takes the classes
+      //     she arrived with, while the classes the school gave her stay with
+      //     the school (owner decision, 8 September 2026). The detach reads this
+      //     column together with `teacherId`, so a class the school later moved
+      //     to a colleague is the school's.
+      //
+      //     GUARDED ON `schoolId: null` for the same reason step 2 is: only a
+      //     class belonging to no school can be brought into one, whatever
+      //     raced this.
+      await tx.class.updateMany({
+        where: { teacherId: actor.teacherId, schoolId: null },
+        data: { schoolId: invitation.schoolId, broughtInByTeacherId: actor.teacherId },
+      });
+
       // 3. HER OWN FREE ROW GOES, so exactly one plan governs her.
       //    `governingSubscription` prefers the school's whenever `schoolId` is
       //    set, so leaving it would not break anything today — it would leave

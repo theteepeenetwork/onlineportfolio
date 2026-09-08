@@ -41,7 +41,12 @@ export async function createClass(
 
   const classCode = await uniqueClassCode();
   await db.class.create({
-    data: { name, ageMode, classCode, teacherId: user.teacher.id },
+    // `schoolId` FROM THE CREATOR, and NOT `broughtInByTeacherId`. A class made
+    // by a member of staff inside a school is the school's from the moment it
+    // exists; only a class a teacher ARRIVED with is hers to take away again
+    // (see the comments on both columns). For a free teacher this is NULL, which
+    // is the complete answer rather than a missing one.
+    data: { name, ageMode, classCode, teacherId: user.teacher.id, schoolId: user.teacher.schoolId },
   });
 
   revalidatePath("/teacher/class");

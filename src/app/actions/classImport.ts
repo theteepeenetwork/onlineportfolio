@@ -148,7 +148,12 @@ export async function importClass(
   // --- Write ---------------------------------------------------------------
   const classCode = await uniqueClassCode();
   const created = await db.class.create({
-    data: { name, yearGroup, ageMode, classCode, teacherId: ownerId },
+    // `me.schoolId` rather than the owner's, and they are the same thing: an
+    // on-behalf import is resolved above only for a colleague of THIS school, so
+    // there is no route by which a class could be created into a school the
+    // importer is not in. Never `broughtInByTeacherId` — a class typed into a
+    // school is the school's (see the columns' comments).
+    data: { name, yearGroup, ageMode, classCode, teacherId: ownerId, schoolId: me.schoolId },
     select: { id: true, name: true, classCode: true },
   });
 

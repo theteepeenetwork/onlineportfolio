@@ -680,3 +680,74 @@ controller change it records is one `RETENTION.md` already describes; what is
 new is asking the teacher first.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-02.
+
+---
+
+## 2026-09-08 — A class belongs to its school, and a school plan can end without taking a teacher's own work with it
+
+**Decision:** Approved four columns on `Class` — `schoolId`, `broughtInByTeacherId`,
+`academicYear` and `archivedAt` — and the rule they exist to make sayable:
+
+> When a school plan ends, a teacher who had her own StoryJar account before she
+> joined gets that account back, **and she takes the classes she arrived with**.
+> Classes the school gave her, and classes she created as school staff, stay with
+> the school and follow its retention.
+
+Three sub-decisions, each taken deliberately:
+
+1. **Only what she brought.** A class goes back to her only if she brought it in
+   **and still holds it**. If the school reassigned it to a colleague, the school
+   exercised control over it and it is the school's.
+2. **At the end of the frozen window, not on the freeze.** `RETENTION.md` gives a
+   lapsed account twelve read-only months and promises that "reactivation at any
+   point before deletion restores the account intact". Detaching on day 0 would
+   mean a failed card or a late invoice scattered a school's classes across
+   several personal accounts before anybody had phoned the bank, and nothing in
+   the product could put them back. The twelve months stay reversible.
+3. **A teacher the school itself created keeps her activity library and no
+   classes.** She was invited, never had an account of her own, and every class
+   she holds was given to her. Her authored templates are her work; the children
+   were never hers to take.
+
+**Why this is a data-protection decision and not a scheduling one.** Each limb
+changes **who the controller is** for a class of children's work. Today the answer
+is implicit and unstated — a class belongs to a school only through whoever holds
+it, which is the same fact FINDINGS F59 was about on the removal side — and the
+consequence is that when a school lapses, *nothing happens*: the teacher goes
+read-only and stays that way indefinitely, with no route back except an admin
+removing her, which hands her classes to that admin first. That is not a
+considered position; it is the absence of one. Writing the rule down is what lets
+a school, a teacher and a parent each be told the same answer.
+
+**What is retained, precisely.** Nothing new about a child. `broughtInByTeacherId`
+names an adult by id, on the `School.claimedByTeacherId` precedent, and dies with
+the class. `RETENTION.md` carries the row. A detach is a change of controller
+recorded in the audit log (`SCHOOL_PLAN_ENDED_TEACHER_DETACHED`, and one
+`CLASS_LEFT_SCHOOL` per class), **not a deletion**: no row, no file and no
+child's work moves or goes.
+
+**The backfill, and which way it fails.** Existing classes take `schoolId` from
+the teacher holding them, because that is exactly what the product has meant since
+there were schools — writing NULL instead would have handed every live school's
+classes to individuals the first time the detach ran. `broughtInByTeacherId` is
+backfilled only from the structured `CLASS_JOINED_SCHOOL` audit rows (actor and
+subject ids, never the prose), and only where she still holds the class. A class
+with no such row keeps NULL, which resolves to "the school's": the failure that
+prevents is a school's children being handed to one adult by mistake, and the
+failure it accepts is a teacher having to ask for classes she can still read.
+That is the right way round (SAFEGUARDING rule 8).
+
+**What this does NOT decide.** The 29 August 2026 widening — a removed
+colleague's classes landing on the admin who removed them — carried the expiry
+"superseded the day `Class.schoolId` lands with the school-identity work". The
+column has landed and **the widening has not expired**, because `Class.teacherId`
+is still NOT NULL and a class therefore still needs a holder. Finishing it means a
+nullable holder, which reopens F68's cascade argument and has to answer what a
+class with no teacher shows and to whom. That is a separate decision and is not
+taken here.
+
+**Worth an outside check:** no. No new data category, no new sub-processor, no
+child data. The controller change is one `RETENTION.md` already describes in
+outline; what is new is that it now happens rather than being left undone.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-08.

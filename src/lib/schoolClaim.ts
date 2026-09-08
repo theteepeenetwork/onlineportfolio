@@ -264,6 +264,24 @@ export async function claimSchool(intent: ClaimIntent): Promise<ClaimOutcome> {
     }
 
     // -----------------------------------------------------------------------
+    // 6a. AND HER CLASSES COME WITH HER, MARKED AS HERS.
+    //
+    // Before `Class.schoolId` existed this was implicit and invisible: a class
+    // belonged to a school only through its teacher, so the write above was the
+    // whole of it. Now it has to be said, and saying it is what lets it be
+    // undone — `broughtInByTeacherId` is why a refund (`detachBuyer`) and a
+    // lapsed plan can hand these classes back rather than stranding a teacher's
+    // own work inside a school she has left.
+    //
+    // Guarded on `schoolId: null` for the same reason as the grant: only a class
+    // that belongs to no school can be brought into one.
+    // -----------------------------------------------------------------------
+    await tx.class.updateMany({
+      where: { teacherId: buyer.id, schoolId: null },
+      data: { schoolId: school.id, broughtInByTeacherId: buyer.id },
+    });
+
+    // -----------------------------------------------------------------------
     // 7. THE AUDIT ROW, INSIDE THE TRANSACTION, via `tx.auditLog.create` and
     // NOT via `recordAudit`.
     //
@@ -471,6 +489,19 @@ export async function detachBuyer(schoolId: string): Promise<boolean> {
     // arrived by some other route and has no row to come back to — and for the
     // day somebody "tidies" the claim into deleting one.
     await restoreFreePlan(tx, buyerId);
+
+    // AND THE CLASSES SHE ARRIVED WITH COME BACK, or the refund leaves her
+    // account intact and her own children's work inside a school she has left.
+    //
+    // Only the ones she brought in AND still holds: a class the school created,
+    // or one it moved to a colleague, is the school's and stays frozen with it,
+    // which is the same rule the lapse detach reads. Before `Class.schoolId`
+    // this needed no code, because a class followed its teacher automatically —
+    // the column is what makes the rule sayable, and this is the price of it.
+    await tx.class.updateMany({
+      where: { teacherId: buyerId, schoolId, broughtInByTeacherId: buyerId },
+      data: { schoolId: null, broughtInByTeacherId: null },
+    });
   });
 
   await recordAudit({
