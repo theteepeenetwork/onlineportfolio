@@ -79,6 +79,11 @@ export const MAIL_TEMPLATE_KEYS = [
   "staff-invite",
   "email-confirm",
   "school-invitation",
+  // A parent has switched on "tell me when there is a message" (rule 6a,
+  // 8 September 2026). Its own key rather than a reuse: it is the only template
+  // a person opted into, so a run of failures on it means something different
+  // from a run of failures on a sign-in link somebody is waiting for.
+  "message-waiting",
 ] as const;
 
 export type MailTemplateKey = (typeof MAIL_TEMPLATE_KEYS)[number];
@@ -89,6 +94,7 @@ export const MAIL_TEMPLATE_LABEL: Record<MailTemplateKey, string> = {
   "staff-invite": "Staff invitation",
   "email-confirm": "Email confirmation before buying",
   "school-invitation": "Invitation for a teacher who already has an account",
+  "message-waiting": "Parent notification: a message is waiting",
 };
 
 // ---------------------------------------------------------------------------

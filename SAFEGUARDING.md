@@ -206,9 +206,9 @@ Each rule is testable. A change that breaks one does not ship.
      new messages on both sides; nothing is deleted for non-payment.
 
    **Not covered by this rule**, and each needing its own amendment: an admin
-   or a designated safeguarding lead reading message content; any notification
-   by email or push (rule 6a governs — nothing is sent, a badge in the family
-   space is the whole notification model); attachments; translation through a
+   or a designated safeguarding lead reading message content — **now covered by
+   rule 21a above**; **notification by push** (rule 6a governs; nothing is sent);
+   attachments; translation through a
    third party (a message names a child); read receipts on a personal thread
    (a parent seeing "read 19:04" manufactures the obligation the hold exists to
    remove); absence or illness reporting (a reason for absence is health data,
@@ -332,6 +332,45 @@ Each rule is testable. A change that breaks one does not ship.
    (rule 19 forbids it and no amendment is contemplated); a free-text answer of
    any kind; a form sent to one named child rather than a class; a child seeing
    or answering one.
+
+6b. **The one email a parent may be sent about a message says only that there is
+   one.** *(Added 2026-09-08. A scope note under rule 6a, not a carve-out: rule
+   6a already permits "notifications they switched on themselves", and until now
+   nothing used it. This says what the first use may contain.)*
+
+   - **Off by default, per parent, and only the parent may turn it on.** There is
+     no action anywhere that writes the switch on somebody else's behalf — not a
+     teacher, not an admin, not the operator. It is not offered at all to a
+     household with no address on file, because many never give one and the badge
+     in the family space stays the whole notification model for them. Taking the
+     address off takes the switch off with it.
+   - **The email carries nothing.** Not the message, not the teacher's name, not
+     the child's name, class or school, not how many are waiting. It says a
+     school has written and links to the family space. An email is a copy on a
+     different retention clock, travelling a path StoryJar does not control, to a
+     mailbox that may be shared, forwarded, or read over a shoulder — the same
+     argument that keeps message text out of `AuditLog.detail`, applied to a
+     weaker channel.
+   - **No sign-in token in it.** The link goes to the family space, which asks
+     for a family code or sends a magic link exactly as it always does. A
+     notification carrying a token would be a second sign-in route created by a
+     message arriving, minted for whoever is watching the mailbox rather than for
+     somebody who asked.
+   - **Sent at DELIVERY, never at send.** Rule 21 holds a message written at
+     21:40 until the school opens; an email raised when the teacher pressed send
+     would arrive at 21:40 and the hold would leak through the mail. The trigger
+     is `deliverAt` passing, and a blocking test asserts a held message produces
+     nothing until then.
+   - **A suppressed address is not written to.** Bounced, blocked, marked as
+     spam or unsubscribed: checked before the send, not after another bounce.
+   - **Once per message, and considered exactly once.** `Message.notifiedAt` is
+     stamped whatever happened — including for a parent with the switch off — so
+     a switch turned on in March cannot produce a flood about February.
+
+   **Not covered by this note**, and each needing its own amendment: push or SMS
+   of any kind; a notification about anything other than a message; any digest,
+   summary or reminder; and telling a parent anything at all about a permission
+   slip, a parents' evening or a safeguarding escalation by email.
 
 23. **A parents' evening is booked by the family, and who is coming is the class
    teacher's list.** *(Added 2026-09-08; see "Amendments" below.)* A school lays
@@ -555,6 +594,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-08 | 6a (scope note), 6b (new), 21 (list) | Rule 6a's "notifications they switched on themselves" gets its first use, and 6b says what that one email may contain: only that a message is waiting, with no content, no names, and no sign-in token, sent when the message is DELIVERED rather than when it is written. Rule 21's "not covered" list loses the email-notification entry, which this answers, and the safeguarding-lead entry, which 21a answers. | Product owner | Rule 6a was written on 2026-08-17 deliberately wider than "StoryJar never emails a parent", so that a preference a parent set themselves would not be banned before it existed. This is that preference. The risk it carries is not the sending but the CONTENT: a notification is the natural place for "Mrs Hartley wrote about Amara" to appear, and that sentence in a shared mailbox is a disclosure the product cannot take back. So the email says nothing, and the omissions are the feature. **What was traded away:** the clean absolute that StoryJar emails a parent only a link they asked for. **What was not:** the office-hours hold, which the delivery-time trigger preserves rather than works around; the badge model for the many households with no address; and rule 21's ban on message content leaving the product. Worth recording that this makes FINDINGS F30 and F31 cost more: every earlier email was one somebody was waiting for, so a failure was noticed by the person who did not get it. Nobody waits for this one. |
 | 2026-09-08 | 21a (new) | A teacher may raise one conversation to a member of staff the school has named as a safeguarding lead, with a reason recorded on the share row. The lead reads only what is raised to them; whether they may reply is decided by the existing per-staff messaging permission, unchanged; the parent is not told, because the reader list rule 21 already shows them is the transparency. | Product owner | Rule 21 named this in its own "not covered" list as needing an amendment, and `COMPETITIVE_POSITIONING.md` said in terms not to promise it to a school until it existed. It is smaller than it sounds because per-thread sharing is already the mechanism: this is a share with a named recipient and a recorded reason, which is why it adds **no new route to a child's data**. **What was traded away:** nothing structural — one more adult can read one conversation, chosen by a teacher, from a list the school itself set. **What was not:** the lead has no standing access to anything not raised to them; reading is not writing; the reason never reaches the audit log; and the parent's pages still never carry the word "safeguarding". The risk actually worth naming is a school mistaking this for a reporting channel, which is answered on the screen rather than in this document. |
 | 2026-09-08 | 23 (new) | Rule 23 permits parents'-evening booking: a school lays out appointments, a family takes one for their own child, a taken slot shows as taken and never who by, and office hours deliberately do not cap it. | Product owner | The highest-value reuse of the office-hours time machinery, and the one place where applying the office-hours *hold* would refuse the feature rather than govern it — a parents' evening is the night a school has asked its staff to be there. Two risks decided rather than left: a bookable list is a disclosure surface between families, so the child id is reduced to a boolean on the server; and two parents pressing one slot is a real race, so booking is a conditional update against a row the school created rather than a create. **What was traded away:** nothing in rule 21 — the hold on *messages* is untouched, and a booking carries no free text for a message to hide in. **What was not:** the operator still reads nothing (rule 20), and the school office still sees counts rather than children. |
 | 2026-09-08 | 5 (clause), 22 (new) | Rule 22 permits permission slips: the school writes the question, StoryJar owns the two answers, and there is no free-text response field in the product. Rule 5 gains an **administrative records** clause — an admin may see a record of a decision an *adult* made, as counts per class, and never which child answered which way. | Product owner | A permission slip is the biggest paper-and-phone job in a primary office and is adult decision data, not a child's work, so it belongs on a school plan. The whole risk is in one place: a form is where Art. 9 data gets collected by accident rather than by argument, because "does your child have a nut allergy?" sounds like an administrative question. The answer is structural — the school never authors an answer label, so there is no route by which an allergy or a SEN status can be typed in — and the one extra answer permitted is a catering headcount for a trip day, decided by the owner on 2026-09-08. **What was traded away:** rule 5's absolute "an admin sees no record about a child", which was always about *work* and is now said in words instead of inferred. **What was not:** an admin still sees no child's name against an answer, no journal item, no message body; the operator sees nothing at all (rule 20). |

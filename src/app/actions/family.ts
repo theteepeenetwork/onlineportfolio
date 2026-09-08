@@ -220,6 +220,15 @@ export async function saveFamilyDetails(
 
   const rawName = String(formData.get("name") ?? "").trim().slice(0, 80);
   const rawEmail = String(formData.get("email") ?? "").trim().toLowerCase();
+  // "Tell me when there is a message" (SAFEGUARDING rule 6a). An unchecked
+  // checkbox posts nothing, so absence is OFF — which is the right default and
+  // the one a parent gets by doing nothing.
+  //
+  // AND IT CANNOT SURVIVE THE ADDRESS BEING TAKEN AWAY. A parent who clears
+  // their email has withdrawn the only thing a notification could be sent to,
+  // and leaving the switch on would be StoryJar holding a preference to write to
+  // an address it no longer has. Cleared with it, in the same write.
+  const wantsEmail = formData.get("notifyByEmail") === "on" && Boolean(rawEmail);
 
   if (rawEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(rawEmail)) {
     return { error: "That email doesn’t look quite right." };
@@ -230,7 +239,7 @@ export async function saveFamilyDetails(
       where: { id: parent.id },
       // Empty means "don't hold this" rather than an empty string, so a parent
       // can take their address back off StoryJar as easily as they gave it.
-      data: { name: rawName || null, email: rawEmail || null },
+      data: { name: rawName || null, email: rawEmail || null, notifyByEmail: wantsEmail },
     });
   } catch {
     // Almost certainly the unique-email constraint. We do NOT say so: confirming
@@ -255,6 +264,23 @@ export async function saveFamilyDetails(
       detail: rawEmail
         ? "A parent added their own email address for sign-in links"
         : "A parent removed their email address",
+    });
+  }
+
+  // The switch is its own audit line, separate from the address's. Rule 6a is
+  // the rule that says StoryJar sends nothing a person did not ask for, so when
+  // it did send something the record of WHO ASKED has to exist — and "they had
+  // an address on file" is not that record. No address in the detail, as above.
+  if (parent.notifyByEmail !== wantsEmail) {
+    await recordAudit({
+      action: wantsEmail ? "FAMILY_EMAIL_NOTIFY_ON" : "FAMILY_EMAIL_NOTIFY_OFF",
+      actorType: "PARENT",
+      actorId: parent.id,
+      subjectType: "PARENT",
+      subjectId: parent.id,
+      detail: wantsEmail
+        ? "A parent switched on emails telling them a message is waiting"
+        : "A parent switched off emails telling them a message is waiting",
     });
   }
 

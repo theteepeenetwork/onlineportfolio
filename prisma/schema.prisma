@@ -1024,6 +1024,20 @@ model Parent {
   id             String            @id @default(cuid())
   name           String?
   email          String?           @unique
+  // Does this parent want an email when a message is waiting?
+  // (SAFEGUARDING rule 6a, first used 8 September 2026.)
+  //
+  // OFF BY DEFAULT AND ONLY THE PARENT MAY CHANGE IT. Rule 6a permits exactly
+  // one kind of message StoryJar may send unasked-for — one the recipient
+  // switched on themselves — and this is the switch. No teacher, admin or
+  // operator sets it: there is no action anywhere that writes this column on
+  // somebody else's behalf, which is the same shape as the PIN in rule 1.
+  //
+  // USELESS WITHOUT `email` ABOVE, and many households never give one: the badge
+  // in the family space stays the whole notification model for them. The switch
+  // is not rendered at all for a parent with no address, rather than rendered
+  // and inert.
+  notifyByEmail  Boolean           @default(false)
   familyCode     String            @unique // the code printed on the school's letter
   createdAt      DateTime          @default(now())
   children       Student[]         @relation("ParentChildren")
@@ -1908,6 +1922,21 @@ model Message {
   id              String        @id @default(cuid())
   thread          MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   threadId        String
+  // When a notification about this message was raised, or NULL if none was.
+  //
+  // THE ONLY THING STOPPING A SECOND EMAIL. Two paths raise notifications — a
+  // lazy one on a read and the nightly sweep — and they will race each other on
+  // an ordinary morning. The stamp is what makes "tell the family once" a
+  // property of the row rather than of whichever path happened to run first.
+  //
+  // IT IS NOT A DELIVERY RECEIPT. It records that StoryJar handed a message to
+  // Mailjet, or decided not to; the mailer has no delivery receipt to record
+  // (see the note on MAIL_OUTCOMES). Stamped even when nothing is sent — a
+  // parent with the switch off, no address, or a suppressed one — because the
+  // question this column answers is "has this message been considered?", and
+  // re-considering it every night forever is how a switch turned on in March
+  // produces a flood about February.
+  notifiedAt      DateTime?
   senderType      String // PARENT | TEACHER
   senderParent    Parent?       @relation("MessageSenderParent", fields: [senderParentId], references: [id], onDelete: SetNull)
   senderParentId  String?

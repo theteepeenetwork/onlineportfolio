@@ -111,6 +111,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F57 | Medium | Operations / the school register | **The documented way to refresh the school register could not run where the database is.** `npm run gias:import` — the command the script's own header gives as the production procedure — answers **403 inside the Railway container** and 200 from a laptop the same minute, because the DfE blocks the datacentre range. It fails at the FIRST fetch, before anything downloads, so nothing was ever half-written; it simply could not be done. Found 25 Aug 2026 the only way it could be: by somebody trying it for the first time. Third instance of the F44 class — a documented operational capability that had never once been exercised. **Established 25 Aug 2026: production's register had never been imported at all** — one `register:refresh` row ever, that morning's — so the live signup picker was empty from the day the feature shipped, with every gate green over an empty table. | | **Mitigated, not closed.** `--extract-date` ships (2d1ad9b) and `/ops/health` now carries the procedure. What stays open is that the register can only be refreshed by a person with a browser and a laptop, so it goes stale by default | `scripts/check-establishments.ts` asserts the extract is fetched from a host that is not the blocked Downloads page — the invariant `--extract-date` rests on. Nothing can test the container's network from here |
 | F58 | **High** | Test harness / persona suite truthfulness | **The persona suite can report a working feature as broken and a broken one as working, and we have made decisions on its output all week.** Its "did it work?" checks are `seesText(/…/i)` against rendered copy, and 16 of 63 are unsound. Proven against real rendered text: `/…\|nothing/i` matched "**Nothing** else was searched" in a refusal and scored a miss as a find (the false major "I cannot issue them a new code" — the control exists and works); `/…\|ok\|…/i` matches "br**ok**en", so the operator health check passes on the exact word that means it is broken; and the `/ops` console check looks for words the shipped verdict tile never says, so it reported a working tile as absent. Substring hazards confirmed in real copy: `ok`→broken/looks/cookie, `ask`→task/asked, `done`→undone, `sure`→measured/erasure, `back`→background/feedback. A second class cannot fail at all: `/class(es)?\|work\|…/` on a staff page. | **Open** | `scripts/check-persona-patterns.mjs` in `npm run check` — a bare alternation shorter than 5 characters, or a failure word inside a success pattern, is refused with the word that would collide |
 | F59 | **Critical** | Access control / children's data (Rule 1) | **"Remove from school" does not remove access.** `removeStaff` sets `teacher.schoolId = null`; `Class` has **no `schoolId`**, so a class belongs to a school only through its teacher. Measured 25 Aug 2026 on the persona school: removing an ACTIVE teacher in one click, with no confirmation, took the school from 5 classes/17 pupils to **1 class/3 pupils** — while he signed straight back in to `/teacher` with all four classes, **14 pupils, 7 journal items and 2 items waiting in his approval queue**. The admin's intent is not achieved, the school cannot reassign the classes it can no longer see (the action's own comment claims it can), and the audit log records "Removed Nathan Reeves from the school", which is now false in the direction that matters. Found only because F58's cannot-fail check was tightened; `grep -rln "removeStaff\|STAFF_REMOVED" tests/` returned **nothing** — the action had never been exercised by any test. | **Fixed** 2026-08-29, option A: classes move to the removing admin in one transaction, class codes rotate, sessions and unspent password tokens are deleted. `Class.schoolId` (option B) remains the correct model and is deferred to the school-identity work | `tests/battery/security/class-handover.spec.ts` — blocking, drives the real action through the console, verified to fail without the fix |
+| F73 | Low | Mail / notification completeness | **The message notification has one path where the design has two.** Rule 6b's email is raised when a message becomes deliverable, and `notifyDeliveredMessages` is written to be called from a lazy path (a member of staff opening their inbox) **and** from the nightly by-state sweep in `scripts/freeze-expired.mjs`. Only the lazy one is wired. The sweep runs under `tsx` outside Next, where `@/lib/mailer`'s own `server-only` line throws, so wiring it means either moving the Mailjet transport out from behind that guard or writing a second sender in a script — neither of which is a decision to take as a side effect of adding a job. **What it costs:** a school where nobody opens StoryJar on the morning a held message lands is notified late rather than wrongly. The office-hours hold is enforced by `deliverAt` and not by who happens to look, so no message can arrive early; the badge in the family space, which is the whole model for every household without an address, is unaffected. Found while building it, 2026-09-08, and named rather than left as an absence. | **Open**, and deliberately so — the fix is a decision about where the mailer's credentials may be imported from, which is the owner's | `tests/battery/security/message-notification.spec.ts` covers the FUNCTION both paths would call, including that a held message notifies nobody and that each message is considered exactly once, so the missing job is wiring rather than untested behaviour |
 | F60 | Medium | Trust / transparency at signup | **A teacher signs up, and nothing on the way in says what happens to children's work or who can see it.** Step 1 of 5 asks for their name, school email and password; the next steps ask for their school and their class. The only nearby sentence is "Just you — pupils never need accounts or emails", which is about accounts, not about the work. Discovered 25 Aug 2026 by tightening one of F58's four cannot-fail checks: the old pattern was `/safeguard\|approv\|privacy\|data\|only you\|never/i` and it had been matching the word **"never"** in that unrelated sentence since the day it was written. Safeguarding is the product's whole pitch and `docs/brand-and-copy.md` governs what is claimed in StoryJar's name — the promise exists everywhere except the one screen where somebody is deciding whether to trust it. | **Open** | `personas/teacher-first-day.spec.ts:75`, now written against a promise being made rather than against the word "data" |
 | F61 | **High** | Authentication / account recovery | **There was no password reset anywhere in the product, and no way for an invited teacher to receive credentials.** `src/app/actions/auth.ts` signed a teacher in and that was all: a pilot teacher who mistyped their password had no route back except the owner opening `railway ssh`. Ten to fifteen pilot teachers arrive from 1 September. The second half was the same hole — `staffInviteEmail()` had been written, styled and left uncalled for months (`mailStatus.ts:48` recorded it), `resendInvite` was a documented no-op that refreshed the page, and `inviteStaff` created a Teacher row with an empty password hash and told nobody. | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 7-day invitation; neutral response; link never on screen in production; single-use; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (6 blocking properties) and `tests/e2e/password-reset.spec.ts`, which is the acceptance test: a teacher who does not know her password gets back in with nobody touching a terminal | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 72-hour invitation; neutral response; link never on screen in production; single-use enforced in the database; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (8 blocking properties incl. the concurrent double-spend), `tests/battery/security/staff-invite-isolation.spec.ts` (cross-tenant), and `tests/e2e/password-reset.spec.ts`, the acceptance test |
 | F62 | Medium | Test harness / assertions that cannot fail | **F58's gate covers persona regexes and not `expect(...)` assertions, and two unfailable assertions were written by F58's own author on the days after it.** `check-persona-patterns.mjs` refuses a short bare alternation or a failure word in a persona success pattern. It cannot see an `expect()` that is true whatever the product does. Two instances, both green, both found by reading output rather than by any gate: a persona check asserting the ABSENCE of a sentence that no longer existed anywhere in the product, and a cross-tenant test posting forged FormData that Next refused outright (`Failed to find Server Action`), so "no token was minted" held against a request that could never mint one. | **Open**, deliberately not fixed this week — a new static gate during a freeze is how a narrow exception stops being narrow (owner decision, 27 Aug 2026). After launch | none, and that is the finding. Both instances are now fixed at their sites; nothing stops a third |
@@ -3464,6 +3465,65 @@ signature claiming more than the columns behind it can answer for — and it is
 recorded there as the fourth instance for exactly that reason. The uncomfortable
 half is that the class shows up in our own diagnostics too, where the cost is a
 wrong answer about production rather than a wrong sentence to a teacher.
+
+
+## F73 · The message notification is raised on one path, not two · Low → Open
+
+*Found 2026-09-08, while building rule 6b's notification.*
+
+**What was intended.** Rule 21 holds a message written at 21:40 until the school
+opens. So the notification is raised when a message becomes DELIVERABLE, never
+when it is written — otherwise the hold leaks through the mail and a parent is
+sitting at a phone at ten at night knowing something is waiting. With no cron in
+this product, "when it becomes deliverable" means two paths, which is the same
+answer Part A gave the hold itself and `settleStatus` gives trial expiry:
+
+  1. **Lazily**, when a member of staff opens their messages.
+  2. **By a by-state sweep** in `scripts/freeze-expired.mjs`, asking the database
+     what is true rather than reacting to an event — the pattern that file
+     already uses for squatted URNs and for school plans whose window has closed,
+     and for the reason its own comment gives: it makes "we found every one" a
+     property of the data instead of a claim about the code.
+
+**What is built.** The first. `notifyDeliveredMessages` takes its Prisma client
+and its sender as arguments precisely so the second can call it, and
+`Message.notifiedAt` already assumes both and expects them to race.
+
+**Why the second is not built.** `scripts/freeze-expired.mjs` runs under `tsx`
+outside Next — that is stated in its own header — and `@/lib/mailer` throws on
+its first line, `import "server-only"`, when loaded that way. This is the third
+time that constraint has shaped a module in this repo (`urnRelease.ts`,
+`schoolPlanEnd.ts`), and the first two were solved by keeping the shared logic
+free of `server-only`. The mailer cannot be solved that way without deciding
+whether the Mailjet transport, and the credentials it reads, may live outside
+that guard. That is an owner's call, not a side effect of adding a job.
+
+**What it actually costs, stated exactly so nobody over- or under-reads it.**
+A school where no member of staff opens StoryJar on the morning a held message
+lands notifies nobody until somebody does. The failure is LATE, never WRONG:
+
+  - No message can be notified early. The trigger is `deliverAt <= now`, which
+    is the same clause the hold itself is made of.
+  - No message is notified twice. `notifiedAt` is stamped whatever was decided.
+  - Nothing is notified to a parent who did not ask, or to a suppressed address.
+  - The badge in the family space is untouched, and it remains the whole
+    notification model for every household that has never given an address —
+    which is many of them.
+
+**Two candidate fixes, neither taken here.**
+
+  1. Split the Mailjet transport into a module without `server-only`, keeping
+     `mailer.ts` as the guarded module application code imports. Cheapest, and
+     it puts the credential-reading code one step further from the guard.
+  2. Give the sweep a sender that posts to an authenticated internal route. No
+     credential moves; it adds a route that can send email, which is a new thing
+     to protect.
+
+**Related.** F30 (mail failures are visible and nothing announces them) and F31
+(the suppression sync has no schedule) both cost more now than they did, and
+`src/lib/messaging/notify.ts` says so in its own header: every earlier email was
+one a person had just asked for and was waiting for, so a failure was noticed by
+the person who did not get their link. Nobody waits for a notification.
 
 ## F60 · Nothing at signup says what happens to children's work · Medium → Open
 

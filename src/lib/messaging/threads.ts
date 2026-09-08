@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { requireWritableAccountForClass } from "@/lib/billing";
 import { deliveryTimeFor, describeOpening, hasAnyOpening, isOpenAt, nextOpeningAfter, type Policy } from "./officeHours";
 import { messagingOpenForSending, resolveIsSafeguardingLead, resolveMayMessageParents, schoolMessaging, type SchoolMessaging } from "./policy";
+import { sendMail } from "@/lib/mailer";
+import { notifyDeliveredMessages } from "./notify";
 
 // ===========================================================================
 // Parent–teacher message threads: the ONLY module that reads or writes
@@ -414,6 +416,30 @@ export async function inboxForStaff(teacherId: string, now: Date = new Date()): 
   if (!me?.schoolId) return { rows: [], passed: [], available: false };
   const schoolId = me.schoolId;
   const messaging = await schoolMessaging(schoolId);
+
+  // THE LAZY HALF of the notification model (rule 6a, src/lib/messaging/notify.ts).
+  //
+  // Here rather than in `sendStaffMessage`, and that is the whole point: a
+  // message written at 21:40 is DELIVERED when the school opens, and an email
+  // raised at the moment of writing would put the hold's own leak in a parent's
+  // pocket at ten at night. This runs on a staff read, which in the ordinary
+  // case is somebody at the school opening StoryJar during the morning the
+  // message lands.
+  //
+  // NOT SCOPED TO THIS SCHOOL, deliberately: it is the same bounded batch the
+  // nightly sweep runs, and scoping it would mean a school whose staff never
+  // open the inbox is served only by the job while a busy one is served twice.
+  // `Message.notifiedAt` makes the overlap harmless.
+  //
+  // AWAITED RATHER THAN FIRED AND FORGOTTEN. A floating promise in a server
+  // component is a promise nothing keeps alive; the cost is one bounded query on
+  // a page a teacher opens a few times a day, and `notifyDeliveredMessages`
+  // returns early when there is nothing due.
+  // The mailer is passed in rather than imported by `notify.ts`, so that the
+  // same function is reachable from a job and from a test outside Next. This is
+  // the server side of that arrangement and the only place the real sender is
+  // supplied.
+  await notifyDeliveredMessages(db, sendMail, now);
 
   const [own, given] = await Promise.all([
     db.student.findMany({

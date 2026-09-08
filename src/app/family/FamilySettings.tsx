@@ -127,6 +127,33 @@ export function FamilySettings({ parent }: { parent: ParentSession }) {
                 style={INPUT}
               />
 
+              {/* THE ONE THING STORYJAR MAY SEND UNASKED-FOR IS SOMETHING YOU
+                  ASKED FOR (SAFEGUARDING rule 6a), so the switch lives here,
+                  under the address it needs, unchecked until a parent checks it.
+
+                  It is rendered only when there is an address on file — not
+                  rendered and disabled. A switch a parent cannot use is a
+                  question they have to work out the answer to, and a household
+                  that never gives an address (many do not) should see the badge
+                  model and nothing about email at all. */}
+              {parent.email && (
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 14, minHeight: 44, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    name="notifyByEmail"
+                    defaultChecked={parent.notifyByEmail}
+                    style={{ width: 22, height: 22, marginTop: 2 }}
+                  />
+                  <span style={{ font: "400 15px/1.5 var(--font-atkinson)" }}>
+                    Email me when there is a message waiting.{" "}
+                    <span style={{ color: "var(--sj-muted)" }}>
+                      We never put the message in the email — just that there is one, and a link to sign in. Turn it off
+                      here any time. If you take your address off, this goes off with it.
+                    </span>
+                  </span>
+                </label>
+              )}
+
               <button
                 type="submit"
                 disabled={savingDetails}

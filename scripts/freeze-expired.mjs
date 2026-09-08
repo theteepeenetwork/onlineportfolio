@@ -122,6 +122,23 @@ async function main() {
     }
   }
 
+  // A THIRD BY-STATE PASS BELONGS HERE AND IS NOT BUILT: messages that have
+  // become deliverable and whose notification question has not been settled
+  // (src/lib/messaging/notify.ts, SAFEGUARDING rule 6b). FINDINGS F73.
+  //
+  // WHY IT IS NOT HERE. This script runs under `tsx` outside Next — that is what
+  // the header above is about — and `@/lib/mailer` throws on its own
+  // `server-only` line when loaded that way. Wiring it would mean moving the
+  // Mailjet transport out from behind that guard or writing a second sender
+  // here, and neither is a decision to take as a side effect of adding a job.
+  //
+  // WHAT IS MISSING, exactly: the lazy path in `inboxForStaff` settles this
+  // whenever a member of staff opens their messages, which on an ordinary
+  // morning is everybody. A school where nobody opens StoryJar notifies late
+  // rather than wrongly — the office-hours hold is enforced by `deliverAt` and
+  // not by who happens to look. `notifyDeliveredMessages` already takes its
+  // client and its sender as arguments for exactly this call.
+
   console.log(
     `[freeze-expired] checked ${expired.length}, froze ${frozen} account(s), ` +
       `released ${released.length} register claim(s)${released.length ? `: URN ${released.join(", ")}` : ""}, ` +
