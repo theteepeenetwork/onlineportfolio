@@ -52,7 +52,8 @@ export default async function TemplateDetail({
   if (!template) notFound();
 
   const classes = await db.class.findMany({
-    where: { teacherId: user.teacher.id },
+    // You cannot set an activity for a class that has stopped teaching.
+    where: { teacherId: user.teacher.id, archivedAt: null },
     orderBy: { createdAt: "asc" },
     include: { students: { orderBy: { name: "asc" }, select: { id: true, name: true, avatarColor: true } } },
   });

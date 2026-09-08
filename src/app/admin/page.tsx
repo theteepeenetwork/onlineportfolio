@@ -31,6 +31,13 @@ export default async function AdminPage({
         orderBy: { createdAt: "asc" },
         include: {
           classes: {
+            // THIS YEAR'S CLASSES. An archived one stopped teaching at the end of
+            // last year and its children have moved on (`Class.archivedAt`,
+            // year-end transfer). A register with last year's rooms in it is a
+            // register somebody has to read past, so they are excluded here and
+            // shown on the Move-up pane instead. Archiving is not deletion: every
+            // child's work is still held and still reachable through that child.
+            where: { archivedAt: null },
             orderBy: { createdAt: "asc" },
             select: { id: true, name: true, _count: { select: { students: true } } },
           },
@@ -173,6 +180,69 @@ export default async function AdminPage({
     oversightForSchool(school.id),
     messagingStaffForSchool(school.id),
   ]);
+  // ---------------------------------------------------------------------
+  // The September job (docs/paid-tier-plan.md item 1). Class names, counts and
+  // staff names only — rule 5 holds on this screen exactly as it does on the
+  // rest of the console, so no moment and no child's name is loaded.
+  //
+  // `pending` IS LOADED HERE BECAUSE IT IS A PRECONDITION, NOT A STATISTIC. A
+  // moment waiting for approval is scoped to the class it was made in, so
+  // moving the children out of a class that still has one strands it in the
+  // outgoing teacher's queue. The action refuses in that case; the screen says
+  // so before the press, with the number and the person to ask.
+  // ---------------------------------------------------------------------
+  const [liveClasses, archivedClasses, pendingByClass] = await Promise.all([
+    db.class.findMany({
+      where: { schoolId: school.id, archivedAt: null },
+      orderBy: [{ yearGroup: "asc" }, { name: "asc" }],
+      select: {
+        id: true, name: true, yearGroup: true, ageMode: true, teacherId: true,
+        teacher: { select: { name: true, displayName: true } },
+        _count: { select: { students: true } },
+      },
+    }),
+    db.class.findMany({
+      where: { schoolId: school.id, archivedAt: { not: null } },
+      orderBy: { archivedAt: "desc" },
+      select: { id: true, name: true, yearGroup: true, archivedAt: true },
+    }),
+    db.journalItem.groupBy({
+      by: ["classId"],
+      where: { status: "PENDING", class: { schoolId: school.id, archivedAt: null } },
+      _count: { _all: true },
+    }),
+  ]);
+  const pendingFor = new Map(pendingByClass.map((r) => [r.classId, r._count._all]));
+  const rollover = {
+    onSchoolPlan: account.kind === "SCHOOL",
+    verified: Boolean(school.verifiedAt),
+    classes: liveClasses.map((c) => ({
+      id: c.id,
+      name: c.name,
+      yearGroup: c.yearGroup,
+      ageMode: c.ageMode,
+      teacherId: c.teacherId,
+      teacherName: c.teacher.displayName ?? c.teacher.name,
+      children: c._count.students,
+      pending: pendingFor.get(c.id) ?? 0,
+    })),
+    archived: archivedClasses.map((c) => ({
+      id: c.id,
+      name: c.name,
+      yearGroup: c.yearGroup,
+      // Formatted on the server, as every other date on this console is, so a
+      // server render and a browser hydration cannot disagree about how en-GB
+      // punctuates a date (the hydration failure documented in officeHours.ts).
+      archivedAt: c.archivedAt ? c.archivedAt.toISOString().slice(0, 10) : "",
+    })),
+    // Anybody on the staff may hold a class next year, including a TA the school
+    // has given one to. Ordering matches the Staff tab so the same list reads the
+    // same way in both places.
+    staff: school.staff
+      .filter((t) => t.status === "ACTIVE")
+      .map((t) => ({ id: t.id, name: t.displayName ?? t.name })),
+  };
+
   const messaging = {
     onSchoolPlan: messagingState.onSchoolPlan,
     frozen: account.status === "FROZEN",
@@ -289,6 +359,7 @@ export default async function AdminPage({
       childrenCount={childrenCount}
       audit={audit}
       messaging={messaging}
+      rollover={rollover}
     />
   );
 }

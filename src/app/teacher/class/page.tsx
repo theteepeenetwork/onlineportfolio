@@ -11,7 +11,8 @@ export default async function ClassPage() {
   if (user?.role !== "TEACHER") return null;
 
   const classes = await db.class.findMany({
-    where: { teacherId: user.teacher.id },
+    // Archived classes are last year's and are not managed here. See the rail.
+    where: { teacherId: user.teacher.id, archivedAt: null },
     orderBy: { createdAt: "asc" },
     include: {
       students: {

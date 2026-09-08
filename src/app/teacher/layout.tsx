@@ -46,7 +46,10 @@ export default async function TeacherLayout({
       select: { schoolName: true, school: { select: { name: true } } },
     }),
     db.class.findMany({
-      where: { teacherId },
+      // `archivedAt: null` — a class that stopped teaching at the end of last
+      // year is not in the rail. Its children have moved on and its work is
+      // reachable through each child's own page; archiving is not deletion.
+      where: { teacherId, archivedAt: null },
       orderBy: { createdAt: "asc" },
       select: { id: true, name: true },
     }),

@@ -70,7 +70,8 @@ export default async function TeacherDashboard({
 
   const [classes, liveRuns, recent] = await Promise.all([
     db.class.findMany({
-      where: { teacherId },
+      // Last year's classes are not on this year's dashboard (`archivedAt`).
+      where: { teacherId, archivedAt: null },
       orderBy: { createdAt: "asc" },
       include: {
         students: {

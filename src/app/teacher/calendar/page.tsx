@@ -27,7 +27,8 @@ export default async function CalendarPage() {
         template: { select: { id: true } },
       },
     }),
-    db.class.findMany({ where: { teacherId }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
+    // Archived classes carry no future work, so they are not filter chips.
+    db.class.findMany({ where: { teacherId, archivedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
   ]);
 
   // Same class ordering as the My-classes screen → same tint per class.

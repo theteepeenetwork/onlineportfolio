@@ -16,6 +16,7 @@ import { ImportClassForm } from "@/components/ImportClassForm";
 import { BillingPane } from "./BillingPane";
 import { Guide } from "./Guide";
 import { MessagesPane, type MessagingPaneProps } from "./MessagesPane";
+import { RolloverPane, type RolloverPaneProps } from "./RolloverPane";
 import { Promises } from "./Promises";
 import { CARD, TABS, TAB_HEADING, type Tab } from "./tabs";
 
@@ -197,6 +198,7 @@ export function AdminConsole({
   childrenCount,
   audit,
   messaging,
+  rollover,
 }: {
   schoolName: string;
   plan: string;
@@ -216,6 +218,7 @@ export function AdminConsole({
   childrenCount: number;
   audit: AuditEntry[];
   messaging: MessagingPaneProps;
+  rollover: RolloverPaneProps;
 }) {
   const [tab, setTab] = useState<Tab>("staff");
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -454,7 +457,8 @@ export function AdminConsole({
           </div>
         )}
 
-        {tab === "messages" && <MessagesPane messaging={messaging} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
+        {tab === "moveup" && <RolloverPane rollover={rollover} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
+      {tab === "messages" && <MessagesPane messaging={messaging} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
       </main>
     </div>
   );

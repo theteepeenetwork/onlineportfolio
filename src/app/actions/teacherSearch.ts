@@ -39,7 +39,10 @@ export async function teacherSearchIndex(): Promise<TeacherSearchItem[]> {
 
   const [classes, templates] = await Promise.all([
     db.class.findMany({
-      where: { teacherId },
+      // Archived classes and the children who have moved on from them are not in
+      // this year's search index. Nothing is hidden that a teacher still holds:
+      // a child who moved up is found under their CURRENT class.
+      where: { teacherId, archivedAt: null },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
