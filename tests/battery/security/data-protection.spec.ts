@@ -1,7 +1,10 @@
 import { test, expect } from "@playwright/test";
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { PrismaClient } from "@prisma/client";
 import { SCHOOL_A, SCHOOL_B, loginTeacher, loginParent, studentIdFromLogin } from "../helpers";
+
+const db = new PrismaClient();
 
 // ===========================================================================
 // A11 — Data protection (DPIA evidence)
@@ -199,4 +202,94 @@ test("deleting a moment erases its media file too (rule 9 — regression guard)"
   await page.waitForLoadState("networkidle");
 
   expect(existsSync(file), "media file must be erased when a moment is deleted").toBe(false);
+});
+
+test("the export carries the family's conversation, held messages and all, and withholds it from staff who may not read it", async ({ page }) => {
+  // A subject access request asks what the school HOLDS. Since 7 September that
+  // includes a conversation between a child's guardians and their teacher, about
+  // the child — so the export carries it, for the same reason rule 3's scope note
+  // put work still in the approval queue in the file: a workflow state does not
+  // narrow Article 15.
+  //
+  // THE THREAD IS BUILT HERE RATHER THAN SENT THROUGH THE FAMILY SPACE, and the
+  // first version of this test did drive the UI. It passed while creating no
+  // message at all: the "it will reach them when the school opens" assertion
+  // matched the standing copy that sits under the box whether or not anything
+  // was sent, so it was a check that could not fail (FINDINGS F58's class, and
+  // the reason this file's other assertions name what they exclude). Sending is
+  // covered by messaging-office-hours.spec.ts; what THIS test is about is
+  // whether the export discloses what is held, so the held state is arranged
+  // directly and the assertion is about the file.
+  const zara = await db.student.findFirstOrThrow({
+    where: { name: "Zara", class: { classCode: SCHOOL_B.classCode } },
+    include: { class: { select: { id: true, schoolId: true, teacherId: true } } },
+  });
+  const parent = await db.parent.findFirstOrThrow({ where: { children: { some: { id: zara.id } } } });
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  const thread = await db.messageThread.create({
+    data: { studentId: zara.id, schoolId: zara.class.schoolId!, classId: zara.class.id, lastMessageAt: new Date() },
+  });
+  await db.message.createMany({
+    data: [
+      // Delivered days ago: an ordinary message.
+      {
+        threadId: thread.id, senderType: "TEACHER", senderTeacherId: zara.class.teacherId,
+        messageBody: "She read beautifully today.",
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        deliverAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      },
+      // Written at nine at night and still waiting for the school to open. It is
+      // on the school's disk, so a request for what they hold must have it.
+      {
+        threadId: thread.id, senderType: "PARENT", senderParentId: parent.id,
+        messageBody: "Please can we talk about reading?",
+        createdAt: new Date(), deliverAt: tomorrow,
+      },
+    ],
+  });
+
+  const acorn = await db.class.findFirstOrThrow({ where: { classCode: SCHOOL_B.classCode } });
+  const originalTeacher = acorn.teacherId;
+  try {
+    // Her teacher exports her. Both messages are in the file, including the one
+    // nobody at the school can read yet.
+    await loginTeacher(page, SCHOOL_B.teacher);
+    const mine = await page.request.get(`/teacher/export/pupil/${zara.id}`);
+    expect(mine.status()).toBe(200);
+    const body = await mine.json();
+    const texts = (body.messages ?? []).map((m: { text: string }) => m.text);
+    expect(texts).toContain("She read beautifully today.");
+    expect(texts, "a held message is held BY THE SCHOOL, so it is disclosed").toContain("Please can we talk about reading?");
+
+    const heldRow = body.messages.find((m: { text: string }) => m.text === "Please can we talk about reading?");
+    expect(heldRow.from).toBe("A grown-up at home");
+    // Disclosed WITH the time it will arrive, rather than shown as delivered.
+    expect(new Date(heldRow.deliveredAt).getTime()).toBeGreaterThan(Date.now());
+    // The people who can read it are named, as they already are to the parent.
+    expect(body.messageThreadReaders.length).toBeGreaterThan(0);
+    // And a teacher's private note to the admin about passing a family on is
+    // never in a file handed to that family.
+    expect(JSON.stringify(body)).not.toContain("handoverReason");
+
+    // A TEACHING ASSISTANT WHO MAY NOT MESSAGE FAMILIES DOES NOT GET IT. The
+    // export must not widen rule 21 by one person — and must not omit the
+    // conversation silently either, so the file names it and says who to ask.
+    const ta = await db.teacher.findFirstOrThrow({ where: { email: SCHOOL_B.ta.email } });
+    await db.class.update({ where: { id: acorn.id }, data: { teacherId: ta.id } });
+    await loginTeacher(page, SCHOOL_B.ta);
+    const theirs = await page.request.get(`/teacher/export/pupil/${zara.id}`);
+    expect(theirs.status(), "the TA holds the class, so the child's own record is theirs to export").toBe(200);
+    const taBody = await theirs.json();
+    expect(taBody.messages, "a member of staff who may not read the thread does not get it in a file").toEqual([]);
+    expect(
+      JSON.stringify(taBody.notIncluded),
+      "and it is NAMED rather than silently missing, so the school can supply it",
+    ).toMatch(/message thread/i);
+    expect(JSON.stringify(taBody), "not one word of it may leak").not.toContain("Please can we talk about reading?");
+  } finally {
+    await db.class.update({ where: { id: acorn.id }, data: { teacherId: originalTeacher } });
+    await db.message.deleteMany({ where: { threadId: thread.id } });
+    await db.messageThread.deleteMany({ where: { id: thread.id } });
+  }
 });

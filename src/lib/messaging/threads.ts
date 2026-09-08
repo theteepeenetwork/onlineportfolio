@@ -851,3 +851,96 @@ export async function recomputeHeldDeliveries(
   }
   return waiting.length;
 }
+
+// ===========================================================================
+// The conversation, for a subject access request.
+// ===========================================================================
+
+export type ThreadExport = {
+  /** Wording for the export's `notIncluded` list when the answer is null. */
+  withheldBecause?: string;
+  messages: Array<{
+    from: "A grown-up at home" | "The school";
+    /** The member of staff who wrote it, for a school message. Families see this name in the product already. */
+    staffName: string | null;
+    text: string;
+    writtenAt: string;
+    /** When it reached the other side. Held messages carry a future date, and that is disclosed rather than hidden. */
+    deliveredAt: string | null;
+  }>;
+  readers: string[];
+};
+
+/**
+ * A child's message thread, for the per-pupil subject access export.
+ *
+ * WHY IT IS DISCLOSED AT ALL. A subject access request asks what the school
+ * HOLDS, and since 7 September that includes a conversation between the child's
+ * guardians and their teacher, about the child. `SAFEGUARDING.md` rule 3's scope
+ * note settled the same question for work still in the approval queue —
+ * "approval determines visibility inside StoryJar and never limits disclosure to
+ * a data subject or their representative" — and a workflow state does not narrow
+ * Article 15 here either. An export that omitted the thread would answer "what
+ * have you shown us" to a question that asked "what do you hold".
+ *
+ * IT DOES NOT WIDEN RULE 21 BY ONE PERSON. The reader is resolved exactly as the
+ * product resolves it: this member of staff must be the class teacher, the
+ * handler, or somebody the thread was shared with, still at the school and still
+ * permitted to message families. If they are not, this returns the thread as
+ * WITHHELD rather than as absent — the export names it so the school can supply
+ * it, which is the same treatment media bytes and drafts already get. A file
+ * that quietly omits a conversation is a worse answer to a SAR than one that
+ * says a conversation exists and who to ask for it.
+ *
+ * EVERY MESSAGE, INCLUDING ONE STILL WAITING FOR OFFICE HOURS. The hold governs
+ * DELIVERY, not what is held: a message written at nine at night is on the
+ * school's disk from the moment it is written, so it is disclosed, with the time
+ * it will arrive. This is the one place that deliberately does not apply
+ * `visibleMessages`' delivery filter, and the reason is the same one that put
+ * PENDING work in the export.
+ *
+ * WHAT IS NOT HERE: `handoverReason`, which is the admin's alone and never
+ * reaches a parent or an audit row; and nothing about any other child, because
+ * a thread is per-child by construction.
+ */
+export async function threadForExport(teacherId: string, studentId: string): Promise<ThreadExport | null> {
+  const [me, child] = await Promise.all([loadStaff(teacherId), loadChildForStaff(studentId)]);
+  if (!me || !child) return null;
+  const thread = child.messageThread;
+  if (!thread) return null; // Nothing was ever said. Nothing to disclose or to name.
+
+  const classTeacher = child.class.teacher;
+  const schoolId = classTeacher.schoolId;
+  if (!schoolId || me.schoolId !== schoolId) return null;
+
+  const standing = standingOf(teacherId, classTeacher.id, thread);
+  if (!standing.reader || !resolveMayMessageParents(me)) {
+    return {
+      withheldBecause:
+        "A message thread between this child’s family and the school is held, and is not in this file because " +
+        "the member of staff who produced it is not one of the people who may read it. Ask the school office for it.",
+      messages: [],
+      readers: [],
+    };
+  }
+
+  const rows = await db.message.findMany({
+    where: { threadId: thread.id },
+    orderBy: { createdAt: "asc" },
+    include: { senderTeacher: { select: staffSelect } },
+  });
+
+  return {
+    messages: rows.map((m) => ({
+      from: m.senderType === "PARENT" ? ("A grown-up at home" as const) : ("The school" as const),
+      staffName: m.senderTeacher ? greet(m.senderTeacher) : null,
+      text: m.messageBody,
+      writtenAt: m.createdAt.toISOString(),
+      // A message still waiting for the school to open carries a future date,
+      // and `HELD_INDEFINITELY` means the school has no hours it could arrive
+      // in. Both are said plainly rather than shown as delivered.
+      deliveredAt: m.deliverAt.getTime() === HELD_INDEFINITELY.getTime() ? null : m.deliverAt.toISOString(),
+    })),
+    readers: readersOf(thread, classTeacher, schoolId).map((r) => r.name),
+  };
+}
