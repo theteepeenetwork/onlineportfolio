@@ -87,9 +87,27 @@
 3. **30 days and 7 days before deletion.** Final warnings to teacher/school admin.
    Parents with linked children receive a download reminder (approved moments
    only, per SAFEGUARDING rule 6).
-4. **Month 12.** Permanent deletion: database rows and media files, cascading per
+4. **Month 12, first — staff get their own accounts back.** Every member of
+   staff is detached from the school and put back on the permanently free
+   teacher plan, and **each takes the classes they brought in with them** when
+   they joined; classes the school created, or gave them, stay with the school
+   and are covered by step 5 below. A teacher the school itself invited, who
+   never had an account of her own, keeps her account and her activity library
+   and holds no classes — they were never hers. **Nothing is deleted by this**:
+   it is a change of controller, recorded in the audit log
+   (`SCHOOL_PLAN_ENDED_TEACHER_DETACHED`, and one `CLASS_LEFT_SCHOOL` per class),
+   and no row, file or child's work moves or goes. Owner decision, 8 September
+   2026 (`docs/dpo-decisions.md`); the rule is `src/lib/schoolPlanEnd.ts`, and it
+   is reached both by the nightly job and by the teacher's own next save.
+   **Whatever automates step 5 must run this first**, or a teacher's own classes
+   are deleted with the school she happened to be working at.
+5. **Month 12.** Permanent deletion: database rows and media files, cascading per
    principle 3. Confirmed by a deletion record in the audit trail.
-5. **Reactivation at any point before deletion** restores the account intact.
+6. **Reactivation at any point before deletion** restores the account intact.
+   This is why the detach in step 4 waits for the end of the window rather than
+   firing on the freeze: a failed card must not scatter a school's classes
+   across several personal accounts before anybody has phoned the bank, and
+   re-paying a subscription cannot un-detach a teacher.
 
 ## On-demand deletion (right to erasure, Art. 17)
 

@@ -9,6 +9,7 @@ import { deriveChildNames } from "@/lib/childNames";
 import { avatarColorAt } from "@/lib/avatarColors";
 import { recordAudit } from "@/lib/audit";
 import { requireWritableAccountForTeacher, FROZEN_TEACHER_MESSAGE } from "@/lib/billing";
+import { settleSchoolPlanEnd } from "@/lib/schoolPlanEnd";
 import { normaliseAgeModeInput } from "@/lib/ageMode";
 
 // ---------------------------------------------------------------------------
@@ -71,7 +72,15 @@ export async function importClass(
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
 
-  const me = { id: user.teacher.id, schoolId: user.teacher.schoolId };
+  // SETTLED BEFORE `me.schoolId` IS READ, for the reason `createClass` gives at
+  // its own write: if this teacher's school lapsed more than the retention window
+  // ago she is owed her own account back, and every line below that reads
+  // `me.schoolId` would otherwise be reasoning about a school she has left —
+  // choosing an on-behalf owner from it, gating on it, and filing the new class
+  // inside it. This action does not reach `requireWritableAccount` (it gates the
+  // OWNER, who may be a colleague), so the settle is asked for explicitly here.
+  const { schoolId: mySchoolId } = await settleSchoolPlanEnd(db, user.teacher.id, user.teacher.schoolId);
+  const me = { id: user.teacher.id, schoolId: mySchoolId };
   const isAdmin = user.teacher.staffRole === "ADMIN";
 
   // --- Who will own the class? --------------------------------------------

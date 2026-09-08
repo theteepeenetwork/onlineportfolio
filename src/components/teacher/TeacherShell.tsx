@@ -54,11 +54,22 @@ const RAIL_W = 236;
 const RAIL_W_COLLAPSED = 74;
 const STORAGE_KEY = "sj-rail-collapsed";
 
-const SECTIONS: { href: string; label: string; icon: IconName; exact?: boolean }[] = [
+// `schoolOnly` marks a section that only exists inside a school plan.
+//
+// IT IS ABSENT, NOT DISABLED. A free teacher has no school, so there is nobody
+// to set office hours and no messaging to have — and "messages are off" is not
+// information a teacher on their own plan needs about their jar. Same reasoning
+// as `FamilyThread`, which renders nothing at all rather than a greyed box.
+//
+// THIS WAS A LIVE DEFECT AND NOT A TIDY-UP. "Messages" shipped in this array
+// unconditionally on 7 September, so every teacher saw it — including the free
+// ones the feature does not and cannot exist for, who followed it to a screen
+// explaining an absence they had no way to act on.
+const SECTIONS: { href: string; label: string; icon: IconName; exact?: boolean; schoolOnly?: boolean }[] = [
   { href: "/teacher/queue", label: "Queue", icon: "waiting" },
   { href: "/teacher", label: "Journals", icon: "jar", exact: true },
   { href: "/teacher/activities", label: "Activities", icon: "draw" },
-  { href: "/teacher/messages", label: "Messages", icon: "share" },
+  { href: "/teacher/messages", label: "Messages", icon: "share", schoolOnly: true },
   { href: "/teacher/calendar", label: "Calendar", icon: "calendar" },
   { href: "/teacher/account", label: "Account", icon: "settings" },
 ];
@@ -86,6 +97,7 @@ export function TeacherShell({
   teacher,
   schoolName,
   isAdmin,
+  onSchoolPlan,
   classes,
   pending,
   banner,
@@ -94,6 +106,16 @@ export function TeacherShell({
   teacher: { name: string; initials: string };
   schoolName: string | null;
   isAdmin: boolean;
+  /**
+   * Whether this teacher belongs to a school on a school plan.
+   *
+   * NOT the same question as `schoolName`, which is also filled in from
+   * `Teacher.schoolName` — the free-text name a teacher typed at signup, which
+   * every free teacher has and which means nothing about a plan. Asking the
+   * wrong one of these two would put a school-only section in front of exactly
+   * the people it does not exist for.
+   */
+  onSchoolPlan: boolean;
   classes: ShellClass[];
   pending: number;
   banner?: ReactNode;
@@ -183,6 +205,7 @@ export function TeacherShell({
       counts={counts}
       pathname={pathname}
       showLabels={showLabels}
+      onSchoolPlan={onSchoolPlan}
       width={railWidth}
       narrow={narrow}
       collapsed={collapsed}
@@ -541,6 +564,7 @@ function Rail({
   counts,
   pathname,
   showLabels,
+  onSchoolPlan,
   width,
   narrow,
   collapsed,
@@ -551,6 +575,8 @@ function Rail({
   counts: { total: number; byClass: Record<string, number> };
   pathname: string;
   showLabels: boolean;
+  /** Whether this teacher is on a school plan — decides the `schoolOnly` sections. */
+  onSchoolPlan: boolean;
   width: number;
   narrow: boolean;
   collapsed: boolean;
@@ -622,7 +648,7 @@ function Rail({
 
       {/* ── sections ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        {SECTIONS.map((s) => {
+        {SECTIONS.filter((s) => !s.schoolOnly || onSchoolPlan).map((s) => {
           // Journals owns /teacher exactly — its children are their own sections.
           const active = s.exact ? pathname === s.href : pathname.startsWith(s.href);
           const isQueue = s.href === "/teacher/queue";

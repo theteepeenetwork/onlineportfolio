@@ -130,6 +130,8 @@ const ACTION_LABEL: Record<string, string> = {
   SCHOOL_INVITATION_ACCEPTED: "Joined the school",
   SCHOOL_INVITATION_DECLINED: "Declined an invitation",
   CLASS_JOINED_SCHOOL: "Class came to the school",
+  CLASS_LEFT_SCHOOL: "Class went back to its teacher",
+  SCHOOL_PLAN_ENDED_TEACHER_DETACHED: "Plan ended — staff back on their own plan",
   OFFICE_HOURS_SAVED: "Set office hours",
   MESSAGING_SWITCHED_OFF: "Switched parent messages off",
   OFFICE_HOURS_CLOSURE_ADDED: "Added a closed day",

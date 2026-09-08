@@ -152,6 +152,11 @@ export default async function TeacherLayout({
       teacher={{ name: user.teacher.displayName, initials: initialsOf(user.teacher.name) }}
       schoolName={profile?.school?.name ?? profile?.schoolName ?? null}
       isAdmin={user.teacher.staffRole === "ADMIN"}
+      // The rail's school-only sections. Derived from the plan that GOVERNS her
+      // — `accountStateForTeacher` prefers the school's subscription whenever
+      // she has a school — and never from `schoolName`, which every free teacher
+      // has because they typed one at signup.
+      onSchoolPlan={account.kind === "SCHOOL"}
       classes={shellClasses}
       pending={pending}
       banner={banner}
