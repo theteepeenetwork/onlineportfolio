@@ -9,8 +9,7 @@ import { KitPalette } from "./canvas/KitPalette";
 import {
   defaultWindowPos,
   FloatingWindow,
-  WINDOW_PILL_W,
-  WINDOW_W,
+  windowW,
   type WindowPos,
 } from "./canvas/FloatingWindow";
 import { ChromeDone, ChromePill, ChromeRound, StatusChip, Toast } from "./canvas/Chrome";
@@ -395,6 +394,7 @@ type ShapeObj = ObjLock & {
   // Locks the proportion on resize, for shapes that only mean what they mean at
   // a fixed ratio (a hundred flat is square or it is not a hundred).
   lockAspect?: boolean;
+  fixedGrid?: boolean;
   // Rotation in degrees, 0–359, set by the rotate handle. Applied to the object
   // WRAPPER, so the browser rotates hit-testing and the selection outline with
   // it, and honoured identically by the export renderer.
@@ -954,6 +954,18 @@ export function DrawingCanvas({
   // The measured paper, readable from a handler that runs outside the render.
   const boxRef = useRef(box);
   boxRef.current = box;
+
+  // How much smaller than the 1194×834 design frame this paper is, floored at
+  // the touch minimum of whoever is using it: 44px for a teacher, 64px for a
+  // child (rule 18, F37). A child's floor IS the design size, so a child's
+  // canvas never scales — see the note where `u` is built.
+  const CTRL_FLOOR = isObjectAuthor || isQuizAuthor ? 44 : 64;
+  const chromeScale = Math.max(
+    CTRL_FLOOR / 64,
+    Math.min(1, box.w / FRAME_W, box.h / FRAME_H),
+  );
+  const chromeScaleRef = useRef(chromeScale);
+  chromeScaleRef.current = chromeScale;
 
   // Which text object (if any) is currently open for typing.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2416,6 +2428,7 @@ export function DrawingCanvas({
       // face is the default. Stored either way rather than left to be guessed.
       ...(preset.kind === "numberline" ? { numerals: preset.numerals !== false } : {}),
       ...(preset.lockAspect ? { lockAspect: true } : {}),
+      ...(preset.fixedGrid ? { fixedGrid: true } : {}),
     };
     const list = [...(objectsRef.current[currentRef.current] ?? []), obj];
     objectsRef.current[currentRef.current] = list;
@@ -3037,7 +3050,9 @@ export function DrawingCanvas({
   function openQuizPanel() {
     setQuizPanelOpen(true);
     setQuizWindow((w) =>
-      w ? { ...w, collapsed: false } : defaultWindowPos({ w: boxRef.current.w, h: boxRef.current.h }),
+      w
+        ? { ...w, collapsed: false }
+        : defaultWindowPos({ w: boxRef.current.w, h: boxRef.current.h }, chromeScaleRef.current),
     );
   }
 
@@ -3334,8 +3349,8 @@ export function DrawingCanvas({
     ...(isQuizAuthor && quizPanelOpen && quizWindow ? [quizWindow] : []),
   ];
   const windowBand = (w: WindowPos) => ({
-    width: w.collapsed ? WINDOW_PILL_W : WINDOW_W,
-    right: w.x + (w.collapsed ? WINDOW_PILL_W : WINDOW_W) / 2 > box.w / 2,
+    width: windowW(chromeScaleRef.current, w.collapsed),
+    right: w.x + windowW(chromeScaleRef.current, w.collapsed) / 2 > box.w / 2,
   });
   const reserveRight = Math.max(
     0,
@@ -3539,14 +3554,37 @@ export function DrawingCanvas({
     // `u` survives as the one place a floor is applied, and so that the few
     // things that SHOULD track the paper (the empty-state words) are visibly
     // the exceptions.
+    const teacher = isObjectAuthor || isQuizAuthor;
+    const paper = { w: box.w, h: box.h };
+    // How much smaller than the design frame this paper actually is. A 1366×768
+    // laptop, once the browser has taken its share, leaves a 10:7 page about
+    // 880×616 — three-quarters of the frame the chrome was drawn for. At design
+    // size on that page the toolbox covered the piece being edited and the fan
+    // reached the top of the screen, which is what "diabolical on a laptop"
+    // was.
+    //
+    // So the frame SCALES to the paper, floored at the touch minimum of whoever
+    // is using it: 44px for a teacher, 64px for a child (rule 18, F37). For a
+    // child that floor is the whole 64px design size, so a child's canvas is
+    // unchanged — which is deliberate. Scaling a child's chrome is what once
+    // shrank the arcs while the buttons kept their floor and left the nibs
+    // overlapping, and `target-size` in the a11y gate is the thing that caught
+    // it. Scaling everything by ONE number cannot do that: the buttons and the
+    // arcs they sit on move together.
     // A floor is for sizes. A negative is an offset — a card's lift, the tray
     // strip's pull-up — and goes through untouched; flooring it at zero was
     // what pinned every lifted card to the tray and clipped its number.
-    const u = (n: number, floor = 0) => (n < 0 ? n : Math.max(n, floor));
-    const teacher = isObjectAuthor || isQuizAuthor;
-    // The two discs are anchored to the PAPER's corners at design size, not
-    // scaled with the frame — see `penCx` in canvasFan.ts.
-    const paper = { w: box.w, h: box.h };
+    //
+    // A floor asked for is capped at what this role actually needs, so a
+    // teacher's 64px chrome button may come down to 44 and no further, while a
+    // child's stays where it is.
+    const u = (n: number, floor = 0) => {
+      if (n < 0) return n * chromeScale;
+      const v = n * chromeScale;
+      return floor ? Math.max(v, Math.min(floor, CTRL_FLOOR)) : v;
+    };
+    // The two discs are anchored to the PAPER's own corners — see `penCx` in
+    // canvasFan.ts — and everything they carry is scaled by `u`.
     const penX = penCx(hand, paper.w);
     const plusX = plusCx(hand, paper.w);
     const discY = discCy(paper.h);
@@ -3576,7 +3614,7 @@ export function DrawingCanvas({
         const open = Object.values(prev).filter(Boolean).length;
         return prev[id]
           ? { ...prev, [id]: undefined }
-          : { ...prev, [id]: defaultWindowPos({ w: box.w, h: box.h }, open * 24) };
+          : { ...prev, [id]: defaultWindowPos({ w: box.w, h: box.h }, chromeScale, open * 24) };
       });
       setFanOpen(false);
       setPlusRow(null);
@@ -4007,6 +4045,7 @@ export function DrawingCanvas({
                     <FloatingWindow
                       key={kit.id}
                       u={u}
+                      scale={chromeScale}
                       paper={paper}
                       icon={KIT_ICON[kit.id]}
                       title={kit.label}
@@ -4033,6 +4072,7 @@ export function DrawingCanvas({
               {isQuizAuthor && quizPanelOpen && quizWindow && (
                 <FloatingWindow
                   u={u}
+                  scale={chromeScale}
                   paper={paper}
                   icon="help"
                   title="Quiz builder"
@@ -4762,6 +4802,12 @@ function ObjectToolbar({
   const GLYPH = showAuthor ? 22 : 30;
   const btn =
     "pointer-events-auto flex items-center justify-center rounded-full text-[var(--paper)] hover:bg-white/15";
+  // The SECOND row is a cream pill, not the ink one, so a button on it needs
+  // ink on cream. Sharing the ink row's class is what drew the clock's "12" in
+  // cream on cream: a bubble under the clock with nothing in it, and the same
+  // for the number line's "123" and every operator glyph.
+  const btn2 =
+    "pointer-events-auto flex items-center justify-center rounded-full text-[var(--ink)] hover:bg-[color-mix(in_srgb,var(--ink)_10%,transparent)]";
   const btnStyle: React.CSSProperties = { width: HIT, height: HIT, flex: "0 0 auto" };
   // Which colour menu is open under the bar: the fill's or the line's. The
   // design offers the palette as a row of swatches rather than the browser's
@@ -4773,7 +4819,7 @@ function ObjectToolbar({
   const hasNumbers =
     showStyle &&
     !!shape &&
-    (shapeHasParts(shape.shape) ||
+    ((shapeHasParts(shape.shape) && !shape.fixedGrid) ||
       shape.shape === "polygon" ||
       shape.shape === "clock" ||
       shape.shape === "numberline" ||
@@ -5254,7 +5300,7 @@ function ObjectToolbar({
           fraction buttons unnecessary: halves, quarters and eighths are on the
           palette, and a teacher who wants ninths steps to nine here rather than
           waiting on a release. */}
-      {showStyle && shape && shapeHasParts(shape.shape) && (
+      {showStyle && shape && shapeHasParts(shape.shape) && !shape.fixedGrid && (
         <Stepper
           label={shape.shape === "grid" ? "Columns" : "Parts"}
           value={shape.shape === "grid" ? shape.cols ?? 1 : shape.parts ?? 2}
@@ -5263,8 +5309,8 @@ function ObjectToolbar({
           onChange={(v) => onStyle(shape.shape === "grid" ? divisionPatch(shape, { cols: v }) : { parts: v })}
         />
       )}
-      {showStyle && shape && shape.shape === "grid" && <Rule />}
-      {showStyle && shape && shape.shape === "grid" && (
+      {showStyle && shape && shape.shape === "grid" && !shape.fixedGrid && <Rule />}
+      {showStyle && shape && shape.shape === "grid" && !shape.fixedGrid && (
         <Stepper
           label="Rows"
           value={shape.rows ?? 1}
@@ -5294,7 +5340,7 @@ function ObjectToolbar({
         <button
           type="button"
           onClick={() => onStyle({ numerals: !shape.numerals })}
-          className={btn}
+          className={btn2}
           aria-pressed={!!shape.numerals}
           title={shape.numerals ? "Hide the numbers 1 to 12" : "Show the numbers 1 to 12"}
           aria-label="Clock numbers"
@@ -5362,7 +5408,7 @@ function ObjectToolbar({
           <button
             type="button"
             onClick={() => onStyle({ numerals: shape.numerals === false })}
-            className={btn}
+            className={btn2}
             aria-pressed={shape.numerals !== false}
             title={
               shape.numerals === false
@@ -5407,7 +5453,7 @@ function ObjectToolbar({
               key={k}
               type="button"
               onClick={() => onStyle({ operator: k })}
-              className={btn}
+              className={btn2}
               aria-pressed={(shape.operator ?? "add") === k}
               style={
                 (shape.operator ?? "add") === k

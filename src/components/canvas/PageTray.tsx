@@ -297,9 +297,8 @@ export function PageTray({
                   style={{
                     display: "block",
                     textAlign: "center",
-                    font: `600 ${u(13)}px var(--font-fredoka)`,
+                    font: `600 ${u(13)}px/${u(16)}px var(--font-fredoka)`,
                     color: isActive ? JAM : INK,
-                    lineHeight: `${u(16)}px`,
                   }}
                 >
                   {i + 1}

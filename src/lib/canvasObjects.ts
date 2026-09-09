@@ -120,6 +120,10 @@ export type ShapeObj = ObjCommon & {
   // ever opening a palette. Being a source pins it: a child never moves it,
   // whatever the padlock says.
   infinite?: boolean;
+  // Set from the palette preset when the grid's columns and rows are what the
+  // piece IS rather than a setting on it — a ten rod, a fraction bar. Absent
+  // means a teacher may set them, so older templates keep their controls.
+  fixedGrid?: boolean;
   // Set from the palette preset when the shape only means what it means at a
   // fixed proportion — a hundred flat squashed into a rectangle is not a
   // hundred. Held on the OBJECT rather than the kind, because the same kind can
@@ -217,10 +221,12 @@ function shapeGeometryFields(shape: ShapeKind, o: Record<string, unknown>) {
     operator?: OperatorKind;
     sides?: number;
     lockAspect?: boolean;
+    fixedGrid?: boolean;
   } = {};
   if (shape === "grid") {
     out.cols = clampDivisions(o.cols);
     out.rows = clampDivisions(o.rows);
+    if (o.fixedGrid === true) out.fixedGrid = true;
   }
   if (shape === "pie") {
     out.parts = clampParts(o.parts);

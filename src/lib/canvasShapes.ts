@@ -1087,6 +1087,16 @@ export type ShapePreset = {
   // This shape means something at a fixed proportion (a hundred flat is square
   // or it is not a hundred), so lock its aspect on resize.
   lockAspect?: boolean;
+  // The columns and rows are what this piece IS, not a setting on it. A ten rod
+  // is one column of ten; a fraction bar in quarters is four parts of one row.
+  // Both were fronting a Columns and Rows stepper that could only turn them into
+  // something with no name — a second toolbar over a teacher's page offering a
+  // choice nobody wants. Frames and arrays are the grids a teacher genuinely
+  // reshapes, so they are the ones that keep the steppers.
+  //
+  // Absent means "a teacher may set them", so every template saved before this
+  // existed keeps the controls it had.
+  fixedGrid?: boolean;
 };
 
 export type ShapeGroup = {
@@ -1202,9 +1212,9 @@ const MATHS_KIT: Kit = {
       id: "place-value",
       label: "Place value",
       presets: [
-        { id: "m-b10-one", kind: "grid", label: "Base 10 one", cols: 1, rows: 1, w: UNIT, h: UNIT, lockAspect: true },
-        { id: "m-b10-ten", kind: "grid", label: "Base 10 ten rod", cols: 1, rows: 10, w: UNIT, h: UNIT * 10, lockAspect: true },
-        { id: "m-b10-hundred", kind: "grid", label: "Base 10 hundred flat", cols: 10, rows: 10, w: UNIT * 10, h: UNIT * 10, lockAspect: true },
+        { id: "m-b10-one", kind: "grid", label: "Base 10 one", cols: 1, rows: 1, w: UNIT, h: UNIT, lockAspect: true , fixedGrid: true },
+        { id: "m-b10-ten", kind: "grid", label: "Base 10 ten rod", cols: 1, rows: 10, w: UNIT, h: UNIT * 10, lockAspect: true , fixedGrid: true },
+        { id: "m-b10-hundred", kind: "grid", label: "Base 10 hundred flat", cols: 10, rows: 10, w: UNIT * 10, h: UNIT * 10, lockAspect: true , fixedGrid: true },
         { id: "m-b10-thousand", kind: "cube", label: "Base 10 thousand cube", w: 420, h: 420, lockAspect: true },
         { id: "m-counter-1", kind: "ellipse", label: "Counter 1", text: "1", w: 120, h: 120, fill: COUNTER_ONE, lockAspect: true },
         { id: "m-counter-10", kind: "ellipse", label: "Counter 10", text: "10", w: 120, h: 120, fill: COUNTER_TEN, lockAspect: true },
@@ -1234,9 +1244,9 @@ const MATHS_KIT: Kit = {
         // Common denominators as buttons; anything else comes off the parts /
         // columns stepper on the selected shape, so a teacher who wants ninths
         // is not waiting on a release.
-        { id: "m-bar-2", kind: "grid", label: "Fraction bar in halves", cols: 2, rows: 1, w: 600, h: 140 },
-        { id: "m-bar-4", kind: "grid", label: "Fraction bar in quarters", cols: 4, rows: 1, w: 600, h: 140 },
-        { id: "m-bar-8", kind: "grid", label: "Fraction bar in eighths", cols: 8, rows: 1, w: 600, h: 140 },
+        { id: "m-bar-2", kind: "grid", label: "Fraction bar in halves", cols: 2, rows: 1, w: 600, h: 140 , fixedGrid: true },
+        { id: "m-bar-4", kind: "grid", label: "Fraction bar in quarters", cols: 4, rows: 1, w: 600, h: 140 , fixedGrid: true },
+        { id: "m-bar-8", kind: "grid", label: "Fraction bar in eighths", cols: 8, rows: 1, w: 600, h: 140 , fixedGrid: true },
         { id: "m-pie-2", kind: "pie", label: "Fraction circle in halves", parts: 2, w: 300, h: 300, lockAspect: true },
         { id: "m-pie-4", kind: "pie", label: "Fraction circle in quarters", parts: 4, w: 300, h: 300, lockAspect: true },
         // The plain ring is in Shapes; this is the one that is actually about

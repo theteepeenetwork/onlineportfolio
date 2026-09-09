@@ -327,8 +327,11 @@ test.describe("what the kit draws", () => {
 
   // --- Base 10 --------------------------------------------------------------
 
+  // On the hundred square rather than the base-10 flat: both are locked 10×10
+  // grids, and only the frames-and-arrays ones offer the divisions as a
+  // control — a base-10 flat's ten-by-ten is what makes it a hundred.
   test("stepping a locked grid's divisions moves its box with them", async ({ page }) => {
-    await place(page, "Place value", "Base 10 hundred flat");
+    await place(page, "Frames & arrays", "Hundred square");
     const wrapper = page.locator("div[data-object]").first();
     const before = (await wrapper.boundingBox())!;
     const cell = before.width / 10;
@@ -375,4 +378,150 @@ test.describe("what the kit draws", () => {
     // pixel is still one long run of digits to a child reading it.
     for (const g of gaps) expect(g).toBeGreaterThan(4);
   });
+});
+
+// A teacher on a 1366×768 laptop.
+//
+// The chrome was drawn at the design frame's own size (1194×834) whatever the
+// paper underneath it measured. On a laptop, once the browser has taken its
+// share, a 10:7 page is about 880×616 — three-quarters of that — so the maths
+// kit covered a third of the page, the toolbox sat over the piece being edited
+// and the fan reached the top of the screen. It scales now, floored at the
+// touch minimum of whoever is using it.
+test.describe(() => {
+  test.use({ viewport: { width: 1366, height: 640 } });
+
+  test("a teacher's canvas fits a laptop, and stays reachable on it", async ({ page }) => {
+    await teacherLogin(page);
+    await page.goto("/teacher/activities/new");
+    await page.fill("#title", "Laptop");
+    await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+    await page.locator('button[title="Add"]').click();
+    await page.getByRole("button", { name: "Maths kit" }).click();
+
+    const paper = (await page.locator("canvas").first().boundingBox())!;
+    const win = (await page.getByRole("region", { name: "Maths kit" }).boundingBox())!;
+    // A 380px window on an 880px page is half the paper. It has to come down
+    // with everything else.
+    expect(win.width, "the maths kit is drawn at design size on a laptop page").toBeLessThan(
+      paper.width * 0.36,
+    );
+    expect(win.x + win.width, "the maths kit runs off the page").toBeLessThanOrEqual(
+      paper.x + paper.width + 1,
+    );
+
+    // Scaled, but not to nothing. WCAG 2.2 AA 2.5.8 is the floor that applies
+    // out here — `teacher-touch-targets.spec.ts` explains why 44 is the shell's
+    // number and 24 is the product's — and the design puts 36px tabs on this
+    // window itself, so 44 everywhere would be a rule neither the standard nor
+    // the drawing asks for.
+    const all = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("button"))
+        .map((b) => ({
+          r: b.getBoundingClientRect(),
+          n: (b.getAttribute("aria-label") ?? b.textContent ?? "").trim().slice(0, 30),
+        }))
+        .filter((x) => x.r.width > 0 && x.r.height > 0)
+        .map((x) => ({ n: x.n, px: Math.round(Math.min(x.r.width, x.r.height)) })),
+    );
+    expect(
+      all.filter((x) => x.px < 24).map((x) => `${x.n} ${x.px}px`),
+      "a control shrank under WCAG 2.2 AA's 24px",
+    ).toEqual([]);
+    // The things a teacher aims at most keep the adult floor whatever the paper
+    // measures: the way out, undo, redo, and the two discs.
+    for (const name of ["Close", "Undo", "Redo", "Add something", "Pens and colours"]) {
+      const hit = all.find((x) => x.n === name);
+      expect(hit, `${name} is missing from the canvas`).toBeTruthy();
+      expect(hit!.px, `${name} fell under the 44px adult floor`).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
+// Which grids a teacher may reshape.
+//
+// A ten rod is one column of ten and a fraction bar in quarters is four parts
+// of one row: the numbers are what the piece IS. Both were fronting a Columns
+// and Rows stepper — a second toolbar over the page offering a choice that
+// could only turn them into something with no name.
+test("only frames and arrays offer columns and rows", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Grids");
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+
+  const place = async (group: string, piece: string) => {
+    await page.locator('button[title="Add"]').click();
+    await page.getByRole("button", { name: "Maths kit" }).click();
+    await page.getByRole("tab", { name: group }).click();
+    await page.getByRole("button", { name: piece, exact: true }).click();
+    await page.getByRole("button", { name: "Tuck away" }).click();
+  };
+
+  await place("Frames & arrays", "Ten frame");
+  await expect(page.getByLabel("Columns: more")).toBeVisible();
+  await expect(page.getByLabel("Rows: more")).toBeVisible();
+  await page.locator('button[title="Take it away"]').click();
+
+  for (const [group, piece] of [
+    ["Place value", "Base 10 ten rod"],
+    ["Fractions", "Fraction bar in quarters"],
+  ] as const) {
+    await place(group, piece);
+    await expect(
+      page.getByLabel("Columns: more"),
+      `${piece} offers a Columns stepper it has no use for`,
+    ).toHaveCount(0);
+    await expect(page.getByLabel("Rows: more")).toHaveCount(0);
+    await page.locator('button[title="Take it away"]').click();
+  }
+});
+
+// The settings row is a CREAM pill; the bar above it is the ink one. Sharing
+// the ink row's class drew the clock's "12" in cream on cream — a bubble under
+// the clock with nothing in it — and did the same to the number line's "123"
+// and every operator glyph.
+test("a clock's settings bubble has its glyph in it", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Clock");
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Maths kit" }).click();
+  await page.getByRole("tab", { name: "Shape & measure" }).click();
+  await page.getByRole("button", { name: "Clock face", exact: true }).click();
+  await page.getByRole("button", { name: "Tuck away" }).click();
+
+  const numbers = page.getByRole("button", { name: "Clock numbers" });
+  await expect(numbers).toBeVisible();
+  await expect(numbers).toHaveText("12");
+  // Ink on cream, not cream on cream. The button itself is transparent, so the
+  // background that matters is the first painted one above it.
+  const paint = await numbers.evaluate((el) => {
+    const rgb = (v: string) => (v.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+    let bg: number[] = [255, 255, 255];
+    for (let n: HTMLElement | null = el; n; n = n.parentElement) {
+      const c = getComputedStyle(n).backgroundColor;
+      const parts = (c.match(/[\d.]+/g) ?? []).map(Number);
+      if (parts.length >= 3 && (parts.length < 4 || parts[3] > 0)) {
+        bg = parts.slice(0, 3);
+        break;
+      }
+    }
+    return { fg: rgb(getComputedStyle(el).color), bg };
+  });
+  // WCAG relative luminance, so "is it readable" is measured rather than eyed.
+  const lum = (c: number[]) => {
+    const [r, g, b2] = c.map((v) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b2;
+  };
+  const [hi, lo] = [lum(paint.fg), lum(paint.bg)].sort((x, y) => y - x);
+  const contrast = (hi + 0.05) / (lo + 0.05);
+  expect(
+    contrast,
+    `the clock's "12" is drawn at ${contrast.toFixed(2)}:1 on its own row — cream on cream`,
+  ).toBeGreaterThanOrEqual(4.5);
 });

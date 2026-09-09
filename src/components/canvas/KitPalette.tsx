@@ -99,8 +99,7 @@ export function KitPalette({
             <ShapeThumb preset={preset} px={u(38)} />
             <span
               style={{
-                font: `600 ${u(12)}px var(--font-fredoka)`,
-                lineHeight: `${u(14)}px`,
+                font: `600 ${u(12)}px/${u(14)}px var(--font-fredoka)`,
                 textAlign: "center",
               }}
             >
