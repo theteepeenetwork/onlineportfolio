@@ -140,9 +140,9 @@ function Band({
       viewBox={`0 0 ${frame.w} ${frame.h}`}
       style={{ zIndex: Z_BAND, overflow: "visible" }}
     >
-      {sweep(r, half * 2, fill, "fill")}
-      {sweep(r + half, 3, INK, "outer")}
-      {sweep(r - half, 3, INK, "inner")}
+      {sweep(u(r), u(half) * 2, fill, "fill")}
+      {sweep(u(r) + u(half), Math.max(2, u(3)), INK, "outer")}
+      {sweep(u(r) - u(half), Math.max(2, u(3)), INK, "inner")}
     </svg>
   );
 }
@@ -178,20 +178,23 @@ function FanItem({
   children: ReactNode;
   // `dir` is an HTML attribute too, and ours is a sweep direction.
 } & Omit<React.ComponentPropsWithoutRef<"button">, "style" | "children" | "dir">) {
-  const w = width ?? size;
-  const { left, top } = polar(cx, cy, r, deg, dir, size);
-  const dx = cx - size / 2 - left;
-  const dy = cy - size / 2 - top;
+  // The RADIUS is scaled with the button, not left at design size: scaling one
+  // without the other is what once left the nibs overlapping their own arc.
+  const sz = u(size, size >= 64 ? 64 : 44);
+  const w = u(width ?? size, (width ?? size) >= 64 ? 64 : 44);
+  const { left, top } = polar(cx, cy, u(r), deg, dir, sz);
+  const dx = cx - sz / 2 - left;
+  const dy = cy - sz / 2 - top;
   return (
     <button
       type="button"
       {...rest}
       style={{
         position: "absolute",
-        left: left - (w - size) / 2,
+        left: left - (w - sz) / 2,
         top,
-        width: u(w, w >= 64 ? 64 : 44),
-        height: u(size, size >= 64 ? 64 : 44),
+        width: w,
+        height: sz,
         zIndex: Z_FAN,
         ["--dx" as string]: `${dx}px`,
         ["--dy" as string]: `${dy}px`,
@@ -475,7 +478,7 @@ export function PenFan({
               role="status"
               className="pointer-events-none absolute"
               style={{
-                ...polarBox(cx, cy, R_COLOUR_NAME, A_COLOUR_NAME, dir),
+                ...polarBox(u, cx, cy, R_COLOUR_NAME, A_COLOUR_NAME, dir),
                 zIndex: Z_FAN + 1,
                 background: INK,
                 color: "#faf6ee",
@@ -534,8 +537,8 @@ export function PenFan({
   );
 }
 
-function polarBox(cx: number, cy: number, r: number, deg: number, dir: 1 | -1) {
-  const { left, top } = polar(cx, cy, r, deg, dir, 0);
+function polarBox(u: Unit, cx: number, cy: number, r: number, deg: number, dir: 1 | -1) {
+  const { left, top } = polar(cx, cy, u(r), deg, dir, 0);
   return { left, top };
 }
 
@@ -554,10 +557,10 @@ function AnyColour({
   colour: string;
   onColour: (hex: string) => void;
 }) {
-  const size = 64;
-  const { left, top } = polar(cx, cy, R_COLOUR_OUT, A_EXTRA, dir, size);
-  const dx = cx - size / 2 - left;
-  const dy = cy - size / 2 - top;
+  const sz = u(64, 64);
+  const { left, top } = polar(cx, cy, u(R_COLOUR_OUT), A_EXTRA, dir, sz);
+  const dx = cx - sz / 2 - left;
+  const dy = cy - sz / 2 - top;
   return (
     <label
       className="absolute"
@@ -565,8 +568,8 @@ function AnyColour({
       style={{
         left,
         top,
-        width: u(size, 64),
-        height: u(size, 64),
+        width: sz,
+        height: sz,
         zIndex: Z_FAN,
         display: "flex",
         alignItems: "center",
@@ -694,7 +697,7 @@ export function PlusFan({
               >
                 <span style={face(u, { selected: pressed })}>
                   <Icon name={item.icon} size={u(26)} decorative />
-                  <span style={{ font: `600 ${u(12)}px var(--font-fredoka)`, lineHeight: 1 }}>
+                  <span style={{ font: `600 ${u(12)}px/1 var(--font-fredoka)` }}>
                     {item.label}
                   </span>
                 </span>
@@ -788,8 +791,7 @@ export function PlusFan({
           border: `${Math.max(2, u(3))}px solid ${INK}`,
           boxShadow: `0 ${u(5)}px 0 #93304f`,
           color: "#faf6ee",
-          font: `400 ${u(52)}px var(--font-fredoka)`,
-          lineHeight: 1,
+          font: `400 ${u(52)}px/1 var(--font-fredoka)`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

@@ -31,9 +31,26 @@ const TOP_MIN = 96;
 
 export type WindowPos = { x: number; y: number; collapsed: boolean };
 
+/**
+ * How wide the window actually is on this paper. Every measurement here is a
+ * design number scaled by the same one the rest of the chrome uses, or a 380px
+ * window sits across half a laptop's page.
+ */
+export function windowW(scale: number, collapsed = false): number {
+  return Math.round((collapsed ? WINDOW_PILL_W : WINDOW_W) * scale);
+}
+
 /** Where a window opens: to the right of the page, clear of the top chrome. */
-export function defaultWindowPos(paper: { w: number; h: number }, offset = 0): WindowPos {
-  return { x: paper.w - WINDOW_W - 16 - offset, y: TOP_MIN + offset, collapsed: false };
+export function defaultWindowPos(
+  paper: { w: number; h: number },
+  scale = 1,
+  offset = 0,
+): WindowPos {
+  return {
+    x: paper.w - windowW(scale) - 16 * scale - offset,
+    y: TOP_MIN * scale + offset,
+    collapsed: false,
+  };
 }
 
 /**
@@ -44,18 +61,22 @@ export function parkWindow(
   pos: WindowPos,
   height: number,
   paper: { w: number; h: number },
+  scale = 1,
 ): WindowPos {
-  const w = pos.collapsed ? WINDOW_PILL_W : WINDOW_W;
-  const h = pos.collapsed ? HEADER_H + 6 : height;
+  const w = windowW(scale, pos.collapsed);
+  const h = pos.collapsed ? (HEADER_H + 6) * scale : height;
+  const edge = 16 * scale;
+  const top = TOP_MIN * scale;
   return {
     ...pos,
-    x: pos.x + w / 2 < paper.w / 2 ? 16 : paper.w - w - 16,
-    y: Math.max(TOP_MIN, Math.min(Math.max(TOP_MIN, paper.h - TRAY_ROOM - h), pos.y)),
+    x: pos.x + w / 2 < paper.w / 2 ? edge : paper.w - w - edge,
+    y: Math.max(top, Math.min(Math.max(top, paper.h - TRAY_ROOM * scale - h), pos.y)),
   };
 }
 
 export function FloatingWindow({
   u,
+  scale,
   paper,
   icon,
   title,
@@ -67,6 +88,8 @@ export function FloatingWindow({
   bodyMaxH = 560,
 }: {
   u: Unit;
+  /** The one number the rest of the chrome is scaled by. */
+  scale: number;
   /** The paper's own size, which is what a window parks against. */
   paper: { w: number; h: number };
   icon: IconName;
@@ -120,17 +143,20 @@ export function FloatingWindow({
     drag.current = null;
     setDragging(false);
     if (!d) return;
-    const height = ref.current ? ref.current.offsetHeight : bodyH + HEADER_H;
+    const height = ref.current ? ref.current.offsetHeight : bodyH + u(HEADER_H);
     // A tap on the pill opens it again; a drag leaves it as it was.
     const next = d.moved ? pos : { ...pos, collapsed: false };
-    onPos(parkWindow(next, height, paper));
+    onPos(parkWindow(next, height, paper, scale));
   }
 
   const collapsed = pos.collapsed;
   const stop = (e: React.PointerEvent) => e.stopPropagation();
   // The tray owns the foot of the paper. A window that grew past it put its
   // question list on top of "new page" and a teacher could not add one.
-  const bodyH = Math.max(120, Math.min(bodyMaxH, paper.h - pos.y - HEADER_H - TRAY_ROOM));
+  const bodyH = Math.max(
+    u(120),
+    Math.min(u(bodyMaxH), paper.h - pos.y - u(HEADER_H) - u(TRAY_ROOM)),
+  );
 
   return (
     <div
@@ -141,7 +167,7 @@ export function FloatingWindow({
       style={{
         left: pos.x,
         top: pos.y,
-        width: collapsed ? WINDOW_PILL_W : WINDOW_W,
+        width: windowW(scale, collapsed),
         zIndex: Z_WINDOW,
         background: CREAM,
         border: `${Math.max(2, u(3))}px solid ${INK}`,
@@ -181,13 +207,15 @@ export function FloatingWindow({
         <button
           type="button"
           onPointerDown={stop}
-          onClick={() => onPos(parkWindow({ ...pos, collapsed: !collapsed }, bodyH + HEADER_H, paper))}
+          onClick={() =>
+            onPos(parkWindow({ ...pos, collapsed: !collapsed }, bodyH + u(HEADER_H), paper, scale))
+          }
           title={collapsed ? "Expand" : "Shrink to a pill"}
           aria-label={collapsed ? "Expand" : "Shrink to a pill"}
           aria-expanded={!collapsed}
           style={roundBtn(u)}
         >
-          <span aria-hidden="true" style={{ font: `600 ${u(18)}px var(--font-fredoka)`, lineHeight: 1 }}>
+          <span aria-hidden="true" style={{ font: `600 ${u(18)}px/1 var(--font-fredoka)` }}>
             {collapsed ? "︿" : "﹀"}
           </span>
         </button>
