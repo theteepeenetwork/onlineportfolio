@@ -275,6 +275,16 @@ const ADULT_READABLE = [
   // fails the relation rule. "Has this school set an evening up, and when does
   // booking open" is ordinary support; who is coming to it is not.
   "MeetingEvent",
+  // A notice from the school to families, and which classes it went to
+  // (9 September 2026, SAFEGUARDING rule 24). School text addressed to every
+  // family it was sent to — the least sensitive words in the product — plus two
+  // ids. No person: `sentByTeacherId` names the adult who wrote it, exactly as
+  // `ConsentForm.createdByTeacherId` does, and a NoticeClass is a pair of ids.
+  // Reaching a CHILD through one (`classes.class.students`) still fails the
+  // relation rule, and the fixture beside this entry proves it fires. "Did this
+  // school post a notice, and when" is ordinary support.
+  "Notice",
+  "NoticeClass",
 ];
 
 // Children and everything hanging off them. Counts and school-level groupBy

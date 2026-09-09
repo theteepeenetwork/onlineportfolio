@@ -355,6 +355,7 @@ model School {
   messageThreads  MessageThread[]
   exportRequests  ExportRequest[]
   consentForms    ConsentForm[]
+  notices         Notice[]
   meetingEvents   MeetingEvent[]
   // The school's classes, held directly rather than through whoever teaches
   // them. See the long comment on `Class.schoolId`: this is what retires the
@@ -572,6 +573,76 @@ model MeetingSlot {
   @@unique([eventId, teacherId, startsAt])
   @@index([classId])
   @@index([studentId])
+}
+
+// ===========================================================================
+// Notices: one-way, from the school to families, with no way to respond.
+//
+// "The whole school is closed on Friday" from the office; "PE kit tomorrow"
+// from a class teacher. Until this table the only route was the per-child
+// message thread — thirty identical messages to thirty families, each of which
+// can reply, each held to office hours, each of which a teacher then owns.
+//
+// IT IS NOT A CONVERSATION AND IT SITS OUTSIDE RULE 21 ENTIRELY (SAFEGUARDING
+// rule 24). Three things follow, and each is the absence of something rather
+// than a switch:
+//
+//   • THERE IS NO REPLY TABLE. No NoticeReply, no read receipt, no per-parent
+//     row of any kind. "No way to respond" is structural — the family space has
+//     nothing to post to, not a button that has been hidden.
+//   • IT IS NOT HELD. Rule 21's hold exists so a teacher's evening is not a
+//     workplace; nothing here is delivered TO a teacher. Like a permission slip
+//     or a parents' evening, a notice appears when a family next opens the jar.
+//   • IT IS NOT EMAILED. Rule 6b's email is about a conversation and says so; a
+//     school posting at nine at night must not email every family at nine.
+//
+// `noticeBody` AND NOT `body`: the ops blindness gate denies `body` by name.
+//
+// WHY THE OPERATOR MAY READ ONE (ADULT_READABLE). It is school text addressed to
+// every family it was sent to — the least sensitive words in the product — and
+// "did this school post a notice, and when" is ordinary support. The residual
+// is an adult typing a child's name into a whole-school notice, which is a
+// disclosure to every other family; the builder says not to, and a notice can
+// be taken down.
+// ===========================================================================
+model Notice {
+  id              String    @id @default(cuid())
+  school          School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  schoolId        String
+  title           String
+  noticeBody      String
+  // "SCHOOL" — every family in every live class of the school, resolved at
+  // read time from Class.schoolId (a child who joins next week sees last week's
+  // notice, which is right for a notice board). "CLASSES" — the NoticeClass rows.
+  audience        String
+  sentByTeacherId String
+  // Snapshotted, so the record still reads after the sender leaves — the
+  // SchoolInvitation.invitedByName precedent. `sentByRole` is for the label a
+  // family sees ("from the office" / "from your class teacher").
+  sentByName      String
+  sentByRole      String
+  createdAt       DateTime  @default(now())
+  // Taking a notice down. Never deletion: it vanishes for families and stays on
+  // the staff side as "taken down", so the record of what families were told
+  // is the school's.
+  retractedAt     DateTime?
+  retractedByName String?
+
+  classes NoticeClass[]
+
+  @@index([schoolId, createdAt])
+}
+
+// Which classes a "CLASSES" notice went to. Two ids and nothing else.
+model NoticeClass {
+  id       String @id @default(cuid())
+  notice   Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  noticeId String
+  class    Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId  String
+
+  @@unique([noticeId, classId])
+  @@index([classId])
 }
 
 // A school asking one of its teachers for a copy of a class's data.
@@ -968,6 +1039,7 @@ model Class {
   messageThreads MessageThread[]
   exportRequests ExportRequest[]
   consentForms   ConsentFormClass[]
+  notices        NoticeClass[]
   meetingSlots   MeetingSlot[]
 
   @@index([schoolId])

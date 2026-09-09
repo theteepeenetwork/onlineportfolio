@@ -6,10 +6,12 @@ import { FamilySettings } from "./FamilySettings";
 import { FamilyThread } from "./FamilyThread";
 import { FamilyForms, type FamilyFormView } from "./FamilyForms";
 import { FamilyMeetings } from "./FamilyMeetings";
+import { FamilyNotices } from "./FamilyNotices";
 import { relativeDay } from "@/lib/relativeDay";
 import type { ParentChild, ParentMoment, ParentSession } from "@/lib/parentAuth";
 import type { ThreadView } from "@/lib/messaging/threads";
 import type { FamilyEvening } from "@/lib/meetingBookings";
+import type { FamilyNoticeView } from "@/lib/noticeBoard";
 import { Icon, type IconName } from "@/components/icons/Icon";
 
 const TYPE_LABEL: Record<string, string> = { PHOTO: "Photo", DRAWING: "Drawing", TEXT: "Their words", AUDIO: "Voice" };
@@ -23,7 +25,7 @@ function avatarColor(seed: string) {
   return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
 }
 
-export function ParentHome({ parent, threads = {}, unread = {}, forms = {}, meetings = {} }: { parent: ParentSession; threads?: Record<string, ThreadView>; unread?: Record<string, number>; forms?: Record<string, FamilyFormView[]>; meetings?: Record<string, FamilyEvening[]> }) {
+export function ParentHome({ parent, threads = {}, unread = {}, forms = {}, meetings = {}, notices = [] }: { parent: ParentSession; threads?: Record<string, ThreadView>; unread?: Record<string, number>; forms?: Record<string, FamilyFormView[]>; meetings?: Record<string, FamilyEvening[]>; notices?: FamilyNoticeView[] }) {
   const [childId, setChildId] = useState(parent.children[0]?.id ?? "");
   const child = parent.children.find((c) => c.id === childId) ?? parent.children[0];
 
@@ -59,6 +61,16 @@ export function ParentHome({ parent, threads = {}, unread = {}, forms = {}, meet
           <button type="submit" style={{ font: "700 14px var(--font-atkinson)", color: "var(--sj-muted)", background: "none", border: "none", cursor: "pointer" }}>Sign out</button>
         </form>
       </header>
+
+      {/* THE NOTICE BOARD, ONCE PER HOUSEHOLD, above the child selector and not
+          inside ChildView: a notice is to the family, and a parent with two
+          children in the school should read "closed on Friday" one time.
+          Renders nothing when there is nothing on it (SAFEGUARDING rule 24). */}
+      {notices.length > 0 && (
+        <div style={{ maxWidth: 940, margin: "0 auto", padding: "0 32px" }}>
+          <FamilyNotices notices={notices} />
+        </div>
+      )}
 
       {child ? (
         <ChildView child={child} parent={parent} thread={threads[child.id] ?? null} unread={unread} forms={forms[child.id] ?? []} meetings={meetings[child.id] ?? []} />

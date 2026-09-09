@@ -2,6 +2,7 @@ import { getCurrentParent } from "@/lib/parentAuth";
 import { markReadByParent, parentUnreadFor, threadForParent, type ThreadView } from "@/lib/messaging/threads";
 import { formsForParent } from "@/lib/consentForms";
 import { eveningsForParent, type FamilyEvening } from "@/lib/meetingBookings";
+import { noticesForParent } from "@/lib/noticeBoard";
 import { FamilySignIn } from "./FamilySignIn";
 import { ParentHome } from "./ParentHome";
 import type { FamilyFormView } from "./FamilyForms";
@@ -53,5 +54,10 @@ export default async function FamilyPage({
     meetings[child.id] = await eveningsForParent(parent.id, child.id);
   }
 
-  return <ParentHome parent={parent} threads={threads} unread={unread} forms={forms} meetings={meetings} />;
+  // The notice board (rule 24): once per household, through the parent↔child
+  // link to every class and school their children are in. Nothing in it is
+  // about a child, and nothing in it can be replied to.
+  const notices = await noticesForParent(parent.id);
+
+  return <ParentHome parent={parent} threads={threads} unread={unread} forms={forms} meetings={meetings} notices={notices} />;
 }

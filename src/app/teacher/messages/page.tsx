@@ -5,6 +5,9 @@ import { resolveMayMessageParents } from "@/lib/messaging/policy";
 import { db } from "@/lib/db";
 import { takeFamilyBack } from "@/app/actions/messaging";
 import { relativeDay } from "@/lib/relativeDay";
+import { noticesForTeacher } from "@/lib/noticeBoard";
+import { schoolMessaging } from "@/lib/messaging/policy";
+import { SendClassNotice } from "./SendClassNotice";
 
 // A member of staff's messages: one row per child in their own classes, plus
 // any family a colleague has handed them or shared with them. Held to the
@@ -25,6 +28,20 @@ export default async function MessagesInbox() {
   ]);
   const permitted = me ? resolveMayMessageParents(me) : false;
 
+  // NOTICES (rule 24). Offered when the school is on a plan and this member of
+  // staff may write to families — the school's per-staff switch, not the
+  // conversations switch: a school that wants notices without a two-way channel
+  // is a real case. `inboxForStaff` does not return the classes a teacher holds,
+  // so they are loaded here for the picker; the action re-resolves them.
+  const onSchoolPlan = me?.schoolId ? (await schoolMessaging(me.schoolId)).onSchoolPlan : false;
+  const [heldClasses, sentNotices] =
+    onSchoolPlan && permitted
+      ? await Promise.all([
+          db.class.findMany({ where: { teacherId: user.teacher.id, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+          noticesForTeacher(user.teacher.id),
+        ])
+      : [[], []];
+
   return (
     <main style={{ maxWidth: 920, margin: "0 auto", padding: "28px 32px 60px" }}>
       <h1 style={{ margin: 0, font: "600 30px var(--font-fredoka)", color: "var(--ink)" }}>Messages</h1>
@@ -40,6 +57,8 @@ export default async function MessagesInbox() {
       ) : !permitted ? (
         <Notice>You aren&rsquo;t set up to message families. That is decided per member of staff by your school admin — ask them if you think you should be. Nothing here is broken.</Notice>
       ) : null}
+
+      {onSchoolPlan && permitted && heldClasses.length > 0 && <SendClassNotice classes={heldClasses} sent={sentNotices} />}
 
       {inbox.rows.length > 0 && (
         <div style={{ marginTop: 22, background: "var(--cream)", border: "2px solid var(--calm-border)", borderRadius: 16, overflow: "hidden" }}>

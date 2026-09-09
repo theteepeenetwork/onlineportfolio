@@ -420,6 +420,52 @@ Each rule is testable. A change that breaks one does not ship.
    governs messages); a video or telephone appointment of any kind; anything
    that tells a family who else is attending; a reminder by email or push (rule
    6a governs).
+24. **A notice from the school is one-way, and there is no way to respond.**
+   *(Added 2026-09-09; see "Amendments" below.)* A school admin may send a notice
+   to the whole school or to chosen classes; a class teacher may send one to a
+   class they hold; families read it in the family space. **It is not a
+   conversation and it sits outside rule 21**, which governs conversations. The
+   constraints, every one a blocking test:
+
+   - **No way to respond, by construction.** There is no reply table, no reply
+     action and no form: "families cannot reply" is the absence of anything to
+     post to, not a button that has been hidden. The family space says in words
+     where the two-way things are — the conversation under the child's name,
+     and the school office.
+   - **Not held, and not emailed.** Rule 21's hold exists so a teacher's evening
+     is not a workplace, and nothing here is delivered *to* a teacher: a notice
+     appears when a family next opens the jar, like a permission slip or a
+     parents' evening. Rule 6b's email is about a conversation and says so; a
+     school posting at nine at night must not email every family at nine.
+   - **Who may send is the school's decision, resolved server-side.** An admin
+     may address the whole school; a teacher may address only the classes they
+     hold, and only if the school's per-staff switch says they may write to
+     families. A posted "whole school" from a teacher's session is refused, not
+     narrowed. Cross-tenant ids find nothing (rule 8).
+   - **Scoped like any other child data on the way out** (rule 4): a family sees
+     the notices addressed to their own children's classes and schools, once per
+     household, and the class label a family sees names only the classes their
+     own children are in.
+   - **Text only, links never rendered as links** (rule 15). No attachments.
+   - **Taking a notice down is not deleting it.** It vanishes for families and
+     stays on the staff side marked as taken down, so the record of what
+     families were told is the school's.
+   - **Audited, never quoted** (rule 16): sent and taken down, with the adult who
+     did it and the notice's title. The body is not copied into the log.
+   - **The operator may read a notice, and this rule says so.** School text
+     addressed to every family it was sent to is the least sensitive words in
+     the product; `Notice` and `NoticeClass` are `ADULT_READABLE` in the
+     blindness gate, and a fixture proves that reaching a child *through* a
+     notice still fails the relation rule. The residual — an adult typing a
+     child's name into a whole-school notice, a disclosure to every other family
+     — is met by the standing line in every composer and by taking it down, and
+     is recorded in the DPIA (R22) rather than argued away.
+   - **Retention line before it ships** (rule 9): `RETENTION.md`, "Notices".
+
+   **Not covered by this rule**, and each needing its own amendment: any reply,
+   reaction or "seen" mark from a family; a notice to one named child; scheduling
+   a notice for later; attachments or images; any email or push about a notice.
+
 7. **Uploaded media is access-controlled, not public.** Photos and drawings of
    children **must not** be served from guessable or unauthenticated URLs. Every
    media request is authorised against the same rules as rule 4 before the bytes
@@ -594,6 +640,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-09 | 24 (new) | A school may send one-way notices to families — whole school by an admin, a class by its teacher — with no reply table, no reply action and no form; not held to office hours, not emailed; taken down rather than deleted; the operator may read one. | Product owner | The office's "closed on Friday" and the teacher's "PE kit tomorrow" had no route except thirty identical conversations, each of which could be replied to and each of which a teacher then owned. A notice is the opposite of a conversation, and the owner's one requirement was that families cannot respond. That is met structurally rather than by policy: nothing exists to respond to. **What was traded away:** nothing in rule 21, which governs conversations and is untouched; nothing in rule 6b, whose exclusion of "a notification about anything other than a message" is applied rather than amended. **What was not:** the operator's blindness to children — a notice holds no child, and reaching one through it still fails the gate. The risk worth naming is an adult naming a child in a whole-school notice, which the composer warns against and taking it down remedies (DPIA R22). |
 | 2026-09-08 | 6a (scope note), 6b (new), 21 (list) | Rule 6a's "notifications they switched on themselves" gets its first use, and 6b says what that one email may contain: only that a message is waiting, with no content, no names, and no sign-in token, sent when the message is DELIVERED rather than when it is written. Rule 21's "not covered" list loses the email-notification entry, which this answers, and the safeguarding-lead entry, which 21a answers. | Product owner | Rule 6a was written on 2026-08-17 deliberately wider than "StoryJar never emails a parent", so that a preference a parent set themselves would not be banned before it existed. This is that preference. The risk it carries is not the sending but the CONTENT: a notification is the natural place for "Mrs Hartley wrote about Amara" to appear, and that sentence in a shared mailbox is a disclosure the product cannot take back. So the email says nothing, and the omissions are the feature. **What was traded away:** the clean absolute that StoryJar emails a parent only a link they asked for. **What was not:** the office-hours hold, which the delivery-time trigger preserves rather than works around; the badge model for the many households with no address; and rule 21's ban on message content leaving the product. Worth recording that this makes FINDINGS F30 and F31 cost more: every earlier email was one somebody was waiting for, so a failure was noticed by the person who did not get it. Nobody waits for this one. |
 | 2026-09-08 | 21a (new) | A teacher may raise one conversation to a member of staff the school has named as a safeguarding lead, with a reason recorded on the share row. The lead reads only what is raised to them; whether they may reply is decided by the existing per-staff messaging permission, unchanged; the parent is not told, because the reader list rule 21 already shows them is the transparency. | Product owner | Rule 21 named this in its own "not covered" list as needing an amendment, and `COMPETITIVE_POSITIONING.md` said in terms not to promise it to a school until it existed. It is smaller than it sounds because per-thread sharing is already the mechanism: this is a share with a named recipient and a recorded reason, which is why it adds **no new route to a child's data**. **What was traded away:** nothing structural — one more adult can read one conversation, chosen by a teacher, from a list the school itself set. **What was not:** the lead has no standing access to anything not raised to them; reading is not writing; the reason never reaches the audit log; and the parent's pages still never carry the word "safeguarding". The risk actually worth naming is a school mistaking this for a reporting channel, which is answered on the screen rather than in this document. |
 | 2026-09-08 | 23 (new) | Rule 23 permits parents'-evening booking: a school lays out appointments, a family takes one for their own child, a taken slot shows as taken and never who by, and office hours deliberately do not cap it. | Product owner | The highest-value reuse of the office-hours time machinery, and the one place where applying the office-hours *hold* would refuse the feature rather than govern it — a parents' evening is the night a school has asked its staff to be there. Two risks decided rather than left: a bookable list is a disclosure surface between families, so the child id is reduced to a boolean on the server; and two parents pressing one slot is a real race, so booking is a conditional update against a row the school created rather than a create. **What was traded away:** nothing in rule 21 — the hold on *messages* is untouched, and a booking carries no free text for a message to hide in. **What was not:** the operator still reads nothing (rule 20), and the school office still sees counts rather than children. |
