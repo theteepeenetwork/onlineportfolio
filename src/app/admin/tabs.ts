@@ -1,6 +1,6 @@
 // The admin console's tabs, in one place so the console and the panes it renders
 // can share the type without importing each other.
-export type Tab = "overview" | "staff" | "classes" | "moveup" | "messages" | "forms" | "evenings" | "guide" | "promises" | "audit" | "billing";
+export type Tab = "overview" | "staff" | "classes" | "moveup" | "messages" | "forms" | "evenings" | "notices" | "guide" | "promises" | "audit" | "billing";
 
 export const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
@@ -10,6 +10,7 @@ export const TABS: { id: Tab; label: string }[] = [
   { id: "messages", label: "Messages" },
   { id: "forms", label: "Forms" },
   { id: "evenings", label: "Evenings" },
+  { id: "notices", label: "Notices" },
   { id: "guide", label: "Guide" },
   { id: "promises", label: "Promises" },
   { id: "audit", label: "Audit log" },
@@ -24,6 +25,7 @@ export const TAB_HEADING: Record<Tab, string> = {
   messages: "Parent messages & office hours",
   forms: "Permission slips",
   evenings: "Parents' evenings",
+  notices: "Notices to families",
   guide: "What you can do",
   promises: "Promises & procedures",
   audit: "Audit log",

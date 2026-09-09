@@ -8,6 +8,7 @@ import { oversightForSchool } from "@/lib/messaging/threads";
 import { readSchoolMailHealth } from "@/lib/schoolMailHealth";
 import { formsForSchool } from "@/lib/consentForms";
 import { eveningsForSchool } from "@/lib/meetingBookings";
+import { noticesForSchool } from "@/lib/noticeBoard";
 import { AdminConsole, type StaffRow, type SchoolClass, type AuditEntry } from "./AdminConsole";
 
 // The whole-school / staff admin space. Only a school ADMIN may enter — everyone
@@ -316,6 +317,15 @@ export default async function AdminPage({
     evenings: await eveningsForSchool(school.id),
   };
 
+  // NOTICES: one-way, from the school to families (rule 24). Nothing in a
+  // notice is about a child, so this is the one messaging surface rule 5 has
+  // nothing to say about — which is worth stating rather than assuming.
+  const notices = {
+    onSchoolPlan: account.kind === "SCHOOL",
+    classes: liveClasses.map((c) => ({ id: c.id, name: c.name })),
+    sent: await noticesForSchool(school.id, user.teacher.id),
+  };
+
   const messaging = {
     onSchoolPlan: messagingState.onSchoolPlan,
     frozen: account.status === "FROZEN",
@@ -441,6 +451,7 @@ export default async function AdminPage({
       rollover={rollover}
       forms={forms}
       evenings={evenings}
+      notices={notices}
     />
   );
 }

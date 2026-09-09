@@ -18,6 +18,7 @@ import { Guide } from "./Guide";
 import { MessagesPane, type MessagingPaneProps } from "./MessagesPane";
 import { FormsPane, type FormsPaneProps } from "./FormsPane";
 import { EveningsPane, type EveningsPaneProps } from "./EveningsPane";
+import { NoticesPane, type NoticesPaneProps } from "./NoticesPane";
 import { RolloverPane, type RolloverPaneProps } from "./RolloverPane";
 import { requestClassExport } from "@/app/actions/exportRequest";
 import { Promises } from "./Promises";
@@ -156,6 +157,8 @@ const ACTION_LABEL: Record<string, string> = {
   MEETING_EVENT_CREATED: "Set up a parents' evening",
   MEETING_BOOKED: "A family booked a parents'-evening place",
   MEETING_CANCELLED: "A family gave up a parents'-evening place",
+  NOTICE_SENT: "Sent a notice to families",
+  NOTICE_RETRACTED: "Took a notice down",
   OFFICE_HOURS_SAVED: "Set office hours",
   MESSAGING_SWITCHED_OFF: "Switched parent messages off",
   OFFICE_HOURS_CLOSURE_ADDED: "Added a closed day",
@@ -226,6 +229,7 @@ export function AdminConsole({
   rollover,
   forms,
   evenings,
+  notices,
 }: {
   schoolName: string;
   plan: string;
@@ -248,6 +252,7 @@ export function AdminConsole({
   rollover: RolloverPaneProps;
   forms: FormsPaneProps;
   evenings: EveningsPaneProps;
+  notices: NoticesPaneProps;
 }) {
   const [tab, setTab] = useState<Tab>("staff");
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -498,6 +503,7 @@ export function AdminConsole({
       {tab === "messages" && <MessagesPane messaging={messaging} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
       {tab === "forms" && <FormsPane forms={forms} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
       {tab === "evenings" && <EveningsPane evenings={evenings} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
+      {tab === "notices" && <NoticesPane notices={notices} onGoTo={(t) => { setTab(t); closeMenus(); }} />}
       </main>
     </div>
   );

@@ -1,0 +1,15 @@
+// @path: src/lib/ops/reads.ts
+// @expect: OPS-CHILD-RELATION
+import "server-only";
+import { db } from "@/lib/db";
+
+// A notice is ADULT_READABLE, and which classes it went to is a pair of ids —
+// but reaching the CHILDREN in those classes through it is the whole point of
+// the relation rule. `class` is a child relation because Class is not an adult
+// target, which the gate derives from the schema rather than from a list.
+export async function whoWasTold(schoolId: string) {
+  return db.notice.findMany({
+    where: { schoolId },
+    select: { title: true, classes: { select: { class: { select: { name: true, students: { select: { name: true } } } } } } },
+  });
+}
