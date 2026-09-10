@@ -852,14 +852,24 @@ party. What was traded away — waiting work seen by classmates after a look,
 rather than after approval — is written into the Amendments table so it cannot
 be mistaken for an accident.
 
-**OPEN — for the owner to decide: may a quiz hand-in go on the board?** Today
-it cannot. The safeguarding review of 10 September 2026 found that the picture
-of a quiz hand-in has the question boxes drawn on with the child's chosen answer
-showing, so putting it up would show the class which answer each child picked —
-a right-or-wrong in front of the room, which is a different thing from showing
-a drawing. The run page therefore does not offer one, whatever its status, and
-rule 25 lists it as not covered. Showing the drawing without the answers, or
-showing the answers, are both possible later; neither should be built until
-this is answered.
+**DECISION, 2026-09-10: a quiz hand-in may go on the board, showing the
+child's chosen answers, and never a score, a total or any right-or-wrong
+marking.** The safeguarding review of the same day found that the picture of a
+quiz hand-in has the question boxes drawn on with the child's chosen answer
+showing, and the run page stopped offering one until this was answered. The
+answer: the chosen answers may be shown to the class; the judgement on them
+may not. Before building it,
+the picture was checked against its renderer (`drawQuizForPreview` in
+`src/components/DrawingCanvas.tsx`): it draws the question box, the prompt,
+every option as a pill, and a filled circle on the one the child picked, and it
+never reads the answer key, so nothing on the picture says which option was
+right and there is no score on it. Had it marked answers, it would not have
+been shown. A quiz hand-in is picked on the same terms as a drawing (waiting
+only after it is opened full size, in a jar straight away, sent back never),
+"Hide names" applies to it, and the score, the total and the stored answers are
+never sent to the teacher's browser from the run page, so the board has nothing
+to show them with. Rule 25 is amended and the Amendments table has the row;
+the risk that is left — a class seeing that a child chose a wrong answer — is
+at DPIA R23.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10.

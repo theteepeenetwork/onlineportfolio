@@ -493,7 +493,8 @@ Each rule is testable. A change that breaks one does not ship.
      in the queue (`PENDING`) may be chosen only after the teacher has opened it
      full size, and until then its picture is not drawn on the run's page
      either, because that page may already be on the projector. Work sent back
-     (`RETURNED`) is never offered, and nor is a quiz hand-in (see below).
+     (`RETURNED`) is never offered. A quiz hand-in is offered on exactly these
+     terms, like any other piece.
    - **The choices are never stored.** They live in the open page and nowhere
      else: no database row, no URL, no browser storage. A reload forgets them.
      A list of what was shown would be a publication record, and StoryJar keeps
@@ -509,7 +510,17 @@ Each rule is testable. A change that breaks one does not ship.
      laptop does not say what the screen was told not to show.
    - **Pictures only.** For each piece the browser is given its id, its status,
      its page pictures and the pupil's first name, and nothing else: never the
-     caption, a quiz score or answer, a teacher's note or stickers.
+     caption, a quiz score, total or stored answers, a teacher's note or
+     stickers.
+   - **A quiz hand-in may go up; its picture shows the child's chosen answers
+     (owner decision 2026-09-10). The score, the total and any right/wrong
+     marking never go on the board.** The picture is the one the queue already
+     shows (`previewPathsJson`, drawn by `drawQuizForPreview` in
+     `DrawingCanvas.tsx`): the question, every option, and the one the child
+     picked filled in. That renderer does not read the answer key, so nothing
+     on it says which option was right; the score and total are never sent to
+     the browser, and the viewer the teacher opens from the run page is given
+     neither, because that page may be the one on the projector.
    - **Showing changes nothing.** It does not approve, return or put anything in
      a jar, and the server is not told that it happened.
 
@@ -517,9 +528,8 @@ Each rule is testable. A change that breaks one does not ship.
    any screen other than the teacher's own (a second device, casting, a link);
    showing voice notes or written words; showing work from more than one class
    or school at once; keeping any record of what was shown; a pupil or parent
-   seeing the board; a surname; a quiz hand-in, until the owner decides whether
-   chosen answers may be shown to the class — its picture has the question boxes
-   drawn on with the child's answer showing, so it is not offered at all.
+   seeing the board; a surname; a quiz's score, total, or any mark of which
+   answers were right, in any form.
 
 7. **Uploaded media is access-controlled, not public.** Photos and drawings of
    children **must not** be served from guessable or unauthenticated URLs. Every
@@ -695,6 +705,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-10 | 25 | A quiz hand-in may go on the board, on the same terms as any other piece (in a jar straight away, waiting once opened full size, sent back never). Its picture shows the question, the options and the one the child chose. The score, the total and any right/wrong marking never go on the board, and are never sent to the browser. The "not covered" entry for quiz hand-ins is removed, and a quiz's score, total or marking takes its place there. | Product owner (the founder, also data protection lead) | The safeguarding review of the same day found that a quiz hand-in's picture carries the child's chosen answers and, until the owner decided, the run page offered no quiz hand-in at all. The owner decided that a child's chosen answers may be shown to the class, and that what may not is the judgement on them: a score, a total, or which answer was right. Checked before the change: `drawQuizForPreview` draws the question box, the prompt, every option and a filled circle on the one picked, and never reads `correctOptionId`, so the picture carries no marking by construction. **What was traded away:** the exclusion the review put in place, so a classmate can now see which option a child chose, right or wrong, and could work out the right one from a teacher's reaction or a set of pictures side by side. **What was not:** the look-first gate, which a quiz hand-in meets exactly as a drawing does; "Hide names"; and the rule that no score, total or answer key reaches the browser, which `security/class-board.spec.ts` proves by searching the page source for the stored numbers. Risk at DPIA R23. |
 | 2026-09-10 | 3 (scope note), 25 (new) | A class teacher may show pupils' pictures and drawings from one activity on the classroom screen: from the run's own page, of work they have looked at (in a jar, or waiting and opened full size; never sent back), with the choices held only in the open page, full screen and opaque, a first name or none, and no change to any status. | Product owner | A teacher asked for a way to show the class finished work before it is in the jars — the pinboard moment at the end of a lesson. Rule 3 as written forbade it: a waiting piece reaching another child before approval is exactly what it names. The owner chose "the teacher picks, then shows" over the two alternatives — showing only approved work, which would make a teacher put a piece in a jar and in front of the family just to show it to the room, and showing everything handed in, which would put work on a projector that no adult had seen. So the safeguard is the adult's **look** rather than the approval state. **What was traded away:** rule 3's absolute that no child's work reaches another child before approval. Waiting work can now be seen by classmates once the teacher has opened it, which is less than approval: a teacher could look, show, and still send it back. **What was not:** nothing is published, stored or sent; no parent, other class or school sees anything; the operator is untouched (rule 20); and the approval queue — what reaches a jar, a parent or an export — is unchanged. Risk at DPIA R23. Rule number 25; 26 is reserved for the teacher web-links rule on another branch. |
 | 2026-09-09 | 24 (new) | A school may send one-way notices to families — whole school by an admin, a class by its teacher — with no reply table, no reply action and no form; not held to office hours, not emailed; taken down rather than deleted; the operator may read one. | Product owner | The office's "closed on Friday" and the teacher's "PE kit tomorrow" had no route except thirty identical conversations, each of which could be replied to and each of which a teacher then owned. A notice is the opposite of a conversation, and the owner's one requirement was that families cannot respond. That is met structurally rather than by policy: nothing exists to respond to. **What was traded away:** nothing in rule 21, which governs conversations and is untouched; nothing in rule 6b, whose exclusion of "a notification about anything other than a message" is applied rather than amended. **What was not:** the operator's blindness to children — a notice holds no child, and reaching one through it still fails the gate. The risk worth naming is an adult naming a child in a whole-school notice, which the composer warns against and taking it down remedies (DPIA R22). |
 | 2026-09-08 | 6a (scope note), 6b (new), 21 (list) | Rule 6a's "notifications they switched on themselves" gets its first use, and 6b says what that one email may contain: only that a message is waiting, with no content, no names, and no sign-in token, sent when the message is DELIVERED rather than when it is written. Rule 21's "not covered" list loses the email-notification entry, which this answers, and the safeguarding-lead entry, which 21a answers. | Product owner | Rule 6a was written on 2026-08-17 deliberately wider than "StoryJar never emails a parent", so that a preference a parent set themselves would not be banned before it existed. This is that preference. The risk it carries is not the sending but the CONTENT: a notification is the natural place for "Mrs Hartley wrote about Amara" to appear, and that sentence in a shared mailbox is a disclosure the product cannot take back. So the email says nothing, and the omissions are the feature. **What was traded away:** the clean absolute that StoryJar emails a parent only a link they asked for. **What was not:** the office-hours hold, which the delivery-time trigger preserves rather than works around; the badge model for the many households with no address; and rule 21's ban on message content leaving the product. Worth recording that this makes FINDINGS F30 and F31 cost more: every earlier email was one somebody was waiting for, so a failure was noticed by the person who did not get it. Nobody waits for this one. |
