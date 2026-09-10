@@ -139,8 +139,12 @@ export function StudentCapture({
 }
 
 // Drawing keeps its own full-screen, child-led surface: the canvas already owns
-// its caption and its ✓, and it is the best child UI in the app. All this adds
-// is a way back to the jar that lands on the jar, rather than in a photo tab.
+// its ✓, and it is the best child UI in the app. All this adds is a way back to
+// the jar that lands on the jar, rather than in a photo tab.
+//
+// No caption here. It floated on the page over the drawing, and a teacher
+// asked for it to go (owner's call, 2026-09-10); a free drawing is titled
+// "My drawing" in the jar. The photo and voice shells above keep theirs.
 export function StudentDrawCapture({ mode }: { mode: AgeMode }) {
   const router = useRouter();
   const [, action] = useActionState(createJournalItem, {});
@@ -152,11 +156,9 @@ export function StudentDrawCapture({ mode }: { mode: AgeMode }) {
       <DrawingCanvas
         name="drawingPages"
         fullScreen
-        withCaption
         // The same words as the pill on the photo/words/voice shell above, for
         // the same reason: this surface is full-screen, so the way back has to
         // be part of the canvas and it has to say where it goes.
-        captionLabel={c.captionLabel}
         closeLabel={c.backToJar}
         onClose={() => router.push("/student")}
       />

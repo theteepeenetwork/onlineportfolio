@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon, type IconName } from "./icons/Icon";
 import { ShapeThumb } from "./canvas/ShapeThumb";
 import { PenArt, PenFan, PlusFan, type PlusItem, type PlusOption } from "./canvas/Fan";
@@ -598,8 +598,6 @@ export function DrawingCanvas({
   title,
   subtitle,
   teacherNote,
-  withCaption = false,
-  captionLabel = "Add a caption",
   hearItLabel,
   onClose,
   closeLabel,
@@ -633,16 +631,12 @@ export function DrawingCanvas({
    * button — see TeacherNote for why that button is conditional.
    */
   teacherNote?: string;
-  withCaption?: boolean;
-  /**
-   * The words above the caption box. A visible label, not a placeholder:
-   * placeholder text vanishes the moment a child taps the box, taking the
-   * instruction away exactly when they need it, and a screen reader was given
-   * nothing at all. Child surfaces pass their own register's wording
-   * (`studentCopy(mode).add.captionLabel`); the default is for the teacher's
-   * preview.
-   */
-  captionLabel?: string;
+  // There is no caption box on this canvas, for a child or a teacher's
+  // preview of one (owner's call, 2026-09-10, on a teacher's feedback). It sat
+  // on the page itself, over the drawing, and a child answering a worksheet
+  // does not caption it: the activity's title is what names that work (see
+  // `momentTitle`). A free drawing is "My drawing" in the jar. Photos and
+  // voice notes keep their caption, which lives beside the work, not on it.
   /**
    * Set on a CHILD's response for a register that cannot read yet, and it puts
    * a listen button on the quiz question. The string is the child's own "hear
@@ -788,11 +782,6 @@ export function DrawingCanvas({
   const serverContext = draftSurface === "template-new" ? "tmpl-new" : (draftKey?.split(":")[1] ?? "");
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const serverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const captionRef = useRef<HTMLInputElement>(null);
-  // The caption's label needs an id to point at. Generated rather than fixed:
-  // one full-screen canvas mounts at a time today, so a constant would work —
-  // and would break the label association SILENTLY on the day two do.
-  const captionId = useId();
   const [draftPrompt, setDraftPrompt] = useState<DraftCanvasV1 | null>(null);
   const [draftSource, setDraftSource] = useState<"local" | "server">("local");
   const draftFieldsRef = useRef<Record<string, string> | null>(null); // fields from a pending restore
@@ -1535,9 +1524,7 @@ export function DrawingCanvas({
   }
 
   function collectFields(): Record<string, string> {
-    const fields = { ...(getExtraDraftFields?.() ?? {}) };
-    if (withCaption && captionRef.current) fields.caption = captionRef.current.value;
-    return fields;
+    return { ...(getExtraDraftFields?.() ?? {}) };
   }
 
   async function doPersist() {
@@ -1973,12 +1960,7 @@ export function DrawingCanvas({
     restoreDecidedRef.current = true;
     await hydrateFromDraft(canvas);
     const f = draftFieldsRef.current;
-    if (f) {
-      onRestoreFields?.(f);
-      if (withCaption && captionRef.current && typeof f.caption === "string") {
-        captionRef.current.value = f.caption;
-      }
-    }
+    if (f) onRestoreFields?.(f);
     draftFieldsRef.current = null;
     // Push the restored session back so the local + server copies converge.
     if (draftingEnabled) flushServerSync();
@@ -4387,29 +4369,6 @@ export function DrawingCanvas({
                   style={{ top: u(96), zIndex: Z_CHROME }}
                 >
                   {importError ?? "Adding your file…"}
-                </div>
-              )}
-
-              {withCaption && (
-                // Above the ＋ disc, not beside it: the disc owns the bottom
-                // corner, and a caption box overlapping it swallowed the taps
-                // meant for the toolbox.
-                <div className="absolute" style={{ left: u(16), bottom: u(150), width: u(280), zIndex: Z_BASE + 4 }}>
-                  <label
-                    htmlFor={captionId}
-                    className="mb-1 inline-block rounded-full bg-white/90 px-3 py-1 text-sm font-bold text-foreground shadow"
-                  >
-                    {captionLabel}
-                  </label>
-                  {/* min-h-16: a child taps into this to say what their picture
-                      is, so it carries the same 64px floor as everything else. */}
-                  <input
-                    id={captionId}
-                    ref={captionRef}
-                    name="caption"
-                    className="input min-h-16 bg-white/90 shadow"
-                    placeholder="💬 Add a caption…"
-                  />
                 </div>
               )}
             </div>

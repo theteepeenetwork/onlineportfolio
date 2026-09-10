@@ -40,7 +40,6 @@ export function TemplatePreview({
         kits={ALL_KITS}
         name="__preview"
         fullScreen
-        withCaption
         allowImport
         title={title}
         subtitle={instructions}
