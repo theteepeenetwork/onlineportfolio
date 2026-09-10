@@ -25,6 +25,16 @@ export default async function ActivityLibraryPage() {
       orderBy: { createdAt: "desc" },
       include: {
         assignments: {
+          // ONLY RUNS IN CLASSES THIS TEACHER STILL HOLDS — the eighth F66
+          // site, found on 10 September 2026. Every other template→class join
+          // was given the class as a second scope on 29 August; this one was
+          // missed, so a template's author whose class had been handed to a
+          // colleague still saw that class's work counted on the card ("1
+          // waiting to approve") and the class named, with its turned-in
+          // figure, under "Already ran" in the assign sheet. Pupils' names
+          // never reached this page, which is what kept it to counts.
+          // Covered by class-handover.spec.ts, which fails with this line gone.
+          where: { class: { teacherId } },
           orderBy: { createdAt: "desc" },
           include: RUN_COUNTING,
         },

@@ -119,7 +119,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F63 | Medium | Fleet reliability / review coverage | **A safeguarding reviewer produced nothing across four idle cycles while a second reviewer, given the same brief, returned three must-fix findings that a green suite could not have found.** `pw-review` was asked for a verdict on F61, went idle four times, and never answered — while the change sat committed-ready. `pw-review2`, same tree, same four questions, found: single-use unenforced under concurrency, a false justification for the 7-day invitation window (an invited teacher can already hold a class), and a missing cross-tenant test on an action that had just started emitting live credentials. All three were green at the time. | **Open.** Standing rule agreed 27 Aug 2026: replace a reviewer that goes idle twice without answering, rather than chasing it | n/a — this is about how the fleet is run, not about the product |
 | F64 | Low | Accessibility (operator) | **The operator lookup's result is announced by a live region that is created at the same instant as its text, so several screen readers will not read it.** `src/app/ops/lookup/forms.tsx:150` puts `role="status"` on a div inside `Result`, which returns null until a lookup has run — so assistive technology meets a node that has just appeared rather than a region it was already watching. The same file guards against exactly this for the error region six lines up (`:113-115`, "Always in the DOM, so assistive technology is already watching"), so the principle is understood and applied unevenly. The refusal is the case where **nothing else on the screen changes**, which makes it the one most worth hearing. Found by `lookup-review` while reviewing an unrelated copy change; pre-existing, not caused by it. | **Open.** Deferred past the freeze — a render-structure change on a Rule 1 screen wants its own commit and its own run, not a ride-along | axe will not catch it: this is an announcement-timing property, not a static violation. Needs the always-mounted pattern the error region already uses |
 | F65 | Medium | Correctness surfacing as copy | **A sentence that claims more than the code behind it checked. Four instances, three on unrelated screens and one in this file's own diagnostics.** The school mail badge would have read "All 3 sign-in emails StoryJar tried to send were accepted" for a school whose only mail was staff invitations, because its filter widened while its words did not. The operator lookup said "No account has that address" — a claim about every account in StoryJar, from a screen that had read one table. And "No parent or carer has that address" gets relayed down a phone as "we have no record of that parent", when rule 6a means many parents deliberately gave no address at all. | **Open as a standing risk.** All three instances fixed; the class is not. Every screen reporting a NEGATIVE result is a candidate | none possible — no gate can read a sentence and know what the query behind it asked. The remedy is a standing review question, below |
-| F66 | **High** | Access control / class handover (Rule 1) | **When a class moves between staff, nothing revokes what the previous teacher holds.** Live today via `assignClassToStaff` — the ordinary September handover, with nobody removed from anything. Two limbs, one root. **(a) The class code is a bearer credential and does not rotate.** `classCodeLookup.ts:41` is `db.class.findUnique({ where: { classCode } })` with no teacher in the path: the previous teacher signs in **as any pupil** in a class they no longer hold, with no session and no token, and the work they then create is indistinguishable from that child's. **(b) Template authorship outlives class ownership.** `updateTemplate` (`activities.ts:201-212`) writes title, instructions, pages and quiz into LIVE runs filtered on `templateId` alone — a write into what those children see this minute — and `activities/[id]/page.tsx:28-40` renders the new teacher's full pupil roster, first names and per-child status. Seven sites share the shape. | **Fixed** 2026-08-29. Codes rotate on BOTH triggers; all seven template→class sites now require the class as a second scope | `tests/battery/security/class-handover.spec.ts` |
+| F66 | **High** | Access control / class handover (Rule 1) | **When a class moves between staff, nothing revokes what the previous teacher holds.** Live today via `assignClassToStaff` — the ordinary September handover, with nobody removed from anything. Two limbs, one root. **(a) The class code is a bearer credential and does not rotate.** `classCodeLookup.ts:41` is `db.class.findUnique({ where: { classCode } })` with no teacher in the path: the previous teacher signs in **as any pupil** in a class they no longer hold, with no session and no token, and the work they then create is indistinguishable from that child's. **(b) Template authorship outlives class ownership.** `updateTemplate` (`activities.ts:201-212`) writes title, instructions, pages and quiz into LIVE runs filtered on `templateId` alone — a write into what those children see this minute — and `activities/[id]/page.tsx:28-40` renders the new teacher's full pupil roster, first names and per-child status. Seven sites share the shape. | **Fixed** 2026-08-29. Codes rotate on BOTH triggers; all seven template→class sites now require the class as a second scope. **An eighth site — the activity library's own template query — was found and fixed 2026-09-10** (see the entry) | `tests/battery/security/class-handover.spec.ts` |
 
 ---
 
@@ -4203,6 +4203,32 @@ rule has no exception to argue about later.
 Covered by `tests/battery/security/class-handover.spec.ts`, which drives the
 real control through the admin console rather than simulating the click at the
 database level, and which was verified to fail with the fix removed.
+
+### An eighth site, found and fixed 10 September 2026
+
+The list above said seven, and there were eight. `src/app/teacher/activities/page.tsx`,
+the activity library itself, read `activityTemplate.findMany({ where: { teacherId } })`
+with its `assignments` included **and no class filter** — the same shape as the
+detail page's roster read, one screen up. After a handover the author's library
+card still said "1 waiting to approve" for work in a class they no longer held,
+and the card's assign sheet listed that class by name, with its turned-in
+figure, under "Already ran". Counts and a class name; no pupil's name or work,
+which is what keeps it inside the original severity rather than above it.
+
+Found while building the per-run "who has and hasn't done it" page (teacher
+feedback, item 4), which is the view that makes the rule matter most: that page
+names every pupil, so it is scoped by the class alone and never by the
+template. The library query now has the class as its second scope, and the
+dashboard's "activities live now" count, which the new "Live now" list sits
+under, is now the list's own query (class-scoped, archived classes excluded)
+rather than the conjunction of author and class.
+
+The repro is in the blocking suite from the start: the F66 run-page test in
+`class-handover.spec.ts` asserts the author's card and assign sheet after a
+real console handover, with a positive control on the same screen before it,
+and was run with the new `where` removed to watch it fail ("1 waiting to
+approve" on the card). No separate finding number, because it is this finding's
+own rule at a site its fix missed.
 
 **A note on this entry surviving.** The convention in AGENTS.md is to delete a
 finding once its repro moves into a blocking suite. F59 and F66 are kept because
