@@ -1470,7 +1470,9 @@ model AssignmentStudent {
 // hand-in by a marked pupil (their page was already open) is ACCEPTED and this
 // row deleted in the same transaction (createJournalItem). Read by the to-do
 // queries through src/lib/studentRuns.ts, the one place that decides what is on
-// a pupil's list.
+// a pupil's list. Disclosed, as the run's title and the date, in that pupil's
+// own subject-access export (src/app/teacher/export/pupil/[studentId]/route.ts;
+// data protection lead, 10 September 2026).
 //
 // Cascades from both sides, so it never outlives the run or the pupil
 // (RETENTION.md, "Not needed" marks).

@@ -788,18 +788,29 @@ pupil's own class.
 **Retention.** `RETENTION.md`, "Not needed" marks: gone on Put back, on a
 hand-in, or with the run or the pupil.
 
-**OPEN — for the data protection lead to decide: should a "not needed" mark
-appear in a pupil's subject-access export?** Today it does not: the per-child
-export (`src/lib/exportBundle.ts`) carries journal items and nothing about to-do
-lists. The case for including it is the one the 2026-08-23 scope note on rule 3
-already makes for unapproved work — Article 15 asks what is held, not what is
-shown. The case against is that the mark is short-lived by design, carries no
-reason, and says nothing about the child beyond "their teacher took one
-activity off their list on this date". Left open on purpose: it is a disclosure
-question, not an engineering one, and the export is unchanged until it is
-answered.
+**DECISION, 2026-09-10: a "not needed" mark IS in the pupil's subject-access
+export — included, because it is data about the child.** This was left open
+when the feature was written, and answered the same day. The case against was
+that the mark is short-lived by design, carries no reason, and says little
+beyond "their teacher took one activity off their list on this date". The case
+for won: Article 15 asks what is held, not what is shown or how long it lasts,
+which is the argument the 2026-08-23 scope note on rule 3 already makes for
+work still in the approval queue. What the file carries, for each mark that
+stands on the day of the export: the activity's title as the run froze it, and
+the date it was marked (`notNeeded` in
+`src/app/teacher/export/pupil/[studentId]/route.ts`). No reason, because none
+exists and none is to be added to answer this. Only that child's marks, read
+off that child's own row, so a classmate marked on the same activity is never
+in the file. A mark that was put back, or cleared by the child handing in, has
+been deleted and so is not held and not exported. The whole-class export is
+unchanged: it carries journal items only, and no permission slips or
+appointments either; this decision is about the one child's file. Proved in
+`tests/battery/security/data-protection.spec.ts`.
 
-**Worth an outside check:** only the open question above.
+**Worth an outside check:** the export question was the only item flagged for
+one. It is now decided on the principle the rest of the export already rests
+on, adds no data category and no recipient, and goes to professional review
+with the rest of the DPIA rather than on its own.
 
-**Decided by:** the founder, as data protection lead, for everything above the
-open question; the export question is **not decided**. **Recorded:** 2026-09-10.
+**Decided by:** the founder, as data protection lead, including the export
+question (answered 2026-09-10). **Recorded:** 2026-09-10.
