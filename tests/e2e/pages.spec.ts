@@ -343,6 +343,106 @@ test("a pupil can slide a page they added in front of the teacher's", async ({ p
   expect(after[1], "and the teacher's page is page 2").toBe(before[0]);
 });
 
+// A draft keeps the pages in the pupil's order, but the questions come from
+// the teacher's copy and name their page by the teacher's numbering. A pupil
+// who put their own page in front of the question's and came back later found
+// the question on their own blank page.
+test("a question stays on the teacher's page after a restore, wherever the pupil's page went", async ({
+  page,
+}) => {
+  const db = new PrismaClient();
+  const title = "Apples, then a question";
+  try {
+    // The seeded one-page worksheet, set again with one question on its page.
+    const apples = await db.assignment.findFirstOrThrow({ where: { title: "Count the apples" } });
+    await db.assignment.create({
+      data: {
+        templateId: apples.templateId,
+        classId: apples.classId,
+        wholeClass: true,
+        status: "LIVE",
+        title,
+        templateSnapshotJson: apples.templateSnapshotJson,
+        quizSnapshotJson: JSON.stringify({
+          questions: [
+            {
+              id: "q0",
+              pageIndex: 0,
+              x: 600,
+              y: 80,
+              w: 320,
+              h: 240,
+              prompt: "How many apples?",
+              options: [
+                { id: "opt0", text: "Three" },
+                { id: "opt1", text: "Five" },
+              ],
+              correctOptionId: "opt1",
+            },
+          ],
+        }),
+      },
+    });
+
+    await page.goto(`/login/student?code=${await demoClassCode()}`);
+    await page.getByRole("button", { name: "Ella", exact: true }).click();
+    await page.waitForURL((url) => url.pathname === "/student");
+    await page.goto("/student/activities");
+    await page.getByRole("link", { name: new RegExp(title) }).first().click();
+    await expect(page.getByText("Loading…")).toHaveCount(0);
+    const question = page.getByText("How many apples?");
+    await expect(question).toBeVisible();
+
+    // Her own page, put in front of the worksheet, with something on it.
+    await page.locator('button[title="Add page"]').click();
+    await slidePageCard(page, 1, 0);
+    await expect(page.getByRole("button", { name: "Throw away page 1", exact: true })).toBeVisible();
+    await expect(question, "the question went with its page").toHaveCount(0);
+    await drawOnCanvas(page);
+    await page.getByRole("button", { name: "Page 2", exact: true }).click();
+    await expect(question).toBeVisible();
+
+    // Saved with her page first, then the tablet reloads.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () =>
+              new Promise<boolean>((resolve) => {
+                const req = indexedDB.open("storyjar-drafts");
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                  const idb = req.result;
+                  if (!idb.objectStoreNames.contains("drafts")) return resolve(false);
+                  const all = idb.transaction("drafts", "readonly").objectStore("drafts").getAll();
+                  all.onerror = () => resolve(false);
+                  all.onsuccess = () =>
+                    resolve(
+                      all.result.some(
+                        (r: { canvas?: { added?: boolean[]; pages?: string[] } }) =>
+                          r.canvas?.pages?.length === 2 && r.canvas?.added?.[0] === true,
+                      ),
+                    );
+                };
+              }),
+          ),
+        { message: "the draft with her page first should be saved", timeout: 15_000 },
+      )
+      .toBe(true);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /Restore my work/i }).click();
+
+    await expect(page.getByRole("button", { name: "Throw away page 1", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Page 1", exact: true })).toHaveAttribute("aria-current", "true");
+    await expect(question, "not on her own page").toHaveCount(0);
+    await page.getByRole("button", { name: "Page 2", exact: true }).click();
+    await expect(question, "but on the worksheet it asks about").toBeVisible();
+  } finally {
+    await db.assignment.deleteMany({ where: { title } });
+    await db.$disconnect();
+  }
+});
+
 test("in the builder, any page can be held and slid, the template's own included", async ({ page }) => {
   await builder(page, "Slide any page");
   await page.locator('button[title="Add"]').click();

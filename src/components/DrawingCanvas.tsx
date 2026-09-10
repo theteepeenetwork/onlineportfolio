@@ -1676,6 +1676,8 @@ export function DrawingCanvas({
     objectsRef.current = (canvas.objects as Obj[][]).map((pg) => pg.map((o) => ({ ...o })));
     addedRef.current = addedFlags(canvas.added, pagesRef.current.length);
     anyDrawnRef.current = canvas.anyDrawn;
+    // Before anything is drawn: the pictures of each page carry its questions.
+    placeQuestionsOnTeacherPages();
 
     // Next object id: never collide with a restored `o<n>` id.
     let maxId = canvas.nextObjId - 1;
@@ -1747,12 +1749,40 @@ export function DrawingCanvas({
     setCurrent(currentRef.current);
     setObjects(objectsRef.current[currentRef.current] ?? []);
     setThumbs([...thumbRef.current]);
+    setQuizQuestions([...quizRef.current]);
     refreshUndoRedo();
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
     }
     flushPreviewField();
     loadingRef.current = false;
+  }
+
+  // Put each quiz question back on the teacher's page it belongs to, after a
+  // restore.
+  //
+  // A draft keeps the pages in the child's order but not the questions: those
+  // come from the teacher's copy, and name their page by the TEACHER'S
+  // numbering. A child who put a page of their own in front of a question's
+  // page, and came back to it, found the question on their own blank page.
+  //
+  // On a child's canvas the teacher's pages are never moved among themselves
+  // (F76) and never thrown away, so the teacher's page k is the k-th page the
+  // child did not add, wherever their own pages were put. A draft that cannot
+  // say which pages were added marks none, and every question stays where the
+  // teacher put it — what happened before. The builder is left alone: there
+  // the questions are the teacher's own, being written.
+  function placeQuestionsOnTeacherPages() {
+    if (pageDelete !== "added") return;
+    const teacherPages: number[] = [];
+    addedRef.current.forEach((a, i) => {
+      if (!a) teacherPages.push(i);
+    });
+    const theirs = new Map((initialQuiz?.questions ?? []).map((q) => [q.id, q.pageIndex]));
+    quizRef.current = quizRef.current.map((q) => {
+      const k = theirs.get(q.id) ?? q.pageIndex;
+      return { ...q, pageIndex: teacherPages[k] ?? k };
+    });
   }
 
   // The stroke layer as it is right now, as a string.
