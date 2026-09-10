@@ -80,11 +80,12 @@ test.describe("Turning is sized to the thing being turned", () => {
     expect(await rotationOf(page)).toBe(5);
     await page.keyboard.press("ArrowLeft");
 
-    // Grow it past 500 units across (six 10% steps) and the step gets finer,
-    // because its corners now travel further for the same angle.
-    for (let i = 0; i < 6; i++) {
-      await page.getByRole("button", { name: "Make it bigger" }).click();
-    }
+    // Grow it past 500 units across (six 10% steps on the resize handle) and
+    // the step gets finer, because its corners now travel further for the
+    // same angle.
+    const resize = page.locator('div[title="Resize"]');
+    await resize.focus();
+    for (let i = 0; i < 6; i++) await page.keyboard.press("ArrowRight");
     await turn.focus();
     await page.keyboard.press("ArrowRight");
     expect(await rotationOf(page), "a bigger object earns a finer step").toBe(1);
@@ -135,35 +136,5 @@ test.describe("The canvas can be driven without a mouse", () => {
     expect(bigger.width, "the keyboard must actually resize it").toBeGreaterThan(before.width);
     await page.keyboard.press("ArrowLeft");
     expect((await shape.boundingBox())!.width).toBeLessThan(bigger.width);
-  });
-
-  test("turn and resize are also real buttons, where a child looks for them", async ({ page }) => {
-    await studentLogin(page, "Dev");
-    await openDrawing(page);
-    await placeShape(page, "Rectangle");
-
-    // The toolbar keeps the coarse 15°, deliberately: this is the control for
-    // squaring something up, and pressing it thirty times to reach a right
-    // angle on a long line would be its own bad screen. The fine path is the
-    // handle above.
-    const right = page.getByRole("button", { name: "Turn right" });
-    await expect(right).toBeVisible();
-    const box = (await right.boundingBox())!;
-    expect(
-      Math.min(box.width, box.height),
-      "a child taps this (SAFEGUARDING rule 18)",
-    ).toBeGreaterThanOrEqual(64);
-
-    await right.click();
-    expect(await rotationOf(page)).toBe(15);
-    await page.getByRole("button", { name: "Turn left" }).click();
-    expect(await rotationOf(page)).toBe(0);
-
-    const shape = page.locator("div[data-object]").first();
-    const before = (await shape.boundingBox())!;
-    await page.getByRole("button", { name: "Make it bigger" }).click();
-    expect((await shape.boundingBox())!.width).toBeGreaterThan(before.width);
-    await page.getByRole("button", { name: "Make it smaller" }).click();
-    expect((await shape.boundingBox())!.width).toBeCloseTo(before.width, 0);
   });
 });

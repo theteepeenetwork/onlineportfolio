@@ -257,12 +257,8 @@ const MAX_OPTION_PX = 600;
 // 5.5% of the page every step. Dragging now uses `rotateStepFor(length)`, which
 // gives a long object a finer step — see src/lib/canvasObjects.ts and
 // docs/rotation-findings.md.
-//
-// 15 stays HERE on purpose. The buttons are the coarse, exact control — the one
-// for squaring something up to 90° — and every rung of the ladder divides both
-// 45 and 90, so a press and a drag land on the same angles rather than on two
-// different grids.
-const ROTATE_STEP = 15;
+// The toolbar's coarse 15° turn buttons went in September 2026: the handle,
+// by drag or arrow key, is the one control for turning.
 
 // One press of Bigger / Smaller, as a proportion. 10% is small enough that a
 // child can stop where they meant to and large enough that getting somewhere
@@ -4762,8 +4758,6 @@ function ObjectToolbar({
   onBringToFront,
   onSendToBack,
   onStyle,
-  onTurn,
-  onSize,
   onDuplicate,
   canDuplicate,
   onEdit,
@@ -4787,24 +4781,10 @@ function ObjectToolbar({
   onBringToFront: (id: string) => void;
   onSendToBack: (id: string) => void;
   onStyle: (patch: Partial<ShapeObj>) => void;
-  /**
-   * Turn and resize as a press, one coarse step at a time.
-   *
-   * The corner handles are drags, and until F50 a drag was the ONLY way to turn
-   * or resize anything — so neither could be done from a keyboard at all, on
-   * controls that announced themselves as buttons. These are the discoverable
-   * half of the answer: real buttons, in the place a child already looks for
-   * what they can do to a thing they have tapped.
-   *
-   * Deliberately the coarse 15°, not the object's own finer step: this is the
-   * control for squaring something up, and asking a child to press it thirty
-   * times to reach a right angle on a long line would be its own bad screen.
-   * The fine path is the handle, which now takes arrow keys.
-   *
-   * `onTurn` is absent where turning is not offered — a picture has no `rot`.
-   */
-  onTurn?: (dir: -1 | 1) => void;
-  onSize?: (dir: -1 | 1) => void;
+  // Turn and resize are the corner handles: a drag, or arrow keys once the
+  // handle is focused (F50). The toolbar carried a coarse-step button for each
+  // until September 2026; the owner removed them as a second control for a
+  // job the handles already do, on a bar a small screen cannot afford.
   onDuplicate: (id: string) => void;
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
@@ -5068,44 +5048,6 @@ function ObjectToolbar({
               <Icon name="infinite" size={GLYPH} decorative />
             </button>
           )}
-        </>
-      )}
-
-      {/* Turn and resize, for anyone who is not holding a mouse. See `onTurn`. */}
-      {!pinned && onTurn && (
-        <>
-          <button
-            type="button"
-            onClick={() => onTurn(-1)}
-            className={btn}
-            style={btnStyle}
-            title="Turn it left a little"
-            aria-label="Turn left"
-          >
-            <span className="flex items-center" style={{ transform: "scaleX(-1)" }}>
-              <Icon name="rotate" size={GLYPH} decorative />
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onTurn(1)}
-            className={btn}
-            style={btnStyle}
-            title="Turn it right a little"
-            aria-label="Turn right"
-          >
-            <Icon name="rotate" size={GLYPH} decorative />
-          </button>
-        </>
-      )}
-      {!pinned && onSize && (
-        <>
-          <button type="button" onClick={() => onSize(-1)} className={`${btn} text-lg font-bold`} style={btnStyle} title="Make it smaller" aria-label="Make it smaller">
-            −
-          </button>
-          <button type="button" onClick={() => onSize(1)} className={`${btn} text-lg font-bold`} style={btnStyle} title="Make it bigger" aria-label="Make it bigger">
-            +
-          </button>
         </>
       )}
 
@@ -6149,12 +6091,9 @@ function MediaObjectView({
         onDuplicate={onDuplicate}
         canDuplicate={canDuplicate}
         // A picture has no `rot` — the export renderer draws it flat — so it is
-        // offered no turn, exactly as it is offered no turn handle.
-        onTurn={o.type === "shape" ? (dir) => turnBy(dir * ROTATE_STEP) : undefined}
         // A picture has no words to change. A frame's words are the teacher's
         // prompt; a shape's are its label.
         onEdit={(o.type === "shape" || o.type === "frame") && cap.editable ? () => onEditText(o.id) : undefined}
-        onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
         onStyle={(patch) => {
           onChange(o.id, patch);
           onEnd();
@@ -6631,8 +6570,6 @@ function TextObjectView({
         onSendToBack={onSendToBack}
         onDuplicate={onDuplicate}
         canDuplicate={canDuplicate}
-        onTurn={(dir) => turnBy(dir * ROTATE_STEP)}
-        onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
         onEdit={() => onEditText(o.id)}
         onStyle={() => {}}
       />
