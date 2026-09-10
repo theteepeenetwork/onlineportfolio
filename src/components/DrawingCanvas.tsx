@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Icon, type IconName } from "./icons/Icon";
 import { ShapeThumb } from "./canvas/ShapeThumb";
 import { PenArt, PenFan, PlusFan, type PlusItem, type PlusOption } from "./canvas/Fan";
@@ -56,6 +56,14 @@ import {
   FRAME_DEFAULT_W,
   FRAME_DEFAULT_H,
   FRAME_PHOTO_MAX_PX,
+  LINK_DEFAULT_H,
+  LINK_DEFAULT_W,
+  LINK_REFUSAL_COPY,
+  MAX_LINK_LABEL_LEN,
+  MIN_LINK_H,
+  MIN_LINK_W,
+  displayHost,
+  parseTeacherLink,
   rotateStepFor,
   wrapRotation,
   type CanvasObj,
@@ -63,7 +71,7 @@ import {
 import { studentCopyNeutral } from "@/lib/copy/student";
 import { CameraDialog } from "./camera/CameraDialog";
 import { isStorableImageType } from "@/lib/imageTypes";
-import { readAloudOnDevice } from "@/lib/readAloud";
+import { readAloud, readAloudOnDevice } from "@/lib/readAloud";
 import { useOnDeviceVoiceReady } from "@/lib/useSpeechReady";
 import {
   detailStrokeWidth,
@@ -534,7 +542,21 @@ type FrameObj = ObjLock & {
   alt?: string;
   label?: string;
 };
-type Obj = ImageObj | ShapeObj | TextObj | FrameObj;
+// Mirrors LinkObj in src/lib/canvasObjects.ts (SAFEGUARDING rule 26). A box
+// naming a website the teacher chose; on a child's canvas it is pressed through
+// LinkTapLayer, which reads the address from the teacher's snapshot and never
+// from this object.
+type LinkObj = ObjLock & {
+  id: string;
+  type: "link";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  href: string;
+  label?: string;
+};
+type Obj = ImageObj | ShapeObj | TextObj | FrameObj | LinkObj;
 // `seq` orders an entry against the page actions below, which live on a stack
 // of their own: undo takes whichever is newest, across every page.
 type HistoryEntry = { img: string; objects: Obj[]; seq?: number };
@@ -585,7 +607,56 @@ function minObjSize(o: Obj): { w: number; h: number } {
     return { w: m, h: m };
   }
   if (o.type === "frame") return { w: MIN_FRAME_W, h: MIN_FRAME_H };
+  if (o.type === "link") return { w: MIN_LINK_W, h: MIN_LINK_H };
   return { w: 24, h: 24 };
+}
+
+// A web link, drawn into a page picture: the same chip the screen shows, at the
+// same model-unit sizes, so a child's hand-in shows the link they worked beside.
+// Only fixed shapes and the two strings — the teacher's label and the real host
+// — and both are drawn as text, never interpreted.
+const LINK_PAD = 16;
+const LINK_ICON = 44;
+function drawLinkChip(ec: CanvasRenderingContext2D, o: LinkObj) {
+  const host = displayHost(o.href);
+  ec.save();
+  ec.beginPath();
+  ec.roundRect(o.x, o.y, o.w, o.h, 18);
+  ec.fillStyle = "#FFFDF7";
+  ec.fill();
+  ec.lineWidth = 3;
+  ec.strokeStyle = "#22304A";
+  ec.stroke();
+  // The round badge the chain sits in.
+  const cx = o.x + LINK_PAD + LINK_ICON / 2;
+  const cy = o.y + o.h / 2;
+  ec.beginPath();
+  ec.arc(cx, cy, LINK_ICON / 2, 0, Math.PI * 2);
+  ec.fillStyle = "#D8ECE8";
+  ec.fill();
+  ec.lineWidth = 2.5;
+  ec.stroke();
+  ec.lineCap = "round";
+  ec.beginPath();
+  ec.moveTo(cx - 6, cy + 6);
+  ec.lineTo(cx + 6, cy - 6);
+  ec.stroke();
+  const tx = o.x + LINK_PAD * 2 + LINK_ICON;
+  const room = Math.max(10, o.w - (tx - o.x) - LINK_PAD);
+  ec.fillStyle = "#22304A";
+  ec.textAlign = "left";
+  ec.textBaseline = "middle";
+  if (o.label) {
+    ec.font = `600 22px ${FONT_STACK}`;
+    ec.fillText(o.label, tx, cy - 13, room);
+    ec.font = `400 18px ${FONT_STACK}`;
+    ec.fillStyle = "#4A5670";
+    ec.fillText(host, tx, cy + 14, room);
+  } else {
+    ec.font = `600 22px ${FONT_STACK}`;
+    ec.fillText(host, tx, cy, room);
+  }
+  ec.restore();
 }
 
 // Crop a captured photo to the frame's proportion, about its centre, capped on
@@ -1344,6 +1415,8 @@ export function DrawingCanvas({
           ec.strokeRect(o.x + 2, o.y + 2, o.w - 4, o.h - 4);
           ec.restore();
         }
+      } else if (o.type === "link") {
+        drawLinkChip(ec, o);
       } else {
         // text
         ec.save();
@@ -3339,6 +3412,77 @@ export function DrawingCanvas({
     refreshThumbs();
   }
 
+  // A web link (SAFEGUARDING rule 26): the teacher's form, then a chip on the
+  // page. Author-only — the fan button that opens the form is not rendered
+  // anywhere else, and a link is fixed on any canvas that is not the builder.
+  const [linkForm, setLinkForm] = useState<{ id?: string } | null>(null);
+
+  function saveLink(href: string, label: string) {
+    const target = linkForm;
+    setLinkForm(null);
+    // Checked again here, not trusted from the form: the builder and the
+    // server share one validator, and this is the builder's copy of it.
+    const parsed = parseTeacherLink(href);
+    if (!parsed.ok || !isObjectAuthor) return;
+    const tidy = label.trim().slice(0, MAX_LINK_LABEL_LEN);
+    if (target?.id) {
+      pushHistory();
+      updateObject(target.id, { href: parsed.href, label: tidy || undefined } as Partial<Obj>);
+      syncHidden();
+      refreshThumbs();
+      return;
+    }
+    const list = objectsRef.current[currentRef.current] ?? [];
+    if (list.length >= MAX_OBJECTS_PER_PAGE) return;
+    finishEditing();
+    pushHistory();
+    const id = `o${objIdRef.current++}`;
+    const obj: LinkObj = {
+      id,
+      type: "link",
+      x: placeX(LINK_DEFAULT_W),
+      y: (H - LINK_DEFAULT_H) / 2,
+      w: LINK_DEFAULT_W,
+      h: LINK_DEFAULT_H,
+      href: parsed.href,
+      ...(tidy ? { label: tidy } : {}),
+    };
+    objectsRef.current[currentRef.current] = [...list, obj];
+    setObjects(objectsRef.current[currentRef.current]);
+    anyDrawnRef.current = true;
+    setSelectedId(id);
+    setTool("cursor");
+    syncHidden();
+    refreshThumbs();
+  }
+
+  // The link a child has pressed, waiting on the "leaving StoryJar" card.
+  const [leaving, setLeaving] = useState<{ href: string; host: string } | null>(null);
+
+  // The links a child may press: only those that arrived in the teacher's
+  // snapshot of the activity, keyed by id, with the address as the teacher
+  // saved it. Whatever a child's device holds — a restored draft, an object
+  // state that has been meddled with — can place a chip on the page, and can
+  // never make one open. Re-checked with the same validator on the way in.
+  const teacherLinks = useMemo(() => {
+    const byId = new Map<string, { href: string; host: string; label?: string }>();
+    for (const page of initialObjects ?? []) {
+      if (!Array.isArray(page)) continue;
+      for (const raw of page) {
+        const o = raw as Partial<LinkObj> | null;
+        if (!o || o.type !== "link" || typeof o.id !== "string") continue;
+        const parsed = parseTeacherLink(o.href);
+        if (!parsed.ok) continue;
+        byId.set(o.id, {
+          href: parsed.href,
+          host: displayHost(parsed.href),
+          label: typeof o.label === "string" ? o.label.slice(0, MAX_LINK_LABEL_LEN) : undefined,
+        });
+      }
+    }
+    return byId;
+  }, [initialObjects]);
+
   // The child's photo arriving from the camera dialog. Normalised like an
   // import (capped, re-encoded small), then cropped to the frame's own shape so
   // the on-screen picture and the flattened one agree, then cached BEFORE the
@@ -3921,6 +4065,10 @@ export function DrawingCanvas({
       canDuplicate={(objects.length || 0) < MAX_OBJECTS_PER_PAGE}
       onSpawn={spawnFromSource}
       onEditText={editTextObject}
+      onEditLink={(id) => {
+        finishEditing();
+        setLinkForm({ id });
+      }}
       onTextChange={updateText}
       onFinishEditing={finishEditing}
       onContextMenu={openObjectMenu}
@@ -3972,6 +4120,54 @@ export function DrawingCanvas({
         }}
       />
     ) : null;
+
+  // The web links on the current page that a child may press (rule 26). Where
+  // each sits comes from the page — a child cannot move one, so it is where the
+  // teacher put it — and what it opens comes only from `teacherLinks`.
+  const linksOnPage = isObjectAuthor
+    ? []
+    : objects.flatMap((o) => {
+        if (o.type !== "link") return [];
+        const theirs = teacherLinks.get(o.id);
+        return theirs ? [{ id: o.id, x: o.x, y: o.y, w: o.w, h: o.h, label: theirs.label, host: theirs.host }] : [];
+      });
+  const linkTapLayer = linksOnPage.length ? (
+    <LinkTapLayer
+      links={linksOnPage}
+      scale={scale}
+      onTap={(id) => {
+        finishEditing();
+        const theirs = teacherLinks.get(id);
+        if (theirs) setLeaving({ href: theirs.href, host: theirs.host });
+      }}
+    />
+  ) : null;
+
+  const editingLink =
+    linkForm?.id !== undefined
+      ? (objectsRef.current[currentRef.current] ?? []).find(
+          (o): o is LinkObj => o.id === linkForm.id && o.type === "link",
+        )
+      : undefined;
+  const linkOverlays = (
+    <>
+      {linkForm && isObjectAuthor && (
+        <LinkDialog
+          initial={editingLink ? { href: editingLink.href, label: editingLink.label } : undefined}
+          onSave={saveLink}
+          onCancel={() => setLinkForm(null)}
+        />
+      )}
+      {leaving && (
+        <LeavingCard
+          href={leaving.href}
+          host={leaving.host}
+          hearItLabel={hearItLabel}
+          onClose={() => setLeaving(null)}
+        />
+      )}
+    </>
+  );
 
   const cameraDialog = captureFrame ? (
     <CameraDialog
@@ -4061,6 +4257,7 @@ export function DrawingCanvas({
       />
       {quizLayer}
       {frameTapLayer}
+      {linkTapLayer}
     </>
   );
 
@@ -4206,6 +4403,20 @@ export function DrawingCanvas({
           addFrame();
         },
       });
+      // A web link (rule 26). The teacher's toolbox is the only place one
+      // can come from; a child's ＋ fan never carries this item.
+      plusItems.push({
+        key: "link",
+        icon: "link",
+        label: "Web link",
+        ring: 1,
+        onSelect: () => {
+          closeFans();
+          setOpenKit(null);
+          finishEditing();
+          setLinkForm({});
+        },
+      });
     }
     if (isQuizAuthor) {
       plusItems.push({
@@ -4237,6 +4448,7 @@ export function DrawingCanvas({
           <ConfirmSubmitPrompt pageCount={pageCount} onCancel={() => setConfirmingSubmit(false)} />
         )}
         {cameraDialog}
+        {linkOverlays}
 
         <div
           ref={wrapRef}
@@ -4711,6 +4923,7 @@ export function DrawingCanvas({
     <div>
       {hiddenInputs}
       {cameraDialog}
+      {linkOverlays}
 
       <div className="mb-2 flex flex-wrap items-center gap-2">
         {TOOLS.map((t) => (
@@ -5157,6 +5370,8 @@ type ObjHandlers = {
   // the page is full.
   onSpawn: (id: string) => string | null;
   onEditText: (id: string) => void;
+  // Open a web link's own form again (teacher only; rule 26).
+  onEditLink: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
   onFinishEditing: () => void;
   // Right click / two-finger click / long press on an object.
@@ -5174,7 +5389,10 @@ function objCapabilities(o: Obj, author: boolean) {
   // duplicate / order) but no padlock, because it is always fixed for a child.
   // Child: fixed by what it is, whatever `locked` says; the tap layer above the
   // stroke canvas is what a child interacts with, not this wrapper.
-  if (o.type === "frame") {
+  // A web link, the same way and for a stronger reason (rule 26): only a
+  // teacher places, moves or changes one. A child presses it through
+  // LinkTapLayer, never through this wrapper.
+  if (o.type === "frame" || o.type === "link") {
     return author
       ? { movable: true, editable: true, showLock: false, fixed: false, source: false }
       : { movable: false, editable: false, showLock: false, fixed: true, source: false };
@@ -5250,6 +5468,7 @@ function ObjectToolbar({
   onDuplicate,
   canDuplicate,
   onEdit,
+  editLabel,
 }: {
   o: Obj;
   showAuthor: boolean; // teacher: show order + padlock
@@ -5284,6 +5503,9 @@ function ObjectToolbar({
   // and a fifth disc at the top-centre landed on the settings row whenever a
   // tall piece pushed the bar down onto it.
   onEdit?: () => void;
+  // What the edit button says, where "Edit text" would be wrong — a web link's
+  // form is an address, not words on the page.
+  editLabel?: string;
 }) {
   const shape = o.type === "shape" ? (o as ShapeObj) : null;
   // Locked, seen by the person who locked it. Everything except the padlock is
@@ -5490,7 +5712,7 @@ function ObjectToolbar({
           )}
           {/* No padlock on a photo frame: a child can never move one, so
               there is nothing for a padlock to decide. */}
-          {o.type !== "frame" && (
+          {o.type !== "frame" && o.type !== "link" && (
           <button
             type="button"
             onClick={() => onToggleLock(o.id)}
@@ -5563,8 +5785,8 @@ function ObjectToolbar({
           onClick={onEdit}
           className={btn}
           style={btnStyle}
-          title="Change the words"
-          aria-label="Edit text"
+          title={editLabel ?? "Change the words"}
+          aria-label={editLabel ?? "Edit text"}
         >
           <Icon name="edit" size={GLYPH} decorative />
         </button>
@@ -5998,10 +6220,16 @@ function MediaObjectView({
   canDuplicate,
   onSpawn,
   onEditText,
+  onEditLink,
   onTextChange,
   onFinishEditing,
   onContextMenu,
-}: ObjHandlers & { o: ImageObj | ShapeObj | FrameObj; selected: boolean; grouped: boolean; editing: boolean }) {
+}: ObjHandlers & {
+  o: ImageObj | ShapeObj | FrameObj | LinkObj;
+  selected: boolean;
+  grouped: boolean;
+  editing: boolean;
+}) {
   const cap = objCapabilities(o, author);
   // `cap.showLock` is the author. A locked object is not movable by anyone, but
   // its author must still be able to TAP it — that is how they reach the
@@ -6242,7 +6470,7 @@ function MediaObjectView({
       // different angle instead. Turning is the turn handle's job; this one
       // only makes it bigger.
       const lock =
-        o.type === "frame"
+        o.type === "frame" || o.type === "link"
           ? null
           : o.type === "image"
             ? o.aspect
@@ -6316,7 +6544,15 @@ function MediaObjectView({
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onDoubleClick={(o.type === "shape" || o.type === "frame") && cap.editable ? () => onEditText(o.id) : undefined}
+      onDoubleClick={
+        cap.editable
+          ? o.type === "link"
+            ? () => onEditLink(o.id)
+            : o.type === "shape" || o.type === "frame"
+              ? () => onEditText(o.id)
+              : undefined
+          : undefined
+      }
       className={`absolute touch-none ${
         canGrab ? "pointer-events-auto cursor-move" : "pointer-events-none"
       } ${
@@ -6369,7 +6605,57 @@ function MediaObjectView({
         </>
       )}
 
-      {o.type === "frame" ? (
+      {o.type === "link" ? (
+        // The chip: the teacher's name for the link, and under it the REAL
+        // host, always (rule 26). Sized in model units like everything else on
+        // the page, and mirrored by `drawLinkChip` for the hand-in picture.
+        <div
+          data-link={displayHost(o.href)}
+          className="pointer-events-none flex h-full w-full items-center overflow-hidden"
+          style={{
+            gap: LINK_PAD * scale,
+            padding: `0 ${LINK_PAD * scale}px`,
+            borderRadius: 18 * scale,
+            border: "3px solid var(--ink)",
+            background: "var(--cream)",
+            boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+            color: "var(--ink)",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="flex shrink-0 items-center justify-center"
+            style={{
+              width: LINK_ICON * scale,
+              height: LINK_ICON * scale,
+              borderRadius: 999,
+              background: "#D8ECE8",
+              border: "2.5px solid var(--ink)",
+            }}
+          >
+            <Icon name="link" size={26 * scale} decorative />
+          </span>
+          <span className="flex min-w-0 flex-col" style={{ lineHeight: 1.2 }}>
+            {o.label && (
+              <span
+                className="truncate"
+                style={{ font: `600 ${22 * scale}px ${FONT_STACK}` }}
+              >
+                {o.label}
+              </span>
+            )}
+            <span
+              className="truncate"
+              style={{
+                font: `${o.label ? 400 : 600} ${(o.label ? 18 : 22) * scale}px ${FONT_STACK}`,
+                color: o.label ? "var(--ink-soft)" : "var(--ink)",
+              }}
+            >
+              {displayHost(o.href)}
+            </span>
+          </span>
+        </div>
+      ) : o.type === "frame" ? (
         <div
           // `data-frame` names the kind and its state on the element that
           // draws it, as `data-shape` does for a shape.
@@ -6554,7 +6840,7 @@ function MediaObjectView({
           onDuplicate={o.type !== "frame" && canDuplicate ? () => onDuplicate(o.id) : undefined}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          noun={o.type === "frame" ? "photo frame" : "shape"}
+          noun={o.type === "frame" ? "photo frame" : o.type === "link" ? "web link" : "shape"}
           deleteLabel="Remove object"
         />
       )}
@@ -6582,7 +6868,16 @@ function MediaObjectView({
         // A picture has no `rot` — the export renderer draws it flat — so it is
         // A picture has no words to change. A frame's words are the teacher's
         // prompt; a shape's are its label.
-        onEdit={(o.type === "shape" || o.type === "frame") && cap.editable ? () => onEditText(o.id) : undefined}
+        onEdit={
+          !cap.editable
+            ? undefined
+            : o.type === "link"
+              ? () => onEditLink(o.id)
+              : o.type === "shape" || o.type === "frame"
+                ? () => onEditText(o.id)
+                : undefined
+        }
+        editLabel={o.type === "link" ? "Change the link" : undefined}
         onStyle={(patch) => {
           onChange(o.id, patch);
           onEnd();
@@ -7160,6 +7455,309 @@ function FrameTapLayer({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// ===========================================================================
+// Web links (SAFEGUARDING rule 26). Three pieces, and the rule is in how they
+// fit together rather than in any one of them:
+//
+//   - `LinkDialog`: the teacher's form. The address is checked by the same
+//     `parseTeacherLink` the server runs, so a teacher is told at once rather
+//     than finding the link missing after saving.
+//   - `LinkTapLayer`: a CHILD's way into a link, above the stroke canvas like
+//     the photo frames. It only presses links that came in with the teacher's
+//     snapshot, and the address it opens is read from that copy.
+//   - `LeavingCard`: what always stands between that press and a new tab.
+// ===========================================================================
+
+// Tab stays inside a modal. Shared by the two dialogs here, which is two more
+// than the canvas had a helper for; the older prompts keep their own copies.
+function trapTab(e: React.KeyboardEvent, root: HTMLElement | null) {
+  if (e.key !== "Tab" || !root) return;
+  const focusable = Array.from(
+    root.querySelectorAll<HTMLElement>("button, a[href], input, textarea"),
+  ).filter((el) => !el.hasAttribute("disabled"));
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+function LinkDialog({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial?: { href: string; label?: string };
+  onSave: (href: string, label: string) => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [href, setHref] = useState(initial?.href ?? "");
+  const [label, setLabel] = useState(initial?.label ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const addressId = useId();
+  const nameId = useId();
+  const errorId = useId();
+  useEffect(() => {
+    ref.current?.querySelector<HTMLInputElement>("input")?.focus();
+  }, []);
+  function submit() {
+    const parsed = parseTeacherLink(href);
+    if (!parsed.ok) {
+      setError(LINK_REFUSAL_COPY[parsed.why]);
+      ref.current?.querySelector<HTMLInputElement>("input")?.focus();
+      return;
+    }
+    onSave(parsed.href, label.trim().slice(0, MAX_LINK_LABEL_LEN));
+  }
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`${addressId}-title`}
+      onKeyDown={(e) => {
+        // The canvas listens on the window for Backspace and ⌘C/V; typing an
+        // address must never reach it.
+        e.stopPropagation();
+        if (e.key === "Escape") onCancel();
+        if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
+          e.preventDefault();
+          submit();
+        }
+        trapTab(e, ref.current);
+      }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+    >
+      {/* Not a <form>. The builder's canvas sits INSIDE the template's own
+          form, so a form here would be nested — and Enter in a plain field
+          would submit the template, closing the builder under the teacher.
+          Enter is handled on the fields instead. */}
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <h2 id={`${addressId}-title`} className="text-xl font-bold text-foreground">
+          {initial ? "Change this web link" : "Add a web link"}
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Pupils see the website&apos;s real address, and a &ldquo;leaving StoryJar&rdquo; card
+          before it opens in a new tab. Your school&apos;s web filter still applies.
+        </p>
+        <label htmlFor={addressId} className="label mt-4 block">
+          Web address
+        </label>
+        <input
+          id={addressId}
+          className="input"
+          inputMode="url"
+          autoComplete="off"
+          spellCheck={false}
+          value={href}
+          onChange={(e) => {
+            setHref(e.target.value);
+            setError(null);
+          }}
+          placeholder="https://www.bbc.co.uk/bitesize"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+        />
+        {error && (
+          <p id={errorId} role="alert" className="mt-1 text-sm font-semibold text-rose-700">
+            {error}
+          </p>
+        )}
+        <label htmlFor={nameId} className="label mt-3 block">
+          Name for it <span className="font-normal text-muted">(optional)</span>
+        </label>
+        <input
+          id={nameId}
+          className="input"
+          maxLength={MAX_LINK_LABEL_LEN}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Bitesize: the water cycle"
+        />
+        <div className="mt-5 flex flex-col gap-2">
+          <button type="button" onClick={submit} className="btn-brand min-h-[48px] w-full text-base">
+            {initial ? "Save link" : "Add link"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-[48px] w-full rounded-xl border-2 border-border text-base font-semibold text-muted hover:bg-background"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A child's way into a web link. Above the stroke canvas, like the photo
+// frames, so a link is pressable under any pen — an EYFS child never reaches
+// for the Move tool. Each press is at least the 64px floor (rule 18).
+//
+// It is handed only links that came in the teacher's snapshot, with the address
+// from that snapshot (see where it is built), so nothing a child's device has
+// stored can become a link that opens.
+function LinkTapLayer({
+  links,
+  scale,
+  onTap,
+}: {
+  links: { id: string; x: number; y: number; w: number; h: number; label?: string; host: string }[];
+  scale: number;
+  onTap: (id: string) => void;
+}) {
+  const FLOOR = 64;
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {links.map((l) => (
+        <button
+          key={l.id}
+          type="button"
+          data-link-tap={l.host}
+          onClick={() => onTap(l.id)}
+          className="pointer-events-auto absolute rounded-2xl focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2"
+          style={{
+            left: l.x * scale,
+            top: l.y * scale,
+            width: Math.max(FLOOR, l.w * scale),
+            height: Math.max(FLOOR, l.h * scale),
+            background: "transparent",
+            outlineColor: "var(--ink)",
+          }}
+        >
+          {/* The chip underneath says this already; a screen reader gets the
+              same words, label first and the real address after it. */}
+          <span className="sr-only">
+            {l.label ? `${l.label}, ` : ""}
+            {l.host}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// "You are leaving StoryJar." Full screen and opaque, on the ClassCodeReveal
+// pattern: nothing of the canvas shows through, so there is one thing on the
+// screen and it is this question. Stay here is focused first, so Enter keeps
+// the child where they are, and so does Escape. Open it is a real link to a new
+// tab that is told nothing about where it came from, and the card closes as it
+// opens, so coming back to StoryJar is coming back to the work (rule 26).
+function LeavingCard({
+  href,
+  host,
+  hearItLabel,
+  onClose,
+}: {
+  href: string;
+  host: string;
+  hearItLabel?: string;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const stayRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const copy = studentCopyNeutral.add.link;
+  useEffect(() => {
+    stayRef.current?.focus();
+  }, []);
+  const big: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    minHeight: 72,
+    minWidth: 200,
+    padding: "0 32px",
+    borderRadius: 999,
+    font: "600 24px var(--font-fredoka)",
+    textDecoration: "none",
+    boxSizing: "border-box",
+  };
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      data-leaving-card
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onClose();
+          return;
+        }
+        trapTab(e, ref.current);
+      }}
+      className="fixed inset-0 z-[70] flex items-center justify-center p-6"
+      style={{ background: "var(--paper)" }}
+    >
+      <div style={{ maxWidth: 640, textAlign: "center", color: "var(--ink)" }}>
+        <span
+          aria-hidden="true"
+          className="mx-auto flex items-center justify-center"
+          style={{
+            width: 96,
+            height: 96,
+            borderRadius: 999,
+            background: "var(--cream)",
+            border: "3px solid var(--ink)",
+          }}
+        >
+          <Icon name="link" size={52} decorative />
+        </span>
+        <h2
+          id={titleId}
+          style={{ margin: "24px 0 0", font: "600 32px/1.3 var(--font-fredoka)", textWrap: "balance" }}
+        >
+          {copy.before}
+          <span style={{ whiteSpace: "nowrap", color: "var(--jam)" }}>{host}</span>
+          {copy.after}
+        </h2>
+        <div className="flex flex-wrap items-center justify-center" style={{ gap: 16, marginTop: 32 }}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => onClose()}
+            style={{ ...big, background: "var(--glass)", color: "var(--paper)", boxShadow: "0 5px 0 #2b5f57" }}
+          >
+            {copy.open}
+          </a>
+          <button
+            ref={stayRef}
+            type="button"
+            onClick={onClose}
+            style={{ ...big, background: "var(--cream)", color: "var(--ink)", border: "3px solid var(--ink)" }}
+          >
+            {copy.stay}
+          </button>
+        </div>
+        {hearItLabel && (
+          <button
+            type="button"
+            onClick={() => readAloud(copy.spoken)}
+            className="mx-auto mt-6 flex items-center"
+            style={{ ...big, minWidth: 0, gap: 8, font: "700 20px var(--font-atkinson)", color: "var(--ink)", background: "transparent" }}
+          >
+            {/* The speaker every other Hear it in the child surface wears. */}
+            <span aria-hidden="true">🔊</span>
+            {hearItLabel}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

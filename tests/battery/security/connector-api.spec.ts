@@ -211,6 +211,54 @@ test.describe("connector — writing", () => {
     expect((read.data as { pages: number }).pages).toBe(3);
   });
 
+  // Web links (SAFEGUARDING rule 26) are the teacher's, placed in the builder.
+  // The connector gets no way to place one — A3's tool list is unchanged, and
+  // there is no field for one — and an edit through it must not quietly strip
+  // one a teacher placed: `mergeObjects` replaces only what the API made.
+  test("D1c a teacher's own web link survives an edit through the connector", async ({ request }) => {
+    const made = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
+      title: "Connector spec — keeps a teacher's link",
+      questions: [{ prompt: "Is rain wet?", options: ["Yes", "No"], correct: 0 }],
+    });
+    expect(made.isError, made.text).toBe(false);
+    const id = (made.data as { id: string }).id;
+
+    const { PrismaClient } = await import("@prisma/client");
+    const db = new PrismaClient();
+    try {
+      // The teacher opens it in the builder and adds a link beside the question.
+      const row = await db.activityTemplate.findUniqueOrThrow({ where: { id } });
+      const pages = JSON.parse(row.objectsJson ?? "[[]]") as unknown[][];
+      const link = { id: "o900", type: "link", x: 40, y: 560, w: 380, h: 110, href: "https://kids.example.org/rain", label: "Rain" };
+      pages[0] = [...(pages[0] ?? []), link];
+      await db.activityTemplate.update({ where: { id }, data: { objectsJson: JSON.stringify(pages) } });
+
+      // Claude rewrites the questions.
+      const edited = await mcpTool(request, API_TOKEN.schoolA, "update_activity", {
+        activity_id: id,
+        questions: [{ prompt: "Is snow cold?", options: ["Yes", "No"], correct: 0 }],
+      });
+      expect(edited.isError, edited.text).toBe(false);
+
+      const after = await db.activityTemplate.findUniqueOrThrow({ where: { id } });
+      const links = (JSON.parse(after.objectsJson ?? "[]") as { type: string }[][]).flat().filter((o) => o.type === "link");
+      expect(links).toEqual([expect.objectContaining({ id: "o900", href: "https://kids.example.org/rain", label: "Rain" })]);
+
+      // And a link the connector tried to smuggle in some other way has no door:
+      // an unknown field is refused outright rather than stored.
+      const smuggled = await mcpTool(request, API_TOKEN.schoolA, "update_activity", {
+        activity_id: id,
+        objects: [[{ type: "link", href: "https://evil.example/" }]],
+      });
+      expect(smuggled.isError).toBe(true);
+      const still = await db.activityTemplate.findUniqueOrThrow({ where: { id } });
+      expect(still.objectsJson ?? "").not.toContain("evil.example");
+    } finally {
+      await db.activityTemplate.update({ where: { id }, data: { archived: true } }).catch(() => {});
+      await db.$disconnect();
+    }
+  });
+
   test("D1b explicitly-paged questions get exactly that many pages", async ({ request }) => {
     const made = await mcpTool(request, API_TOKEN.schoolA, "create_activity", {
       title: "Connector spec — one question per page",
