@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { logout, teacherLogin, demoClassCode, holdPageCard } from "./helpers";
+import { logout, teacherLogin, demoClassCode, holdPageCard, drawOnCanvas } from "./helpers";
 
 // The pages strip: adding, copying and deleting the pages of a template.
 //
@@ -123,4 +123,25 @@ test("a page can be moved up and down, and takes its contents with it", async ({
   await page.mouse.click(first.x + first.width / 2, first.y + first.height / 2, { button: "right" });
   await expect(page.getByRole("menuitem", { name: "Move up" })).toBeDisabled();
   await expect(page.getByRole("menuitem", { name: "Move down" })).toBeEnabled();
+});
+
+// The pictures on the page cards are pictures, not the pages themselves.
+//
+// They used to be the full-size page image handed to a 96x84 <img> for the
+// browser to shrink, which meant a ten-page drawing kept ten extra full-page
+// PNGs alive to draw ten postage stamps. On a school iPad that is memory the
+// canvas does not have. They are small JPEGs now, drawn from the same render
+// the page's own image comes from.
+test("a page card carries a small picture of the page, not the page itself", async ({ page }) => {
+  await builder(page, "Thumbnails");
+  await drawOnCanvas(page);
+
+  const thumb = page.getByRole("button", { name: "Page 1", exact: true }).locator("img");
+  await expect(thumb).toHaveCount(1);
+  const src = (await thumb.getAttribute("src"))!;
+  expect(src.startsWith("data:image/jpeg")).toBe(true);
+  // A full-page PNG of a drawing is hundreds of kilobytes and upwards; this is
+  // 200x140 of JPEG. The cap is generous on purpose — it is here to catch the
+  // day someone hands the tray a full-size page again, not to police encoders.
+  expect(src.length).toBeLessThan(40 * 1024);
 });

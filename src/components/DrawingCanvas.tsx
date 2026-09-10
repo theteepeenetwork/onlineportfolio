@@ -198,7 +198,12 @@ const ADD_SCALE = 0.75;
 const W = 1000;
 const H = 700;
 const FONT_STACK = "ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif";
-const MAX_HISTORY = 30;
+// Twelve steps back, not thirty. Every entry is a full-page PNG of the stroke
+// layer plus a copy of the page's objects, and BOTH stacks hold them, so the
+// old number could pin sixty page images in memory on a device that has very
+// little of it. Twelve is more undos than a child has ever asked for and a
+// fifth of the memory. (10 Sep 2026 incident: iPads jettisoning the tab.)
+const MAX_HISTORY = 12;
 // See loadImage() for why an image load needs a deadline at all, and why this
 // number is a backstop against a hang rather than a latency policy.
 const IMAGE_LOAD_BUDGET_MS = 30_000;
@@ -407,6 +412,44 @@ type ShapeObj = ObjLock & {
   rot?: number;
 };
 
+// Give a scratch canvas's pixels back to the browser.
+//
+// Dropping the last reference to a canvas element is not the same as freeing
+// it: the backing store lives outside the JavaScript heap and is released when
+// the collector gets round to the wrapper, which on a tab that is already short
+// of memory is exactly when it will not. A 1000x700 page is 2.8 MB of it, and a
+// scaled PDF page several times that. Setting either dimension throws the
+// backing store away at once, and every call here is on a canvas this file
+// created, drew once, encoded and will never look at again.
+function releaseCanvas(c: HTMLCanvasElement) {
+  c.width = 0;
+  c.height = 0;
+}
+
+// The Pages strip used to be shown full-size page images scaled down by the
+// browser to 96x84, so a ten-page drawing kept ten more full-page PNGs alive
+// just to draw ten postage stamps. These are real thumbnails: 200x140 (the
+// page's proportion, at twice the size it is shown, for a retina screen) as
+// JPEG, which is a few kilobytes rather than a couple of megabytes.
+const THUMB_W = 200;
+const THUMB_H = 140;
+// One canvas for every thumbnail ever drawn, like `measureCanvas` below. It is
+// 200x140, so keeping it costs less than the churn of creating one per page.
+let thumbCanvas: HTMLCanvasElement | null = null;
+function thumbFrom(src: HTMLCanvasElement): string {
+  if (!thumbCanvas) thumbCanvas = document.createElement("canvas");
+  thumbCanvas.width = THUMB_W;
+  thumbCanvas.height = THUMB_H;
+  const tc = thumbCanvas.getContext("2d");
+  if (!tc) return "";
+  // JPEG has no transparency, so the paper has to be painted or the gaps in a
+  // drawing come out black.
+  tc.fillStyle = "#ffffff";
+  tc.fillRect(0, 0, THUMB_W, THUMB_H);
+  tc.drawImage(src, 0, 0, THUMB_W, THUMB_H);
+  return thumbCanvas.toDataURL("image/jpeg", 0.7);
+}
+
 // Wrap + auto-size text to fit centred inside a box. Used both to render a
 // shape's label and to draw it into the exported image, so they always match.
 let measureCanvas: HTMLCanvasElement | null = null;
@@ -485,6 +528,15 @@ type FrameObj = ObjLock & {
 type Obj = ImageObj | ShapeObj | TextObj | FrameObj;
 type HistoryEntry = { img: string; objects: Obj[] };
 
+// One cap, in one place, for both stacks. The redo stack used to be uncapped,
+// which is not a smaller stack — an undo pushes the page onto it, so undoing
+// twelve times moves twelve full-page snapshots across rather than freeing
+// them. Push then trim from the bottom: the oldest step is the one to lose.
+function pushCapped(stack: HistoryEntry[], entry: HistoryEntry) {
+  stack.push(entry);
+  if (stack.length > MAX_HISTORY) stack.shift();
+}
+
 // The smallest an object may be resized to, by drag or by button. A line or a
 // rule really is a box a couple of units tall; an area shape keeps 24 so it
 // cannot be squashed to nothing and lost; a photo frame keeps room for the
@@ -530,7 +582,9 @@ async function cropToAspect(dataUrl: string, aspect: number, maxLong: number): P
   if (!cx) throw new Error("this device can't open that picture");
   cx.drawImage(img, sx, sy, cw, ch, 0, 0, c.width, c.height);
   const webp = c.toDataURL("image/webp", 0.9);
-  return webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/jpeg", 0.9);
+  const out = webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/jpeg", 0.9);
+  releaseCanvas(c);
+  return out;
 }
 
 
@@ -714,6 +768,11 @@ export function DrawingCanvas({
   // pages (compositeRef) stay object-free. In answer mode it just mirrors
   // compositeRef (objects are already baked there).
   const previewRef = useRef<string[]>([]);
+  // The Pages strip's pictures: one small JPEG per page, drawn from the same
+  // render the preview is encoded from. Kept in step with the arrays above by
+  // every page operation, because a thumbnail left behind by a move or a delete
+  // is a page showing another page's picture.
+  const thumbRef = useRef<string[]>([]);
   const imgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const objIdRef = useRef(0);
   const currentRef = useRef(0);
@@ -743,6 +802,20 @@ export function DrawingCanvas({
   const restoreDecidedRef = useRef(false);
 
   const drawing = useRef(false);
+  // Does the stroke canvas hold something `pagesRef[current]` does not?
+  //
+  // Only four things write that bitmap, and three of them write it FROM
+  // `pagesRef` (or write `pagesRef` from it in the same breath): the seeding and
+  // hydrate loops paint each page's own stored strokes, `paintDataUrl` paints a
+  // page or a history entry (and `restore` stores that entry as the page), and
+  // `addPage` clears then stores the blank it just made. The two that make the
+  // canvas differ are `drawStroke` — a child's pen — and `clearPage`, and those
+  // are the two that set this.
+  //
+  // It exists so `syncHidden` can skip re-encoding an unchanged full-page PNG,
+  // and so an object-only history entry can SHARE the page's existing string
+  // rather than adding a second copy of the same pixels to memory.
+  const strokeDirtyRef = useRef(false);
   const snapshot = useRef<ImageData | null>(null);
   const points = useRef<{ x: number; y: number }[]>([]);
 
@@ -1064,21 +1137,33 @@ export function DrawingCanvas({
     setCanRedo((redoRef.current[currentRef.current]?.length ?? 0) > 0);
   }
   function refreshThumbs() {
-    setThumbs([...previewRef.current]);
+    setThumbs([...thumbRef.current]);
   }
 
   // Flatten all layers (white → template → objects → strokes) into one PNG.
   // Flatten the current page. `includeObjects` overrides the mode default: the
   // object-free composite feeds the saved pages (author), while the Pages-panel
   // thumbnails force objects on for a true-to-life preview.
-  function compositeCurrentPage(includeObjects?: boolean, forPreview?: boolean): string {
+  //
+  // Split in two: this returns the RENDER, so a caller that needs both a stored
+  // image and a thumbnail of the same page can take both from one drawing of it.
+  // `null` means there was nothing to render onto; `compositeCurrentPage` keeps
+  // the old fallback for that case. The canvas belongs to the caller, who must
+  // `releaseCanvas` it as soon as they have finished reading pixels off it.
+  function renderCurrentPage(
+    includeObjects?: boolean,
+    forPreview?: boolean,
+  ): HTMLCanvasElement | null {
     const canvas = canvasRef.current;
-    if (!canvas) return "";
+    if (!canvas) return null;
     const exp = document.createElement("canvas");
     exp.width = W;
     exp.height = H;
     const ec = exp.getContext("2d");
-    if (!ec) return canvas.toDataURL("image/png");
+    if (!ec) {
+      releaseCanvas(exp);
+      return null;
+    }
     ec.fillStyle = "#ffffff";
     ec.fillRect(0, 0, W, H);
     const tmplUrl = templatesRef.current[currentRef.current];
@@ -1223,7 +1308,55 @@ export function DrawingCanvas({
     // at, and a picture of a quiz worksheet with no questions on it is what made
     // a library card look like it had not saved.
     if (forPreview) drawQuizForPreview(ec);
-    return exp.toDataURL("image/png");
+    return exp;
+  }
+
+  // The same flatten, encoded as a PNG and the scratch canvas handed straight
+  // back. Every caller that only wants the string.
+  function compositeCurrentPage(includeObjects?: boolean, forPreview?: boolean): string {
+    const exp = renderCurrentPage(includeObjects, forPreview);
+    if (!exp) return canvasRef.current?.toDataURL("image/png") ?? "";
+    const url = exp.toDataURL("image/png");
+    releaseCanvas(exp);
+    return url;
+  }
+
+  // Whether the picture of the page and the page itself are the same image.
+  //
+  // They are, whenever the movable pieces are already flattened in and there is
+  // no quiz — which is the child's plain drawing, the surface the memory
+  // incident was reported on. Rendering the page twice there produced two
+  // identical multi-megabyte PNGs per stroke; this lets one render answer both.
+  function previewIsComposite(): boolean {
+    return bakeObjectsRef.current && quizRef.current.length === 0;
+  }
+
+  // Everything derived from ONE render of the page on screen: the composite
+  // that is saved, the preview that is shown, and the tray thumbnail.
+  function syncPageImages(index: number) {
+    if (previewIsComposite()) {
+      const exp = renderCurrentPage();
+      const url = exp ? exp.toDataURL("image/png") : (canvasRef.current?.toDataURL("image/png") ?? "");
+      if (exp) {
+        thumbRef.current[index] = thumbFrom(exp);
+        releaseCanvas(exp);
+      }
+      compositeRef.current[index] = url;
+      previewRef.current[index] = url;
+      return;
+    }
+    compositeRef.current[index] = compositeCurrentPage();
+    // ALWAYS object- AND quiz-inclusive, whatever the composite left out. The
+    // preview is the picture of the page; the composite is the data, and the
+    // two are allowed to differ.
+    const exp = renderCurrentPage(true, true);
+    if (!exp) {
+      previewRef.current[index] = compositeRef.current[index];
+      return;
+    }
+    previewRef.current[index] = exp.toDataURL("image/png");
+    thumbRef.current[index] = thumbFrom(exp);
+    releaseCanvas(exp);
   }
 
   // The question boxes, drawn.
@@ -1327,12 +1460,17 @@ export function DrawingCanvas({
   function syncHidden() {
     const canvas = canvasRef.current;
     if (canvas) {
-      pagesRef.current[currentRef.current] = canvas.toDataURL("image/png");
-      compositeRef.current[currentRef.current] = compositeCurrentPage();
-      // ALWAYS object- AND quiz-inclusive, whatever the composite left
-      // out. The preview is the picture of the page; the composite is
-      // the data, and the two are allowed to differ.
-      previewRef.current[currentRef.current] = compositeCurrentPage(true, true);
+      const i = currentRef.current;
+      // Re-encode the stroke layer only when it has actually been drawn on (see
+      // strokeDirtyRef). Most calls here come from an object being moved or a
+      // page being changed, and re-encoding an untouched page cost a full PNG
+      // of it every time — a second copy of pixels we already hold the string
+      // for, which is the memory this canvas kept running out of.
+      if (strokeDirtyRef.current || pagesRef.current[i] === undefined) {
+        pagesRef.current[i] = canvas.toDataURL("image/png");
+        strokeDirtyRef.current = false;
+      }
+      syncPageImages(i);
     }
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
@@ -1480,6 +1618,7 @@ export function DrawingCanvas({
     // canvas and reusing compositeCurrentPage() verbatim.
     compositeRef.current = [];
     previewRef.current = [];
+    thumbRef.current = [];
     for (let i = 0; i < pagesRef.current.length; i++) {
       currentRef.current = i;
       if (c) {
@@ -1487,11 +1626,7 @@ export function DrawingCanvas({
         const si = strokeImgs[i];
         if (si) c.drawImage(si, 0, 0, W, H);
       }
-      compositeRef.current[i] = compositeCurrentPage();
-      // ALWAYS object- AND quiz-inclusive, whatever the composite left
-      // out. The preview is the picture of the page; the composite is
-      // the data, and the two are allowed to differ.
-      previewRef.current[i] = compositeCurrentPage(true, true);
+      syncPageImages(i);
     }
 
     // Land on the FIRST page, not the one they happened to close on.
@@ -1509,10 +1644,11 @@ export function DrawingCanvas({
     }
     undoRef.current = {};
     redoRef.current = {};
+    strokeDirtyRef.current = false; // the canvas holds exactly what was restored
     setPageCount(pagesRef.current.length);
     setCurrent(currentRef.current);
     setObjects(objectsRef.current[currentRef.current] ?? []);
-    setThumbs([...previewRef.current]);
+    setThumbs([...thumbRef.current]);
     refreshUndoRedo();
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
@@ -1521,16 +1657,29 @@ export function DrawingCanvas({
     loadingRef.current = false;
   }
 
+  // The stroke layer as it is right now, as a string.
+  //
+  // When nothing has been drawn since the last save, that string already exists
+  // in `pagesRef` — so hand back THAT one rather than encoding an identical
+  // second copy. Moving a shape, turning it, locking it, typing in a text box:
+  // every one of those pushes a history entry, and each used to carry its own
+  // megabyte-and-a-bit PNG of a stroke layer nobody had touched. Sharing the
+  // reference makes an object-only step cost almost nothing.
+  function currentStrokeSnapshot(): string {
+    const canvas = canvasRef.current;
+    if (!canvas) return "";
+    if (strokeDirtyRef.current) return canvas.toDataURL("image/png");
+    return pagesRef.current[currentRef.current] ?? canvas.toDataURL("image/png");
+  }
+
   // Snapshot the current page (both layers) so the next change can be undone.
   function pushHistory() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const stack = (undoRef.current[currentRef.current] ??= []);
-    stack.push({
-      img: canvas.toDataURL("image/png"),
+    pushCapped((undoRef.current[currentRef.current] ??= []), {
+      img: currentStrokeSnapshot(),
       objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
     });
-    if (stack.length > MAX_HISTORY) stack.shift();
     redoRef.current[currentRef.current] = [];
     refreshUndoRedo();
   }
@@ -1598,26 +1747,24 @@ export function DrawingCanvas({
       // Initial composite per page: white + template, plus the objects flattened
       // in (except while authoring — there objects stay a separate layer).
       // Reuse compositeCurrentPage so the flatten path never drifts.
-      clearCanvas(); // strokes start blank; compositeCurrentPage reads the live canvas
+      clearCanvas(); // strokes start blank; the flatten reads the live canvas
       compositeRef.current = [];
       previewRef.current = [];
+      thumbRef.current = [];
       for (let i = 0; i < pagesRef.current.length; i++) {
         currentRef.current = i;
-        compositeRef.current[i] = compositeCurrentPage();
-        // ALWAYS object- AND quiz-inclusive, whatever the composite left
-        // out. The preview is the picture of the page; the composite is
-        // the data, and the two are allowed to differ.
-        previewRef.current[i] = compositeCurrentPage(true, true);
+        syncPageImages(i);
       }
       currentRef.current = 0;
 
       clearCanvas(); // page 0's stroke layer starts blank
+      strokeDirtyRef.current = false; // every page's strokes are exactly what was stored
       setObjects(objectsRef.current[0] ?? []);
       if (hiddenRef.current) {
         hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
       }
       flushPreviewField();
-      setThumbs([...previewRef.current]);
+      setThumbs([...thumbRef.current]);
       setReady(true);
     })();
 
@@ -1684,6 +1831,23 @@ export function DrawingCanvas({
       window.removeEventListener("pagehide", onHide);
       if (persistTimer.current) clearTimeout(persistTimer.current);
       if (serverTimer.current) clearTimeout(serverTimer.current);
+      // Leaving the canvas gives its memory back now, rather than whenever the
+      // collector next reaches a component nobody is looking at. Between the
+      // history stacks, four page arrays and two image caches this component
+      // can be holding tens of megabytes, and on the device the incident was
+      // reported on the next screen is competing for it. The autosave flushes
+      // (pagehide / visibilitychange) have already run by the time React
+      // unmounts, so nothing here is still needed by anything.
+      undoRef.current = {};
+      redoRef.current = {};
+      pagesRef.current = [];
+      compositeRef.current = [];
+      previewRef.current = [];
+      thumbRef.current = [];
+      objectsRef.current = [];
+      imgCacheRef.current.clear();
+      templateImgRef.current.clear();
+      snapshot.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1882,6 +2046,11 @@ export function DrawingCanvas({
   function drawStroke() {
     const c = ctx();
     if (!c || !snapshot.current) return;
+    // Marked here, at the writer, rather than at `end()` which calls it: a
+    // stroke that never gets its pointer-up (a cancelled gesture, a tab hidden
+    // mid-line) has still changed the bitmap, and the flag has to be true from
+    // the moment that is so.
+    strokeDirtyRef.current = true;
     c.putImageData(snapshot.current, 0, 0);
     applyStyle(c);
     const pts = points.current;
@@ -2008,9 +2177,8 @@ export function DrawingCanvas({
   function undo() {
     const stack = undoRef.current[currentRef.current];
     if (!stack || !stack.length) return;
-    const canvas = canvasRef.current!;
-    (redoRef.current[currentRef.current] ??= []).push({
-      img: canvas.toDataURL("image/png"),
+    pushCapped((redoRef.current[currentRef.current] ??= []), {
+      img: currentStrokeSnapshot(),
       objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
     });
     setSelectedId(null);
@@ -2020,9 +2188,8 @@ export function DrawingCanvas({
   function redo() {
     const stack = redoRef.current[currentRef.current];
     if (!stack || !stack.length) return;
-    const canvas = canvasRef.current!;
-    (undoRef.current[currentRef.current] ??= []).push({
-      img: canvas.toDataURL("image/png"),
+    pushCapped((undoRef.current[currentRef.current] ??= []), {
+      img: currentStrokeSnapshot(),
       objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
     });
     setSelectedId(null);
@@ -2053,8 +2220,9 @@ export function DrawingCanvas({
     objectsRef.current.push([]);
     const index = pagesRef.current.length - 1;
     currentRef.current = index;
-    compositeRef.current[index] = compositeCurrentPage(); // white
-    previewRef.current[index] = compositeRef.current[index]; // fresh page has no objects
+    // White paper, and nothing on it yet — so the preview IS the composite, and
+    // the thumbnail comes off the same render.
+    syncPageImages(index);
     setPageCount(pagesRef.current.length);
     setCurrent(index);
     setSelectedId(null);
@@ -2091,6 +2259,7 @@ export function DrawingCanvas({
     );
     compositeRef.current.splice(at, 0, compositeRef.current[target]);
     previewRef.current.splice(at, 0, previewRef.current[target]);
+    thumbRef.current.splice(at, 0, thumbRef.current[target]);
 
     // A question knows which page it is on by index, so inserting a page moves
     // every question after the insertion up one — and the copied page's own
@@ -2156,6 +2325,7 @@ export function DrawingCanvas({
     lift(objectsRef.current);
     lift(compositeRef.current);
     lift(previewRef.current);
+    lift(thumbRef.current);
 
     // The questions travel with their pages. This is the part a naive reorder
     // silently breaks: the pictures move and the questions stay behind. Every
@@ -2201,11 +2371,22 @@ export function DrawingCanvas({
     // Bake the page on screen first, so deleting a DIFFERENT page never drops
     // the in-progress work on the page you're currently viewing.
     syncHidden();
+    // The decoded pictures that page was holding go with it. Every one is a
+    // full-size bitmap kept outside the JavaScript heap, and a lesson spent
+    // adding a photo page and throwing it away again kept all of them. If the
+    // deletion is undone the objects come back through `ensureObjectImages`,
+    // which reloads on a cache miss by design.
+    const goneUrl = templatesRef.current[target];
+    for (const o of objectsRef.current[target] ?? []) imgCacheRef.current.delete(o.id);
     pagesRef.current.splice(target, 1);
     templatesRef.current.splice(target, 1);
     objectsRef.current.splice(target, 1);
     compositeRef.current.splice(target, 1);
     previewRef.current.splice(target, 1);
+    thumbRef.current.splice(target, 1);
+    // A worksheet background is cached by URL and SHARED between pages, so it
+    // may only be dropped once no page is still standing on it.
+    if (goneUrl && !templatesRef.current.includes(goneUrl)) templateImgRef.current.delete(goneUrl);
     // Page indices shift, so drop the (now-misaligned) history.
     undoRef.current = {};
     redoRef.current = {};
@@ -2234,6 +2415,7 @@ export function DrawingCanvas({
     finishEditing();
     pushHistory();
     clearCanvas();
+    strokeDirtyRef.current = true; // the bitmap is now blank and the stored page is not
     objectsRef.current[currentRef.current] = [];
     setObjects([]);
     setSelectedId(null);
@@ -2765,6 +2947,10 @@ export function DrawingCanvas({
     );
     if (!doomed.size) return;
     const list = current.filter((o) => !doomed.has(o.id));
+    // Let go of the decoded picture too. `ensureObjectImages` reloads on a cache
+    // miss, which is the path an undo of this already takes, so the photo comes
+    // back if the child changes their mind.
+    for (const id of doomed) imgCacheRef.current.delete(id);
     objectsRef.current[currentRef.current] = list;
     setObjects(list);
     setSelectedId(null);
@@ -2927,7 +3113,15 @@ export function DrawingCanvas({
     const webp = c.toDataURL("image/webp", 0.9);
     // Every browser this app supports can write WebP; the JPEG is there because
     // silently shipping a PNG-sized payload is the failure this exists to stop.
-    return webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/jpeg", 0.9);
+    const out = webp.startsWith("data:image/webp") ? webp : c.toDataURL("image/jpeg", 0.9);
+    // Both the scratch canvas and the decoded original are finished with, and
+    // between them they are the largest pair of bitmaps this file ever holds —
+    // a phone photograph is 3840x2560 twice over. This temporary Image is local
+    // to this function; the ones `loadImage` returns are cached on purpose and
+    // must never be emptied this way.
+    releaseCanvas(c);
+    img.src = "";
+    return out;
   }
 
   async function onImportFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -2957,7 +3151,14 @@ export function DrawingCanvas({
             await page.render({ canvas: tmp, canvasContext: tctx, viewport }).promise;
             // Each PDF page becomes a movable object; pages after the first get
             // their own canvas page.
-            await addObject(tmp.toDataURL("image/png"), p > 1);
+            const rendered = tmp.toDataURL("image/png");
+            // At scale 2 an A4 page is about 8 MB of pixels, and pdf.js holds
+            // its own operator list and fonts per page. A twenty-page PDF used
+            // to keep every one of them until the import finished; now each is
+            // handed back before the next is opened.
+            releaseCanvas(tmp);
+            page.cleanup();
+            await addObject(rendered, p > 1);
           }
         } else if (file.type.startsWith("image/")) {
           const url = await new Promise<string>((res) => {
