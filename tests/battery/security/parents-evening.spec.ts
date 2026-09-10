@@ -180,6 +180,62 @@ test("the school lays it out, a family books, the teacher sees the name and the 
   }
 });
 
+test("two classes with one teacher are refused in words, not with a crashed page", async ({ page }) => {
+  // The press that took the admin console down on 10 September 2026: the demo
+  // admin holds three classes, chose two, and the (event, teacher, minute)
+  // unique index threw through the transaction as an unhandled error. The
+  // refusal now happens before anything is written, and the form says the same
+  // thing before the press.
+  const w = await makeSchool("twice");
+  const teacher = await db.teacher.findFirstOrThrow({ where: { email: w.teacherEmail } });
+  const second = await db.class.create({
+    data: { name: `Wrens ${w.className.split(" ")[1]}`, classCode: `EW${w.className.slice(-4).toUpperCase()}`, teacherId: teacher.id, schoolId: w.schoolId },
+  });
+  try {
+    await onEveningsTab(page, w.adminEmail);
+    await page.getByRole("button", { name: /Set up an evening/i }).click();
+    await page.getByLabel(/What is it called/i).fill("Both classes");
+    await page.getByLabel(/Which evening/i).fill("2026-10-14");
+    await page.getByLabel(/^From$/).fill("16:00");
+    await page.getByLabel(/^Until$/).fill("16:30");
+    await page.getByRole("checkbox", { name: new RegExp(w.className) }).check();
+    await page.getByRole("checkbox", { name: new RegExp(second.name) }).check();
+    // Said before the press, by the pure helper the action shares.
+    await expect(page.getByText(/one person can't hold two appointments at the same time/i)).toBeVisible();
+
+    // The press itself, because the form line is a convenience and the action
+    // is the enforcement point: a stale tab can post any two ids it likes.
+    await page.getByRole("button", { name: /^Set it up$/ }).click();
+    await expect(page.getByRole("alert").filter({ hasText: /one person can't hold two appointments/i })).toBeVisible({ timeout: 15_000 });
+    expect(await db.meetingEvent.count({ where: { schoolId: w.schoolId } })).toBe(0);
+    expect(await db.meetingSlot.count({ where: { class: { schoolId: w.schoolId } } })).toBe(0);
+
+    // Positive control: untick one and the same press succeeds, so the refusal
+    // was the clash and not the form.
+    // After a server action React settles the form; an untick that lands in that
+    // instant is put back. Wait for the button to re-enable, which is the end
+    // of the transition, before touching the form again.
+    await expect(page.getByRole("button", { name: /^Set it up$/ })).toBeEnabled();
+    // THE TICKS SURVIVE THE REFUSAL. React 19 resets a form after its action
+    // and restores controlled text inputs but not controlled checkboxes, so
+    // without the form's `onReset` cancel these two came back unticked while the
+    // preview line still counted them. Asserted, because it was found by this
+    // test and not by reading the code.
+    await expect(page.getByLabel(/What is it called/i)).toHaveValue("Both classes");
+    await expect(page.getByRole("checkbox", { name: new RegExp(w.className) })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: new RegExp(second.name) })).toBeChecked();
+    const wrens = page.getByRole("checkbox", { name: new RegExp(second.name) });
+    await wrens.uncheck();
+    await expect(wrens).not.toBeChecked();
+    await expect(page.getByText(/3 appointments for each of 1 class/i)).toBeVisible();
+    await page.getByRole("button", { name: /^Set it up$/ }).click();
+    await expect(page.getByText(/3 appointments across 1 class/i)).toBeVisible({ timeout: 15_000 });
+    expect(await db.meetingEvent.count({ where: { schoolId: w.schoolId } })).toBe(1);
+  } finally {
+    await teardown(w);
+  }
+});
+
 test("two families pressing the same time: exactly one gets it", async ({ browser }) => {
   const w = await makeSchool("race");
   try {
@@ -246,6 +302,11 @@ test("one appointment per child: booking again moves it, and a parent cannot boo
     // only thing wrong is entitlement. React owns the hidden input's value, so
     // it is repointed on the DOM in the instant before the press.
     await page.reload();
+    // Hydration must be over before the repoint, or React writes the real id
+    // back over it and the press books the parent's own child instead of being
+    // refused. Seen twice in three runs on 10 September 2026, never on the
+    // server's side.
+    await page.waitForLoadState("networkidle");
     await page.evaluate((foreign) => {
       for (const el of Array.from(document.querySelectorAll<HTMLInputElement>('input[name="studentId"]'))) el.value = foreign;
     }, w.childBId);

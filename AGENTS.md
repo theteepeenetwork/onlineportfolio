@@ -42,6 +42,21 @@ because they share one SQLite database. Do not run them after every edit:
 of breakage — a broken import, a leaked ops field — that used to be found the
 slow way, by three suites going red at once.
 
+**One gate `npm run check` does not run: the production dependency audit.**
+`npm run audit:prod` (`npm audit --omit=dev --audit-level=high`) is the last
+step of CI's "Static security gates (blocking)" job and is not in `check`, so a
+tree that is green locally can still turn that job red. It is also the one gate
+that goes red **with no change in the tree**: on 9 September 2026 the nightly
+on `main` failed on it at the very commit whose push run had passed the night
+before, because two critical `next` advisories and a high `sharp` one were
+published in between. When a PR's static-gates job is red and the diff touches
+no dependency, look at `main`'s latest nightly before reading a line of the PR.
+The fix is a pin bump and it belongs on `main` in its own right (a critical
+advisory is not a feature branch's to sit on); a lockfile change selects every
+suite, which is right for a framework bump. Run `npm run audit:prod` before a
+push that touches `package.json`, and read the nightly when it goes red for no
+reason you can see.
+
 **Where the minutes went, and where they are now.** Until 19 August 2026 the
 batteries were dominated by one thing: the operator door. Every ops test signed
 in for itself, TOTP replay protection is monotonic, so each sign-in queued for
@@ -116,6 +131,12 @@ pushed a `waitForURL` past its budget — once on the operator door's keyboard
 walk, once on a child handing in words. Both passed alone in a second or two. So
 **a lone timeout in a lane run is a re-run before it is a bug**: run that spec
 by itself, and believe the second answer. Anything that fails both ways is real.
+The same race has two more faces, seen on 9 September 2026 in a run on a
+dependency bump: a `locator.click` that waits two minutes for a button that
+never hydrates, and a `locator.check` that reports "element is not stable"
+because the click landed while React was still attaching to a controlled
+checkbox. Five security tests failed that way across three lanes; every one
+passed alone in seconds.
 
 **A *cluster* of timeouts in one product area is the same advice, and looks
 much more like a regression.** On 2026-08-24 a run came back 5 failed / 78
@@ -235,6 +256,7 @@ lives only in a chat session.
 | [`docs/showcase-template-ideas.md`](./docs/showcase-template-ideas.md) + [`docs/template-design-sheet.html`](./docs/template-design-sheet.html) | The shared activity library and the house style, including where the line sits with schools |
 | [`docs/library-publishing.md`](./docs/library-publishing.md) | How StoryJar staff publish to the shared library from the Academy, why it is not an operator screen, and the security assertion that changed to allow it |
 | [`docs/claude-connector.md`](./docs/claude-connector.md) | What the MCP connector can and cannot touch, and what to tell a school |
+| [`docs/parent-teacher-messages.md`](./docs/parent-teacher-messages.md) | The school-tier programme around families, **built**: messages held to office hours (#168, SAFEGUARDING rule 21), then the September rollover, subject-access export and closure, permission slips, parents' evening, the safeguarding lead and the parent's notification switch (#170, rules 21a–23 and 6b), then one-way Notices (#171, rule 24). Reachable by real schools only once `docs/school-identity.md` ships |
 
 **Decisions, dated**
 
@@ -252,7 +274,6 @@ lives only in a chat session.
 | Document | Covers |
 | --- | --- |
 | [`docs/school-identity.md`](./docs/school-identity.md) | The GIAS establishment register, and who owns a school. A `School` row cannot be created by anything a user can reach today, so admin, school plans and messaging are all unreachable for real signups |
-| [`docs/parent-teacher-messages.md`](./docs/parent-teacher-messages.md) | Parent–teacher messages held to school office hours. Reverses the REJECT verdict in `COMPETITIVE_POSITIONING.md` and needs SAFEGUARDING rule 21. Depends on `docs/school-identity.md` |
 | [`docs/paid-tier-plan.md`](./docs/paid-tier-plan.md) | Making the school plan worth buying. **Item 0 is self-serve purchase and comes first**: no real account can create a `School`, so nobody can buy without the founder. Then year-end transfer, the procurement pack, admin-requested export, the stored band. Year-end transfer and whole-school export are sold in point-of-sale copy today and are not built |
 
 **Launch and operations**

@@ -43,6 +43,10 @@ export function SendClassNotice({
   sent: StaffNoticeView[];
 }) {
   const [state, action, pending] = useActionState(sendNotice, {});
+  // Controlled fields, and the form cancels React's post-action reset — the
+  // reset puts back controlled text but not a controlled checkbox, so a refused
+  // send would otherwise untick the class while the state still held it (found
+  // on the evenings form, 10 September 2026).
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [noticeBody, setNoticeBody] = useState("");
@@ -60,7 +64,7 @@ export function SendClassNotice({
       {!open ? (
         <button onClick={() => setOpen(true)} style={{ ...QUIET_BTN, marginTop: 12 }}>Write a notice…</button>
       ) : (
-        <form action={action} style={{ display: "grid", gap: 10, marginTop: 12, maxWidth: 620 }}>
+        <form action={action} onReset={(e) => e.preventDefault()} style={{ display: "grid", gap: 10, marginTop: 12, maxWidth: 620 }}>
           <input type="hidden" name="audience" value="CLASSES" />
           <label style={{ display: "grid", gap: 5, font: "700 13px var(--font-atkinson)", color: "var(--ink)" }}>
             Title

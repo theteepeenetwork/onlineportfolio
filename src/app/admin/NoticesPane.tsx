@@ -64,8 +64,12 @@ export type NoticesPaneProps = {
 export function NoticesPane({ notices: pane, onGoTo }: { notices: NoticesPaneProps; onGoTo: (t: Tab) => void }) {
   const [state, action, pending] = useActionState(sendNotice, {});
   const [open, setOpen] = useState(false);
-  // Controlled, so a refusal does not throw away a paragraph somebody has just
-  // written. Next resets an uncontrolled form after a server action.
+  // Controlled, so a refusal does not throw away what somebody has just typed —
+// and the form CANCELS React's post-action reset (`onReset`), because that reset
+// restores controlled text inputs but not controlled checkboxes and radios: on
+// 10 September 2026 the evenings form came back from a refusal with every class
+// unticked while its preview line still counted them. Found by a test, not by
+// reading; the parents' evening spec asserts the ticks survive.
   const [title, setTitle] = useState("");
   const [noticeBody, setNoticeBody] = useState("");
   const [audience, setAudience] = useState<"SCHOOL" | "CLASSES">("SCHOOL");
@@ -95,7 +99,7 @@ export function NoticesPane({ notices: pane, onGoTo }: { notices: NoticesPanePro
       {!open ? (
         <button onClick={() => setOpen(true)} style={{ ...JAM_BTN, marginTop: 18 }}>Send a notice</button>
       ) : (
-        <form action={action} style={{ ...CARD, marginTop: 18, padding: "18px 22px" }}>
+        <form action={action} onReset={(e) => e.preventDefault()} style={{ ...CARD, marginTop: 18, padding: "18px 22px" }}>
           <label style={LABEL}>
             Title
             <input

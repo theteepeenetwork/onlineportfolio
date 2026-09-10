@@ -62,9 +62,13 @@ export function FamilyForms({ childId, childName, forms }: { childId: string; ch
 
 function FormCard({ form, childId }: { form: FamilyFormView; childId: string }) {
   const [state, action, pending] = useActionState(answerConsentForm, {});
-  // Controlled, so a refusal does not throw away what they chose — Next resets
-  // an uncontrolled form after a server action, and being made to answer twice
-  // because the server said no is the fastest way to lose somebody's goodwill.
+  // Controlled, so a refusal does not throw away what they chose: being made to
+  // answer twice because the server said no is the fastest way to lose
+  // somebody's goodwill. React 19 resets a form after its action and puts back controlled text but NOT
+  // controlled checkboxes or radios, so the form cancels that reset (`onReset`):
+  // found on 10 September 2026 when the evenings form came back from a refusal
+  // with every class unticked while its preview line still counted them. The
+  // parents' evening spec asserts the ticks survive.
   const [answer, setAnswer] = useState<ConsentAnswer | "">(form.answer ?? "");
   const [packed, setPacked] = useState(form.packedLunch);
 
@@ -82,7 +86,7 @@ function FormCard({ form, childId }: { form: FamilyFormView; childId: string }) 
         {form.formBody}
       </p>
 
-      <form action={action} style={{ marginTop: 16 }}>
+      <form action={action} onReset={(e) => e.preventDefault()} style={{ marginTop: 16 }}>
         <input type="hidden" name="formId" value={form.id} />
         <input type="hidden" name="studentId" value={childId} />
         <fieldset style={{ border: "none", margin: 0, padding: 0 }}>

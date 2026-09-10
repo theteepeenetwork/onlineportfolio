@@ -139,8 +139,11 @@ function HoursForm({ messaging }: { messaging: MessagingPaneProps }) {
   const byDay = new Map(messaging.windows.map((w) => [w.weekday, w]));
   const [on, setOn] = useState<Record<number, boolean>>(() => Object.fromEntries(WEEK_ORDER.map((d) => [d, byDay.has(d)])));
 
+  // `onReset` cancels React's post-action reset, which would untick the
+  // controlled weekday boxes after a refusal while the state still held them
+  // (found on the evenings form, 10 September 2026).
   return (
-    <form action={action} style={{ ...CARD, marginTop: 20, padding: "20px 24px" }}>
+    <form action={action} onReset={(e) => e.preventDefault()} style={{ ...CARD, marginTop: 20, padding: "20px 24px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 10, font: "700 17px var(--font-atkinson)", cursor: "pointer" }}>
           <input type="checkbox" name="enabled" defaultChecked={messaging.enabled} style={{ width: 22, height: 22, accentColor: "#C2476B" }} />

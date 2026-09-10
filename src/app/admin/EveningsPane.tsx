@@ -9,6 +9,8 @@ import {
   eveningErrorMessage,
   parseClock,
   slotMinutesFor,
+  teacherHeldTwice,
+  teacherHeldTwiceMessage,
   validateEvening,
 } from "@/lib/meetings";
 import { formatMinute } from "@/lib/messaging/officeHours";
@@ -68,7 +70,7 @@ const LABEL: React.CSSProperties = { display: "block", font: "700 14px var(--fon
 
 export type EveningsPaneProps = {
   onSchoolPlan: boolean;
-  classes: Array<{ id: string; name: string; teacherName: string }>;
+  classes: Array<{ id: string; name: string; teacherId: string; teacherName: string }>;
   /** One line per class per evening. Counts only — never a child. */
   evenings: AdminEvening[];
 };
@@ -79,7 +81,11 @@ export function EveningsPane({ evenings: pane, onGoTo }: { evenings: EveningsPan
   const [state, action, pending] = useActionState(createMeetingEvent, {});
   const [open, setOpen] = useState(false);
   // Controlled, so a refusal does not throw away the six fields somebody has
-  // just filled in. Next resets an uncontrolled form after a server action.
+  // just filled in. React 19 resets a form after its action and puts back controlled text but NOT
+  // controlled checkboxes or radios, so the form cancels that reset (`onReset`):
+  // found on 10 September 2026 when the evenings form came back from a refusal
+  // with every class unticked while its preview line still counted them. The
+  // parents' evening spec asserts the ticks survive.
   const [title, setTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [startTime, setStartTime] = useState("16:00");
@@ -107,6 +113,9 @@ export function EveningsPane({ evenings: pane, onGoTo }: { evenings: EveningsPan
   const problem = eventDate ? validateEvening(shape) : null;
   const perTeacher = problem || startMinute === null || endMinute === null ? 0 : slotMinutesFor(shape).length;
   const total = perTeacher * picked.length;
+  // The one combination the database would refuse, said before the press by the
+  // same function the action uses: two chosen classes with the same teacher.
+  const clash = teacherHeldTwice(pane.classes.filter((c) => picked.includes(c.id)));
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
@@ -133,7 +142,7 @@ export function EveningsPane({ evenings: pane, onGoTo }: { evenings: EveningsPan
       {!open ? (
         <button onClick={() => setOpen(true)} style={{ ...JAM_BTN, marginTop: 18 }}>Set up an evening</button>
       ) : (
-        <form action={action} style={{ ...CARD, marginTop: 18, padding: "18px 22px" }}>
+        <form action={action} onReset={(e) => e.preventDefault()} style={{ ...CARD, marginTop: 18, padding: "18px 22px" }}>
           <label style={LABEL}>
             What is it called?
             <input
@@ -212,10 +221,12 @@ export function EveningsPane({ evenings: pane, onGoTo }: { evenings: EveningsPan
 
           {/* The arithmetic, before the press. Computed by the same function the
               server uses, so this is a preview rather than a second opinion. */}
-          <p style={{ margin: "16px 0 0", font: "700 15px var(--font-atkinson)", color: problem ? "#C2476B" : "#22304A" }}>
+          <p style={{ margin: "16px 0 0", font: "700 15px var(--font-atkinson)", color: problem || clash ? "#C2476B" : "#22304A" }}>
             {problem
               ? eveningErrorMessage(problem)
-              : total === 0
+              : clash
+                ? teacherHeldTwiceMessage(clash)
+                : total === 0
                 ? "Pick an evening and at least one class to see how many appointments that makes."
                 : `That makes ${perTeacher} appointment${perTeacher === 1 ? "" : "s"} for each of ${picked.length} ${picked.length === 1 ? "class" : "classes"} — ${total} in all.`}
           </p>
