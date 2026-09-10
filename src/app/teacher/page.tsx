@@ -6,6 +6,8 @@ import { Avatar } from "@/components/Avatar";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { momentKind } from "@/lib/momentKind";
 import { classTint } from "@/lib/classTints";
+import { classSignInQrDataUrl } from "@/lib/classSignInQr";
+import { ClassCodeReveal } from "@/components/teacher/ClassCodeReveal";
 
 // Journals — the teacher's home. It answers two questions and no others: what
 // needs me, and how is this class doing.
@@ -109,6 +111,7 @@ export default async function TeacherDashboard({
   // first class opens.
   const active = classes.find((c) => c.id === classParam) ?? classes[0] ?? null;
   const activeIndex = active ? classes.findIndex((c) => c.id === active.id) : 0;
+  const activeQr = active ? await classSignInQrDataUrl(active.classCode) : "";
 
   const today = new Date();
   const longDate = today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
@@ -271,9 +274,12 @@ export default async function TeacherDashboard({
             <span style={{ display: "inline-block", background: "var(--cream)", border: "2px solid var(--ink)", borderRadius: 8, padding: "1px 9px", font: "600 12px var(--font-fredoka)" }}>
               {active.yearGroup ?? "Class jar"}
             </span>
-            <span style={{ font: "700 15px ui-monospace, Menlo, monospace", letterSpacing: ".08em", background: "var(--cream)", border: "2px solid var(--ink)", borderRadius: 8, padding: "3px 12px" }}>
-              {active.classCode}
-            </span>
+            <ClassCodeReveal
+              className={active.name}
+              code={active.classCode}
+              qrSrc={activeQr}
+              printHref={`/signup/teacher/welcome?class=${encodeURIComponent(active.id)}`}
+            />
             <span style={{ font: "400 14px var(--font-atkinson)", color: "var(--sj-muted)" }}>
               {active.students.length} {active.students.length === 1 ? "pupil" : "pupils"} ·{" "}
               {active.students.reduce((n, s) => n + s.journalItems.filter((i) => i.status === "APPROVED").length, 0)} moments
