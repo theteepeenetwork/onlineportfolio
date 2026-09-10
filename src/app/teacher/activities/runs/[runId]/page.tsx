@@ -102,19 +102,25 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
   // work that was sent back, and never words or a voice note, which a board
   // cannot show.
   //
-  // NEVER A QUIZ HAND-IN, until the owner decides whether chosen answers may be
-  // shown to the class. Its picture (`previewPathsJson`, drawn by DrawingCanvas's
-  // `drawQuizForPreview`) has the question boxes on it with the child's answer
-  // highlighted, and `workPages` prefers that picture to the drawing. Any of
-  // the three quiz columns rules an item out: the server writes `quizTotal` and
-  // `quizAnswersJson` whenever the run carries a quiz, and the canvas posts a
-  // picture only when the work carries one. Filtered here, in the query, so none of it is
-  // ever selected, let alone sent.
+  // A QUIZ HAND-IN MAY GO UP, SHOWING THE CHILD'S CHOSEN ANSWERS AND NOTHING
+  // ELSE ABOUT THE QUIZ (owner decision, 10 September 2026; rule 25). Its
+  // picture (`previewPathsJson`, drawn by DrawingCanvas's `drawQuizForPreview`)
+  // is the question boxes with the prompt, every option, and the one the child
+  // picked filled in. That renderer never reads the answer key: nothing on the
+  // picture says which option was right, and there is no score on it. It is
+  // picked on exactly the same terms as a drawing — in a jar straight away,
+  // waiting only once opened, sent back never — and `workPages` below turns it
+  // into the page pictures like any other piece.
   //
-  // THE SHAPE IS THE CONTROL. The board is a client component, so whatever is
-  // selected here is in the page; this selects the pictures and the pupil's
-  // name and nothing else — no caption, quiz score, teacher's note or
-  // stickers — and security/class-board.spec.ts reads the page source for them.
+  // THE SHAPE IS THE CONTROL. The board is a client component, so whatever
+  // reaches `boardPieces` is in the page. The query selects the pictures and
+  // the pupil's name, and `boardPieces` keeps only the id, the status, the
+  // page pictures and the first name. `quizScore`, `quizTotal` and
+  // `quizAnswersJson` are not selected, so they cannot be sent: a score or a
+  // right-or-wrong must never reach the projector, and the only way to be sure
+  // of that is never to have it in the browser. Nor any caption, teacher's
+  // note or stickers. security/class-board.spec.ts reads the page source for
+  // every one of them, a quiz's distinctive score and total included.
   // The class scope repeats the run's on purpose: an item carries its own
   // class, and this page shows only work in a class the teacher holds.
   const showable = await db.journalItem.findMany({
@@ -124,9 +130,6 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
       studentId: { in: [...rosterIds] },
       status: { in: ["PENDING", "APPROVED"] },
       type: { in: ["PHOTO", "DRAWING"] },
-      quizTotal: null,
-      quizAnswersJson: null,
-      previewPathsJson: null,
     },
     select: {
       id: true,

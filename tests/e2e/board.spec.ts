@@ -12,8 +12,10 @@ import { teacherLogin } from "./helpers";
 //   - work waiting in the queue can be picked only once it has been opened,
 //     and its picture is not even drawn in the list until then, because the
 //     run page may already be on the projector; work in a jar can be picked
-//     straight away; work sent back is not offered, nor is a quiz hand-in,
-//     whose picture shows which answer the child chose;
+//     straight away; work sent back is not offered;
+//   - a quiz hand-in is offered on those same terms and goes up as its
+//     picture, the child's chosen answers and nothing else: never a score, a
+//     total or which answer was right (owner decision, 10 September 2026);
 //   - the board covers the whole screen, corner to corner, and while it is up
 //     the page behind it is inert, so Tab cannot reach the pupil list;
 //   - "Hide names" takes the name off the screen AND out of the alt text;
@@ -31,6 +33,22 @@ const MEDIA_DIR = process.env.MEDIA_DIR || path.join(process.cwd(), ".media");
 const TITLE = "Seaside sketch (board)";
 const svg = (fill: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#fff"/><circle cx="200" cy="150" r="80" fill="${fill}"/></svg>`;
+// Eli's quiz picture: a stand-in for what drawQuizForPreview draws — a question
+// box with its options, one of them filled in as chosen. The real renderer is
+// the canvas's; this file only needs a picture that is visibly not Eli's work
+// of record, so the test can tell which one the board put up.
+const quizSvg = () =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#FFFDF7"/>` +
+  `<rect x="40" y="30" width="320" height="240" rx="18" fill="#FFFDF7" stroke="#22304A" stroke-width="3"/>` +
+  `<text x="200" y="70" text-anchor="middle" font-size="20" fill="#22304A">Which shell is biggest?</text>` +
+  `<rect x="60" y="95" width="280" height="44" rx="22" fill="#FFFDF7" stroke="#E4DCC8" stroke-width="2"/>` +
+  `<rect x="60" y="150" width="280" height="44" rx="22" fill="#FBEED3" stroke="#22304A" stroke-width="2"/>` +
+  `<circle cx="80" cy="172" r="10" fill="#BD3F63" stroke="#22304A" stroke-width="2"/>` +
+  `<rect x="60" y="205" width="280" height="44" rx="22" fill="#FFFDF7" stroke="#E4DCC8" stroke-width="2"/></svg>`;
+
+// Eli's quiz mark, which must never be on the board or in the viewer.
+const ELI_SCORE = 17;
+const ELI_TOTAL = 19;
 
 let classId = "";
 let templateId = "";
@@ -39,8 +57,8 @@ const itemIds: Record<string, string> = {};
 
 test.beforeAll(async () => {
   mkdirSync(MEDIA_DIR, { recursive: true });
-  const file = (name: string, fill: string) => {
-    writeFileSync(path.join(MEDIA_DIR, name), svg(fill));
+  const file = (name: string, fill: string, body = svg(fill)) => {
+    writeFileSync(path.join(MEDIA_DIR, name), body);
     return `/uploads/${name}`;
   };
   const stamp = Date.now();
@@ -60,7 +78,7 @@ test.beforeAll(async () => {
   const base = { authorRole: "STUDENT", classId: klass.id, assignmentId: runId };
   itemIds.Ada = (
     await db.journalItem.create({
-      data: { ...base, type: "DRAWING", status: "APPROVED", approvedAt: new Date(), studentId: ada.id, mediaPath: file(`board-ada-${stamp}.svg`, "#f59e0b"), caption: "Ada's secret caption zq", praiseNote: "Lovely waves zq" },
+      data: { ...base, type: "DRAWING", status: "APPROVED", approvedAt: new Date(), studentId: ada.id, mediaPath: file(`board-ada-${stamp}.svg`, "#f59e0b"), caption: "Ada's secret caption zq", quizScore: 7, quizTotal: 9, praiseNote: "Lovely waves zq" },
     })
   ).id;
   itemIds.Bo = (
@@ -82,20 +100,21 @@ test.beforeAll(async () => {
   ).id;
   // Words, not a picture: nothing to put on a board.
   itemIds.Di = (await db.journalItem.create({ data: { ...base, type: "TEXT", status: "PENDING", studentId: di.id, textContent: "The sea is loud." } })).id;
-  // A quiz hand-in, in a jar, stored as createJournalItem stores one: its
-  // picture has the question boxes on it with the chosen answer showing.
+  // A quiz hand-in, WAITING, stored as createJournalItem stores one: the work of
+  // record, the picture of the page with the question boxes and the chosen
+  // answer on it, the server's score and total, and the answers as ids. The
+  // score and total are numbers the board has no other reason to print.
   itemIds.Eli = (
     await db.journalItem.create({
       data: {
         ...base,
         type: "DRAWING",
-        status: "APPROVED",
-        approvedAt: new Date(),
+        status: "PENDING",
         studentId: eli.id,
         mediaPath: file(`board-eli-${stamp}.svg`, "#a855f7"),
-        previewPathsJson: JSON.stringify([file(`board-eli-preview-${stamp}.svg`, "#a855f7")]),
-        quizScore: 1,
-        quizTotal: 2,
+        previewPathsJson: JSON.stringify([file(`board-eli-preview-${stamp}.svg`, "", quizSvg())]),
+        quizScore: ELI_SCORE,
+        quizTotal: ELI_TOTAL,
         quizAnswersJson: JSON.stringify([{ questionId: "q1", selectedOptionId: "o2" }]),
       },
     })
@@ -129,13 +148,11 @@ test("what can be picked follows the status: jar yes, waiting once opened, sent 
   const fetched: string[] = [];
   await openRun(page, fetched);
 
-  // Offered: the two pictures that are in a jar or waiting. Not offered: the
-  // sent-back one, words, or a quiz hand-in.
-  await expect(page.locator("li[data-board-piece]")).toHaveCount(2);
+  // Offered: the three pictures that are in a jar or waiting, a quiz hand-in
+  // among them. Not offered: the sent-back one, or words.
+  await expect(page.locator("li[data-board-piece]")).toHaveCount(3);
   await expect(piece(page, "Cy")).toHaveCount(0);
   await expect(piece(page, "Di")).toHaveCount(0);
-  await expect(piece(page, "Eli"), "a quiz hand-in's picture shows the chosen answer").toHaveCount(0);
-  expect(fetched.some((u) => u.includes("board-eli")), "nor is its picture fetched").toBe(false);
 
   await expect(tick(page, "Ada"), "in a jar: pickable straight away").toBeEnabled();
   await expect(tick(page, "Bo"), "waiting: not until the teacher has looked").toBeDisabled();
@@ -164,6 +181,45 @@ test("what can be picked follows the status: jar yes, waiting once opened, sent 
 
   await tick(page, "Ada").check();
   await expect(page.getByRole("button", { name: /Show on the board \(2\)/ })).toBeEnabled();
+});
+
+test("a waiting quiz hand-in can be picked once opened, and goes up as its picture with no score", async ({ page }) => {
+  const fetched: string[] = [];
+  await openRun(page, fetched);
+
+  // Waiting, so exactly as Bo: a placeholder, no tick, and its picture not
+  // fetched before the teacher has looked.
+  await expect(piece(page, "Eli")).toHaveAttribute("data-status", "PENDING");
+  await expect(tick(page, "Eli"), "waiting: not until the teacher has looked").toBeDisabled();
+  await expect(piece(page, "Eli").locator("img"), "no thumbnail of an unseen quiz").toHaveCount(0);
+  expect(fetched.some((u) => u.includes("board-eli")), "Eli's picture has not been fetched before it is opened").toBe(false);
+
+  // Opened full size: the picture of the page with the chosen answer on it,
+  // and nothing about the mark. This page may be the one on the projector.
+  await page.getByRole("button", { name: /^Open Eli's work/ }).click();
+  const viewer = page.getByRole("dialog", { name: "Eli's work" });
+  await expect(viewer).toBeVisible();
+  await expect(viewer.getByRole("img").first()).toHaveAttribute("src", /board-eli-preview-/);
+  await expect(viewer).not.toContainText(String(ELI_SCORE));
+  await expect(viewer).not.toContainText(String(ELI_TOTAL));
+  await viewer.getByRole("checkbox", { name: "Add to the board" }).check();
+  await viewer.getByRole("button", { name: "Close" }).click();
+  await expect(tick(page, "Eli")).toBeEnabled();
+  await expect(tick(page, "Eli")).toBeChecked();
+
+  // On the board: the picture, not the work of record, with Eli's name and
+  // no score, no total, and no word about right or wrong.
+  await page.getByRole("button", { name: /Show on the board \(1\)/ }).click();
+  await expect(board(page)).toBeVisible();
+  const img = board(page).getByRole("img");
+  await expect(img).toHaveAttribute("src", /board-eli-preview-/);
+  await expect(img).toHaveAttribute("alt", "Eli's work");
+  await expect(board(page).locator("[data-board-label]")).toHaveText("Eli");
+  const words = (await board(page).innerText()).replace(/\s+/g, " ").trim();
+  expect(words, "the board says whose it is and where you are, and nothing else").toBe("‹ Eli 1 of 1 › Hide names Done");
+  for (const n of [ELI_SCORE, ELI_TOTAL]) expect(words).not.toContain(String(n));
+  await page.keyboard.press("Escape");
+  await expect(board(page)).toHaveCount(0);
 });
 
 test("the board covers the screen, steps with the arrows, hides names from the alt text too, and closes on Escape", async ({ page }) => {
@@ -286,5 +342,5 @@ test("the picks are kept nowhere: a reload forgets them, and no status changed",
   expect(status[itemIds.Bo]).toBe("PENDING");
   expect(status[itemIds.Cy]).toBe("RETURNED");
   expect(status[itemIds.Di]).toBe("PENDING");
-  expect(status[itemIds.Eli]).toBe("APPROVED");
+  expect(status[itemIds.Eli]).toBe("PENDING");
 });

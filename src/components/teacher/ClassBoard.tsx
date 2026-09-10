@@ -26,10 +26,13 @@ import { WorkViewer } from "@/app/teacher/queue/WorkViewer";
 //
 // WHAT THIS COMPONENT IS GIVEN is exactly what it shows: an id, the pupil's
 // name as stored (first names only, rule 2), the status, and the page pictures.
-// No caption, no quiz score, no teacher's note, no stickers — the server
-// builds this shape and the security battery reads the page source for them.
-// No quiz hand-in either: its picture shows which answer the child chose, so
-// the run page does not offer one at all (see the query there).
+// No caption, no quiz score or total, no stored quiz answers, no teacher's
+// note, no stickers — the server builds this shape and the security battery
+// reads the page source for them. A quiz hand-in IS offered (owner decision,
+// 10 September 2026): its page picture shows the questions and the options
+// the child chose, and never which was right or how many they got. That is
+// why the viewer below is handed no quiz lines and no score even though the
+// queue's viewer can show them: this page may be the one on the projector.
 
 export type BoardPiece = {
   id: string;

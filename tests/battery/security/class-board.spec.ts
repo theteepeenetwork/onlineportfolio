@@ -17,12 +17,15 @@ import { SCHOOL_B, loginTeacher } from "../helpers";
 // IS in the source, so the absences below are the shape of the data and not a
 // page that rendered nothing.
 //
-// A QUIZ HAND-IN IS NOT OFFERED AT ALL (safeguarding review, 10 September
-// 2026). Its picture (`previewPathsJson`, drawn by DrawingCanvas's
-// `drawQuizForPreview`) has the question boxes on it with the child's chosen
-// answer highlighted, so putting it up would show the class which answer each
-// child picked. Until the owner decides whether that may be shown, neither its
-// pictures nor its id reach the page, whatever its status.
+// A QUIZ HAND-IN MAY GO UP, AS ITS PICTURE AND NOTHING ELSE (owner decision,
+// 10 September 2026, reversing the safeguarding review's exclusion of the same
+// day). Its picture (`previewPathsJson`, drawn by DrawingCanvas's
+// `drawQuizForPreview`) shows the questions, the options and the one the child
+// chose, and never which option was right. What must not reach the browser is
+// everything else the row holds about the quiz: the score, the total and the
+// stored answers. So the quiz pieces here carry a score and a total no page
+// would ever print by accident, and the source is searched for the numbers
+// themselves as well as for the field names.
 // ===========================================================================
 
 const db = new PrismaClient();
@@ -46,22 +49,29 @@ test("the board's data carries pictures and names, never a caption, a score or a
         studentId: ro.id,
         mediaPath: `/uploads/${MARK}-ro.svg`,
         caption: `caption-${MARK}`,
+        quizScore: 7,
+        quizTotal: 9,
+        quizAnswersJson: JSON.stringify([{ questionId: `q-${MARK}`, selectedOptionId: `opt-${MARK}` }]),
         praiseNote: `praise-${MARK}`,
         stickersJson: JSON.stringify(["star"]),
       },
     });
     // Two quiz hand-ins, stored the way createJournalItem stores one: the work
-    // of record, the picture of it with the question boxes drawn on, and the
-    // server's score. One in a jar, which would otherwise be pickable at once,
-    // and one waiting.
-    const quiz = (who: string) => ({
+    // of record, the picture of it with the question boxes drawn on, the
+    // server's score and total, and the child's answers as ids. One in a jar,
+    // pickable at once, and one waiting, pickable only once opened. The score
+    // and total are six-digit numbers so that "absent from the page" is a real
+    // search and not a coincidence with a "1 of 2" somewhere else.
+    const SCORE = { uma: 739024, vic: 612587 };
+    const TOTAL = { uma: 851663, vic: 794318 };
+    const quiz = (who: "uma" | "vic") => ({
       mediaPath: `/uploads/${MARK}-${who}.png`,
       previewPathsJson: JSON.stringify([`/uploads/${MARK}-${who}-preview.png`]),
-      quizScore: 1,
-      quizTotal: 2,
+      quizScore: SCORE[who],
+      quizTotal: TOTAL[who],
       quizAnswersJson: JSON.stringify([{ questionId: `q-${MARK}-${who}`, selectedOptionId: `opt-${MARK}-${who}` }]),
     });
-    const umaQuiz = await db.journalItem.create({ data: { ...base, status: "APPROVED", approvedAt: new Date(), studentId: uma.id, ...quiz("uma") } });
+    await db.journalItem.create({ data: { ...base, status: "APPROVED", approvedAt: new Date(), studentId: uma.id, ...quiz("uma") } });
     await db.journalItem.create({ data: { ...base, status: "PENDING", studentId: vic.id, ...quiz("vic") } });
     await db.journalItem.create({ data: { ...base, status: "PENDING", studentId: sam.id, mediaPath: `/uploads/${MARK}-sam.svg`, caption: `pending-caption-${MARK}` } });
     await db.journalItem.create({ data: { ...base, status: "RETURNED", studentId: tia.id, mediaPath: `/uploads/${MARK}-tia.svg`, teacherNote: `note-${MARK}` } });
@@ -71,9 +81,13 @@ test("the board's data carries pictures and names, never a caption, a score or a
     expect(res?.status()).toBe(200);
     const source = await page.content();
 
-    // Positive control: the board was given the two pieces it may show.
+    // Positive control: the board was given the four pieces it may show. A
+    // quiz hand-in is given its PICTURE, the page as it looked with the
+    // child's chosen answers on it, as the page to show.
     expect(source).toContain(`/uploads/${MARK}-ro.svg`);
     expect(source).toContain(`/uploads/${MARK}-sam.svg`);
+    expect(source).toContain(`/uploads/${MARK}-uma-preview.png`);
+    expect(source).toContain(`/uploads/${MARK}-vic-preview.png`);
 
     // And nothing else about them.
     for (const secret of [`caption-${MARK}`, `pending-caption-${MARK}`, `praise-${MARK}`, `note-${MARK}`, `q-${MARK}`, `opt-${MARK}`]) {
@@ -87,17 +101,46 @@ test("the board's data carries pictures and names, never a caption, a score or a
     // Sent-back work is not offered, so its picture is not even in the page.
     expect(source).not.toContain(`/uploads/${MARK}-tia.svg`);
 
-    // Nor is a quiz hand-in, in a jar or waiting: neither its work, nor its
-    // picture with the chosen answer on it, nor (for the one in a jar, which
-    // the pupil list has no reason to link to) its id.
-    for (const who of ["uma", "vic"]) {
-      expect(source, `${who}'s quiz work must not reach the page`).not.toContain(`${MARK}-${who}.png`);
-      expect(source, `${who}'s quiz picture must not reach the page`).not.toContain(`${MARK}-${who}-preview.png`);
+    // A quiz hand-in's score and total are not in the page in any form: not
+    // as fields (the loop above), and not as the numbers themselves, so not
+    // as an "n of m" either. Its stored answers are not there (their ids are
+    // in the first loop). The picture already
+    // shows the chosen answers; nothing may say whether they were right.
+    for (const who of ["uma", "vic"] as const) {
+      expect(source, `${who}'s quiz score must never reach the page`).not.toContain(String(SCORE[who]));
+      expect(source, `${who}'s quiz total must never reach the page`).not.toContain(String(TOTAL[who]));
+      // The work of record is not sent either: the board shows the picture,
+      // and the flattened page without the question boxes is not needed.
+      expect(source, `${who}'s work of record is not what the board is given`).not.toContain(`${MARK}-${who}.png`);
     }
-    expect(source, "the quiz hand-in's id must not reach the page").not.toContain(umaQuiz.id);
-    // And so it cannot be picked: the board lists Ro and Sam and nobody else.
+
+    // All four are offered, the quiz hand-ins with them.
     const offered = await page.locator("li[data-board-piece]").evaluateAll((els) => els.map((e) => e.getAttribute("data-board-piece")));
-    expect(offered.sort()).toEqual(["Ro", "Sam"]);
+    expect(offered.sort()).toEqual(["Ro", "Sam", "Uma", "Vic"]);
+
+    // On the same rules as a drawing. In a jar: drawn in the list and
+    // pickable. Waiting: no picture in the list and no tick until opened.
+    const piece = (name: string) => page.locator(`li[data-board-piece="${name}"]`);
+    const tick = (name: string) => piece(name).getByRole("checkbox", { name: "Add to the board" });
+    await expect(piece("Uma").locator(`img[src="/uploads/${MARK}-uma-preview.png"]`)).toHaveCount(1);
+    await expect(tick("Uma")).toBeEnabled();
+    await expect(piece("Vic").locator("img"), "a waiting quiz's picture is not drawn before it is opened").toHaveCount(0);
+    await expect(tick("Vic")).toBeDisabled();
+    expect(await page.locator(`img[src*="${MARK}-vic-preview"]`).count(), "nowhere on the page").toBe(0);
+
+    // Opening it full size shows the picture and nothing about the mark: the
+    // viewer on this page is given no score, because this page may be the one
+    // on the projector.
+    await page.getByRole("button", { name: /^Open Vic's work/ }).click();
+    const viewer = page.getByRole("dialog", { name: "Vic's work" });
+    await expect(viewer.locator(`img[src="/uploads/${MARK}-vic-preview.png"]`)).toHaveCount(1);
+    await expect(viewer).not.toContainText(String(SCORE.vic));
+    await expect(viewer).not.toContainText(/quiz/i);
+    await viewer.getByRole("button", { name: "Close" }).click();
+    await expect(tick("Vic"), "once opened, a waiting quiz can be picked").toBeEnabled();
+    // And opening it fetched nothing new about it: the page source after the
+    // look carries the score no more than it did before.
+    expect(await page.content()).not.toContain(String(SCORE.vic));
   } finally {
     await db.assignment.deleteMany({ where: { templateId: template.id } });
     await db.class.deleteMany({ where: { id: klass.id } });
