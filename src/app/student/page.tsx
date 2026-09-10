@@ -8,6 +8,7 @@ import { readStickers } from "@/lib/stickers";
 import { workCover, workPages } from "@/lib/journalMedia";
 import { momentTitle } from "@/lib/momentTitle";
 import { jsonArray } from "@/lib/activities";
+import { runsSetForStudent } from "@/lib/studentRuns";
 import { MomentRecord } from "./MomentRecord";
 import { studentCopy } from "@/lib/copy/student";
 import { avatarInk } from "@/lib/avatar";
@@ -99,14 +100,11 @@ export default async function StudentHome() {
 
   // Assigned activities, newest first — carrying enough to render each as a
   // preview card (title + instructions), not just a count.
+  // Which runs are on this child's list is decided in one place
+  // (src/lib/studentRuns.ts): their class, set to them, and not marked "not
+  // needed" by their teacher.
   const assigned = await db.assignment.findMany({
-    where: {
-      status: "LIVE",
-      OR: [
-        { wholeClass: true, classId: student.classId },
-        { wholeClass: false, students: { some: { studentId: student.id } } },
-      ],
-    },
+    where: { AND: [{ status: "LIVE" }, runsSetForStudent(student)] },
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, instructions: true, previewSnapshotJson: true },
   });

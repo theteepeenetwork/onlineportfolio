@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { saveImagePages, deleteMediaFiles } from "@/lib/media";
 import { eraseDrafts, mediaPathsFromJson } from "@/lib/erasure";
 import { requireWritableAccount, requireWritableAccountForClass } from "@/lib/billing";
+import { runsSetForStudent } from "@/lib/studentRuns";
 
 // Cross-device draft sync (Stage 2). All access is owner-scoped and deny-by-
 // default; a child's draft is never readable by anyone but that child (not
@@ -38,14 +39,12 @@ async function resolveScope(surfaceIn: string, contextKey: string): Promise<Scop
   }
   if (surfaceIn === "ACTIVITY_RESPONSE") {
     if (user?.role !== "STUDENT") return null;
+    // On this child's list, by the one definition (src/lib/studentRuns.ts):
+    // their class, set to them, and not marked "not needed". A run taken off
+    // their list is not one they can keep a draft for; a draft they already
+    // had is left to the ordinary 30-day expiry, not deleted by the mark.
     const assignment = await db.assignment.findFirst({
-      where: {
-        id: contextKey,
-        OR: [
-          { wholeClass: true, classId: user.student.classId },
-          { wholeClass: false, students: { some: { studentId: user.student.id } } },
-        ],
-      },
+      where: { AND: [{ id: contextKey }, runsSetForStudent(user.student)] },
       select: { id: true, classId: true },
     });
     if (!assignment) return null;
