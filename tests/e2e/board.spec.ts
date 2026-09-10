@@ -21,7 +21,11 @@ import { teacherLogin } from "./helpers";
 //   - "Hide names" takes the name off the screen AND out of the alt text;
 //   - arrows step, Escape closes;
 //   - the picks live in the page and nowhere else — a reload forgets them;
-//   - showing changes no status.
+//   - showing changes no status;
+//   - a look is of the work as it was: a hand-in sent back and handed in again
+//     keeps its id, so when the page refreshes under the picks the new attempt
+//     is unseen work again — no thumbnail, no tick, not on the board — and one
+//     sent back drops off altogether.
 //
 // IT BUILDS ITS OWN CLASS and its own picture files, so every piece's status is
 // this file's and nothing else's.
@@ -343,4 +347,81 @@ test("the picks are kept nowhere: a reload forgets them, and no status changed",
   expect(status[itemIds.Cy]).toBe("RETURNED");
   expect(status[itemIds.Di]).toBe("PENDING");
   expect(status[itemIds.Eli]).toBe("PENDING");
+});
+
+test("a hand-in that changes under the page is work nobody has looked at: placeholder back, tick off, off the board", async ({ page }) => {
+  // Two pupils of this test's own, so the pieces the tests above rely on are
+  // untouched: Gus, with a drawing waiting, and Fen, with nothing handed in,
+  // so the run page offers "Not needed" for Fen — a real action, which
+  // refreshes the page with what the server now holds, under the picks.
+  const stamp = Date.now();
+  const drawn = (name: string, fill: string) => {
+    writeFileSync(path.join(MEDIA_DIR, name), svg(fill));
+    return `/uploads/${name}`;
+  };
+  const [gus, fen] = await Promise.all(["Gus", "Fen"].map((name) => db.student.create({ data: { name, classId } })));
+  const gusItem = await db.journalItem.create({
+    data: { authorRole: "STUDENT", classId, assignmentId: runId, type: "DRAWING", status: "PENDING", studentId: gus.id, mediaPath: drawn(`board-gus-first-${stamp}.svg`, "#0ea5e9") },
+  });
+  try {
+    const fetched: string[] = [];
+    await openRun(page, fetched);
+
+    // The teacher opens Gus's first attempt and picks it, and Ada's from her jar.
+    await page.getByRole("button", { name: /^Open Gus's work/ }).click();
+    const viewer = page.getByRole("dialog", { name: "Gus's work" });
+    await viewer.getByRole("checkbox", { name: "Add to the board" }).check();
+    await viewer.getByRole("button", { name: "Close" }).click();
+    await tick(page, "Ada").check();
+    await expect(tick(page, "Gus")).toBeChecked();
+    await expect(piece(page, "Gus").locator("img")).toHaveAttribute("src", /board-gus-first-/);
+    await expect(page.getByRole("button", { name: /Show on the board \(2\)/ })).toBeEnabled();
+
+    // Meanwhile Gus's work is sent back and handed in again, as returnItem and
+    // createJournalItem do it: the SAME row, back to waiting, with new pictures
+    // at a new path. Nobody has looked at this one.
+    await db.journalItem.update({ where: { id: gusItem.id }, data: { status: "RETURNED", teacherNote: "Add the sun" } });
+    const second = drawn(`board-gus-second-${stamp}.svg`, "#dc2626");
+    await db.journalItem.update({ where: { id: gusItem.id }, data: { status: "PENDING", mediaPath: second, teacherNote: null } });
+
+    // The teacher takes the activity off Fen's list, and the page refreshes.
+    await page.getByRole("button", { name: "Not needed for Fen" }).click();
+    await expect(page.locator('li[data-pupil="Fen"]')).toHaveAttribute("data-status", "NOT_NEEDED");
+
+    // Gus's second attempt is unseen work: the placeholder is back, the tick is
+    // off and cannot go on, the count has dropped, and the new picture was
+    // never so much as asked for.
+    await expect(piece(page, "Gus").locator("[data-board-unseen]")).toHaveText("Waiting for you — open it to look");
+    await expect(piece(page, "Gus").locator("img"), "no thumbnail of the unseen second attempt").toHaveCount(0);
+    await expect(tick(page, "Gus")).toBeDisabled();
+    await expect(tick(page, "Gus")).not.toBeChecked();
+    await expect(piece(page, "Gus")).toContainText("Open it first");
+    const show = page.getByRole("button", { name: /Show on the board \(1\)/ });
+    await expect(show).toBeEnabled();
+    expect(fetched.some((u) => u.includes("board-gus-second-")), "the second attempt's picture was not fetched").toBe(false);
+
+    // And the board has Ada on it, and only Ada.
+    await show.click();
+    await expect(board(page)).toBeVisible();
+    await expect(board(page).locator("[data-board-label]")).toHaveText("Ada");
+    await expect(board(page)).toContainText("1 of 1");
+    await expect(board(page).getByRole("img")).not.toHaveAttribute("src", /board-gus-/);
+    await page.keyboard.press("Escape");
+    await expect(board(page)).toHaveCount(0);
+
+    // Now the teacher looks at the second attempt and picks it; then it is
+    // sent back. Sent-back work is never offered, so when the page refreshes
+    // ("Put back" for Fen) it leaves the list, and the count with it.
+    await page.getByRole("button", { name: /^Open Gus's work/ }).click();
+    await viewer.getByRole("checkbox", { name: "Add to the board" }).check();
+    await viewer.getByRole("button", { name: "Close" }).click();
+    await expect(page.getByRole("button", { name: /Show on the board \(2\)/ })).toBeEnabled();
+    await db.journalItem.update({ where: { id: gusItem.id }, data: { status: "RETURNED", teacherNote: "One more go" } });
+    await page.getByRole("button", { name: "Put back on Fen's list" }).click();
+    await expect(page.locator('li[data-pupil="Fen"]')).toHaveAttribute("data-status", "NOT_HANDED_IN");
+    await expect(piece(page, "Gus")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Show on the board \(1\)/ })).toBeEnabled();
+  } finally {
+    await db.student.deleteMany({ where: { id: { in: [gus.id, fen.id] } } });
+  }
 });

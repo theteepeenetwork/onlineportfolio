@@ -48,7 +48,19 @@ const STATUS_WORD: Record<BoardPiece["status"], string> = {
   APPROVED: "In their jar",
 };
 
+// THE LOOK IS OF A VERSION, NOT OF AN ID. A hand-in keeps its id when it is
+// sent back and handed in again: `createJournalItem` rewrites the RETURNED row
+// in place, back to PENDING, with new pictures at new paths. And this component
+// keeps its state when the run page is refreshed under it — which any action
+// on the page does ("Not needed", "Put back"). Keyed by id, a look at the first
+// attempt would have drawn the second attempt's thumbnail and left it ticked
+// and on the board, unseen by anyone. So every look, pick and open is of the
+// piece as it was: its id, its status and its exact pictures. Change any of
+// them and it is a piece the teacher has not looked at.
+const versionOf = (p: BoardPiece) => JSON.stringify([p.id, p.status, p.pages]);
+
 export function ClassBoard({ activity, pieces }: { activity: string; pieces: BoardPiece[] }) {
+  // Versions (see `versionOf`), never bare ids.
   const [looked, setLooked] = useState<Set<string>>(() => new Set());
   const [picked, setPicked] = useState<string[]>([]);
   const [viewing, setViewing] = useState<string | null>(null);
@@ -56,24 +68,39 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
   const [namesHidden, setNamesHidden] = useState(false);
   const showButton = useRef<HTMLButtonElement>(null);
 
-  const byId = useMemo(() => new Map(pieces.map((p) => [p.id, p])), [pieces]);
+  const byVersion = useMemo(() => new Map(pieces.map((p) => [versionOf(p), p])), [pieces]);
   // A piece can be ticked when it is in a jar, or when it is waiting and the
-  // teacher has opened it. Anything else cannot, whatever the checkbox says.
-  const mayPick = (p: BoardPiece) => p.status === "APPROVED" || looked.has(p.id);
+  // teacher has opened THIS version of it. Anything else cannot, whatever the
+  // checkbox says.
+  const mayPick = (p: BoardPiece) => p.status === "APPROVED" || looked.has(versionOf(p));
 
-  const toggle = (id: string, on: boolean) => {
-    const p = byId.get(id);
-    if (!p || (on && !mayPick(p))) return;
-    setPicked((prev) => (on ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id)));
+  const toggle = (p: BoardPiece, on: boolean) => {
+    const v = versionOf(p);
+    if (on && !mayPick(p)) return;
+    setPicked((prev) => (on ? (prev.includes(v) ? prev : [...prev, v]) : prev.filter((x) => x !== v)));
   };
 
-  const slides: Slide[] = picked.flatMap((id) => {
-    const p = byId.get(id);
-    if (!p) return [];
-    return p.pages.map((src, i) => ({ pieceId: p.id, firstName: p.firstName, page: i + 1, of: p.pages.length, src }));
+  // What goes up is worked out afresh from what the page holds NOW, every
+  // render: a pick counts only while the piece it was made on is still here,
+  // unchanged, and still pickable. One handed in again, sent back (the server
+  // stops offering it) or moved in or out of a jar simply drops off the list,
+  // the count and the board, and the teacher picks it again if they want it.
+  const chosen = picked.flatMap((v) => {
+    const p = byVersion.get(v);
+    return p && mayPick(p) ? [p] : [];
   });
+  const slides: Slide[] = chosen.flatMap((p) =>
+    p.pages.map((src, i) => ({ pieceId: p.id, firstName: p.firstName, page: i + 1, of: p.pages.length, src })),
+  );
+  const isPicked = (p: BoardPiece) => chosen.includes(p);
 
-  const open = viewing ? byId.get(viewing) ?? null : null;
+  // The board comes down if everything on it has dropped off, and does not
+  // come back up by itself when the next tick goes on.
+  if (showing && slides.length === 0) setShowing(false);
+
+  // An open viewer is of a version too: if the piece changes while it is open,
+  // the viewer closes rather than show the new pictures nobody chose to open.
+  const open = viewing ? byVersion.get(viewing) ?? null : null;
 
   if (pieces.length === 0) {
     return (
@@ -108,8 +135,8 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
                 onClick={() => {
                   // Opening it full size IS the look. From here a waiting
                   // piece can be ticked, in the viewer or back in the list.
-                  setLooked((prev) => new Set(prev).add(p.id));
-                  setViewing(p.id);
+                  setLooked((prev) => new Set(prev).add(versionOf(p)));
+                  setViewing(versionOf(p));
                 }}
                 // With the placeholder showing, its words are in the name too
                 // (WCAG 2.5.3, label in name), so "open it to look" said aloud
@@ -138,7 +165,7 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
                   type="checkbox"
                   checked={on}
                   disabled={!can}
-                  onChange={(e) => toggle(p.id, e.target.checked)}
+                  onChange={(e) => toggle(p, e.target.checked)}
                   aria-describedby={can ? undefined : hintId}
                   style={{ width: 24, height: 24, accentColor: "var(--ink)" }}
                 />
@@ -162,7 +189,7 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
         aria-haspopup="dialog"
         style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 48, boxSizing: "border-box", font: "700 16px var(--font-atkinson)", color: "var(--paper)", background: slides.length ? "var(--ink)" : "var(--sj-muted)", border: "none", borderRadius: 999, padding: "12px 24px", cursor: slides.length ? "pointer" : "not-allowed" }}
       >
-        <Icon name="class" size={18} decorative /> Show on the board ({picked.length})
+        <Icon name="class" size={18} decorative /> Show on the board ({chosen.length})
       </button>
 
       {open && (
@@ -183,8 +210,8 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
             <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, font: "700 15px var(--font-atkinson)", color: "var(--ink)", cursor: "pointer" }}>
               <input
                 type="checkbox"
-                checked={picked.includes(open.id)}
-                onChange={(e) => toggle(open.id, e.target.checked)}
+                checked={isPicked(open)}
+                onChange={(e) => toggle(open, e.target.checked)}
                 style={{ width: 24, height: 24, accentColor: "var(--ink)" }}
               />
               Add to the board
