@@ -490,9 +490,12 @@ Each rule is testable. A change that breaks one does not ship.
      that can be sent to another device.
    - **Only what the teacher has looked at.** Work in a jar (`APPROVED`) has
      been looked at and approved, and may be chosen straight away. Work waiting
-     in the queue (`PENDING`) may be chosen only after the teacher has opened it
-     full size, and until then its picture is not drawn on the run's page
-     either, because that page may already be on the projector. Work sent back
+     in the queue (`PENDING`) may be chosen only after the teacher has opened
+     that version of it full size, and until then its picture is not drawn on
+     the run's page either, because that page may already be on the projector.
+     A piece sent back and handed in again is unseen work again: the look, the
+     tick and the place on the board belong to the version seen, never to the
+     piece's id. Work sent back
      (`RETURNED`) is never offered. A quiz hand-in is offered on exactly these
      terms, like any other piece.
    - **The choices are never stored.** They live in the open page and nowhere
