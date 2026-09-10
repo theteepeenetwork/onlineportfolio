@@ -12,6 +12,8 @@ import {
 } from "@/lib/runStatus";
 import { RunBar } from "../../LiveNow";
 import { PupilRunControl } from "./PupilRunControl";
+import { ClassBoard, type BoardPiece } from "@/components/teacher/ClassBoard";
+import { workPages } from "@/lib/journalMedia";
 
 // Who has and hasn't done one activity, for one class. The question a teacher
 // actually asks ("who still hasn't done the apples?") is a CLASS question, and
@@ -94,6 +96,44 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
     const waitingId = status === "WAITING" ? mine.find((r) => r.status === "PENDING")?.id ?? null : null;
     return { ...p, status, waitingId };
   });
+
+  // What may go up on the classroom board (SAFEGUARDING rule 25): pictures and
+  // drawings from this run that are in a jar or waiting for the teacher. Never
+  // work that was sent back, and never words or a voice note, which a board
+  // cannot show.
+  //
+  // THE SHAPE IS THE CONTROL. The board is a client component, so whatever is
+  // selected here is in the page; this selects the pictures and the pupil's
+  // name and nothing else — no caption, quiz score, teacher's note or
+  // stickers — and security/class-board.spec.ts reads the page source for them.
+  // The class scope repeats the run's on purpose: an item carries its own
+  // class, and this page shows only work in a class the teacher holds.
+  const showable = await db.journalItem.findMany({
+    where: {
+      assignmentId: run.id,
+      class: { teacherId },
+      studentId: { in: [...rosterIds] },
+      status: { in: ["PENDING", "APPROVED"] },
+      type: { in: ["PHOTO", "DRAWING"] },
+    },
+    select: {
+      id: true,
+      status: true,
+      mediaPath: true,
+      mediaPathsJson: true,
+      previewPathsJson: true,
+      student: { select: { name: true } },
+    },
+  });
+  const boardPieces: BoardPiece[] = showable
+    .map((i) => ({
+      id: i.id,
+      firstName: i.student.name,
+      status: i.status === "APPROVED" ? ("APPROVED" as const) : ("PENDING" as const),
+      pages: workPages(i),
+    }))
+    .filter((p) => p.pages.length > 0)
+    .sort((a, b) => a.firstName.localeCompare(b.firstName));
 
   // The activity itself is its author's. After a handover the class's new
   // teacher can see this run but not the template, so the link is drawn only
@@ -233,6 +273,13 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
           ))}
         </ul>
       )}
+
+      <section aria-labelledby="board-heading" style={{ marginTop: 30 }}>
+        <h2 id="board-heading" style={{ margin: "0 0 4px", font: "600 20px var(--font-fredoka)" }}>
+          Show work on the board
+        </h2>
+        <ClassBoard activity={run.title} pieces={boardPieces} />
+      </section>
     </div>
   );
 }

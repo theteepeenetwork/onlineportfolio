@@ -1,0 +1,299 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "@/components/icons/Icon";
+import { WorkViewer } from "@/app/teacher/queue/WorkViewer";
+
+// Show the class some of their work on the board (SAFEGUARDING rule 25).
+//
+// THE TEACHER PICKS, THEN SHOWS. Nothing goes up that the teacher has not
+// chosen, and nothing waiting in the queue can be chosen until the teacher has
+// opened it full size and looked at it — the approval queue's own promise
+// (rule 3) that no child's work reaches another child before an adult has seen
+// it, kept for a room of classmates as it is for a parent. Work already in a
+// jar has been looked at and approved, so it can be ticked straight away. Work
+// that was sent back is not offered at all: it came back because it was not
+// ready.
+//
+// THE PICKS ARE NEVER STORED. React state, and nowhere else: no row, no URL, no
+// localStorage. A reload forgets them, which is the point — a "board" that
+// remembered would be a publication list, and a publication list is a thing a
+// parent could reasonably ask to see. What StoryJar holds about this moment is
+// nothing.
+//
+// SHOWING CHANGES NOTHING. It does not approve, return or put anything in a
+// jar, and the server is not told it happened.
+//
+// WHAT THIS COMPONENT IS GIVEN is exactly what it shows: an id, the pupil's
+// name as stored (first names only, rule 2), the status, and the page pictures.
+// No caption, no quiz score, no teacher's note, no stickers — the server
+// builds this shape and the security battery reads the page source for them.
+
+export type BoardPiece = {
+  id: string;
+  firstName: string;
+  status: "PENDING" | "APPROVED";
+  pages: string[];
+};
+
+type Slide = { pieceId: string; firstName: string; page: number; of: number; src: string };
+
+const STATUS_WORD: Record<BoardPiece["status"], string> = {
+  PENDING: "Waiting for you",
+  APPROVED: "In their jar",
+};
+
+export function ClassBoard({ activity, pieces }: { activity: string; pieces: BoardPiece[] }) {
+  const [looked, setLooked] = useState<Set<string>>(() => new Set());
+  const [picked, setPicked] = useState<string[]>([]);
+  const [viewing, setViewing] = useState<string | null>(null);
+  const [showing, setShowing] = useState(false);
+  const [namesHidden, setNamesHidden] = useState(false);
+  const showButton = useRef<HTMLButtonElement>(null);
+
+  const byId = useMemo(() => new Map(pieces.map((p) => [p.id, p])), [pieces]);
+  // A piece can be ticked when it is in a jar, or when it is waiting and the
+  // teacher has opened it. Anything else cannot, whatever the checkbox says.
+  const mayPick = (p: BoardPiece) => p.status === "APPROVED" || looked.has(p.id);
+
+  const toggle = (id: string, on: boolean) => {
+    const p = byId.get(id);
+    if (!p || (on && !mayPick(p))) return;
+    setPicked((prev) => (on ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id)));
+  };
+
+  const slides: Slide[] = picked.flatMap((id) => {
+    const p = byId.get(id);
+    if (!p) return [];
+    return p.pages.map((src, i) => ({ pieceId: p.id, firstName: p.firstName, page: i + 1, of: p.pages.length, src }));
+  });
+
+  const open = viewing ? byId.get(viewing) ?? null : null;
+
+  if (pieces.length === 0) {
+    return (
+      <p style={{ margin: 0, font: "400 15px/1.5 var(--font-atkinson)", color: "var(--sj-muted)" }}>
+        Nothing to show yet. Pictures and drawings that are waiting for you or in a jar will appear here.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p style={{ margin: "0 0 12px", font: "400 15px/1.5 var(--font-atkinson)", color: "var(--ink-soft)", maxWidth: "46em" }}>
+        Only you choose what goes up. Showing work doesn&apos;t put it in a jar. Work that is waiting for you can be
+        added once you have opened it.
+      </p>
+
+      <ul aria-label="Work you could show" style={{ listStyle: "none", margin: "0 0 14px", padding: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
+        {pieces.map((p) => {
+          const can = mayPick(p);
+          const on = picked.includes(p.id);
+          const hintId = `board-hint-${p.id}`;
+          return (
+            <li key={p.id} data-board-piece={p.firstName} data-status={p.status} style={{ background: "var(--paper)", border: `2px solid ${on ? "var(--ink)" : "var(--calm-border)"}`, borderRadius: 14, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  // Opening it full size IS the look. From here a waiting
+                  // piece can be ticked, in the viewer or back in the list.
+                  setLooked((prev) => new Set(prev).add(p.id));
+                  setViewing(p.id);
+                }}
+                aria-label={`Open ${p.firstName}'s work`}
+                style={{ display: "block", height: 110, padding: 0, border: "none", borderRadius: 10, overflow: "hidden", background: "var(--cream)", cursor: "pointer" }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.pages[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+              </button>
+              <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                <strong style={{ font: "700 15px var(--font-atkinson)" }}>{p.firstName}</strong>
+                <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+                  {STATUS_WORD[p.status]}
+                  {p.pages.length > 1 ? ` · ${p.pages.length} pages` : ""}
+                </span>
+              </span>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: can ? "pointer" : "not-allowed", font: "700 14px var(--font-atkinson)", color: can ? "var(--ink)" : "var(--sj-muted)" }}>
+                <input
+                  type="checkbox"
+                  checked={on}
+                  disabled={!can}
+                  onChange={(e) => toggle(p.id, e.target.checked)}
+                  aria-describedby={can ? undefined : hintId}
+                  style={{ width: 24, height: 24, accentColor: "var(--ink)" }}
+                />
+                Add to the board
+              </label>
+              {!can && (
+                <span id={hintId} style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
+                  Open it first to look at it.
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <button
+        ref={showButton}
+        type="button"
+        disabled={slides.length === 0}
+        onClick={() => setShowing(true)}
+        aria-haspopup="dialog"
+        style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 48, boxSizing: "border-box", font: "700 16px var(--font-atkinson)", color: "var(--paper)", background: slides.length ? "var(--ink)" : "var(--sj-muted)", border: "none", borderRadius: 999, padding: "12px 24px", cursor: slides.length ? "pointer" : "not-allowed" }}
+      >
+        <Icon name="class" size={18} decorative /> Show on the board ({picked.length})
+      </button>
+
+      {open && (
+        <WorkViewer
+          child={open.firstName}
+          activity={activity}
+          when={STATUS_WORD[open.status]}
+          type="DRAWING"
+          mediaPath={null}
+          mediaPathsJson={JSON.stringify(open.pages)}
+          previewPathsJson={null}
+          text={null}
+          quizReview={null}
+          quizScore={null}
+          quizTotal={null}
+          onClose={() => setViewing(null)}
+          footer={
+            <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, font: "700 15px var(--font-atkinson)", color: "var(--ink)", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={picked.includes(open.id)}
+                onChange={(e) => toggle(open.id, e.target.checked)}
+                style={{ width: 24, height: 24, accentColor: "var(--ink)" }}
+              />
+              Add to the board
+            </label>
+          }
+        />
+      )}
+
+      {showing && slides.length > 0 && (
+        <Board
+          slides={slides}
+          namesHidden={namesHidden}
+          onNamesHidden={setNamesHidden}
+          onClose={() => {
+            setShowing(false);
+            showButton.current?.focus();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// The board itself. Opaque and full screen, like the class code reveal
+// (src/components/teacher/ClassCodeReveal.tsx), because this is projected: the
+// run page behind it has every pupil's name and who has not handed in, and none
+// of that may be readable round the edges of a child's drawing.
+function Board({
+  slides,
+  namesHidden,
+  onNamesHidden,
+  onClose,
+}: {
+  slides: Slide[];
+  namesHidden: boolean;
+  onNamesHidden: (v: boolean) => void;
+  onClose: () => void;
+}) {
+  const [at, setAt] = useState(0);
+  const i = Math.min(at, slides.length - 1);
+  const s = slides[i];
+  const closeRef = useRef<HTMLButtonElement>(null);
+  // The latest onClose, without re-running the effects below every time the
+  // parent renders — which it does when "Hide names" is pressed, and a focus
+  // effect that re-ran then would snatch focus off the switch just pressed.
+  const latestClose = useRef(onClose);
+  useEffect(() => {
+    latestClose.current = onClose;
+  }, [onClose]);
+
+  // Focus lands on Done when the board opens, once.
+  useEffect(() => {
+    closeRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") latestClose.current();
+      if (e.key === "ArrowRight") setAt((n) => Math.min(slides.length - 1, n + 1));
+      if (e.key === "ArrowLeft") setAt((n) => Math.max(0, n - 1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [slides.length]);
+
+  // With names hidden the name goes from the alt text too, or a screen reader
+  // on the projecting laptop would read out what the screen had been told not
+  // to show.
+  const pageWords = s.of > 1 ? `page ${s.page} of ${s.of}` : "";
+  const label = namesHidden ? pageWords : [s.firstName, pageWords].filter(Boolean).join(" · ");
+  const alt = namesHidden
+    ? `A pupil's work${s.of > 1 ? `, page ${s.page} of ${s.of}` : ""}`
+    : `${s.firstName}'s work${s.of > 1 ? `, page ${s.page} of ${s.of}` : ""}`;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Work on the board"
+      data-board
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "var(--ink)", color: "var(--paper)", display: "flex", flexDirection: "column" }}
+    >
+      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 20px 8px" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img key={s.src} src={s.src} alt={alt} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", background: "#fff", borderRadius: 12 }} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 20px 18px", flexWrap: "wrap" }}>
+        <button type="button" onClick={() => setAt((n) => Math.max(0, n - 1))} disabled={i === 0} aria-label="Previous" style={boardBtn(i === 0)}>
+          ‹
+        </button>
+        <p aria-live="polite" style={{ margin: 0, flex: 1, minWidth: 160, textAlign: "center", font: "600 26px var(--font-fredoka)" }}>
+          <span data-board-label>{label}</span>
+          <span style={{ display: "block", font: "400 15px var(--font-atkinson)", opacity: 0.8 }}>
+            {i + 1} of {slides.length}
+          </span>
+        </p>
+        <button type="button" onClick={() => setAt((n) => Math.min(slides.length - 1, n + 1))} disabled={i === slides.length - 1} aria-label="Next" style={boardBtn(i === slides.length - 1)}>
+          ›
+        </button>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={namesHidden}
+          onClick={() => onNamesHidden(!namesHidden)}
+          style={{ ...boardBtn(false), width: "auto", padding: "0 22px", font: "700 16px var(--font-atkinson)" }}
+        >
+          Hide names
+        </button>
+        <button ref={closeRef} type="button" onClick={onClose} style={{ ...boardBtn(false), width: "auto", padding: "0 24px", font: "700 16px var(--font-atkinson)", background: "var(--paper)", color: "var(--ink)" }}>
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function boardBtn(disabled: boolean): React.CSSProperties {
+  return {
+    width: 64,
+    height: 64,
+    borderRadius: 999,
+    border: "3px solid var(--paper)",
+    background: "transparent",
+    color: "var(--paper)",
+    font: "700 30px var(--font-atkinson)",
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.4 : 1,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+}
