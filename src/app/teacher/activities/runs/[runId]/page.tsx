@@ -102,6 +102,15 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
   // work that was sent back, and never words or a voice note, which a board
   // cannot show.
   //
+  // NEVER A QUIZ HAND-IN, until the owner decides whether chosen answers may be
+  // shown to the class. Its picture (`previewPathsJson`, drawn by DrawingCanvas's
+  // `drawQuizForPreview`) has the question boxes on it with the child's answer
+  // highlighted, and `workPages` prefers that picture to the drawing. Any of
+  // the three quiz columns rules an item out: the server writes `quizTotal` and
+  // `quizAnswersJson` whenever the run carries a quiz, and the canvas posts a
+  // picture only when the work carries one. Filtered here, in the query, so none of it is
+  // ever selected, let alone sent.
+  //
   // THE SHAPE IS THE CONTROL. The board is a client component, so whatever is
   // selected here is in the page; this selects the pictures and the pupil's
   // name and nothing else — no caption, quiz score, teacher's note or
@@ -115,6 +124,9 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
       studentId: { in: [...rosterIds] },
       status: { in: ["PENDING", "APPROVED"] },
       type: { in: ["PHOTO", "DRAWING"] },
+      quizTotal: null,
+      quizAnswersJson: null,
+      previewPathsJson: null,
     },
     select: {
       id: true,

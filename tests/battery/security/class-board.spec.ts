@@ -16,6 +16,13 @@ import { SCHOOL_B, loginTeacher } from "../helpers";
 // With a positive control on the same response: the piece's own picture path
 // IS in the source, so the absences below are the shape of the data and not a
 // page that rendered nothing.
+//
+// A QUIZ HAND-IN IS NOT OFFERED AT ALL (safeguarding review, 10 September
+// 2026). Its picture (`previewPathsJson`, drawn by DrawingCanvas's
+// `drawQuizForPreview`) has the question boxes on it with the child's chosen
+// answer highlighted, so putting it up would show the class which answer each
+// child picked. Until the owner decides whether that may be shown, neither its
+// pictures nor its id reach the page, whatever its status.
 // ===========================================================================
 
 const db = new PrismaClient();
@@ -29,7 +36,7 @@ test("the board's data carries pictures and names, never a caption, a score or a
   const template = await db.activityTemplate.create({ data: { title: "Board source activity", teacherId: teacher.id } });
   try {
     const run = await db.assignment.create({ data: { templateId: template.id, classId: klass.id, wholeClass: true, status: "LIVE", title: "Board source activity" } });
-    const [ro, sam, tia] = await Promise.all(["Ro", "Sam", "Tia"].map((name) => db.student.create({ data: { name, classId: klass.id } })));
+    const [ro, sam, tia, uma, vic] = await Promise.all(["Ro", "Sam", "Tia", "Uma", "Vic"].map((name) => db.student.create({ data: { name, classId: klass.id } })));
     const base = { authorRole: "STUDENT", classId: klass.id, assignmentId: run.id, type: "DRAWING" };
     await db.journalItem.create({
       data: {
@@ -39,13 +46,23 @@ test("the board's data carries pictures and names, never a caption, a score or a
         studentId: ro.id,
         mediaPath: `/uploads/${MARK}-ro.svg`,
         caption: `caption-${MARK}`,
-        quizScore: 7,
-        quizTotal: 9,
-        quizAnswersJson: JSON.stringify([{ questionId: `q-${MARK}`, selectedOptionId: `opt-${MARK}` }]),
         praiseNote: `praise-${MARK}`,
         stickersJson: JSON.stringify(["star"]),
       },
     });
+    // Two quiz hand-ins, stored the way createJournalItem stores one: the work
+    // of record, the picture of it with the question boxes drawn on, and the
+    // server's score. One in a jar, which would otherwise be pickable at once,
+    // and one waiting.
+    const quiz = (who: string) => ({
+      mediaPath: `/uploads/${MARK}-${who}.png`,
+      previewPathsJson: JSON.stringify([`/uploads/${MARK}-${who}-preview.png`]),
+      quizScore: 1,
+      quizTotal: 2,
+      quizAnswersJson: JSON.stringify([{ questionId: `q-${MARK}-${who}`, selectedOptionId: `opt-${MARK}-${who}` }]),
+    });
+    const umaQuiz = await db.journalItem.create({ data: { ...base, status: "APPROVED", approvedAt: new Date(), studentId: uma.id, ...quiz("uma") } });
+    await db.journalItem.create({ data: { ...base, status: "PENDING", studentId: vic.id, ...quiz("vic") } });
     await db.journalItem.create({ data: { ...base, status: "PENDING", studentId: sam.id, mediaPath: `/uploads/${MARK}-sam.svg`, caption: `pending-caption-${MARK}` } });
     await db.journalItem.create({ data: { ...base, status: "RETURNED", studentId: tia.id, mediaPath: `/uploads/${MARK}-tia.svg`, teacherNote: `note-${MARK}` } });
 
@@ -69,6 +86,18 @@ test("the board's data carries pictures and names, never a caption, a score or a
     }
     // Sent-back work is not offered, so its picture is not even in the page.
     expect(source).not.toContain(`/uploads/${MARK}-tia.svg`);
+
+    // Nor is a quiz hand-in, in a jar or waiting: neither its work, nor its
+    // picture with the chosen answer on it, nor (for the one in a jar, which
+    // the pupil list has no reason to link to) its id.
+    for (const who of ["uma", "vic"]) {
+      expect(source, `${who}'s quiz work must not reach the page`).not.toContain(`${MARK}-${who}.png`);
+      expect(source, `${who}'s quiz picture must not reach the page`).not.toContain(`${MARK}-${who}-preview.png`);
+    }
+    expect(source, "the quiz hand-in's id must not reach the page").not.toContain(umaQuiz.id);
+    // And so it cannot be picked: the board lists Ro and Sam and nobody else.
+    const offered = await page.locator("li[data-board-piece]").evaluateAll((els) => els.map((e) => e.getAttribute("data-board-piece")));
+    expect(offered.sort()).toEqual(["Ro", "Sam"]);
   } finally {
     await db.assignment.deleteMany({ where: { templateId: template.id } });
     await db.class.deleteMany({ where: { id: klass.id } });

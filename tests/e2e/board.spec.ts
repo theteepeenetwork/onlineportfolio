@@ -10,7 +10,8 @@ import { teacherLogin } from "./helpers";
 // The teacher picks, then shows. What these tests hold the product to, in the
 // rule's own order:
 //   - work waiting in the queue can be picked only once it has been opened;
-//     work in a jar can be picked straight away; work sent back is not offered;
+//     work in a jar can be picked straight away; work sent back is not offered,
+//     nor is a quiz hand-in, whose picture shows which answer the child chose;
 //   - the board covers the whole screen, corner to corner;
 //   - "Hide names" takes the name off the screen AND out of the alt text;
 //   - arrows step, Escape closes;
@@ -45,8 +46,8 @@ test.beforeAll(async () => {
     data: { name: "Gull Class (board)", ageMode: "KS1", classCode: `BRD${String(stamp).slice(-3)}`, teacherId: teacher.id, schoolId: teacher.schoolId },
   });
   classId = klass.id;
-  const [ada, bo, cy, di] = await Promise.all(
-    ["Ada", "Bo", "Cy", "Di"].map((name) => db.student.create({ data: { name, classId: klass.id } })),
+  const [ada, bo, cy, di, eli] = await Promise.all(
+    ["Ada", "Bo", "Cy", "Di", "Eli"].map((name) => db.student.create({ data: { name, classId: klass.id } })),
   );
   const template = await db.activityTemplate.create({ data: { title: TITLE, teacherId: teacher.id } });
   templateId = template.id;
@@ -56,7 +57,7 @@ test.beforeAll(async () => {
   const base = { authorRole: "STUDENT", classId: klass.id, assignmentId: runId };
   itemIds.Ada = (
     await db.journalItem.create({
-      data: { ...base, type: "DRAWING", status: "APPROVED", approvedAt: new Date(), studentId: ada.id, mediaPath: file(`board-ada-${stamp}.svg`, "#f59e0b"), caption: "Ada's secret caption zq", quizScore: 7, quizTotal: 9, praiseNote: "Lovely waves zq" },
+      data: { ...base, type: "DRAWING", status: "APPROVED", approvedAt: new Date(), studentId: ada.id, mediaPath: file(`board-ada-${stamp}.svg`, "#f59e0b"), caption: "Ada's secret caption zq", praiseNote: "Lovely waves zq" },
     })
   ).id;
   itemIds.Bo = (
@@ -78,6 +79,24 @@ test.beforeAll(async () => {
   ).id;
   // Words, not a picture: nothing to put on a board.
   itemIds.Di = (await db.journalItem.create({ data: { ...base, type: "TEXT", status: "PENDING", studentId: di.id, textContent: "The sea is loud." } })).id;
+  // A quiz hand-in, in a jar, stored as createJournalItem stores one: its
+  // picture has the question boxes on it with the chosen answer showing.
+  itemIds.Eli = (
+    await db.journalItem.create({
+      data: {
+        ...base,
+        type: "DRAWING",
+        status: "APPROVED",
+        approvedAt: new Date(),
+        studentId: eli.id,
+        mediaPath: file(`board-eli-${stamp}.svg`, "#a855f7"),
+        previewPathsJson: JSON.stringify([file(`board-eli-preview-${stamp}.svg`, "#a855f7")]),
+        quizScore: 1,
+        quizTotal: 2,
+        quizAnswersJson: JSON.stringify([{ questionId: "q1", selectedOptionId: "o2" }]),
+      },
+    })
+  ).id;
 });
 
 test.afterAll(async () => {
@@ -101,10 +120,11 @@ test("what can be picked follows the status: jar yes, waiting once opened, sent 
   await openRun(page);
 
   // Offered: the two pictures that are in a jar or waiting. Not offered: the
-  // sent-back one, or words.
+  // sent-back one, words, or a quiz hand-in.
   await expect(page.locator("li[data-board-piece]")).toHaveCount(2);
   await expect(piece(page, "Cy")).toHaveCount(0);
   await expect(piece(page, "Di")).toHaveCount(0);
+  await expect(piece(page, "Eli"), "a quiz hand-in's picture shows the chosen answer").toHaveCount(0);
 
   await expect(tick(page, "Ada"), "in a jar: pickable straight away").toBeEnabled();
   await expect(tick(page, "Bo"), "waiting: not until the teacher has looked").toBeDisabled();
@@ -218,4 +238,5 @@ test("the picks are kept nowhere: a reload forgets them, and no status changed",
   expect(status[itemIds.Bo]).toBe("PENDING");
   expect(status[itemIds.Cy]).toBe("RETURNED");
   expect(status[itemIds.Di]).toBe("PENDING");
+  expect(status[itemIds.Eli]).toBe("APPROVED");
 });

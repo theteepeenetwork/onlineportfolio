@@ -28,6 +28,8 @@ import { WorkViewer } from "@/app/teacher/queue/WorkViewer";
 // name as stored (first names only, rule 2), the status, and the page pictures.
 // No caption, no quiz score, no teacher's note, no stickers — the server
 // builds this shape and the security battery reads the page source for them.
+// No quiz hand-in either: its picture shows which answer the child chose, so
+// the run page does not offer one at all (see the query there).
 
 export type BoardPiece = {
   id: string;
