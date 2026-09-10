@@ -92,6 +92,12 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
           const can = mayPick(p);
           const on = picked.includes(p.id);
           const hintId = `board-hint-${p.id}`;
+          // A waiting piece's picture is not drawn here until the teacher has
+          // opened it. This page is very often the one already mirrored to
+          // the projector, so a thumbnail in the list would put work in front
+          // of the class that no adult had looked at — the one thing rule 25
+          // exists to prevent — before the board was even opened.
+          const unseen = p.status === "PENDING" && !looked.has(p.id);
           return (
             <li key={p.id} data-board-piece={p.firstName} data-status={p.status} style={{ background: "var(--paper)", border: `2px solid ${on ? "var(--ink)" : "var(--calm-border)"}`, borderRadius: 14, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
               <button
@@ -102,11 +108,20 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
                   setLooked((prev) => new Set(prev).add(p.id));
                   setViewing(p.id);
                 }}
-                aria-label={`Open ${p.firstName}'s work`}
+                // With the placeholder showing, its words are in the name too
+                // (WCAG 2.5.3, label in name), so "open it to look" said aloud
+                // by voice control reaches this button.
+                aria-label={unseen ? `Open ${p.firstName}'s work. Waiting for you — open it to look` : `Open ${p.firstName}'s work`}
                 style={{ display: "block", height: 110, padding: 0, border: "none", borderRadius: 10, overflow: "hidden", background: "var(--cream)", cursor: "pointer" }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.pages[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+                {unseen ? (
+                  <span data-board-unseen style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 12px", boxSizing: "border-box", border: "2px dashed var(--calm-border)", borderRadius: 10, font: "700 14px/1.4 var(--font-atkinson)", color: "var(--ink-soft)", textAlign: "center" }}>
+                    Waiting for you — open it to look
+                  </span>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.pages[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+                )}
               </button>
               <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
                 <strong style={{ font: "700 15px var(--font-atkinson)" }}>{p.firstName}</strong>
@@ -180,10 +195,12 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
           slides={slides}
           namesHidden={namesHidden}
           onNamesHidden={setNamesHidden}
-          onClose={() => {
-            setShowing(false);
-            showButton.current?.focus();
-          }}
+          // Focus goes back to this button from the board's own cleanup, once
+          // the page behind is no longer inert (see Board). Named rather than
+          // read from document.activeElement, because Safari does not focus a
+          // button that is clicked.
+          returnFocus={showButton}
+          onClose={() => setShowing(false)}
         />
       )}
     </div>
@@ -198,16 +215,19 @@ function Board({
   slides,
   namesHidden,
   onNamesHidden,
+  returnFocus,
   onClose,
 }: {
   slides: Slide[];
   namesHidden: boolean;
   onNamesHidden: (v: boolean) => void;
+  returnFocus: React.RefObject<HTMLElement | null>;
   onClose: () => void;
 }) {
   const [at, setAt] = useState(0);
   const i = Math.min(at, slides.length - 1);
   const s = slides[i];
+  const rootRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   // The latest onClose, without re-running the effects below every time the
   // parent renders — which it does when "Hide names" is pressed, and a focus
@@ -217,10 +237,25 @@ function Board({
     latestClose.current = onClose;
   }, [onClose]);
 
+  // WHILE THE BOARD IS UP, THE PAGE BEHIND IT IS INERT. Opaque stops the eye
+  // reading the run page round the edges; it does not stop Tab, or a screen
+  // reader on the projecting laptop, walking straight past Done onto the pupil
+  // list underneath — every name, and who has not handed in. So everything
+  // that is not the board or one of its ancestors is made inert for as long as
+  // it is open, and given back exactly as it was when it closes: only what this
+  // made inert is released. Then focus returns to the button that opened the
+  // board, which can only take it once it is no longer inert.
+  //
   // Focus lands on Done when the board opens, once.
   useEffect(() => {
+    const opener = returnFocus.current;
+    const release = inertEverythingBut(rootRef.current);
     closeRef.current?.focus();
-  }, []);
+    return () => {
+      release();
+      opener?.focus();
+    };
+  }, [returnFocus]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -243,6 +278,7 @@ function Board({
 
   return (
     <div
+      ref={rootRef}
       role="dialog"
       aria-modal="true"
       aria-label="Work on the board"
@@ -281,6 +317,26 @@ function Board({
       </div>
     </div>
   );
+}
+
+// Make every element outside `keep` inert: at each level from `keep` up to
+// <body>, every sibling of the path. The ancestors themselves stay live, or the
+// board would be inert too. Returns the undo, which touches only what this made
+// inert, so an element that was already inert for its own reasons stays so.
+function inertEverythingBut(keep: HTMLElement | null): () => void {
+  const made: HTMLElement[] = [];
+  for (let node = keep; node && node !== document.body; node = node.parentElement) {
+    const parent = node.parentElement;
+    if (!parent) break;
+    for (const sibling of Array.from(parent.children)) {
+      if (sibling === node || !(sibling instanceof HTMLElement) || sibling.inert) continue;
+      sibling.inert = true;
+      made.push(sibling);
+    }
+  }
+  return () => {
+    for (const el of made) el.inert = false;
+  };
 }
 
 function boardBtn(disabled: boolean): React.CSSProperties {

@@ -9,10 +9,13 @@ import { teacherLogin } from "./helpers";
 //
 // The teacher picks, then shows. What these tests hold the product to, in the
 // rule's own order:
-//   - work waiting in the queue can be picked only once it has been opened;
-//     work in a jar can be picked straight away; work sent back is not offered,
-//     nor is a quiz hand-in, whose picture shows which answer the child chose;
-//   - the board covers the whole screen, corner to corner;
+//   - work waiting in the queue can be picked only once it has been opened,
+//     and its picture is not even drawn in the list until then, because the
+//     run page may already be on the projector; work in a jar can be picked
+//     straight away; work sent back is not offered, nor is a quiz hand-in,
+//     whose picture shows which answer the child chose;
+//   - the board covers the whole screen, corner to corner, and while it is up
+//     the page behind it is inert, so Tab cannot reach the pupil list;
 //   - "Hide names" takes the name off the screen AND out of the alt text;
 //   - arrows step, Escape closes;
 //   - the picks live in the page and nowhere else — a reload forgets them;
@@ -110,14 +113,21 @@ const board = (page: Page) => page.getByRole("dialog", { name: "Work on the boar
 const piece = (page: Page, name: string) => page.locator(`li[data-board-piece="${name}"]`);
 const tick = (page: Page, name: string) => piece(page, name).getByRole("checkbox", { name: "Add to the board" });
 
-async function openRun(page: Page) {
+// `fetched`, when given, collects every URL the RUN PAGE asks for — attached
+// after sign-in, because the teacher's dashboard shows their own class's jar
+// and is entitled to fetch pictures this page is not.
+async function openRun(page: Page, fetched?: string[]) {
   await teacherLogin(page);
+  if (fetched) page.on("request", (r) => fetched.push(r.url()));
   await page.goto(`/teacher/activities/runs/${runId}`);
   await expect(page.getByRole("heading", { name: /on the board/i })).toBeVisible();
 }
 
 test("what can be picked follows the status: jar yes, waiting once opened, sent back never", async ({ page }) => {
-  await openRun(page);
+  // Every picture the page asks for, so that "not drawn" can be proved by the
+  // request never being made, not only by the element being absent.
+  const fetched: string[] = [];
+  await openRun(page, fetched);
 
   // Offered: the two pictures that are in a jar or waiting. Not offered: the
   // sent-back one, words, or a quiz hand-in.
@@ -125,10 +135,20 @@ test("what can be picked follows the status: jar yes, waiting once opened, sent 
   await expect(piece(page, "Cy")).toHaveCount(0);
   await expect(piece(page, "Di")).toHaveCount(0);
   await expect(piece(page, "Eli"), "a quiz hand-in's picture shows the chosen answer").toHaveCount(0);
+  expect(fetched.some((u) => u.includes("board-eli")), "nor is its picture fetched").toBe(false);
 
   await expect(tick(page, "Ada"), "in a jar: pickable straight away").toBeEnabled();
   await expect(tick(page, "Bo"), "waiting: not until the teacher has looked").toBeDisabled();
   await expect(piece(page, "Bo")).toContainText("Open it first");
+
+  // The run page may already be on the projector, so a waiting piece's
+  // picture is not drawn in the list until the teacher has opened it: a
+  // placeholder stands in, and the browser has not even asked for the file.
+  // Ada's, in a jar, is drawn.
+  await expect(piece(page, "Ada").locator("img")).toHaveCount(1);
+  await expect(piece(page, "Bo").locator("img"), "no thumbnail of unseen work").toHaveCount(0);
+  await expect(piece(page, "Bo").locator("[data-board-unseen]")).toHaveText("Waiting for you — open it to look");
+  expect(fetched.some((u) => u.includes("board-bo")), "Bo's picture has not been fetched before it is opened").toBe(false);
 
   // Open Bo's work full size; the viewer offers the tick.
   await page.getByRole("button", { name: "Open Bo's work" }).click();
@@ -138,6 +158,9 @@ test("what can be picked follows the status: jar yes, waiting once opened, sent 
   await viewer.getByRole("button", { name: "Close" }).click();
   await expect(tick(page, "Bo")).toBeEnabled();
   await expect(tick(page, "Bo")).toBeChecked();
+  // Looked at now, so its thumbnail is drawn.
+  await expect(piece(page, "Bo").locator("[data-board-unseen]")).toHaveCount(0);
+  await expect(piece(page, "Bo").locator("img")).toHaveCount(1);
 
   await tick(page, "Ada").check();
   await expect(page.getByRole("button", { name: /Show on the board \(2\)/ })).toBeEnabled();
@@ -166,6 +189,29 @@ test("the board covers the screen, steps with the arrows, hides names from the a
   expect(covered).toEqual([true, true, true, true, true]);
   const bg = await board(page).evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(bg, "opaque, not dimmed").not.toMatch(/rgba\(.*,\s*0(\.\d+)?\)$/);
+
+  // Opaque to the eye is not opaque to the keyboard. While the board is up the
+  // page behind it is inert: the pupil list and the picks are under an inert
+  // ancestor, and Tab, however far it goes, lands on the board or on nothing,
+  // never on a pupil's name.
+  await expect(board(page).getByRole("button", { name: "Done" })).toBeFocused();
+  const behind = await page.evaluate(() =>
+    [document.querySelector('ul[aria-label^="Pupils set"]'), document.querySelector('ul[aria-label="Work you could show"]')].map(
+      (el) => !!el && !!el.closest("[inert]"),
+    ),
+  );
+  expect(behind, "the pupil list and the picks are inert behind the board").toEqual([true, true]);
+  expect(await board(page).evaluate((el) => !!el.closest("[inert]")), "the board itself is not").toBe(false);
+  for (let n = 0; n < 8; n++) {
+    await page.keyboard.press("Tab");
+    const where = await page.evaluate(() => {
+      const a = document.activeElement;
+      if (!a || a === document.body) return "nothing";
+      return a.closest("[data-board]") ? "board" : `${a.tagName} ${a.textContent?.slice(0, 40)}`;
+    });
+    expect(["board", "nothing"], `Tab ${n + 1} must stay on the board`).toContain(where);
+  }
+  await board(page).getByRole("button", { name: "Done" }).focus();
 
   const label = board(page).locator("[data-board-label]");
   const img = board(page).getByRole("img");
@@ -201,6 +247,8 @@ test("the board covers the screen, steps with the arrows, hides names from the a
   await page.keyboard.press("Escape");
   await expect(board(page)).toHaveCount(0);
   await expect(show).toBeFocused();
+  // And the page is given back: nothing is left inert.
+  expect(await page.evaluate(() => document.querySelectorAll("[inert]").length)).toBe(0);
 });
 
 test("the picks are kept nowhere: a reload forgets them, and no status changed", async ({ page }) => {
