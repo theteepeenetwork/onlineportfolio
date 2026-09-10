@@ -66,7 +66,10 @@ export function ClassCodeReveal({
           aria-modal="true"
           aria-label={`Class code and QR for ${className}`}
           onClick={close}
-          style={{ position: "fixed", inset: 0, background: "rgba(34,48,74,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 100 }}
+          // Opaque, not dimmed: this goes up on the classroom board, and the
+          // rest of the teacher's dashboard (the queue, names, who is waiting)
+          // must not be readable behind it.
+          style={{ position: "fixed", inset: 0, background: "var(--paper)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}
         >
           <div onClick={(e) => e.stopPropagation()} className="sj-card" style={{ maxWidth: 520, width: "100%", padding: "26px 26px 24px", textAlign: "center" }}>
             <h3 style={{ margin: "0 0 4px", font: "600 24px var(--font-fredoka)", color: "var(--ink)" }}>{className}&rsquo;s class code</h3>
