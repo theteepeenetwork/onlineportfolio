@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Icon, type IconName } from "./icons/Icon";
 import { ShapeThumb } from "./canvas/ShapeThumb";
 import { PenArt, PenFan, PlusFan, type PlusItem, type PlusOption } from "./canvas/Fan";
@@ -642,10 +642,21 @@ function fitHostFromLeft(host: string, font: string, room: number): string {
   const m = hostMeasure;
   if (!m) return host;
   m.font = font;
-  if (m.measureText(host).width <= room) return host;
+  const fits = (s: string) => m.measureText(s).width <= room;
+  if (fits(host)) return host;
+  // Whole parts first, so the cut falls at a dot — "…evil-site.example.com"
+  // rather than "…k.homework.evil-site.example.com" — keeping at least the
+  // last two parts, which are the ones that say who owns it.
+  const parts = host.replace(/^…/, "").split(".");
+  for (let i = 1; i < parts.length - 1; i++) {
+    const s = `…${parts.slice(i).join(".")}`;
+    if (fits(s)) return s;
+  }
+  // Too narrow even for that: letters from the end, never starting on a dot
+  // (an ellipsis followed by a dot reads as four dots).
   for (let keep = host.length - 1; keep > 1; keep--) {
-    const s = `…${host.slice(host.length - keep)}`;
-    if (m.measureText(s).width <= room) return s;
+    const s = `…${host.slice(host.length - keep).replace(/^\./, "")}`;
+    if (fits(s)) return s;
   }
   return `…${host.slice(-1)}`;
 }
@@ -7843,8 +7854,29 @@ function LeavingCard({
               the card, and a host that does not wrap is cut off at both ends.
               `anywhere` rather than `break-word` because only it lets the
               card itself shrink to the screen round the host. */}
-          <span data-leaving-host style={{ overflowWrap: "anywhere", color: "var(--jam)" }}>
-            {host}
+          <span
+            data-leaving-host
+            style={{ display: "inline-block", overflowWrap: "anywhere", color: "var(--jam)" }}
+          >
+            {/* One box, so a host that will not fit beside "This opens" starts
+                a line of its own rather than leaving "bbc." on the first line
+                to be read as the destination. Inside it, a break is offered
+                after each dot but the last, so it wraps between its parts
+                ("homework." / "evil-site.example.com") and never inside a word
+                ("evi" / "l-site"), and the owning end stays in one piece.
+                `anywhere` is only the fallback for a part too long for a line.
+                <wbr> adds no text: the dialog's name is unchanged. */}
+            {host.split(".").map((part, i, all) => (
+              <Fragment key={i}>
+                {part}
+                {i < all.length - 2 && (
+                  <>
+                    .<wbr />
+                  </>
+                )}
+                {i === all.length - 2 && "."}
+              </Fragment>
+            ))}
           </span>
           {copy.after}
         </h2>

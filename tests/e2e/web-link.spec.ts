@@ -407,6 +407,7 @@ test("on the page, a host too long for its chip keeps its end", async ({ page })
     expect(shown.startsWith("…"), `shortened from the left: ${shown}`).toBe(true);
     expect(shown.endsWith("example.com"), `the owning end shows: ${shown}`).toBe(true);
     expect(LONG_HOST.endsWith(shown.slice(1)), `a true tail of the host: ${shown}`).toBe(true);
+    expect(shown.startsWith("…."), `cut at a dot, not before one: ${shown}`).toBe(false);
     // And what is drawn is inside the chip: nothing of it is cut off by the
     // chip's edge in either direction.
     const fits = await host.evaluate((el) => {
