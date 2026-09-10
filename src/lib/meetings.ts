@@ -148,6 +148,34 @@ export function eveningLabel(eventDate: string): string {
 /** Minutes-after-midnight from an "HH:MM" form field; null for anything else. */
 export const parseClock = parseMinute;
 
+export type ClassForEvening = { name: string; teacherId: string; teacherName: string };
+
+/**
+ * The first teacher who holds more than one of the chosen classes, or null.
+ *
+ * ONE PERSON CANNOT HOLD TWO APPOINTMENTS AT ONCE. An evening lays out the same
+ * run of times for every chosen class, and a slot is unique per (evening,
+ * teacher, minute) — so two classes with the same teacher would ask the
+ * database for that teacher's 6:00 twice, and it refuses. Found here, before
+ * anything is written, and said in words: the demo admin holds three classes,
+ * and a small school's mixed-age teacher holds two, so this is a real press.
+ */
+export function teacherHeldTwice(classes: ClassForEvening[]): { teacherName: string; classNames: string[] } | null {
+  const byTeacher = new Map<string, ClassForEvening[]>();
+  for (const c of classes) byTeacher.set(c.teacherId, [...(byTeacher.get(c.teacherId) ?? []), c]);
+  for (const held of byTeacher.values()) {
+    if (held.length > 1) return { teacherName: held[0].teacherName, classNames: held.map((c) => c.name) };
+  }
+  return null;
+}
+
+/** Plain English for `teacherHeldTwice`, used by the form before the press and the action after it. */
+export function teacherHeldTwiceMessage(clash: { teacherName: string; classNames: string[] }): string {
+  const names = clash.classNames;
+  const list = names.length === 2 ? `${names[0]} and ${names[1]}` : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `${clash.teacherName} teaches ${list}, and one person can't hold two appointments at the same time. Set up a separate evening for each of those classes, at different times.`;
+}
+
 /** True when the school has told StoryJar it is shut that day. */
 export function isSchoolClosedOn(eventDate: string, closures: string[]): boolean {
   return closures.includes(eventDate);

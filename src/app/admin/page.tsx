@@ -312,6 +312,7 @@ export default async function AdminPage({
     classes: liveClasses.map((c) => ({
       id: c.id,
       name: c.name,
+      teacherId: c.teacherId,
       teacherName: c.teacher.displayName ?? c.teacher.name,
     })),
     evenings: await eveningsForSchool(school.id),

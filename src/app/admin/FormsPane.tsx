@@ -70,8 +70,12 @@ export function FormsPane({ forms: pane, onGoTo }: { forms: FormsPaneProps; onGo
   const [state, action, pending] = useActionState(sendConsentForm, {});
   const [open, setOpen] = useState(false);
   // Controlled, so a refusal does not throw away a paragraph somebody has just
-  // written. Next resets an uncontrolled form after a server action, and this is
-  // the longest thing anybody types on this console.
+  // written, and this is the longest thing anybody types on this console.
+  // React 19 resets a form after its action and puts back controlled text but NOT
+  // controlled checkboxes or radios, so the form cancels that reset (`onReset`):
+  // found on 10 September 2026 when the evenings form came back from a refusal
+  // with every class unticked while its preview line still counted them. The
+  // parents' evening spec asserts the ticks survive.
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [lunch, setLunch] = useState(false);
@@ -120,7 +124,7 @@ export function FormsPane({ forms: pane, onGoTo }: { forms: FormsPaneProps; onGo
       {!open ? (
         <button onClick={() => setOpen(true)} style={{ ...JAM_BTN, marginTop: 18 }}>Send a permission slip</button>
       ) : (
-        <form action={action} style={{ ...CARD, marginTop: 18, padding: "18px 22px" }}>
+        <form action={action} onReset={(e) => e.preventDefault()} style={{ ...CARD, marginTop: 18, padding: "18px 22px" }}>
           <label style={{ display: "block", font: "700 14px var(--font-atkinson)", color: "#22304A" }}>
             What is it called?
             <input

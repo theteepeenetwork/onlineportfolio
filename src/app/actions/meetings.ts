@@ -15,8 +15,11 @@ import {
   slotInstant,
   slotLabel,
   slotMinutesFor,
+  teacherHeldTwice,
+  teacherHeldTwiceMessage,
   validateEvening,
 } from "@/lib/meetings";
+import { Prisma } from "@prisma/client";
 
 // ===========================================================================
 // Parents' evening — laying one out, and taking an appointment.
@@ -72,9 +75,18 @@ export async function createMeetingEvent(_prev: MeetingState | undefined, formDa
   // is what turns that into a refusal rather than a partial evening.
   const classes = await db.class.findMany({
     where: { id: { in: classIds }, schoolId, archivedAt: null },
-    select: { id: true, name: true, teacherId: true },
+    select: { id: true, name: true, teacherId: true, teacher: { select: { name: true, displayName: true } } },
   });
   if (classes.length !== classIds.length) return { error: "One of those classes isn't one of yours." };
+
+  // ONE PERSON CANNOT HOLD TWO APPOINTMENTS AT ONCE. Every chosen class gets the
+  // same run of times, and a slot is unique per (evening, teacher, minute), so
+  // two classes with one teacher would ask for that teacher's 6:00 twice. The
+  // form says this before the press; the action is the enforcement point.
+  const clash = teacherHeldTwice(
+    classes.map((c) => ({ name: c.name, teacherId: c.teacherId, teacherName: c.teacher.displayName ?? c.teacher.name })),
+  );
+  if (clash) return { error: teacherHeldTwiceMessage(clash) };
 
   // The school's own closed days, read from the messaging policy because that is
   // where a school already tells StoryJar which days it is shut. A REFUSAL, not
@@ -91,7 +103,9 @@ export async function createMeetingEvent(_prev: MeetingState | undefined, formDa
   const minutes = slotMinutesFor(shape);
   const timezone = messaging.policy.timezone;
 
-  const event = await db.$transaction(async (tx) => {
+  let event: { id: string };
+  try {
+    event = await db.$transaction(async (tx) => {
     const created = await tx.meetingEvent.create({
       data: {
         schoolId,
@@ -120,7 +134,16 @@ export async function createMeetingEvent(_prev: MeetingState | undefined, formDa
       ),
     });
     return created;
-  });
+    });
+  } catch (err) {
+    // The unique index is the last line: whatever reached it, the transaction
+    // has rolled back and nothing was laid out. Said in words rather than as a
+    // crashed page, and the constraint itself is not weakened.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { error: "Two of those appointments would be the same teacher at the same time, so nothing was set up. Check the classes and try again." };
+    }
+    throw err;
+  }
 
   await recordAudit({
     action: "MEETING_EVENT_CREATED",
