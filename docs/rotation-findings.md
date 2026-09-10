@@ -322,14 +322,14 @@ run in launch week.
 | The ladder | `rotateStepFor()` in `src/lib/canvasObjects.ts`, beside `normaliseRotation` — which is what makes the integer rule load-bearing rather than tidy |
 | Applied to a drag | `DrawingCanvas.tsx`, both rotate handlers (a shape or picture, and a text box) |
 | Keyboard on the handles | `ObjectCorners` — `tabIndex` and arrow keys, stepping by the object's own ladder step, so a keyboard reaches every position a pointer can |
-| Buttons | `ObjectToolbar` — Turn left / Turn right at the coarse `ROTATE_STEP` (15°), Make it smaller / bigger |
 | Tests | `tests/e2e/rotation.spec.ts` |
 
-The two granularities are deliberate. The buttons stay at 15° because they are
-the control for squaring something up, and asking a child to press one thirty
-times to reach a right angle on a long line would be its own bad screen. The
-handle carries the fine step. Because every rung divides 45 and 90, a press and a
-drag land on the same angles rather than on two grids that disagree.
+The toolbar also carried Turn left / Turn right at a coarse 15° and Make it
+smaller / bigger, as the discoverable half of F50. **Removed September 2026**
+by the owner: the corner handles do both jobs, by drag or by arrow key, and a
+second control for each cost the bar room a small screen does not have.
+Because every rung of the ladder divides 45 and 90, the keyboard still lands
+on every square angle a press used to.
 
 ---
 

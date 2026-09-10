@@ -54,6 +54,38 @@ test("a child can add a shape, recolour it, move and resize it", async ({ page }
   await expect(page.getByText(/Waiting for your teacher/)).toBeVisible();
 });
 
+// The first shape arrives bright blue whatever pen is in hand, and once a
+// shape has been recoloured the next one arrives in that colour. A fresh
+// canvas starts blue again.
+test("a new shape takes the colour the last one was given, and a new canvas starts blue", async ({ page }) => {
+  await studentLogin(page, "Ella");
+  await openDrawing(page);
+
+  const addRect = async () => {
+    await page.locator('button[title="Add"]').click();
+    await page.getByRole("button", { name: "Shapes" }).click();
+    await page.getByRole("button", { name: "Rectangle" }).click();
+  };
+
+  await addRect();
+  const shapes = page.locator("div[data-object] svg path[stroke]");
+  await expect(shapes.nth(0)).toHaveAttribute("fill", "#3b82f6");
+
+  await page.getByRole("button", { name: "Fill colour" }).click();
+  await page.locator('input[aria-label="Fill colour"]').fill("#ef4444");
+  await expect(shapes.nth(0)).toHaveAttribute("fill", "#ef4444");
+
+  await addRect();
+  await expect(shapes.nth(1)).toHaveAttribute("fill", "#ef4444");
+
+  // A fresh canvas forgets it.
+  await page.reload();
+  const restore = page.getByRole("button", { name: /Start fresh/i });
+  if (await restore.isVisible({ timeout: 3000 }).catch(() => false)) await restore.click();
+  await addRect();
+  await expect(page.locator("div[data-object] svg path[stroke]").last()).toHaveAttribute("fill", "#3b82f6");
+});
+
 // Pentagon, hexagon, octagon — and everything between and beyond.
 //
 // One kind with one number, not three kinds: they differ by a side count, so

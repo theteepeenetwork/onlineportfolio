@@ -216,24 +216,28 @@ test("a teacher adds, resizes, prompts, saves and removes a photo frame", async 
   const wrap = frameWrapper(page);
   await expect(page.locator('div[data-frame="empty"]')).toHaveCount(1);
 
-  // Selected on placement, with the order and size controls but no padlock,
-  // no turn and no fill: a frame is fixed for a child by what it is.
+  // Selected on placement, with the order controls but no padlock, no turn
+  // handle and no fill: a frame is fixed for a child by what it is.
   await expect(page.getByRole("button", { name: "Remove object" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Unlocked", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Locked in place", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Turn left" })).toHaveCount(0);
+  await expect(page.locator('div[title="Turn"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Fill colour" })).toHaveCount(0);
 
+  // Sizing is the corner handle: a drag, or arrow keys once it has focus.
+  const resize = page.locator('div[title="Resize"]');
   const before = (await wrap.boundingBox())!;
-  await page.getByRole("button", { name: "Make it bigger" }).click();
-  await page.getByRole("button", { name: "Make it bigger" }).click();
+  await resize.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
   const bigger = (await wrap.boundingBox())!;
   expect(bigger.width).toBeGreaterThan(before.width);
 
   // Smaller stops at the floor rather than vanishing.
-  for (let i = 0; i < 14; i++) await page.getByRole("button", { name: "Make it smaller" }).click();
+  await resize.focus();
+  for (let i = 0; i < 14; i++) await page.keyboard.press("ArrowLeft");
   const floorA = (await wrap.boundingBox())!;
-  await page.getByRole("button", { name: "Make it smaller" }).click();
+  await page.keyboard.press("ArrowLeft");
   const floorB = (await wrap.boundingBox())!;
   expect(Math.abs(floorA.width - floorB.width)).toBeLessThan(1);
   expect(floorA.width).toBeGreaterThan(60);

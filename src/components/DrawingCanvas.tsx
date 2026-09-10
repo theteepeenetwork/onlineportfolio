@@ -185,6 +185,16 @@ const DEFAULT_TOOL_COLORS: Record<Tool, string> = {
   text: "#22304a", // ink
 };
 
+// The fill a plain shape arrives in until a child recolours one. Bright fan
+// blue, not the pen's colour: a page that opens on Move holds ink, and a first
+// shape landing in navy read as a mistake. Once a shape's fill is changed the
+// next shape takes that colour, and a fresh canvas starts here again.
+const DEFAULT_SHAPE_FILL = "#3b82f6";
+// A shape lands at three-quarters of its preset size. The presets are drawn
+// for the fan thumbnails and for their own proportions; on the page, full
+// size was too much of a child's screen for one tap. Owner's call, Sept 2026.
+const ADD_SCALE = 0.75;
+
 const W = 1000;
 const H = 700;
 const FONT_STACK = "ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -247,12 +257,8 @@ const MAX_OPTION_PX = 600;
 // 5.5% of the page every step. Dragging now uses `rotateStepFor(length)`, which
 // gives a long object a finer step — see src/lib/canvasObjects.ts and
 // docs/rotation-findings.md.
-//
-// 15 stays HERE on purpose. The buttons are the coarse, exact control — the one
-// for squaring something up to 90° — and every rung of the ladder divides both
-// 45 and 90, so a press and a drag land on the same angles rather than on two
-// different grids.
-const ROTATE_STEP = 15;
+// The toolbar's coarse 15° turn buttons went in September 2026: the handle,
+// by drag or arrow key, is the one control for turning.
 
 // One press of Bigger / Smaller, as a proportion. 10% is small enough that a
 // child can stop where they meant to and large enough that getting somewhere
@@ -757,6 +763,8 @@ export function DrawingCanvas({
   // colour; changing it only affects the tool you're currently holding.
   const [toolColors, setToolColors] = useState<Record<Tool, string>>(DEFAULT_TOOL_COLORS);
   const color = toolColors[tool];
+  // What the next plain shape is filled with: see DEFAULT_SHAPE_FILL.
+  const [shapeFill, setShapeFill] = useState(DEFAULT_SHAPE_FILL);
   const setColor = (c: string) => setToolColors((prev) => ({ ...prev, [tool]: c }));
   // Per-tool thickness, kept for the whole session (parallels toolColors above).
   // `size` is the active tool's thickness; changing it only affects the tool
@@ -1539,6 +1547,7 @@ export function DrawingCanvas({
 
     (async () => {
       clearCanvas();
+      setShapeFill(DEFAULT_SHAPE_FILL); // a new canvas forgets the last shape colour
       const blankStroke = canvas.toDataURL("image/png"); // fully transparent
       if (background && background.length) {
         templatesRef.current = background.map((u) => u);
@@ -2385,8 +2394,8 @@ export function DrawingCanvas({
   function addShape(preset: ShapePreset, cycle = false) {
     pushHistory();
     const id = `o${objIdRef.current++}`;
-    const w = preset.w ?? SHAPE_DEFAULTS.w;
-    const h = preset.h ?? SHAPE_DEFAULTS.h;
+    const w = Math.round((preset.w ?? SHAPE_DEFAULTS.w) * ADD_SCALE);
+    const h = Math.round((preset.h ?? SHAPE_DEFAULTS.h) * ADD_SCALE);
     // Nine landing places in a cycle, so a teacher tapping "Counter 1" four
     // times out of the kit WINDOW gets four counters they can see rather than
     // one they have to peel apart. Design offsets of ±44 / ±36 px, in model
@@ -2404,13 +2413,14 @@ export function DrawingCanvas({
       w,
       h,
       // Apparatus arrives cream, so what is written on it reads; a plain shape
-      // arrives in the colour the pen is set to, so what a child sees on the
-      // fan is what lands on the page. A preset's own colour wins over both.
+      // arrives in the fill the last shape was given (bright blue to begin
+      // with), so what a child sees on the fan is what lands on the page. A
+      // preset's own colour wins over both.
       fill:
         preset.fill ??
         (preset.kind === "grid" || preset.kind === "pie" || preset.kind === "ring"
           ? "#fffdf7"
-          : color),
+          : shapeFill),
       stroke: preset.stroke ?? SHAPE_DEFAULTS.stroke,
       strokeWidth: preset.strokeWidth ?? SHAPE_DEFAULTS.strokeWidth,
       ...(preset.text ? { text: preset.text } : {}),
@@ -2722,6 +2732,19 @@ export function DrawingCanvas({
     const list = current.map((o) => (o.id === id ? ({ ...o, ...patch } as Obj) : o));
     objectsRef.current[currentRef.current] = list;
     setObjects(list);
+    // Recolouring a shape's fill sets the colour the NEXT shape arrives in.
+    // Apparatus is left out: a cream grid says nothing about what a child
+    // wants their next circle to be. "none" is an outline, not a colour.
+    const target = current.find((o) => o.id === id);
+    const fill = (patch as Partial<ShapeObj>).fill;
+    if (
+      target?.type === "shape" &&
+      typeof fill === "string" &&
+      fill !== "none" &&
+      !(target.shape === "grid" || target.shape === "pie" || target.shape === "ring")
+    ) {
+      setShapeFill(fill);
+    }
   }
 
   function deleteObject(id: string) {
@@ -3652,7 +3675,7 @@ export function DrawingCanvas({
       const options: PlusOption[] = presets.map((preset) => ({
         key: preset.id,
         label: preset.label,
-        art: <ShapeThumb preset={preset} px={u(40)} fill={preset.fill ?? color} />,
+        art: <ShapeThumb preset={preset} px={u(40)} fill={preset.fill ?? shapeFill} />,
         onSelect: () => addShape(preset),
       }));
       plusItems.push({ key: "shapes", icon: "shapes", label: shapesKit.label, ring: 0, options });
@@ -4735,8 +4758,6 @@ function ObjectToolbar({
   onBringToFront,
   onSendToBack,
   onStyle,
-  onTurn,
-  onSize,
   onDuplicate,
   canDuplicate,
   onEdit,
@@ -4760,24 +4781,10 @@ function ObjectToolbar({
   onBringToFront: (id: string) => void;
   onSendToBack: (id: string) => void;
   onStyle: (patch: Partial<ShapeObj>) => void;
-  /**
-   * Turn and resize as a press, one coarse step at a time.
-   *
-   * The corner handles are drags, and until F50 a drag was the ONLY way to turn
-   * or resize anything — so neither could be done from a keyboard at all, on
-   * controls that announced themselves as buttons. These are the discoverable
-   * half of the answer: real buttons, in the place a child already looks for
-   * what they can do to a thing they have tapped.
-   *
-   * Deliberately the coarse 15°, not the object's own finer step: this is the
-   * control for squaring something up, and asking a child to press it thirty
-   * times to reach a right angle on a long line would be its own bad screen.
-   * The fine path is the handle, which now takes arrow keys.
-   *
-   * `onTurn` is absent where turning is not offered — a picture has no `rot`.
-   */
-  onTurn?: (dir: -1 | 1) => void;
-  onSize?: (dir: -1 | 1) => void;
+  // Turn and resize are the corner handles: a drag, or arrow keys once the
+  // handle is focused (F50). The toolbar carried a coarse-step button for each
+  // until September 2026; the owner removed them as a second control for a
+  // job the handles already do, on a bar a small screen cannot afford.
   onDuplicate: (id: string) => void;
   // False once the page is full. The button stays visible and explains itself
   // rather than vanishing, so a child isn't left wondering where it went.
@@ -5044,44 +5051,6 @@ function ObjectToolbar({
         </>
       )}
 
-      {/* Turn and resize, for anyone who is not holding a mouse. See `onTurn`. */}
-      {!pinned && onTurn && (
-        <>
-          <button
-            type="button"
-            onClick={() => onTurn(-1)}
-            className={btn}
-            style={btnStyle}
-            title="Turn it left a little"
-            aria-label="Turn left"
-          >
-            <span className="flex items-center" style={{ transform: "scaleX(-1)" }}>
-              <Icon name="rotate" size={GLYPH} decorative />
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onTurn(1)}
-            className={btn}
-            style={btnStyle}
-            title="Turn it right a little"
-            aria-label="Turn right"
-          >
-            <Icon name="rotate" size={GLYPH} decorative />
-          </button>
-        </>
-      )}
-      {!pinned && onSize && (
-        <>
-          <button type="button" onClick={() => onSize(-1)} className={`${btn} text-lg font-bold`} style={btnStyle} title="Make it smaller" aria-label="Make it smaller">
-            −
-          </button>
-          <button type="button" onClick={() => onSize(1)} className={`${btn} text-lg font-bold`} style={btnStyle} title="Make it bigger" aria-label="Make it bigger">
-            +
-          </button>
-        </>
-      )}
-
       {/* Duplicate. Showing 24 with base-10 apparatus is two rods and four
           ones; showing 7 with counters is seven counters. Without this, each
           one costs a trip back out to the ＋ fan and the palette. */}
@@ -5242,7 +5211,7 @@ function ObjectToolbar({
             <button
               type="button"
               onClick={() => {
-                onStyle({ fill: shape.fill === "none" ? "#93c5fd" : "none" });
+                onStyle({ fill: shape.fill === "none" ? DEFAULT_SHAPE_FILL : "none" });
                 setPick(null);
               }}
               aria-pressed={shape.fill === "none"}
@@ -6122,12 +6091,9 @@ function MediaObjectView({
         onDuplicate={onDuplicate}
         canDuplicate={canDuplicate}
         // A picture has no `rot` — the export renderer draws it flat — so it is
-        // offered no turn, exactly as it is offered no turn handle.
-        onTurn={o.type === "shape" ? (dir) => turnBy(dir * ROTATE_STEP) : undefined}
         // A picture has no words to change. A frame's words are the teacher's
         // prompt; a shape's are its label.
         onEdit={(o.type === "shape" || o.type === "frame") && cap.editable ? () => onEditText(o.id) : undefined}
-        onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
         onStyle={(patch) => {
           onChange(o.id, patch);
           onEnd();
@@ -6604,8 +6570,6 @@ function TextObjectView({
         onSendToBack={onSendToBack}
         onDuplicate={onDuplicate}
         canDuplicate={canDuplicate}
-        onTurn={(dir) => turnBy(dir * ROTATE_STEP)}
-        onSize={(dir) => sizeBy(dir > 0 ? SIZE_STEP : 1 / SIZE_STEP)}
         onEdit={() => onEditText(o.id)}
         onStyle={() => {}}
       />
