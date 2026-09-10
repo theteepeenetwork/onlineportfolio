@@ -224,6 +224,22 @@ test.describe("web link validation", () => {
     ["https://storyjar.co.uk/uploads/abc.webp", "uploads"],
     ["https://example.org/x?next=/uploads/abc.webp", "uploads"],
     ["https://example.org/%2Fuploads%2Fabc.webp", "uploads"],
+    // The URL parser deletes a tab, a newline or a carriage return wherever it
+    // finds one, so each of these is STORED as "/uploads/…". A check on the
+    // typed text alone sees "/up<tab>loads/"; a check on the path alone never
+    // sees the query or the fragment.
+    ["https://example.org/?q=/up\tloads/abc123.png", "uploads"],
+    ["https://example.org/#/up\nloads/abc123.png", "uploads"],
+    ["https://example.org/?q=/up\rloads/abc123.png", "uploads"],
+    // Encoded, in the path and in the query, including an encoded letter.
+    ["https://example.org/%75ploads/abc.webp", "uploads"],
+    ["https://example.org/x?q=%2F%75ploads%2Fabc.webp", "uploads"],
+    ["https://example.org/x#%2F%75ploads%2Fabc.webp", "uploads"],
+    ["https://example.org/x?q=%252Fuploads%252Fabc.webp", "uploads"],
+    ["https://example.org/up%09loads/abc.webp", "uploads"],
+    // An escape that cannot be decoded is an address that cannot be read, so
+    // it cannot be vouched for either.
+    ["https://example.org/x?q=%E0%A4%A", "not-a-web-address"],
     ["https://example.org/" + "a".repeat(2000), "too-long"],
     ["not a web address", "not-a-web-address"],
   ];
@@ -249,6 +265,36 @@ test.describe("web link validation", () => {
     expect(l?.rot).toBeUndefined();
     expect((l?.label as string).length).toBe(80);
     expect(normaliseOne({ ...linkBase, href: "https://example.org", label: "   " })?.label).toBeUndefined();
+  });
+
+  // A link's name is stored in the same payload as its address, and the media
+  // route reads that payload as text (FINDINGS F75). So the name is held to the
+  // address's rule: one that names an upload is taken off, and the link stays.
+  const refusedLabels = [
+    "/uploads/deadbeef.png",
+    "see /UPLOADS/deadbeef.png",
+    "/up\tloads/deadbeef.png",
+    "/up\nloads/deadbeef.png",
+    "%2Fuploads%2Fdeadbeef.png",
+    "/%75ploads/deadbeef.png",
+  ];
+  for (const label of refusedLabels) {
+    test(`a link's name ${JSON.stringify(label)} is taken off`, () => {
+      const out = normalizeTemplateObjects([[{ ...linkBase, href: "https://example.org/", label }]]);
+      expect(out.pages[0][0]).toMatchObject({ type: "link", href: "https://example.org/" });
+      expect((out.pages[0][0] as { label?: string }).label).toBeUndefined();
+      expect(JSON.stringify(out), "nothing the route could read as a file").not.toMatch(/\/uploads\//i);
+    });
+  }
+
+  test("an ordinary name is kept, including one a decoder cannot read", () => {
+    expect(normaliseOne({ ...linkBase, href: "https://example.org", label: "50% off: uploads of fun" })?.label).toBe(
+      "50% off: uploads of fun",
+    );
+    // A name is one line: control characters never reach the page.
+    expect(normaliseOne({ ...linkBase, href: "https://example.org", label: "Rain\tand\nsnow" })?.label).toBe(
+      "Rain and snow",
+    );
   });
 
   test("a link is never smaller than a child's finger on the smallest tablet", () => {

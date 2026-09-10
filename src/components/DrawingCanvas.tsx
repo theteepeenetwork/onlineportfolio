@@ -58,12 +58,15 @@ import {
   FRAME_PHOTO_MAX_PX,
   LINK_DEFAULT_H,
   LINK_DEFAULT_W,
+  LINK_LABEL_REFUSAL_COPY,
   LINK_REFUSAL_COPY,
   MAX_LINK_LABEL_LEN,
   MIN_LINK_H,
   MIN_LINK_W,
   displayHost,
+  linkLabelNamesUpload,
   parseTeacherLink,
+  tidyLinkLabel,
   rotateStepFor,
   wrapRotation,
   type CanvasObj,
@@ -3424,7 +3427,7 @@ export function DrawingCanvas({
     // server share one validator, and this is the builder's copy of it.
     const parsed = parseTeacherLink(href);
     if (!parsed.ok || !isObjectAuthor) return;
-    const tidy = label.trim().slice(0, MAX_LINK_LABEL_LEN);
+    const tidy = tidyLinkLabel(label) ?? "";
     if (target?.id) {
       pushHistory();
       updateObject(target.id, { href: parsed.href, label: tidy || undefined } as Partial<Obj>);
@@ -7504,9 +7507,11 @@ function LinkDialog({
   const [href, setHref] = useState(initial?.href ?? "");
   const [label, setLabel] = useState(initial?.label ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [labelError, setLabelError] = useState<string | null>(null);
   const addressId = useId();
   const nameId = useId();
   const errorId = useId();
+  const labelErrorId = useId();
   useEffect(() => {
     ref.current?.querySelector<HTMLInputElement>("input")?.focus();
   }, []);
@@ -7517,7 +7522,14 @@ function LinkDialog({
       ref.current?.querySelector<HTMLInputElement>("input")?.focus();
       return;
     }
-    onSave(parsed.href, label.trim().slice(0, MAX_LINK_LABEL_LEN));
+    // Refused in words here rather than dropped quietly on save: the server
+    // would take the name off (`tidyLinkLabel`), and a teacher should know.
+    if (linkLabelNamesUpload(label)) {
+      setLabelError(LINK_LABEL_REFUSAL_COPY);
+      document.getElementById(nameId)?.focus();
+      return;
+    }
+    onSave(parsed.href, tidyLinkLabel(label) ?? "");
   }
   return (
     <div
@@ -7581,9 +7593,19 @@ function LinkDialog({
           className="input"
           maxLength={MAX_LINK_LABEL_LEN}
           value={label}
-          onChange={(e) => setLabel(e.target.value)}
+          onChange={(e) => {
+            setLabel(e.target.value);
+            setLabelError(null);
+          }}
           placeholder="Bitesize: the water cycle"
+          aria-invalid={labelError ? true : undefined}
+          aria-describedby={labelError ? labelErrorId : undefined}
         />
+        {labelError && (
+          <p id={labelErrorId} role="alert" className="mt-1 text-sm font-semibold text-rose-700">
+            {labelError}
+          </p>
+        )}
         <div className="mt-5 flex flex-col gap-2">
           <button type="button" onClick={submit} className="btn-brand min-h-[48px] w-full text-base">
             {initial ? "Save link" : "Add link"}

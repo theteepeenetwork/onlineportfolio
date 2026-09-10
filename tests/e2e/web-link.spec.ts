@@ -71,6 +71,12 @@ test("a teacher adds a web link and changes it; the builder refuses what the ser
     await add.getByRole("button", { name: "Add link" }).click();
     await expect(add.getByRole("alert"), "refused in words, not dropped later").toContainText("https://");
     await add.getByLabel("Web address").fill("https://www.example.org/water-cycle");
+    // A name is held to the address's /uploads/ rule, and told so in words
+    // rather than taken off quietly on save.
+    await add.getByLabel(/Name for it/).fill("/uploads/deadbeef.png");
+    await add.getByRole("button", { name: "Add link" }).click();
+    await expect(add.getByRole("alert")).toHaveText("That name can't go on a canvas.");
+    await expect(add.getByLabel(/Name for it/)).toBeFocused();
     await add.getByLabel(/Name for it/).fill("The water cycle");
     // Enter adds the link — and only the link. The canvas sits inside the
     // template's own form, and an Enter that submitted THAT would close the

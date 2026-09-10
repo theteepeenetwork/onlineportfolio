@@ -255,6 +255,42 @@ export const LINK_REFUSAL_COPY: Record<LinkRefusal, string> = {
   port: "That address uses an unusual port. Use the website's ordinary address.",
   uploads: "That address can't go on a canvas.",
 };
+// And for a name, which is held to the one rule an address is (see
+// `tidyLinkLabel`).
+export const LINK_LABEL_REFUSAL_COPY = "That name can't go on a canvas.";
+
+// C0 and C1 control characters. The URL parser deletes a tab, a newline or a
+// carriage return wherever it finds one, so "/up<tab>loads/" typed becomes
+// "/uploads/" stored; a check has to see through them the same way.
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/g;
+
+// Does this text name an upload, in any spelling the media route's text match
+// could be made to see? Asked of the text as it is, with its control
+// characters taken out, and percent-decoded (repeatedly, so a double-encoded
+// copy is caught too). `strictDecode` says what an escape that cannot be
+// decoded means: for an address it is refused, because an address we cannot
+// read is not one we can vouch for; for a label it is ordinary text ("50% off").
+function namesAnUpload(text: string, strictDecode: boolean): boolean | "undecodable" {
+  const forms = new Set<string>();
+  let current = text;
+  for (let i = 0; i < 4; i++) {
+    forms.add(current);
+    forms.add(current.replace(CONTROL_CHARS, ""));
+    let next: string;
+    try {
+      next = decodeURIComponent(current);
+    } catch {
+      if (strictDecode) return "undecodable";
+      break;
+    }
+    if (next === current) break;
+    current = next;
+  }
+  for (const f of forms) {
+    if (/\/uploads\//i.test(f) || /%2fuploads%2f/i.test(f)) return true;
+  }
+  return false;
+}
 
 /**
  * Check an address and hand back the one to store, or say why not. Pure, so
@@ -267,9 +303,10 @@ export function parseTeacherLink(
   const text = raw.trim();
   if (!text) return { ok: false, why: "empty" };
   if (text.length > MAX_LINK_LEN) return { ok: false, why: "too-long" };
-  // Refused on the text as typed as well as on the parsed path below, so an
-  // encoded copy or one in a query string is refused too.
-  if (/\/uploads\//i.test(text) || /%2fuploads%2f/i.test(text)) return { ok: false, why: "uploads" };
+  // Refused on the text as typed, before the parser has had a chance to
+  // rewrite it — and again below on the address the parser produced, which is
+  // the text that is actually stored.
+  if (namesAnUpload(text, false) === true) return { ok: false, why: "uploads" };
   // A teacher pasting "bbc.co.uk/bitesize" means https. An address that names
   // any other scheme is refused below rather than guessed at.
   const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`;
@@ -299,23 +336,48 @@ export function parseTeacherLink(
   ) {
     return { ok: false, why: "not-a-public-host" };
   }
-  const href = url.toString();
+  const href = url.href;
   if (href.length > MAX_LINK_LEN) return { ok: false, why: "too-long" };
-  let path = url.pathname;
-  try {
-    path = decodeURIComponent(path);
-  } catch {
-    /* a malformed escape is left as typed, and checked as typed */
-  }
-  if (/\/uploads\//i.test(path)) return { ok: false, why: "uploads" };
+  // The whole stored address — path, query and fragment — and its decoded
+  // form. Checking only the path let "?q=/up<tab>loads/…" and
+  // "#/up<newline>loads/…" through: the parser had deleted the character that
+  // hid them from the check on the typed text, and nothing looked again.
+  const named = namesAnUpload(href, true);
+  if (named === "undecodable") return { ok: false, why: "not-a-web-address" };
+  if (named) return { ok: false, why: "uploads" };
   return { ok: true, href, host };
+}
+
+/**
+ * A teacher's name for a link, tidied to what may be stored and shown: control
+ * characters out, trimmed, capped. `undefined` when there is nothing left, or
+ * when it names an upload — a label is stored beside the address in the same
+ * payload the media route reads as text (FINDINGS F75), so it is held to the
+ * same rule. The builder refuses such a name in words before this drops it.
+ */
+export function tidyLinkLabel(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  // A tab or a newline in a name becomes a space: a name is one line. The
+  // upload check below looks at it with them taken out altogether, which is
+  // how the "/up<tab>loads/" spelling is caught.
+  const label = raw.replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim().slice(0, MAX_LINK_LABEL_LEN);
+  if (!label) return undefined;
+  if (linkLabelNamesUpload(raw)) return undefined;
+  return label;
+}
+
+/** Whether a link's name would be refused for naming an upload. */
+export function linkLabelNamesUpload(raw: string): boolean {
+  return namesAnUpload(raw, false) === true;
 }
 
 /**
  * The host a child is shown, never the teacher's label: a label can say "BBC
  * Bitesize" over any address at all, and the whole point of showing a host is
- * to say where the tab will really go. The URL parser has already turned an
- * international name into its `xn--` form, so a look-alike letter from another
+ * to say which website the address really names. (Not always where the tab
+ * ends up: a link shortener or a redirect page can send it on, and the school's
+ * web filter governs that — SAFEGUARDING rule 26.) The URL parser has already
+ * turned an international name into its `xn--` form, so a look-alike letter from another
  * alphabet shows up as what it is. `www.` is dropped because it tells a child
  * nothing, and a host too long to show is shortened from the LEFT, because the
  * end of a host is the part that says who owns it.
@@ -574,7 +636,7 @@ function normalizeObject(raw: unknown): CanvasObj | null {
     if (!parsed.ok) return null;
     const w = clamp(num(o.w, LINK_DEFAULT_W), MIN_LINK_W, OBJ_W);
     const h = clamp(num(o.h, LINK_DEFAULT_H), MIN_LINK_H, OBJ_H);
-    const label = typeof o.label === "string" ? str(o.label.trim(), MAX_LINK_LABEL_LEN) : undefined;
+    const label = tidyLinkLabel(o.label);
     return {
       id,
       type: "link",
