@@ -2,3 +2,4 @@
 - [Verify a gate by breaking it](verify-a-gate-by-breaking-it.md) — revert the fix and watch the new assertion fail, or it is measuring something else
 - [Ask what the repo already decided](ask-what-the-repo-already-decided.md) — triage by hazard, not by subsystem; the rule is often in a comment the change never touches
 - [Teacher-authored is now teacher-adopted](teacher-authored-is-now-teacher-adopted.md) — the MCP connector can write quiz content; don't assert authorship in safeguarding records
+- [Canvas hidden field lags an undo](canvas-hidden-field-lags-undo.md) — restore() writes the composite in a .then(); read it on the click and you read the pre-undo value
