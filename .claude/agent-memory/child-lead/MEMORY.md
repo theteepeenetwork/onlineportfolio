@@ -3,3 +3,5 @@
 - [Ask what the repo already decided](ask-what-the-repo-already-decided.md) — triage by hazard, not by subsystem; the rule is often in a comment the change never touches
 - [Teacher-authored is now teacher-adopted](teacher-authored-is-now-teacher-adopted.md) — the MCP connector can write quiz content; don't assert authorship in safeguarding records
 - [Canvas hidden field lags an undo](canvas-hidden-field-lags-undo.md) — restore() writes the composite in a .then(); read it on the click and you read the pre-undo value
+- [The canvas lives inside a form](canvas-lives-inside-a-form.md) — no <form> in a canvas dialog; handle Enter, or it submits the template
+- [Worktree agent shell limits](worktree-agent-shell-limits.md) — compound git/heredoc bash is refused; no .md in scratch; scratchpad is shared, use a subdir
