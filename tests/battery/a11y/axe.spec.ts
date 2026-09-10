@@ -352,6 +352,16 @@ test("a11y (AA): student home", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "student home");
 });
 
+// The child's error boundary (FINDINGS F74). Reached through the dev-only
+// DevThrow fixture, because no route fails on purpose; the page a child sees
+// when something breaks must pass the same bar as the page they meant to see.
+test("a11y (AA): student error page", async ({ page }) => {
+  await loginStudent(page, SCHOOL_A.classCode, SCHOOL_A.student);
+  await page.goto("/student/activities?sj-throw=1");
+  await expect(page.getByRole("button", { name: "Have another go" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "student error page");
+});
+
 // The EYFS (3–5) register — design 6a, the icon-only student home. It is the
 // most locked-down register and the one a child least able to read depends on,
 // so its icon-only tiles, greeting and jar bar must pass AA and be labelled

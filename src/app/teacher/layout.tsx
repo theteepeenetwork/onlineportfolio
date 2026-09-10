@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { accountStateForTeacher, writableSchoolPlanWhere } from "@/lib/billing";
 import { FrozenBanner } from "@/components/FrozenBanner";
+import { ClientErrorReporter } from "@/components/ClientErrorReporter";
 import { SchoolInvitationBanner } from "@/components/SchoolInvitationBanner";
 import { TeacherShell, type ShellClass } from "@/components/teacher/TeacherShell";
 import { classTint } from "@/lib/classTints";
@@ -164,6 +165,9 @@ export default async function TeacherLayout({
       pending={pending}
       banner={banner}
     >
+      {/* Browser-side failure reporting for every teacher surface, the canvas
+          included (FINDINGS F74). Renders nothing. */}
+      <ClientErrorReporter />
       {children}
     </TeacherShell>
   );

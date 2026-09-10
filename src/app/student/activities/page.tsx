@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { Avatar } from "@/components/Avatar";
 import { LogoutForm } from "@/components/LogoutForm";
 import { Icon } from "@/components/icons/Icon";
+import { DevThrow } from "@/components/DevThrow";
 
 export default async function StudentActivities() {
   const user = await getCurrentUser();
@@ -40,6 +41,12 @@ export default async function StudentActivities() {
 
   return (
     <>
+      {/* Test fixture for the /student error boundary, compiled out of
+          production (see DevThrow). It lives in a PAGE because error.tsx wraps
+          a layout's children, not the layout; and on THIS page rather than the
+          jar, because a boundary resets only when the pathname changes, and
+          "Back to my jar" has to be a real change of page. */}
+      <DevThrow />
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-2xl items-center gap-3 p-4">
           <Avatar name={student.name} color={student.avatarColor} size={48} />
