@@ -620,6 +620,36 @@ function minObjSize(o: Obj): { w: number; h: number } {
 // — and both are drawn as text, never interpreted.
 const LINK_PAD = 16;
 const LINK_ICON = 44;
+// The chip's words, in model units: what is left of its width once the padding,
+// the round badge and the gap beside it are taken out.
+function linkTextRoom(o: { w: number }) {
+  return Math.max(10, o.w - (LINK_PAD * 3 + LINK_ICON));
+}
+function linkFont(weight: number, px: number) {
+  return `${weight} ${px}px ${FONT_STACK}`;
+}
+
+// A host too long for the room it has, shortened from the LEFT with an
+// ellipsis, so the end of it — the part that says who owns it — is always what
+// shows (rule 26). "bbc.co.uk.evil-site.example.com" cut from the right reads
+// "bbc.co.uk.evi…", which is the one reading a host must never have. Measured
+// with the font it is drawn in, in model units, so the screen and the hand-in
+// picture shorten it by the same rule.
+let hostMeasure: CanvasRenderingContext2D | null | undefined;
+function fitHostFromLeft(host: string, font: string, room: number): string {
+  if (typeof document === "undefined") return host;
+  if (hostMeasure === undefined) hostMeasure = document.createElement("canvas").getContext("2d");
+  const m = hostMeasure;
+  if (!m) return host;
+  m.font = font;
+  if (m.measureText(host).width <= room) return host;
+  for (let keep = host.length - 1; keep > 1; keep--) {
+    const s = `…${host.slice(host.length - keep)}`;
+    if (m.measureText(s).width <= room) return s;
+  }
+  return `…${host.slice(-1)}`;
+}
+
 function drawLinkChip(ec: CanvasRenderingContext2D, o: LinkObj) {
   const host = displayHost(o.href);
   ec.save();
@@ -645,19 +675,24 @@ function drawLinkChip(ec: CanvasRenderingContext2D, o: LinkObj) {
   ec.lineTo(cx + 6, cy - 6);
   ec.stroke();
   const tx = o.x + LINK_PAD * 2 + LINK_ICON;
-  const room = Math.max(10, o.w - (tx - o.x) - LINK_PAD);
+  const room = linkTextRoom(o);
   ec.fillStyle = "#22304A";
   ec.textAlign = "left";
   ec.textBaseline = "middle";
+  // `room` is passed to fillText as well, as a last resort: if a font has not
+  // finished loading and measures differently, the words are squeezed rather
+  // than spilling past the chip.
   if (o.label) {
-    ec.font = `600 22px ${FONT_STACK}`;
+    ec.font = linkFont(600, 22);
     ec.fillText(o.label, tx, cy - 13, room);
-    ec.font = `400 18px ${FONT_STACK}`;
+    const font = linkFont(400, 18);
+    ec.font = font;
     ec.fillStyle = "#4A5670";
-    ec.fillText(host, tx, cy + 14, room);
+    ec.fillText(fitHostFromLeft(host, font, room), tx, cy + 14, room);
   } else {
-    ec.font = `600 22px ${FONT_STACK}`;
-    ec.fillText(host, tx, cy, room);
+    const font = linkFont(600, 22);
+    ec.font = font;
+    ec.fillText(fitHostFromLeft(host, font, room), tx, cy, room);
   }
   ec.restore();
 }
@@ -6647,14 +6682,30 @@ function MediaObjectView({
                 {o.label}
               </span>
             )}
+            {/* The host, shortened from the LEFT (never `truncate`, which cuts
+                the owning end off). The string is fitted by measuring; the
+                right-to-left box is the belt under it — should a font measure
+                wider on screen than it did here, the overflow is off the LEFT
+                edge, and the end of the host still shows. The <bdi> keeps
+                the host itself reading left to right. */}
             <span
-              className="truncate"
+              data-link-host
+              dir="rtl"
+              className="overflow-hidden whitespace-nowrap"
               style={{
+                textAlign: "left",
                 font: `${o.label ? 400 : 600} ${(o.label ? 18 : 22) * scale}px ${FONT_STACK}`,
                 color: o.label ? "var(--ink-soft)" : "var(--ink)",
               }}
             >
-              {displayHost(o.href)}
+              <bdi dir="ltr">
+                {fitHostFromLeft(
+                  displayHost(o.href),
+                  linkFont(o.label ? 400 : 600, o.label ? 18 : 22),
+                  // The chip's 3px border is in screen pixels, not model units.
+                  (linkTextRoom(o) - 6 / Math.max(scale, 0.1)) * 0.96,
+                )}
+              </bdi>
             </span>
           </span>
         </div>
@@ -7745,7 +7796,14 @@ function LeavingCard({
           style={{ margin: "24px 0 0", font: "600 32px/1.3 var(--font-fredoka)", textWrap: "balance" }}
         >
           {copy.before}
-          <span style={{ whiteSpace: "nowrap", color: "var(--jam)" }}>{host}</span>
+          {/* Allowed to break anywhere, so the WHOLE host is always on the
+              screen: on a phone a 40-character host at this size is wider than
+              the card, and a host that does not wrap is cut off at both ends.
+              `anywhere` rather than `break-word` because only it lets the
+              card itself shrink to the screen round the host. */}
+          <span data-leaving-host style={{ overflowWrap: "anywhere", color: "var(--jam)" }}>
+            {host}
+          </span>
           {copy.after}
         </h2>
         <div className="flex flex-wrap items-center justify-center" style={{ gap: 16, marginTop: 32 }}>

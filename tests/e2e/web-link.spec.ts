@@ -335,6 +335,82 @@ test("the card reads aloud only StoryJar's own words, never the address", async 
   }
 });
 
+// "The real host is always what a child sees" (rule 26), including on the
+// smallest screen and including when it is long. A host that cannot be shown
+// whole is shortened from the LEFT, because the end is the part that says who
+// owns it: "bbc.co.uk.evil-site.example.com" cut from the right would read as
+// the BBC.
+const LONG_HOST = "bbc.co.uk.homework.evil-site.example.com"; // 40 characters
+
+test("on a phone, the whole of a long host is on the leaving card", async ({ page }) => {
+  expect(LONG_HOST).toHaveLength(40);
+  const run = await runWithLink("Long host links", {
+    w: 380,
+    h: 110,
+    href: `https://${LONG_HOST}/rain`,
+    label: "All about rain",
+  });
+  try {
+    // Pressed on the tablet the canvas is laid out for, then the window is
+    // narrowed to a phone's: the card is full screen and lays itself out
+    // against the window, so this is the card a 390px screen gets.
+    await openRun(page, "Ella", "Long host links");
+    await page.getByRole("button", { name: `All about rain, ${LONG_HOST}` }).click();
+    const card = page.getByRole("dialog", { name: new RegExp(`This opens ${LONG_HOST.replace(/\./g, "\\.")}`) });
+    await expect(card).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const host = card.locator("[data-leaving-host]");
+    await expect(host).toHaveText(LONG_HOST);
+    // Every line box of it, not only its first: a host that wraps is fine, and
+    // one that runs off either edge of the screen is not.
+    const out = await host.evaluate((el) => {
+      const w = window.innerWidth;
+      return Array.from(el.getClientRects())
+        .filter((r) => r.left < -0.5 || r.right > w + 0.5)
+        .map((r) => `${Math.round(r.left)}–${Math.round(r.right)} of ${w}`);
+    });
+    expect(out, "no part of the host is off the screen").toEqual([]);
+    // And the choice is still on the screen beside it.
+    await expect(card.getByRole("button", { name: "Stay here" })).toBeInViewport();
+    await expect(card.getByRole("link", { name: "Open it" })).toBeInViewport();
+  } finally {
+    await run.cleanup();
+  }
+});
+
+test("on the page, a host too long for its chip keeps its end", async ({ page }) => {
+  // The smallest tablet a child uses, and a chip narrower than the host.
+  await page.setViewportSize({ width: 768, height: 1024 });
+  const run = await runWithLink("Chip host links", {
+    w: 300,
+    h: 110,
+    href: `https://${LONG_HOST}/rain`,
+    label: "All about rain",
+  });
+  try {
+    await openRun(page, "Ella", "Chip host links");
+    const chip = page.locator(`[data-link="${LONG_HOST}"]`);
+    await expect(chip).toContainText("All about rain");
+    const host = chip.locator("[data-link-host]");
+    const shown = ((await host.textContent()) ?? "").trim();
+    // Shortened, from the left, and the end is the host's own end.
+    expect(shown.startsWith("…"), `shortened from the left: ${shown}`).toBe(true);
+    expect(shown.endsWith("example.com"), `the owning end shows: ${shown}`).toBe(true);
+    expect(LONG_HOST.endsWith(shown.slice(1)), `a true tail of the host: ${shown}`).toBe(true);
+    // And what is drawn is inside the chip: nothing of it is cut off by the
+    // chip's edge in either direction.
+    const fits = await host.evaluate((el) => {
+      const text = el.firstElementChild as HTMLElement;
+      const box = el.getBoundingClientRect();
+      const t = text.getBoundingClientRect();
+      return t.left >= box.left - 0.5 && t.right <= box.right + 0.5;
+    });
+    expect(fits, "the shortened host is all within the chip").toBe(true);
+  } finally {
+    await run.cleanup();
+  }
+});
+
 test("an address the server would refuse never reaches a child's page", async ({ page }) => {
   const run = await runWithLink("Refused links", { w: 380, h: 110, href: "javascript:alert(1)", label: "Refused" });
   try {
