@@ -277,18 +277,36 @@ test.describe("A1 · Student-journal IDOR across tenants", () => {
 
 test.describe("A1 · Activity edit / preview are scoped across tenants", () => {
   // Grab a real School A template id the honest way: its own teacher's library
-  // links each card to /teacher/activities/<id>.
+  // links each card's title to /teacher/activities/<id>.
+  //
+  // THESE TWO TESTS PROVED NOTHING UNTIL 10 SEPTEMBER 2026 (FINDINGS F78). The
+  // selector was the first `a[href^="/teacher/activities/"]` on the page, and
+  // the first such link is the "＋ New activity" button, so the "id" was the
+  // word `new`. `/teacher/activities/new/edit` is a 404 to everybody, School B
+  // included, so both tests passed against a request that named no template at
+  // all. The card is now found by the title the seed gives it, the id is checked
+  // to be something other than a route segment, and — the part that actually
+  // closes it — its OWNER is shown the page first. A 404 for School B means
+  // something only once the same URL is a 200 for School A.
+  const ROUTE_SEGMENTS = new Set(["new", "shared", "library", "runs"]);
+
   async function schoolATemplateId(page: import("@playwright/test").Page): Promise<string> {
     await loginTeacher(page, SCHOOL_A.admin);
     await page.goto("/teacher/activities");
     const href = await page
-      .locator('a[href^="/teacher/activities/"]')
-      .first()
+      .getByRole("link", { name: "Count the apples", exact: true })
       .getAttribute("href");
-    const id = href?.split("/").pop();
-    expect(id).toBeTruthy();
+    expect(href, "the seeded card's title links to its template").toMatch(/^\/teacher\/activities\/[^/?#]+$/);
+    const id = href!.split("/").pop()!;
+    expect(ROUTE_SEGMENTS.has(id), `"${id}" is a route, not a template id`).toBe(false);
+
+    // Positive control, same session, same URLs: the owner is let in.
+    for (const suffix of ["edit", "preview"]) {
+      const own = await page.goto(`/teacher/activities/${id}/${suffix}`);
+      expect(own?.status(), `the owner must reach /${suffix}, or the 404 below proves nothing`).toBe(200);
+    }
     await clearSession(page);
-    return id!;
+    return id;
   }
 
   test("School B teacher gets 404 editing a School A template", async ({ page }) => {
