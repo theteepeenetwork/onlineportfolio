@@ -278,7 +278,17 @@ test("a link that was never the teacher's cannot be pressed, even from a restore
     await page.goto("/student/activities");
     await page.getByRole("link", { name: /Planted links/ }).first().click();
     await page.getByRole("button", { name: /Restore my work/i }).click();
-    await expect(page.locator('[data-link="evil.example"]').first(), "the planted chips are drawn").toBeVisible();
+    await expect(page.getByRole("button", { name: "All about rain, kids.example.org" })).toBeVisible();
+
+    // The chip is the teacher's too: the draft's copy of o1 named evil.example,
+    // and what is drawn is the teacher's host and name. The link the teacher
+    // never placed (o9) is not drawn at all — so the chip, the card and the
+    // picture handed in all name the same website.
+    await expect(page.locator("[data-link]")).toHaveCount(1);
+    await expect(page.locator('[data-link="evil.example"]')).toHaveCount(0);
+    const chip = page.locator('[data-link="kids.example.org"]');
+    await expect(chip).toContainText("All about rain");
+    await expect(chip.locator("[data-link-host]")).toHaveText("kids.example.org");
 
     // The planted one opens nothing at all; the teacher's opens the teacher's
     // address, whatever the draft said it was.

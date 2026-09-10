@@ -1784,7 +1784,11 @@ export function DrawingCanvas({
     const c = ctx();
     templatesRef.current = [...canvas.templates];
     pagesRef.current = [...canvas.pages];
-    objectsRef.current = (canvas.objects as Obj[][]).map((pg) => pg.map((o) => ({ ...o })));
+    // A draft is the child's device's copy, and the child's to change; its web
+    // links are put back to the teacher's before anything draws them (rule 26).
+    objectsRef.current = withTeacherLinks(
+      (canvas.objects as Obj[][]).map((pg) => pg.map((o) => ({ ...o }))),
+    );
     addedRef.current = addedFlags(canvas.added, pagesRef.current.length);
     anyDrawnRef.current = canvas.anyDrawn;
     // Before anything is drawn: the pictures of each page carry its questions.
@@ -1964,11 +1968,13 @@ export function DrawingCanvas({
       // Hydrate the template's movable objects (per page). In "answer" mode they
       // are marked fromTemplate so a child's lock rules apply; a plain drawing
       // canvas (no initialObjects) starts empty.
-      const seededObjects: Obj[][] = pagesRef.current.map((_, i) => {
-        const page = initialObjects?.[i];
-        if (!Array.isArray(page)) return [];
-        return page.map((o) => ({ ...(o as Obj), fromTemplate: !isObjectAuthor }));
-      });
+      const seededObjects: Obj[][] = withTeacherLinks(
+        pagesRef.current.map((_, i) => {
+          const page = initialObjects?.[i];
+          if (!Array.isArray(page)) return [];
+          return page.map((o) => ({ ...(o as Obj), fromTemplate: !isObjectAuthor }));
+        }),
+      );
       objectsRef.current = seededObjects;
 
       // Never collide a freshly-added object id with a hydrated one.
@@ -3503,23 +3509,59 @@ export function DrawingCanvas({
   // state that has been meddled with — can place a chip on the page, and can
   // never make one open. Re-checked with the same validator on the way in.
   const teacherLinks = useMemo(() => {
-    const byId = new Map<string, { href: string; host: string; label?: string }>();
+    const byId = new Map<string, { href: string; host: string; label?: string; obj: LinkObj }>();
     for (const page of initialObjects ?? []) {
       if (!Array.isArray(page)) continue;
       for (const raw of page) {
         const o = raw as Partial<LinkObj> | null;
         if (!o || o.type !== "link" || typeof o.id !== "string") continue;
+        if (byId.has(o.id)) continue;
         const parsed = parseTeacherLink(o.href);
         if (!parsed.ok) continue;
+        const label = tidyLinkLabel(o.label);
+        const w = typeof o.w === "number" && Number.isFinite(o.w) ? o.w : LINK_DEFAULT_W;
+        const h = typeof o.h === "number" && Number.isFinite(o.h) ? o.h : LINK_DEFAULT_H;
         byId.set(o.id, {
           href: parsed.href,
           host: displayHost(parsed.href),
-          label: typeof o.label === "string" ? o.label.slice(0, MAX_LINK_LABEL_LEN) : undefined,
+          label,
+          obj: {
+            id: o.id,
+            type: "link",
+            x: typeof o.x === "number" && Number.isFinite(o.x) ? o.x : 0,
+            y: typeof o.y === "number" && Number.isFinite(o.y) ? o.y : 0,
+            w: Math.max(MIN_LINK_W, w),
+            h: Math.max(MIN_LINK_H, h),
+            href: parsed.href,
+            ...(label ? { label } : {}),
+          },
         });
       }
     }
     return byId;
   }, [initialObjects]);
+
+  // A child's pages with every web link put back to the teacher's own copy of
+  // it: the address, the name, where it sits and how big it is all come from
+  // the snapshot, and a link the snapshot never had — or a second copy of one
+  // it did — is taken off the page. Applied wherever a child's canvas takes in
+  // objects from outside itself (the template, a restored draft), so the chip
+  // on the page, the card it opens and the picture that is handed in all name
+  // the same website, and it is the teacher's. The builder is left alone: there
+  // the objects ARE the teacher's copy, being written.
+  function withTeacherLinks(pages: Obj[][]): Obj[][] {
+    if (isObjectAuthor) return pages;
+    const seen = new Set<string>();
+    return pages.map((pg) =>
+      pg.flatMap((o): Obj[] => {
+        if (o.type !== "link") return [o];
+        const theirs = teacherLinks.get(o.id);
+        if (!theirs || seen.has(o.id)) return [];
+        seen.add(o.id);
+        return [{ ...theirs.obj, fromTemplate: true }];
+      }),
+    );
+  }
 
   // The child's photo arriving from the camera dialog. Normalised like an
   // import (capped, re-encoded small), then cropped to the frame's own shape so
