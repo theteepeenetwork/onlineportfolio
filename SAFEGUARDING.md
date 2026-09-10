@@ -566,7 +566,7 @@ Each rule is testable. A change that breaks one does not ship.
       snapshot, and a link the snapshot never had is taken off the page, so
       all three name the same website. (A draft restored on a different device
       comes back as page pictures, in which a link is drawn but cannot be
-      pressed: FINDINGS F78. That fails safe.)
+      pressed: FINDINGS F80. That fails safe.)
     - **A new tab that knows nothing about where it came from.** Open it is an
       `<a target="_blank" rel="noopener noreferrer">`: the website cannot script
       back into the child's tab and is not told which page sent them.
