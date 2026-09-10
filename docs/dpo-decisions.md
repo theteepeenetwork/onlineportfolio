@@ -839,7 +839,8 @@ projector that no adult had seen. Looking first is the narrowest control that
 gives the teacher the moment they asked for.
 
 **What is processed.** Nothing new is stored. The teacher's own browser is
-given each showable piece's picture paths and the pupil's stored first name;
+given each showable piece's id, status, picture paths and the pupil's stored
+first name;
 the pictures come through the same authorising `/uploads` route as the queue
 (rule 7). There is no record of what was shown, anywhere, and that is the
 point: a list of what was shown to whom would be a publication record a family
@@ -850,5 +851,15 @@ is at DPIA R23 and is left with the adult in the room on purpose.
 party. What was traded away — waiting work seen by classmates after a look,
 rather than after approval — is written into the Amendments table so it cannot
 be mistaken for an accident.
+
+**OPEN — for the owner to decide: may a quiz hand-in go on the board?** Today
+it cannot. The safeguarding review of 10 September 2026 found that the picture
+of a quiz hand-in has the question boxes drawn on with the child's chosen answer
+showing, so putting it up would show the class which answer each child picked —
+a right-or-wrong in front of the room, which is a different thing from showing
+a drawing. The run page therefore does not offer one, whatever its status, and
+rule 25 lists it as not covered. Showing the drawing without the answers, or
+showing the answers, are both possible later; neither should be built until
+this is answered.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10.

@@ -491,20 +491,25 @@ Each rule is testable. A change that breaks one does not ship.
    - **Only what the teacher has looked at.** Work in a jar (`APPROVED`) has
      been looked at and approved, and may be chosen straight away. Work waiting
      in the queue (`PENDING`) may be chosen only after the teacher has opened it
-     full size. Work sent back (`RETURNED`) is never offered.
+     full size, and until then its picture is not drawn on the run's page
+     either, because that page may already be on the projector. Work sent back
+     (`RETURNED`) is never offered, and nor is a quiz hand-in (see below).
    - **The choices are never stored.** They live in the open page and nowhere
      else: no database row, no URL, no browser storage. A reload forgets them.
      A list of what was shown would be a publication record, and StoryJar keeps
      none.
-   - **Opaque, full screen.** Nothing of the page behind is visible, because
-     that page lists every pupil in the class and who has not handed in.
+   - **Opaque, full screen, and nothing behind it reachable.** Nothing of the
+     page behind is visible, because that page lists every pupil in the class
+     and who has not handed in. For the same reason the page behind is made
+     inert while the board is up, so neither Tab nor a screen reader can move
+     onto it, and focus returns to the button that opened the board.
    - **A first name, or none.** The pupil's stored name (first names only, rule
      2) shows by default. "Hide names" takes it off the screen **and** out of
      the picture's alternative text, so a screen reader on the projecting
      laptop does not say what the screen was told not to show.
-   - **Pictures only.** The browser is given the page pictures and the name, and
-     nothing else about the work: never the caption, a quiz score, a teacher's
-     note or stickers.
+   - **Pictures only.** For each piece the browser is given its id, its status,
+     its page pictures and the pupil's first name, and nothing else: never the
+     caption, a quiz score or answer, a teacher's note or stickers.
    - **Showing changes nothing.** It does not approve, return or put anything in
      a jar, and the server is not told that it happened.
 
@@ -512,7 +517,9 @@ Each rule is testable. A change that breaks one does not ship.
    any screen other than the teacher's own (a second device, casting, a link);
    showing voice notes or written words; showing work from more than one class
    or school at once; keeping any record of what was shown; a pupil or parent
-   seeing the board; a surname.
+   seeing the board; a surname; a quiz hand-in, until the owner decides whether
+   chosen answers may be shown to the class — its picture has the question boxes
+   drawn on with the child's answer showing, so it is not offered at all.
 
 7. **Uploaded media is access-controlled, not public.** Photos and drawings of
    children **must not** be served from guessable or unauthenticated URLs. Every
