@@ -557,7 +557,14 @@ type PageSnapshot = {
 // Something done to the pages rather than on one. There is no redo for these:
 // redo replays the step just undone, and a page action is the rarer thing to
 // regret undoing than the stroke a child is chasing.
-type PageAction = { kind: "delete"; seq: number; index: number; snap: PageSnapshot };
+//
+// Each carries what it takes to go back to the page the person was on:
+// `from` for the three that make or move a page.
+type PageAction =
+  | { kind: "delete"; seq: number; index: number; snap: PageSnapshot }
+  | { kind: "add"; seq: number; index: number; from: number }
+  | { kind: "copy"; seq: number; index: number; from: number }
+  | { kind: "move"; seq: number; from: number; to: number };
 
 // One cap, in one place, for both stacks. The redo stack used to be uncapped,
 // which is not a smaller stack — an undo pushes the page onto it, so undoing
@@ -863,6 +870,9 @@ export function DrawingCanvas({
   // Whether a page action has happened in this session: a page thrown away and
   // put back again has still been worked on (see `hasUserEdits`).
   const pageEditedRef = useRef(false);
+  // The last repaint of the page on screen, settled. A page action waits for
+  // it (see `undo`).
+  const settleRef = useRef<Promise<unknown>>(Promise.resolve());
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -2233,7 +2243,7 @@ export function DrawingCanvas({
     clearCanvas();
     if (!dataUrl) return Promise.resolve();
     loadingRef.current = true;
-    return loadImage(dataUrl)
+    const painted = loadImage(dataUrl)
       .then((img) => {
         const c = ctx();
         if (c) c.drawImage(img, 0, 0, W, H);
@@ -2245,6 +2255,8 @@ export function DrawingCanvas({
       .finally(() => {
         loadingRef.current = false;
       });
+    settleRef.current = painted;
+    return painted;
   }
 
   function loadPage(index: number) {
@@ -2256,17 +2268,24 @@ export function DrawingCanvas({
     setObjects([...entry.objects]);
     // The images too: undoing a retake must composite the photo that was
     // there before, not the one the cache was last told about.
-    void Promise.all([paintDataUrl(entry.img), ensureObjectImages(entry.objects)]).then(() => {
+    const done = Promise.all([paintDataUrl(entry.img), ensureObjectImages(entry.objects)]).then(() => {
       pagesRef.current[currentRef.current] = entry.img;
       syncHidden();
       refreshThumbs();
       refreshUndoRedo();
     });
+    settleRef.current = done;
   }
 
   function undo() {
     if (pageActionIsNext()) {
-      undoPageAction();
+      // Once the page on screen has finished repainting from the step before.
+      // That repaint writes its strokes back to `pagesRef` when it lands, and
+      // a page moved or taken away under it would have them written onto the
+      // wrong page. The wait is a few milliseconds; the press is not lost.
+      void settleRef.current.then(() => {
+        if (pageActionIsNext() && !loadingRef.current) undoPageAction();
+      });
       return;
     }
     const stack = undoRef.current[currentRef.current];
@@ -2425,6 +2444,7 @@ export function DrawingCanvas({
     finishEditing();
     setCaptureFrame(null);
     syncHidden();
+    const from = currentRef.current;
     clearCanvas();
     const blank = canvasRef.current!.toDataURL("image/png"); // transparent strokes
     pagesRef.current.push(blank);
@@ -2436,6 +2456,8 @@ export function DrawingCanvas({
     // White paper, and nothing on it yet — so the preview IS the composite, and
     // the thumbnail comes off the same render.
     syncPageImages(index);
+    // "New page gone" is what the toast promises, so it has to be undoable.
+    pushPageAction({ kind: "add", seq: ++seqRef.current, index, from });
     setPageCount(pagesRef.current.length);
     refreshAdded();
     setCurrent(index);
@@ -2497,12 +2519,9 @@ export function DrawingCanvas({
     // Bake the page on screen first, so duplicating a DIFFERENT page never
     // drops the in-progress work on the one being viewed.
     syncHidden();
+    const from = currentRef.current;
     const at = copyPage(target);
-    // Not yet something undo can take back, and every page after the copy has
-    // moved, so an older page action would put its page back in the wrong
-    // place. Let them go.
-    pageUndoRef.current = [];
-    pageEditedRef.current = true;
+    pushPageAction({ kind: "copy", seq: ++seqRef.current, index: at, from });
     anyDrawnRef.current = true;
     showPage(at);
   }
@@ -2558,10 +2577,7 @@ export function DrawingCanvas({
     // drops the in-progress work on the one being viewed.
     syncHidden();
     liftPage(index, target);
-    // See duplicatePageAt: not yet undoable, and it moves pages under any
-    // older page action.
-    pageUndoRef.current = [];
-    pageEditedRef.current = true;
+    pushPageAction({ kind: "move", seq: ++seqRef.current, from: index, to: target });
     // Stay with the page that moved rather than with the position it left, so
     // a teacher can press the same button again to keep going.
     showPage(target);
@@ -2618,10 +2634,28 @@ export function DrawingCanvas({
     setCaptureFrame(null);
     setSelectedQuestionId(null);
     syncHidden();
-    // The page comes back where it was, and the child is taken to it: what
-    // they just asked for is on screen.
-    putPage(action.index, action.snap);
-    showPage(action.index);
+    switch (action.kind) {
+      case "delete":
+        // The page comes back where it was, and the child is taken to it:
+        // what they just asked for is on screen.
+        putPage(action.index, action.snap);
+        showPage(action.index);
+        return;
+      case "add":
+      case "copy": {
+        // Nothing done on the new page since is still standing — undo only
+        // reaches this once every step on it has been undone — so the page
+        // goes exactly as it came, and the person is back where they were.
+        for (const o of objectsRef.current[action.index] ?? []) imgCacheRef.current.delete(o.id);
+        takePage(action.index);
+        showPage(Math.min(action.from, pagesRef.current.length - 1));
+        return;
+      }
+      case "move":
+        liftPage(action.to, action.from);
+        showPage(action.from);
+        return;
+    }
   }
 
   function clearPage() {
@@ -3514,6 +3548,10 @@ export function DrawingCanvas({
       correctOptionId: "opt0",
     };
     quizRef.current = [...quizRef.current, q];
+    // A question is not on the undo history, so undo must not walk back past
+    // one: undoing the page it was added to would take it away unasked.
+    pageUndoRef.current = [];
+    refreshUndoRedo();
     anyDrawnRef.current = true;
     setSelectedQuestionId(qid);
     openQuizPanel();

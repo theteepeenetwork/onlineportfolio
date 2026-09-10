@@ -194,6 +194,62 @@ test("throwing a page away takes its questions with it, and Undo puts them back"
 // Reordering. A page is not one thing — it is an entry in five parallel arrays
 // plus a set of quiz questions that know their page BY INDEX — so the test that
 // matters is whether everything moved, not whether the thumbnails swapped.
+// The toasts say "New page gone", "Page copy gone" and "Page moved back" —
+// what Undo will do. None of the three was undoable, so all three were untrue.
+test("Undo takes back adding a page, for a pupil", async ({ page }) => {
+  await openApples(page, "Dev");
+  const undo = page.getByRole("button", { name: "Undo", exact: true });
+  await expect(undo).toBeDisabled();
+  await page.locator('button[title="Add page"]').click();
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toBeVisible();
+  await undo.click();
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Page 1", exact: true })).toHaveAttribute("aria-current", "true");
+  await settledPages(page, "drawingPages", 1);
+  await expect(undo, "nothing older to take back").toBeDisabled();
+});
+
+test("Undo takes back copying and moving a page, and a drawing made after is undone first", async ({
+  page,
+}) => {
+  await builder(page, "Undo page actions");
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Maths kit" }).click();
+  await page.getByRole("button", { name: "Number line", exact: true }).click();
+  await page.getByRole("button", { name: "Tuck away" }).click();
+  const objects = page.locator("div[data-object]");
+  const undo = page.getByRole("button", { name: "Undo", exact: true });
+
+  // Copy: undone, and back on the page it was copied from.
+  await holdPageCard(page, 0);
+  await page.getByRole("button", { name: "Duplicate this page" }).click();
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveAttribute("aria-current", "true");
+  await undo.click();
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveCount(0);
+  await expect(objects).toHaveCount(1);
+
+  // Move: a blank page 2, sent up to the front, then undone.
+  await page.locator('button[title="Add page"]').click();
+  const thumb = (await page.getByRole("button", { name: "Page 2", exact: true }).boundingBox())!;
+  await page.mouse.click(thumb.x + thumb.width / 2, thumb.y + thumb.height / 2, { button: "right" });
+  await page.getByRole("menuitem", { name: "Move up" }).click();
+  await page.getByRole("button", { name: "Page 2", exact: true }).click();
+  await expect(objects, "the number line moved to page 2").toHaveCount(1);
+  await undo.click();
+  await page.getByRole("button", { name: "Page 1", exact: true }).click();
+  await expect(objects, "and is back on page 1").toHaveCount(1);
+  await page.getByRole("button", { name: "Page 2", exact: true }).click();
+  await expect(objects).toHaveCount(0);
+
+  // A drawing on the new page is newer than adding it, so Undo takes the
+  // drawing first and the page only after — never both at once.
+  await drawOnCanvas(page);
+  await undo.click();
+  await expect(page.getByRole("button", { name: "Page 2", exact: true }), "the drawing goes first").toBeVisible();
+  await undo.click();
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveCount(0);
+});
+
 test("a page can be moved up and down, and takes its contents with it", async ({ page }) => {
   await builder(page, "Reorder");
   // Page 1 gets a number line; page 2 gets nothing, so they are told apart by
