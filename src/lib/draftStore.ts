@@ -24,6 +24,11 @@ export type DraftCanvasV1 = {
   current: number; // currentRef
   anyDrawn: boolean; // anyDrawnRef
   nextObjId: number; // objIdRef.current — avoid id collisions after resume
+  // addedRef — one flag per page: was it added on the canvas, rather than one
+  // of the template's own pages? Decides which pages carry a throw-away cross.
+  // Optional, because drafts saved before it existed have none, and absent
+  // reads as "no page was added" (the protective answer).
+  added?: boolean[];
 };
 
 export type DraftSurface = "template-new" | "activity-response";

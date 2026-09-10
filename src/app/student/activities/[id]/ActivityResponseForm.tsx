@@ -76,7 +76,10 @@ export function ActivityResponseForm({
         draftKey={`resp:${assignmentId}:${studentId}`}
         ownerId={studentId}
         confirmSubmit
-        allowPageDelete={false}
+        // The teacher's pages are the worksheet and stay; a page the child
+        // adds is theirs to throw away again. That is the canvas's default
+        // (`pageDelete="added"`), said here so nobody has to look it up.
+        pageDelete="added"
         // Every way out of a child screen lands on the jar, in the words of
         // their own register: the one landmark a non-reader navigates by, and
         // the place the complaint asked for. The activities list is one tap

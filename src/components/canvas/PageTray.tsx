@@ -15,6 +15,11 @@
 // Everything else it does, the old strip did too: go to a page, add one, copy
 // one, throw one away. Reordering, which used to need a right-click menu a
 // child has no way to open, is now hold-and-slide.
+//
+// Throwing a page away used to live only in the hold menu, which a child finds
+// by accident if at all. A page they may throw away now wears a small jam ✕ on
+// its corner (a teacher's feedback, September 2026). Which pages those are is
+// the canvas's call — see `pageDelete` there — and the tray only draws it.
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons/Icon";
@@ -36,13 +41,27 @@ const VISIBLE = 5;
 // How long a press has to last before the card lifts. Short enough that a child
 // finds it by accident, long enough that a tap is still a tap.
 const HOLD_MS = 350;
+// The throw-away cross. What a child SEES is a 30px jam dot on the card's top
+// right corner; what they PRESS is 64px (rule 18, the F41 pattern: a small dot
+// inside a full-size press, so the mark does not bury the picture it sits on).
+// The press rises CROSS_UP above the card and comes the rest of the way down
+// onto it, which leaves the middle of the card — where a finger goes to open
+// the page — the card's own. It overhangs the card's right edge by the gap
+// between cards and no further, so it never lands on the next card.
+const CROSS_HIT = 64;
+const CROSS_DOT = 30;
+const CROSS_UP = 36;
+const CROSS_OUT = GAP;
+// Extra headroom in the strip, so the cross on the LIFTED card is not clipped
+// by the strip's own edge: that card rises about 27, and its press 42 more.
+const CROSS_HEAD = 30;
 
 export function PageTray({
   u,
   count,
   active,
   thumbs,
-  canDelete,
+  deletable,
   canStructure,
   onGo,
   onAdd,
@@ -58,7 +77,9 @@ export function PageTray({
   active: number;
   /** One preview PNG per page — strokes, objects and all. */
   thumbs: string[];
-  canDelete: boolean;
+  /** Which pages may be thrown away, one flag per page. The canvas decides;
+      the tray draws a cross on each and offers it in that page's menu. */
+  deletable: boolean[];
   canStructure: boolean;
   onGo: (i: number) => void;
   onAdd: () => void;
@@ -210,13 +231,17 @@ export function PageTray({
             // the y axis too, so the room for the lifted card has to be INSIDE
             // it — a card that grows up out of the tray and is cut off at the
             // tray's edge undoes the whole point of lifting it.
-            height: u(124),
-            margin: `${u(-40)}px ${u(-8)}px 0`,
+            height: u(124 + CROSS_HEAD),
+            margin: `${u(-40 - CROSS_HEAD)}px ${u(-8)}px 0`,
             padding: `0 ${u(8)}px`,
             overflowX: "auto",
             overflowY: "hidden",
             scrollSnapType: "x proximity",
             touchAction: "pan-x",
+            // The headroom is empty air over the child's page, and must not eat
+            // strokes drawn there. So the strip lets touches through, and only
+            // its row of cards — and what rises out of it — takes them.
+            pointerEvents: "none",
           }}
         >
           <div
@@ -225,9 +250,10 @@ export function PageTray({
               display: "flex",
               gap: u(GAP),
               height: u(CARD_H, 64),
-              marginTop: u(40),
+              marginTop: u(40 + CROSS_HEAD),
               padding: `0 ${u(12)}px`,
               width: "max-content",
+              pointerEvents: "auto",
             }}
           >
           {Array.from({ length: count }, (_, i) => {
@@ -236,9 +262,30 @@ export function PageTray({
             const tilt = dragging ? -3 : isActive ? 0 : i % 2 ? 2 : -2;
             const lift = dragging ? -22 : isActive ? -14 : 0;
             const scaleN = dragging ? 1.12 : isActive ? 1.16 : 1;
+            // Never while a card is being slid: a cross passing under a moving
+            // finger is a page thrown away by accident.
+            const cross = deletable[i] === true && count > 1 && !drag;
             return (
-              <button
+              // The card and its cross are SIBLINGS in one wrapper, never one
+              // inside the other: a button in a button is two controls a screen
+              // reader cannot tell apart, and a press on the cross would be a
+              // press on the card too. The wrapper carries the lift and the
+              // tilt, so the cross rides on the card's corner wherever it goes.
+              <div
                 key={i}
+                style={{
+                  position: "relative",
+                  flex: "0 0 auto",
+                  width: u(CARD_W, 64),
+                  height: u(CARD_H, 64),
+                  scrollSnapAlign: "center",
+                  transformOrigin: "50% 100%",
+                  transform: `translate(${shift(i)}px, ${u(lift)}px) scale(${scaleN}) rotate(${tilt}deg)`,
+                  zIndex: dragging ? 3 : isActive ? 2 : 1,
+                  transition: `transform ${SPRING_MS}ms ${SPRING}`,
+                }}
+              >
+              <button
                 type="button"
                 onPointerDown={(e) => down(e, i)}
                 onPointerMove={move}
@@ -250,25 +297,19 @@ export function PageTray({
                 title={`Page ${i + 1}`}
                 style={{
                   position: "relative",
-                  flex: "0 0 auto",
-                  width: u(CARD_W, 64),
-                  height: u(CARD_H, 64),
-                  scrollSnapAlign: "center",
+                  display: "block",
+                  width: "100%",
+                  height: "100%",
                   background: CREAM,
                   border: `${Math.max(2, u(3))}px solid ${INK}`,
                   borderRadius: u(14),
                   padding: u(5),
-                  transformOrigin: "50% 100%",
-                  transform: `translate(${shift(i)}px, ${u(lift)}px) scale(${scaleN}) rotate(${tilt}deg)`,
                   boxShadow: dragging
                     ? `0 ${u(14)}px 0 rgba(34,48,74,.25)`
                     : isActive
                       ? `0 ${u(8)}px 0 rgba(34,48,74,.2)`
                       : `0 ${u(4)}px 0 rgba(34,48,74,.15)`,
-                  zIndex: dragging ? 3 : isActive ? 2 : 1,
-                  transition: drag
-                    ? `transform ${SPRING_MS}ms ${SPRING}`
-                    : `transform ${SPRING_MS}ms ${SPRING}, box-shadow 220ms`,
+                  transition: drag ? undefined : "box-shadow 220ms",
                   touchAction: "none",
                 }}
               >
@@ -304,6 +345,51 @@ export function PageTray({
                   {i + 1}
                 </span>
               </button>
+              {cross && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(i)}
+                  aria-label={`Throw away page ${i + 1}`}
+                  title={`Throw away page ${i + 1}`}
+                  data-page-cross={i + 1}
+                  style={{
+                    position: "absolute",
+                    top: -u(CROSS_UP),
+                    right: -u(CROSS_OUT),
+                    width: u(CROSS_HIT, 64),
+                    height: u(CROSS_HIT, 64),
+                    padding: 0,
+                    background: "transparent",
+                    border: "none",
+                    zIndex: 4,
+                    touchAction: "manipulation",
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      // Centred just inside the card's own top-right corner.
+                      left: u(CROSS_HIT - CROSS_OUT - 6 - CROSS_DOT / 2),
+                      top: u(CROSS_UP + 2 - CROSS_DOT / 2),
+                      width: u(CROSS_DOT),
+                      height: u(CROSS_DOT),
+                      boxSizing: "border-box",
+                      borderRadius: 999,
+                      background: JAM,
+                      border: `${Math.max(2, u(3))}px solid ${INK}`,
+                      color: CREAM,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: `0 ${u(2)}px 0 rgba(34,48,74,.25)`,
+                    }}
+                  >
+                    <Icon name="close" size={u(16)} decorative />
+                  </span>
+                </button>
+              )}
+              </div>
             );
           })}
           </div>
@@ -402,7 +488,7 @@ export function PageTray({
           u={u}
           index={menu}
           count={count}
-          canDelete={canDelete}
+          canDelete={deletable[menu] === true}
           canStructure={canStructure}
           onDuplicate={() => { setMenu(null); onDuplicate(menu); }}
           onDelete={() => { setMenu(null); onDelete(menu); }}

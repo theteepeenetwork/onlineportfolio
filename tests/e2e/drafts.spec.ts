@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { teacherLogin, studentLogin, logout, drawOnCanvas, clickHydrated } from "./helpers";
 
 // Local-first draft autosave: in-progress work survives an accidental close /
@@ -290,4 +291,67 @@ test("a stalled template background still lets a child draw and restore", async 
     .toBeGreaterThan(1000);
 
   expect(stalled, "the template background request should have been stalled").toBeGreaterThan(0);
+});
+
+// A page a child added can be thrown away; the teacher's pages cannot. The
+// cross-device copy stores every page as a flat picture, so on its own it would
+// come back with every page looking like the teacher's and no cross anywhere.
+// Which pages were added travels with it, so the cross comes back too — and,
+// just as much, does not appear on the teacher's page.
+test("a page's cross survives a restore from the cross-device copy", async ({ page }) => {
+  const db = new PrismaClient();
+  const finn = { name: "Finn", class: { name: "Sunflower Class" } };
+  try {
+    await studentLogin(page, "Finn");
+    await page.goto("/student/activities");
+    // A seeded live run with one page of the teacher's worksheet.
+    await page.getByRole("link", { name: /Count the apples/ }).first().click();
+    await expect(page.locator("canvas")).toBeVisible();
+    await page.locator('button[title="Add page"]').click();
+    await drawOnCanvas(page);
+    await waitForDraftSaved(page);
+
+    // Send the cross-device copy now rather than in 25 seconds. Hiding the tab
+    // is one of the moments the canvas sends it early.
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect
+      .poll(
+        async () => {
+          const draft = await db.draft.findFirst({
+            where: { surface: "ACTIVITY_RESPONSE", student: finn },
+            orderBy: { updatedAt: "desc" },
+          });
+          return draft?.fieldsJson ? (JSON.parse(draft.fieldsJson).addedPages ?? null) : null;
+        },
+        { timeout: 15_000, message: "the cross-device copy should say which page was added" },
+      )
+      .toBe("[false,true]");
+
+    // Another device: the same child, with nothing saved on this one.
+    await page.goto("/student");
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const req = indexedDB.deleteDatabase("storyjar-drafts");
+          req.onsuccess = req.onerror = req.onblocked = () => resolve();
+        }),
+    );
+    await page.goto("/student/activities");
+    await page.getByRole("link", { name: /Count the apples/ }).first().click();
+    await expect(page.getByRole("dialog", { name: /restore your work from another device/i })).toBeVisible();
+    await page.getByRole("button", { name: /Restore my work/i }).click();
+
+    await expect(page.getByRole("button", { name: "Page 2", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Throw away page 2", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Throw away page 1", exact: true }),
+      "the teacher's page must not come back throwable",
+    ).toHaveCount(0);
+  } finally {
+    await db.draft.deleteMany({ where: { student: finn } });
+    await db.$disconnect();
+  }
 });
