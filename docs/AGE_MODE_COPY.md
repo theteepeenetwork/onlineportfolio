@@ -115,6 +115,20 @@ the teacher's preview, and it must say what a child will see.
 *(If any of these strike you as too young for a Y6, move them up into the swap
 table and I'll make them age-aware.)*
 
+### The "leaving StoryJar" card — before a teacher's web link opens
+
+> **✅ Approved by the owner 2026-09-10 (board/links decision).** The owner chose
+> this wording in chat on the day. It is `SAFEGUARDING.md` rule 26's card, and
+> it is one voice for every register on purpose, like the photo frame's: the
+> teacher's preview must say exactly what a child will see.
+
+| Where | Words (every register) | Note |
+|---|---|---|
+| Card heading | `This opens {host} — a website your teacher chose` | `{host}` is the link's **real** host (`displayHost`), never the teacher's name for the link. |
+| The way on | `Open it` | A real link to a new tab. |
+| The way back | `Stay here` | Focused when the card opens, so Enter and Escape both stay. |
+| Read aloud (Hear it, EYFS and KS1) | `This opens a website your teacher chose.` | The host is **not** spoken: it is the teacher's choice, not StoryJar's copy, and only our own fixed words are ever read aloud. |
+
 ---
 
 ## What happens after you redline

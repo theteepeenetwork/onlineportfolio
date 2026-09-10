@@ -48,6 +48,15 @@ the library until the teacher opens it, looks at it, and assigns it themselves.
 That is deliberate: the approval queue exists so an adult sees things before
 children do, and a chat window is not an adult.
 
+It also **cannot put a web link on an activity** (added 2026-09-10, with
+`SAFEGUARDING.md` rule 26). A link is the one thing on a canvas a child can
+press that leaves StoryJar, and the rule allows it only where a teacher placed
+it in the builder. So there is no link tool and no field for one: a payload
+that tries to carry objects is refused as an unknown field. What the connector
+does do is leave a teacher's own link alone — an edit replaces only the objects
+the connector itself made, so a link the teacher added beside Claude's questions
+survives Claude rewriting them (`connector-api.spec.ts`, D1c).
+
 One more thing it deliberately does not do. If a teacher asks Claude to change an
 activity a class is working on **right now**, the change lands on the library
 copy and the class keeps the version they were given. A child halfway through a
