@@ -845,11 +845,12 @@ export function DrawingCanvas({
   // 2026-09-10, F76): under "added" a child slides only their own pages, to
   // anywhere, and the teacher's stay in the order the teacher set.
   pageDelete?: "any" | "added";
-  // Whether the pages themselves can be RESTRUCTURED — copied and reordered.
-  // Separate from deleting one, and off unless asked for: a child's page count
-  // is the shape of what they hand in, and copying pages of somebody else's
-  // worksheet is not something they need. Only the template builder turns it
-  // on (rule 8, deny by default).
+  // Whether the pages themselves can be RESTRUCTURED — copied, and moved from
+  // the right-click menu. Who may slide which page is `pageDelete`'s answer,
+  // not this one (F76). Separate from deleting one, and off unless asked for:
+  // a child's page count is the shape of what they hand in, and copying pages
+  // of somebody else's worksheet is not something they need. Only the template
+  // builder turns it on (rule 8, deny by default).
   allowPageStructure?: boolean;
   // Which toolbox kits the ＋ fan offers. A LIST rather than a flag per kit, so
   // a new kit needs no new prop and no call-site edit. Defaults to the smallest
