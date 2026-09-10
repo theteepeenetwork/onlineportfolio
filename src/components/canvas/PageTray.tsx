@@ -325,11 +325,23 @@ export function PageTray({
                   }}
                 >
                   {thumbs[i] && (
+                    // Never the press's target. An <img> under a mouse starts
+                    // the browser's own image drag, which cancels the pointer
+                    // mid-slide, so a card held by its picture — most of the
+                    // card — opened its menu instead of moving. A long press on
+                    // an image is also where a tablet offers "Save image".
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={thumbs[i]}
                       alt=""
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      draggable={false}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                        pointerEvents: "none",
+                      }}
                     />
                   )}
                 </span>
