@@ -185,6 +185,12 @@ const DEFAULT_TOOL_COLORS: Record<Tool, string> = {
   text: "#22304a", // ink
 };
 
+// The fill a plain shape arrives in until a child recolours one. Bright fan
+// blue, not the pen's colour: a page that opens on Move holds ink, and a first
+// shape landing in navy read as a mistake. Once a shape's fill is changed the
+// next shape takes that colour, and a fresh canvas starts here again.
+const DEFAULT_SHAPE_FILL = "#3b82f6";
+
 const W = 1000;
 const H = 700;
 const FONT_STACK = "ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -757,6 +763,8 @@ export function DrawingCanvas({
   // colour; changing it only affects the tool you're currently holding.
   const [toolColors, setToolColors] = useState<Record<Tool, string>>(DEFAULT_TOOL_COLORS);
   const color = toolColors[tool];
+  // What the next plain shape is filled with: see DEFAULT_SHAPE_FILL.
+  const [shapeFill, setShapeFill] = useState(DEFAULT_SHAPE_FILL);
   const setColor = (c: string) => setToolColors((prev) => ({ ...prev, [tool]: c }));
   // Per-tool thickness, kept for the whole session (parallels toolColors above).
   // `size` is the active tool's thickness; changing it only affects the tool
@@ -1539,6 +1547,7 @@ export function DrawingCanvas({
 
     (async () => {
       clearCanvas();
+      setShapeFill(DEFAULT_SHAPE_FILL); // a new canvas forgets the last shape colour
       const blankStroke = canvas.toDataURL("image/png"); // fully transparent
       if (background && background.length) {
         templatesRef.current = background.map((u) => u);
@@ -2404,13 +2413,14 @@ export function DrawingCanvas({
       w,
       h,
       // Apparatus arrives cream, so what is written on it reads; a plain shape
-      // arrives in the colour the pen is set to, so what a child sees on the
-      // fan is what lands on the page. A preset's own colour wins over both.
+      // arrives in the fill the last shape was given (bright blue to begin
+      // with), so what a child sees on the fan is what lands on the page. A
+      // preset's own colour wins over both.
       fill:
         preset.fill ??
         (preset.kind === "grid" || preset.kind === "pie" || preset.kind === "ring"
           ? "#fffdf7"
-          : color),
+          : shapeFill),
       stroke: preset.stroke ?? SHAPE_DEFAULTS.stroke,
       strokeWidth: preset.strokeWidth ?? SHAPE_DEFAULTS.strokeWidth,
       ...(preset.text ? { text: preset.text } : {}),
@@ -2722,6 +2732,19 @@ export function DrawingCanvas({
     const list = current.map((o) => (o.id === id ? ({ ...o, ...patch } as Obj) : o));
     objectsRef.current[currentRef.current] = list;
     setObjects(list);
+    // Recolouring a shape's fill sets the colour the NEXT shape arrives in.
+    // Apparatus is left out: a cream grid says nothing about what a child
+    // wants their next circle to be. "none" is an outline, not a colour.
+    const target = current.find((o) => o.id === id);
+    const fill = (patch as Partial<ShapeObj>).fill;
+    if (
+      target?.type === "shape" &&
+      typeof fill === "string" &&
+      fill !== "none" &&
+      !(target.shape === "grid" || target.shape === "pie" || target.shape === "ring")
+    ) {
+      setShapeFill(fill);
+    }
   }
 
   function deleteObject(id: string) {
@@ -3652,7 +3675,7 @@ export function DrawingCanvas({
       const options: PlusOption[] = presets.map((preset) => ({
         key: preset.id,
         label: preset.label,
-        art: <ShapeThumb preset={preset} px={u(40)} fill={preset.fill ?? color} />,
+        art: <ShapeThumb preset={preset} px={u(40)} fill={preset.fill ?? shapeFill} />,
         onSelect: () => addShape(preset),
       }));
       plusItems.push({ key: "shapes", icon: "shapes", label: shapesKit.label, ring: 0, options });
@@ -5242,7 +5265,7 @@ function ObjectToolbar({
             <button
               type="button"
               onClick={() => {
-                onStyle({ fill: shape.fill === "none" ? "#93c5fd" : "none" });
+                onStyle({ fill: shape.fill === "none" ? DEFAULT_SHAPE_FILL : "none" });
                 setPick(null);
               }}
               aria-pressed={shape.fill === "none"}
