@@ -306,6 +306,53 @@ test.describe("A1 · Activity edit / preview are scoped across tenants", () => {
   });
 });
 
+test.describe("A1 · A run's page (who has and hasn't done it) is scoped across tenants", () => {
+  // A real School A run id, read the honest way: the Live now list links each
+  // run to /teacher/activities/runs/<id>. The owner's own view of it is the
+  // positive control — the pupil names are on the page for them.
+  async function schoolARunId(page: import("@playwright/test").Page): Promise<string> {
+    await loginTeacher(page, SCHOOL_A.admin);
+    await page.goto("/teacher/activities");
+    const href = await page
+      .locator("#live-now")
+      .getByRole("link", { name: /Count the apples/ })
+      .first()
+      .getAttribute("href");
+    expect(href).toMatch(/^\/teacher\/activities\/runs\/[^/?#]+$/);
+    const id = href!.split("/").pop()!;
+    const own = await page.goto(`/teacher/activities/runs/${id}`);
+    expect(own?.status(), "the class's own teacher must reach the run page").toBe(200);
+    await expect(page.locator(`li[data-pupil="${SCHOOL_A.student}"]`)).toBeVisible();
+    await clearSession(page);
+    return id;
+  }
+
+  test("School B teacher gets 404 for a School A run, and no pupil's name", async ({ page }) => {
+    const id = await schoolARunId(page);
+    await loginTeacher(page, SCHOOL_B.teacher);
+    const res = await page.goto(`/teacher/activities/runs/${id}`);
+    expect(res?.status()).toBe(404);
+    await expect(page.locator("body")).not.toContainText(SCHOOL_A.student);
+    await expect(page.locator("body")).not.toContainText("Count the apples");
+  });
+
+  test("School B's admin gets the same 404 (admins are not all-seeing, rule 5)", async ({ page }) => {
+    const id = await schoolARunId(page);
+    await loginTeacher(page, SCHOOL_B.admin);
+    const res = await page.goto(`/teacher/activities/runs/${id}`);
+    expect(res?.status()).toBe(404);
+  });
+
+  test("a colleague in the SAME school who does not hold the class gets a 404 too", async ({ page }) => {
+    // Miss Malik teaches Butterflies at St Bede's, not Sunflower. Same school,
+    // same admin above her, and still nothing: the scope is the class.
+    const id = await schoolARunId(page);
+    await loginTeacher(page, SCHOOL_A.otherTeacher);
+    const res = await page.goto(`/teacher/activities/runs/${id}`);
+    expect(res?.status()).toBe(404);
+  });
+});
+
 test.describe("A1 · Admin console is school-scoped", () => {
   test("School B admin sees only Oakfield staff, never St Bede's", async ({ page }) => {
     await loginTeacher(page, SCHOOL_B.admin);
