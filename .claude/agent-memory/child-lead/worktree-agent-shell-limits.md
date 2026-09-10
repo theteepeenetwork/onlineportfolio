@@ -17,6 +17,13 @@ Three things about running as a worktree-isolated agent here, learned
 - The session scratchpad directory is SHARED with sibling agents (another
   agent's `check.log`, `tmpl.py` appeared in it). Work in a subdirectory named
   for this agent (`scratchpad/child-lead/`) so logs are not clobbered.
+  **It happened, 2026-09-11:** two batteries in two worktrees both wrote
+  `scratchpad/test-changed.log`; the file held one run's selection header,
+  lines from both summaries (an `ops` row that run never selected, two
+  wall-clock totals) and an `EXIT=0` nobody could attribute. That run had to be
+  repeated. Name every log for agent + branch + short sha. And a backgrounded
+  `cmd > log; echo EXIT=$? >> log` reports the ECHO's exit to the task
+  notification: capture `code=$?`, write it, then `exit $code`.
 
 - `git add -p` is interactive and unavailable, so a file whose hunks belong to
   different commits is split by writing `git diff <file>` to scratch, keeping
