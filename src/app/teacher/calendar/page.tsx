@@ -25,6 +25,7 @@ export default async function CalendarPage() {
         class: { select: { id: true, name: true, students: { select: { id: true } } } },
         students: { select: { studentId: true } }, // the chosen pupils, on a chosen-pupil run
         responses: { select: { studentId: true, status: true } },
+        excusals: { select: { studentId: true } }, // "not needed" pupils leave the counts
         template: { select: { id: true } },
       },
     }),

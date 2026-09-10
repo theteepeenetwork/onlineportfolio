@@ -11,6 +11,7 @@ import {
   type PupilRunStatus,
 } from "@/lib/runStatus";
 import { RunBar } from "../../LiveNow";
+import { PupilRunControl } from "./PupilRunControl";
 
 // Who has and hasn't done one activity, for one class. The question a teacher
 // actually asks ("who still hasn't done the apples?") is a CLASS question, and
@@ -38,6 +39,7 @@ const STATUS_STYLE: Record<PupilRunStatus, { color: string; background: string }
   WAITING: { color: "var(--honey-ink)", background: "var(--honey-tint)" },
   SENT_BACK: { color: "var(--ink-soft)", background: "var(--kraft-tag)" },
   NOT_HANDED_IN: { color: "var(--sj-muted)", background: "var(--cream)" },
+  NOT_NEEDED: { color: "var(--ink-soft)", background: "transparent" },
 };
 
 export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {
@@ -68,6 +70,8 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
       students: { select: { studentId: true } },
       // The newest first, so the WAITING row links to the latest hand-in.
       responses: { orderBy: { createdAt: "desc" }, select: { id: true, studentId: true, status: true } },
+      // Pupils the teacher took this off the list for ("Not needed").
+      excusals: { select: { studentId: true } },
     },
   });
   if (!run) notFound();
@@ -80,12 +84,13 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
     }),
   );
   const roster = run.class.students.filter((s) => rosterIds.has(s.id));
-  const counts = summariseRun([...rosterIds], run.responses);
+  const marked = new Set(run.excusals.map((e) => e.studentId));
+  const counts = summariseRun([...rosterIds], run.responses, [...marked]);
 
   const responsesFor = (studentId: string) => run.responses.filter((r) => r.studentId === studentId);
   const rows = roster.map((p) => {
     const mine = responsesFor(p.id);
-    const status = pupilRunStatus(mine);
+    const status = pupilRunStatus(mine, marked.has(p.id));
     const waitingId = status === "WAITING" ? mine.find((r) => r.status === "PENDING")?.id ?? null : null;
     return { ...p, status, waitingId };
   });
@@ -101,6 +106,8 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
     { status: "WAITING", n: counts.waiting },
     { status: "SENT_BACK", n: counts.sentBack },
     { status: "NOT_HANDED_IN", n: counts.notHandedIn },
+    // Only when somebody is marked, so a run nobody was away for keeps four.
+    ...(counts.notNeeded > 0 ? [{ status: "NOT_NEEDED" as const, n: counts.notNeeded }] : []),
   ];
 
   return (
@@ -171,6 +178,13 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
       <h2 style={{ margin: "0 0 4px", font: "600 20px var(--font-fredoka)" }}>Pupils</h2>
       <p style={{ margin: "0 0 12px", font: "400 14px/1.5 var(--font-atkinson)", color: "var(--sj-muted)", maxWidth: "46em" }}>
         Work a pupil has started and not handed in stays private to them, so this can only show what has been handed in.
+        {live && (
+          <>
+            {" "}
+            <strong style={{ color: "var(--ink-soft)" }}>Not needed</strong> takes this activity off one pupil&apos;s
+            to-do list, for example if they were away. You can put it back.
+          </>
+        )}
       </p>
 
       {rows.length === 0 ? (
@@ -184,7 +198,7 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
               key={p.id}
               data-pupil={p.name}
               data-status={p.status}
-              style={{ display: "flex", alignItems: "center", gap: 11, background: "var(--paper)", border: "2px solid var(--calm-border)", borderRadius: 14, padding: "10px 12px", minHeight: 64, boxSizing: "border-box" }}
+              style={{ display: "flex", alignItems: "center", gap: 11, background: "var(--paper)", border: `2px ${p.status === "NOT_NEEDED" ? "dashed" : "solid"} var(--calm-border)`, borderRadius: 14, padding: "10px 12px", minHeight: 64, boxSizing: "border-box" }}
             >
               <Avatar name={p.name} color={p.avatarColor} size={40} />
               <span style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -195,6 +209,17 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
                   {RUN_STATUS_LABEL[p.status]}
                 </span>
               </span>
+              {/* On a live run only: a closed run is on nobody's to-do list, so
+                  there is nothing to take off or put back. */}
+              {live && (p.status === "NOT_HANDED_IN" || p.status === "NOT_NEEDED") && (
+                <PupilRunControl
+                  key={`${p.id}-${p.status}`}
+                  runId={run.id}
+                  studentId={p.id}
+                  name={p.name}
+                  excused={p.status === "NOT_NEEDED"}
+                />
+              )}
               {p.waitingId && (
                 <Link
                   href={`/teacher/queue/${p.waitingId}`}
