@@ -17,6 +17,44 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+# Server actions and forms: two things that cost a crashed page
+
+Both were found on 10 September 2026, when the owner set up a parents' evening
+for two classes and the admin console died with a Next.js digest.
+
+**A form with an action puts its controlled tick boxes back at their DEFAULTS,
+not at your state.** React 19 resets a form after its action runs. Controlled
+text inputs survive that, because the reset restores the `value` attribute React
+already agrees with — but a controlled `checkbox` or `radio` comes back at its
+`checked` attribute while the component's state still says otherwise. The screen
+and the state then disagree silently: the evenings form showed no classes ticked
+while its own preview line still counted two, and the next press would have
+posted none. **Every `<form action={…}>` whose fields are all controlled cancels
+that reset:**
+
+```tsx
+<form action={action} onReset={(e) => e.preventDefault()}>
+```
+
+Six forms carry it — evenings, permission slips, notices, the teacher's class
+notice, the family's consent answer, office hours. Add it to the next one, and
+DO NOT add it to a form with uncontrolled fields that is meant to clear itself
+after a successful press. `parents-evening.spec.ts` asserts the ticks and the
+title survive a refusal, so the behaviour is held by a test rather than by this
+paragraph.
+
+**A unique index reached from inside a server action is a crashed page, not a
+refusal.** `MeetingSlot` is unique per (event, teacher, minute), and two classes
+with the same teacher ask for that teacher's 4:00pm twice; the `P2002` came back
+through `$transaction` unhandled and the whole console went down. The constraint
+is right and stays. What has to exist beside it is **something that refuses
+first, in words** — a pure helper the form and the action share, so the form can
+warn before the press and the action can enforce it after (`teacherHeldTwice` /
+`teacherHeldTwiceMessage` in `src/lib/meetings.ts` are the worked example). Catch
+`Prisma.PrismaClientKnownRequestError` with `code === "P2002"` as the last line
+and answer it; never relax the index to stop the throw. Any new `@@unique` a
+user can reach through a form needs the same pair.
+
 # The QA battery — keep it green
 
 This repo has a standing UX / security / accessibility test battery. It is the
