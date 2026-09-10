@@ -105,6 +105,18 @@ Each rule is testable. A change that breaks one does not ship.
    released, rather than by withholding a child's own data from the person
    entitled to ask for it.
 
+   **Scope note (2026-09-10) — the classroom board.** This rule governs what
+   the *product* delivers to people. A teacher showing their own class some of
+   the class's work on the classroom screen is the teacher acting in the room,
+   as teachers always have with a pinboard, and it is governed by **rule 25**.
+   Rule 25 is the one place where work that is still `PENDING` may be seen by
+   other children, and it keeps this rule's promise by a narrower means than
+   approval: the teacher must have opened that piece full size and chosen it,
+   on their own screen, and showing it changes nothing about its status. That
+   is **a carve-out, not a clarification** — looking at a piece is less than
+   approving it — and it is recorded as one in the Amendments table so that a
+   reader can see the difference was noticed and accepted.
+
 ### C. A child's work is private and tightly scoped
 4. **Access is need-to-know and enforced on the server.** A child's moment is
    visible only to: the teacher(s) who teach that child's class, and their
@@ -466,6 +478,42 @@ Each rule is testable. A change that breaks one does not ship.
    reaction or "seen" mark from a family; a notice to one named child; scheduling
    a notice for later; attachments or images; any email or push about a notice.
 
+25. **Showing work on the classroom board is the teacher's choice, of work they
+   have looked at, and it changes nothing.** *(Added 2026-09-10; see
+   "Amendments" below, and the scope note on rule 3.)* A class teacher may put
+   pupils' pictures and drawings from one activity up on the classroom screen,
+   from that activity's own page. The constraints, every one a blocking test:
+
+   - **The teacher's own session, and nowhere else.** Reached only from a run's
+     page, which is scoped to a class the teacher holds today (rule 4; FINDINGS
+     F66). There is no board URL, no pupil or parent view of it, and nothing
+     that can be sent to another device.
+   - **Only what the teacher has looked at.** Work in a jar (`APPROVED`) has
+     been looked at and approved, and may be chosen straight away. Work waiting
+     in the queue (`PENDING`) may be chosen only after the teacher has opened it
+     full size. Work sent back (`RETURNED`) is never offered.
+   - **The choices are never stored.** They live in the open page and nowhere
+     else: no database row, no URL, no browser storage. A reload forgets them.
+     A list of what was shown would be a publication record, and StoryJar keeps
+     none.
+   - **Opaque, full screen.** Nothing of the page behind is visible, because
+     that page lists every pupil in the class and who has not handed in.
+   - **A first name, or none.** The pupil's stored name (first names only, rule
+     2) shows by default. "Hide names" takes it off the screen **and** out of
+     the picture's alternative text, so a screen reader on the projecting
+     laptop does not say what the screen was told not to show.
+   - **Pictures only.** The browser is given the page pictures and the name, and
+     nothing else about the work: never the caption, a quiz score, a teacher's
+     note or stickers.
+   - **Showing changes nothing.** It does not approve, return or put anything in
+     a jar, and the server is not told that it happened.
+
+   **Not covered by this rule**, and each needing its own amendment: showing on
+   any screen other than the teacher's own (a second device, casting, a link);
+   showing voice notes or written words; showing work from more than one class
+   or school at once; keeping any record of what was shown; a pupil or parent
+   seeing the board; a surname.
+
 7. **Uploaded media is access-controlled, not public.** Photos and drawings of
    children **must not** be served from guessable or unauthenticated URLs. Every
    media request is authorised against the same rules as rule 4 before the bytes
@@ -640,6 +688,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-10 | 3 (scope note), 25 (new) | A class teacher may show pupils' pictures and drawings from one activity on the classroom screen: from the run's own page, of work they have looked at (in a jar, or waiting and opened full size; never sent back), with the choices held only in the open page, full screen and opaque, a first name or none, and no change to any status. | Product owner | A teacher asked for a way to show the class finished work before it is in the jars — the pinboard moment at the end of a lesson. Rule 3 as written forbade it: a waiting piece reaching another child before approval is exactly what it names. The owner chose "the teacher picks, then shows" over the two alternatives — showing only approved work, which would make a teacher put a piece in a jar and in front of the family just to show it to the room, and showing everything handed in, which would put work on a projector that no adult had seen. So the safeguard is the adult's **look** rather than the approval state. **What was traded away:** rule 3's absolute that no child's work reaches another child before approval. Waiting work can now be seen by classmates once the teacher has opened it, which is less than approval: a teacher could look, show, and still send it back. **What was not:** nothing is published, stored or sent; no parent, other class or school sees anything; the operator is untouched (rule 20); and the approval queue — what reaches a jar, a parent or an export — is unchanged. Risk at DPIA R23. Rule number 25; 26 is reserved for the teacher web-links rule on another branch. |
 | 2026-09-09 | 24 (new) | A school may send one-way notices to families — whole school by an admin, a class by its teacher — with no reply table, no reply action and no form; not held to office hours, not emailed; taken down rather than deleted; the operator may read one. | Product owner | The office's "closed on Friday" and the teacher's "PE kit tomorrow" had no route except thirty identical conversations, each of which could be replied to and each of which a teacher then owned. A notice is the opposite of a conversation, and the owner's one requirement was that families cannot respond. That is met structurally rather than by policy: nothing exists to respond to. **What was traded away:** nothing in rule 21, which governs conversations and is untouched; nothing in rule 6b, whose exclusion of "a notification about anything other than a message" is applied rather than amended. **What was not:** the operator's blindness to children — a notice holds no child, and reaching one through it still fails the gate. The risk worth naming is an adult naming a child in a whole-school notice, which the composer warns against and taking it down remedies (DPIA R22). |
 | 2026-09-08 | 6a (scope note), 6b (new), 21 (list) | Rule 6a's "notifications they switched on themselves" gets its first use, and 6b says what that one email may contain: only that a message is waiting, with no content, no names, and no sign-in token, sent when the message is DELIVERED rather than when it is written. Rule 21's "not covered" list loses the email-notification entry, which this answers, and the safeguarding-lead entry, which 21a answers. | Product owner | Rule 6a was written on 2026-08-17 deliberately wider than "StoryJar never emails a parent", so that a preference a parent set themselves would not be banned before it existed. This is that preference. The risk it carries is not the sending but the CONTENT: a notification is the natural place for "Mrs Hartley wrote about Amara" to appear, and that sentence in a shared mailbox is a disclosure the product cannot take back. So the email says nothing, and the omissions are the feature. **What was traded away:** the clean absolute that StoryJar emails a parent only a link they asked for. **What was not:** the office-hours hold, which the delivery-time trigger preserves rather than works around; the badge model for the many households with no address; and rule 21's ban on message content leaving the product. Worth recording that this makes FINDINGS F30 and F31 cost more: every earlier email was one somebody was waiting for, so a failure was noticed by the person who did not get it. Nobody waits for this one. |
 | 2026-09-08 | 21a (new) | A teacher may raise one conversation to a member of staff the school has named as a safeguarding lead, with a reason recorded on the share row. The lead reads only what is raised to them; whether they may reply is decided by the existing per-staff messaging permission, unchanged; the parent is not told, because the reader list rule 21 already shows them is the transparency. | Product owner | Rule 21 named this in its own "not covered" list as needing an amendment, and `COMPETITIVE_POSITIONING.md` said in terms not to promise it to a school until it existed. It is smaller than it sounds because per-thread sharing is already the mechanism: this is a share with a named recipient and a recorded reason, which is why it adds **no new route to a child's data**. **What was traded away:** nothing structural — one more adult can read one conversation, chosen by a teacher, from a list the school itself set. **What was not:** the lead has no standing access to anything not raised to them; reading is not writing; the reason never reaches the audit log; and the parent's pages still never carry the word "safeguarding". The risk actually worth naming is a school mistaking this for a reporting channel, which is answered on the screen rather than in this document. |

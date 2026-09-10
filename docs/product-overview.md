@@ -52,7 +52,13 @@ page. Assign a template as a
 run, to a whole class or to chosen children, reassign it to other classes or
 next year, past responses kept. An approval queue: approve and publish with
 skill tags, or send back with a note. Add work on a child's behalf. A per-child
-timeline, a needs-attention strip and a per-run response grid.
+timeline and a needs-attention strip. For each run, a page saying who has
+handed in, who is waiting, who was sent back and who has not handed in yet
+(never "not started": drafts are private), reached from a "Live now" list at
+the top of the library; from it a teacher can mark the activity "not needed"
+for one pupil and put it back, and can pick pictures they have looked at to
+show the class on the board — nothing stored, nothing changes status
+(SAFEGUARDING rule 25).
 
 ## Age modes
 
