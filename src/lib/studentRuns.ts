@@ -26,6 +26,11 @@ import type { Prisma } from "@prisma/client";
 //
 // Status (LIVE or not) is the caller's to add: the draft store and the hand-in
 // have never required it, and changing that is not this file's decision.
+//
+// One place asks a class-scoped version of this question without it, on
+// purpose: the pupil branch of src/app/uploads/[...path]/route.ts, which serves
+// only teacher-made pictures out of a run's snapshot, and which a pupil marked
+// "not needed" still needs — they may hand in anyway (see `includeExcused`).
 export function runsSetForStudent(
   student: { id: string; classId: string },
   opts: { includeExcused?: boolean } = {},

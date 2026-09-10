@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
@@ -26,8 +27,14 @@ import { runHref } from "@/lib/runStatus";
 //   3. the run is live and in a class they hold TODAY — the run page's own
 //      scope (F66), so another school, a colleague, and a template's author
 //      after a handover all find nothing;
-//   4. the pupil is in that class and on that run.
-// Then, in ONE transaction with the write: the pupil has handed nothing in.
+//   4. the pupil is in that class and on that run;
+//   5. for "Not needed" only, the pupil has handed nothing in.
+// 3 to 5 run in ONE transaction with the write, so the answer the write acts
+// on is the answer at the moment of writing. Checked first and written after,
+// a class handed to a colleague, a pupil moved to another class or a run
+// closed in between would leave a mark written on the strength of a check that
+// was no longer true (safeguarding review, 10 September 2026).
+//
 // "Not needed" is for somebody who has nothing to show; work that exists is
 // the teacher's to look at, not to wave away, and the run page offers the
 // button only to pupils with nothing handed in. The transaction is what makes
@@ -41,9 +48,9 @@ export type RunPupilState = { error?: string; ok?: boolean };
 
 const NOT_YOURS = "That pupil isn't on this activity in one of your classes.";
 
-async function resolve(formData: FormData): Promise<
-  | { ok: true; runId: string; studentId: string; name: string }
-  | { ok: false; error: string }
+/** Checks 1 and 2, and the two ids off the form. */
+async function caller(formData: FormData): Promise<
+  { ok: true; teacherId: string; runId: string; studentId: string } | { ok: false; error: string }
 > {
   const user = await getCurrentUser();
   if (user?.role !== "TEACHER") redirect("/");
@@ -51,60 +58,79 @@ async function resolve(formData: FormData): Promise<
   const gate = await requireWritableAccount();
   if (!gate.ok) return { ok: false, error: FROZEN_TEACHER_MESSAGE };
 
-  const runId = String(formData.get("runId") ?? "");
-  const studentId = String(formData.get("studentId") ?? "");
+  return {
+    ok: true,
+    teacherId: user.teacher.id,
+    runId: String(formData.get("runId") ?? ""),
+    studentId: String(formData.get("studentId") ?? ""),
+  };
+}
 
-  const run = await db.assignment.findFirst({
-    where: { id: runId, status: "LIVE", class: { teacherId: user.teacher.id } },
+/** Checks 3 and 4, on the transaction the write will use. */
+async function pupilOnRun(
+  tx: Prisma.TransactionClient,
+  c: { teacherId: string; runId: string; studentId: string },
+): Promise<{ runId: string; studentId: string; name: string } | null> {
+  const run = await tx.assignment.findFirst({
+    where: { id: c.runId, status: "LIVE", class: { teacherId: c.teacherId } },
     select: { id: true, classId: true, wholeClass: true },
   });
-  if (!run) return { ok: false, error: NOT_YOURS };
+  if (!run) return null;
 
-  const pupil = await db.student.findFirst({
+  const pupil = await tx.student.findFirst({
     where: {
-      id: studentId,
+      id: c.studentId,
       classId: run.classId,
       ...(run.wholeClass ? {} : { assignments: { some: { assignmentId: run.id } } }),
     },
     select: { id: true, name: true },
   });
-  if (!pupil) return { ok: false, error: NOT_YOURS };
+  if (!pupil) return null;
 
-  return { ok: true, runId: run.id, studentId: pupil.id, name: pupil.name };
+  return { runId: run.id, studentId: pupil.id, name: pupil.name };
 }
 
 /** Take this run off one pupil's to-do list. */
 export async function excuseFromRun(_prev: RunPupilState | undefined, formData: FormData): Promise<RunPupilState> {
-  const r = await resolve(formData);
-  if (!r.ok) return { error: r.error };
+  const c = await caller(formData);
+  if (!c.ok) return { error: c.error };
 
   const outcome = await db.$transaction(async (tx) => {
+    const r = await pupilOnRun(tx, c);
+    if (!r) return { kind: "NOT_YOURS" as const };
     const handedIn = await tx.journalItem.count({ where: { assignmentId: r.runId, studentId: r.studentId } });
-    if (handedIn > 0) return "HANDED_IN" as const;
+    if (handedIn > 0) return { kind: "HANDED_IN" as const, name: r.name };
     await tx.assignmentExcusal.upsert({
       where: { assignmentId_studentId: { assignmentId: r.runId, studentId: r.studentId } },
       create: { assignmentId: r.runId, studentId: r.studentId },
       update: {},
     });
-    return "DONE" as const;
+    return { kind: "DONE" as const, runId: r.runId };
   });
-  if (outcome === "HANDED_IN") {
-    return { error: `${r.name} has already handed something in for this, so it can't be marked as not needed.` };
+  if (outcome.kind === "NOT_YOURS") return { error: NOT_YOURS };
+  if (outcome.kind === "HANDED_IN") {
+    return { error: `${outcome.name} has already handed something in for this, so it can't be marked as not needed.` };
   }
 
-  revalidatePath(runHref(r.runId));
+  revalidatePath(runHref(outcome.runId));
   revalidatePath("/teacher/activities");
   return { ok: true };
 }
 
 /** Put this run back on one pupil's to-do list. */
 export async function putBackOnRun(_prev: RunPupilState | undefined, formData: FormData): Promise<RunPupilState> {
-  const r = await resolve(formData);
-  if (!r.ok) return { error: r.error };
+  const c = await caller(formData);
+  if (!c.ok) return { error: c.error };
 
-  await db.assignmentExcusal.deleteMany({ where: { assignmentId: r.runId, studentId: r.studentId } });
+  const runId = await db.$transaction(async (tx) => {
+    const r = await pupilOnRun(tx, c);
+    if (!r) return null;
+    await tx.assignmentExcusal.deleteMany({ where: { assignmentId: r.runId, studentId: r.studentId } });
+    return r.runId;
+  });
+  if (!runId) return { error: NOT_YOURS };
 
-  revalidatePath(runHref(r.runId));
+  revalidatePath(runHref(runId));
   revalidatePath("/teacher/activities");
   return { ok: true };
 }
