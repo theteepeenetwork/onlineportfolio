@@ -1,8 +1,13 @@
 # Parent–teacher messages, held to school office hours
 
-**Status: a plan, not built.** Nothing in this document exists in the codebase
-yet. It reverses a written product decision and needs a constitutional amendment
-to ship — that work is in scope here, not a footnote.
+**Status: built.** Part A (the messages, SAFEGUARDING rule 21) merged as
+PR #168 on 7 September 2026; Part B (rollover, export and closure, permission
+slips, parents' evening, the safeguarding lead, the notification switch — rules
+21a–23 and 6b) as PR #170 on 8 September; Notices (rule 24, one-way, no reply)
+as PR #171 on 9 September. The text below is the plan as it was written and
+argued; where the code and this document differ, the code and `SAFEGUARDING.md`
+are the record. It reversed a written product decision and took a constitutional
+amendment to ship — that work was in scope here, not a footnote.
 
 **It also has a hard dependency.** Messaging is gated on the school plan, and
 until [`docs/school-identity.md`](./school-identity.md) ships **no real signup can
