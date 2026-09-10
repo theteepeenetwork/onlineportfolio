@@ -190,6 +190,10 @@ const DEFAULT_TOOL_COLORS: Record<Tool, string> = {
 // shape landing in navy read as a mistake. Once a shape's fill is changed the
 // next shape takes that colour, and a fresh canvas starts here again.
 const DEFAULT_SHAPE_FILL = "#3b82f6";
+// A shape lands at three-quarters of its preset size. The presets are drawn
+// for the fan thumbnails and for their own proportions; on the page, full
+// size was too much of a child's screen for one tap. Owner's call, Sept 2026.
+const ADD_SCALE = 0.75;
 
 const W = 1000;
 const H = 700;
@@ -2394,8 +2398,8 @@ export function DrawingCanvas({
   function addShape(preset: ShapePreset, cycle = false) {
     pushHistory();
     const id = `o${objIdRef.current++}`;
-    const w = preset.w ?? SHAPE_DEFAULTS.w;
-    const h = preset.h ?? SHAPE_DEFAULTS.h;
+    const w = Math.round((preset.w ?? SHAPE_DEFAULTS.w) * ADD_SCALE);
+    const h = Math.round((preset.h ?? SHAPE_DEFAULTS.h) * ADD_SCALE);
     // Nine landing places in a cycle, so a teacher tapping "Counter 1" four
     // times out of the kit WINDOW gets four counters they can see rather than
     // one they have to peel apart. Design offsets of ±44 / ±36 px, in model

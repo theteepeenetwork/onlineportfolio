@@ -71,18 +71,18 @@ test.describe("Turning is sized to the thing being turned", () => {
     await studentLogin(page, "Dev");
     await openDrawing(page);
 
-    // A rectangle arrives 320×220 — a 388-unit diagonal, so one band up from
+    // A rectangle arrives 240×165 — a 291-unit diagonal, so two bands up from
     // the finest.
     await placeShape(page, "Rectangle");
     const turn = page.locator('div[title="Turn"]');
     await turn.focus();
     await page.keyboard.press("ArrowRight");
-    expect(await rotationOf(page)).toBe(3);
+    expect(await rotationOf(page)).toBe(5);
     await page.keyboard.press("ArrowLeft");
 
-    // Grow it past 500 units across and the step gets finer again, because its
-    // corners now travel further for the same angle.
-    for (let i = 0; i < 3; i++) {
+    // Grow it past 500 units across (six 10% steps) and the step gets finer,
+    // because its corners now travel further for the same angle.
+    for (let i = 0; i < 6; i++) {
       await page.getByRole("button", { name: "Make it bigger" }).click();
     }
     await turn.focus();
