@@ -799,6 +799,20 @@ a school to turn links off; a link a child makes; a link in a message, a notice,
 a caption or a note on returned work; a website shown inside StoryJar. Each would
 be its own amendment.
 
+**OPEN — for the owner, not decided: should the validator refuse known link
+shorteners (bit.ly, tinyurl.com and the like)?** *(Raised 2026-09-10 by the
+safeguarding review of this change.)* The card shows the host of the address the
+teacher entered, and for almost every link that is where the tab goes. A
+shortener or a redirect page breaks that: the card says `bit.ly` and the tab
+lands wherever the short link points today, which its owner can change after the
+teacher checked it. The school's web filter still governs where it lands, so
+this is not an unguarded path, but it is the one case where the host on the card
+is not the host visited, and rule 26 and DPIA R24 have been reworded to say so
+rather than promise otherwise. Refusing a named list would close the common case
+and cost a teacher nothing (they can paste the address the short link opens),
+but a list is never complete, so it would narrow the gap rather than shut it.
+Nothing is built either way until this is answered.
+
 **Worth an outside check:** worth putting the card, and the line in the builder
 about the school's web filter, in front of a pilot school's online-safety lead.
 No new data category and no child data, so no professional review is needed for

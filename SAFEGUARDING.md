@@ -521,8 +521,11 @@ Each rule is testable. A change that breaks one does not ship.
     - **It reaches a child only in an activity a teacher chose to set.** The
       link object is offered in the template builder's toolbox and nowhere
       else. A child's toolbox never offers one, and on a child's canvas a link
-      cannot be added, moved, resized, copied or deleted. The Claude connector
-      has no way to place one (`docs/claude-connector.md`). A link StoryJar
+      cannot be added, moved, resized, copied, changed or opened without the
+      card. Wiping a page clean removes it along with everything else on that
+      page, as it removes the teacher's pictures and shapes, and Undo puts it
+      back. The Claude connector has no way to place one
+      (`docs/claude-connector.md`). A link StoryJar
       staff put in a library activity is kept when it is published, and reaches
       a class only once a teacher has added that activity and set it
       (`docs/library-publishing.md`) — so the accurate word is teacher-*adopted*,
@@ -533,22 +536,37 @@ Each rule is testable. A change that breaks one does not ship.
       canvas before a link can be pressed. It refuses anything that is not
       `https:`; a name or password before the host; an IP address; `localhost`,
       `.local`, `.internal` or a single-word host; a port; an address over 2,000
-      characters; and any address containing `/uploads/` (FINDINGS F75: the
-      media route authorises a file by matching its path as text, and a link
-      must not be a second way to name one).
+      characters; an escape that cannot be decoded; and any address containing
+      `/uploads/` anywhere — path, query or fragment, as typed, as the parser
+      stores it, or percent-decoded (FINDINGS F75: the media route authorises a
+      file by matching its path as text, and a link must not be a second way to
+      name one). A teacher's name for a link is held to the same `/uploads/`
+      rule, because it is stored in the same payload.
     - **The real host is always what a child sees.** The chip on the page and
       the card both show `displayHost()` — the address's own host, in its
-      `xn--` form where it has one, shortened from the left — and a teacher's
-      label sits beside it, never instead of it. A label can say anything; the
-      host is where the tab will go.
+      `xn--` form where it has one — and a teacher's label sits beside it,
+      never instead of it. A host too long for the room it has is shortened
+      from the LEFT, so its owning end always shows: on the chip to fit the
+      chip, and on the card only past forty characters — up to that the card
+      wraps it rather than cutting it, so on any screen all of it is visible.
+      A label can say anything; the host is the one in the address the
+      teacher entered. It is not a promise about where the tab ends up: a link
+      shortener or a redirect page can send the tab somewhere else once it has
+      opened, and that is governed by the school's web filter (below), not by
+      the card.
     - **The card always comes first.** Pressing a link opens a full-screen,
       opaque "leaving StoryJar" card — *This opens {host} — a website your
       teacher chose* — with **Stay here** focused and **Open it** beside it.
       Nothing opens without a second, deliberate press, and Escape stays.
-    - **Only the teacher's own copy can be pressed.** A child's canvas presses
-      only links that arrived in the teacher's snapshot of the activity, and
-      opens the address from that snapshot — never from anything the child's
-      device has stored or changed, including a restored draft.
+    - **Only the teacher's own copy can be pressed, or drawn.** A child's
+      canvas presses only links that arrived in the teacher's snapshot of the
+      activity, and opens the address from that snapshot — never from anything
+      the child's device has stored or changed, including a restored draft.
+      The chip and the picture that is handed in are drawn from the same
+      snapshot, and a link the snapshot never had is taken off the page, so
+      all three name the same website. (A draft restored on a different device
+      comes back as page pictures, in which a link is drawn but cannot be
+      pressed: FINDINGS F78. That fails safe.)
     - **A new tab that knows nothing about where it came from.** Open it is an
       `<a target="_blank" rel="noopener noreferrer">`: the website cannot script
       back into the child's tab and is not told which page sent them.
