@@ -112,6 +112,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F58 | **High** | Test harness / persona suite truthfulness | **The persona suite can report a working feature as broken and a broken one as working, and we have made decisions on its output all week.** Its "did it work?" checks are `seesText(/…/i)` against rendered copy, and 16 of 63 are unsound. Proven against real rendered text: `/…\|nothing/i` matched "**Nothing** else was searched" in a refusal and scored a miss as a find (the false major "I cannot issue them a new code" — the control exists and works); `/…\|ok\|…/i` matches "br**ok**en", so the operator health check passes on the exact word that means it is broken; and the `/ops` console check looks for words the shipped verdict tile never says, so it reported a working tile as absent. Substring hazards confirmed in real copy: `ok`→broken/looks/cookie, `ask`→task/asked, `done`→undone, `sure`→measured/erasure, `back`→background/feedback. A second class cannot fail at all: `/class(es)?\|work\|…/` on a staff page. | **Open** | `scripts/check-persona-patterns.mjs` in `npm run check` — a bare alternation shorter than 5 characters, or a failure word inside a success pattern, is refused with the word that would collide |
 | F59 | **Critical** | Access control / children's data (Rule 1) | **"Remove from school" does not remove access.** `removeStaff` sets `teacher.schoolId = null`; `Class` has **no `schoolId`**, so a class belongs to a school only through its teacher. Measured 25 Aug 2026 on the persona school: removing an ACTIVE teacher in one click, with no confirmation, took the school from 5 classes/17 pupils to **1 class/3 pupils** — while he signed straight back in to `/teacher` with all four classes, **14 pupils, 7 journal items and 2 items waiting in his approval queue**. The admin's intent is not achieved, the school cannot reassign the classes it can no longer see (the action's own comment claims it can), and the audit log records "Removed Nathan Reeves from the school", which is now false in the direction that matters. Found only because F58's cannot-fail check was tightened; `grep -rln "removeStaff\|STAFF_REMOVED" tests/` returned **nothing** — the action had never been exercised by any test. | **Fixed** 2026-08-29, option A: classes move to the removing admin in one transaction, class codes rotate, sessions and unspent password tokens are deleted. `Class.schoolId` (option B) remains the correct model and is deferred to the school-identity work | `tests/battery/security/class-handover.spec.ts` — blocking, drives the real action through the console, verified to fail without the fix |
 | F73 | Low | Mail / notification completeness | **The message notification has one path where the design has two.** Rule 6b's email is raised when a message becomes deliverable, and `notifyDeliveredMessages` is written to be called from a lazy path (a member of staff opening their inbox) **and** from the nightly by-state sweep in `scripts/freeze-expired.mjs`. Only the lazy one is wired. The sweep runs under `tsx` outside Next, where `@/lib/mailer`'s own `server-only` line throws, so wiring it means either moving the Mailjet transport out from behind that guard or writing a second sender in a script — neither of which is a decision to take as a side effect of adding a job. **What it costs:** a school where nobody opens StoryJar on the morning a held message lands is notified late rather than wrongly. The office-hours hold is enforced by `deliverAt` and not by who happens to look, so no message can arrive early; the badge in the family space, which is the whole model for every household without an address, is unaffected. Found while building it, 2026-09-08, and named rather than left as an absence. | **Open**, and deliberately so — the fix is a decision about where the mailer's credentials may be imported from, which is the owner's | `tests/battery/security/message-notification.spec.ts` covers the FUNCTION both paths would call, including that a held message notifies nobody and that each message is considered exactly once, so the missing job is wiring rather than untested behaviour |
+| F74 | Medium | Observability / child-surface memory | **A class of iPads lost the drawing canvas repeatedly and nothing could say why.** Reported 2026-09-10: about 28 iPads had the canvas "crash a lot" during one lesson, a refresh fixed it each time, and Railway showed no server fault of any kind. StoryJar had no browser-side error reporting (rule 11 forbids third-party trackers, and nothing first-party had been built), and `DrawingCanvas.tsx` held up to thirty full-page PNG snapshots per page for undo, re-encoded on every pen-down and every object gesture, plus three more full-page copies per page and two throwaway 1000×700 canvases per stroke that were never released. The leading explanation is iPadOS jettisoning the tab for memory, which is not a JavaScript error and leaves no trace. | **Fixed 2026-09-10**: a first-party, stdout-only beacon (`/api/client-error`) carrying error class, code location, route pattern, browser family and an unclean-exit flag — never message text; a child-register `/student` error boundary; undo depth 30 → 12 on both stacks, snapshots shared between object-only edits, scratch canvases released, real thumbnails, image caches pruned. Owner (DPO) decision on the log line's contents; retention row and DPIA entry added. | `tests/battery/security/client-error-route.spec.ts`, `tests/e2e/student-error-boundary.spec.ts`, `tests/e2e/undo-stroke-layer.spec.ts`, the a11y scan of the error page |
 | F60 | Medium | Trust / transparency at signup | **A teacher signs up, and nothing on the way in says what happens to children's work or who can see it.** Step 1 of 5 asks for their name, school email and password; the next steps ask for their school and their class. The only nearby sentence is "Just you — pupils never need accounts or emails", which is about accounts, not about the work. Discovered 25 Aug 2026 by tightening one of F58's four cannot-fail checks: the old pattern was `/safeguard\|approv\|privacy\|data\|only you\|never/i` and it had been matching the word **"never"** in that unrelated sentence since the day it was written. Safeguarding is the product's whole pitch and `docs/brand-and-copy.md` governs what is claimed in StoryJar's name — the promise exists everywhere except the one screen where somebody is deciding whether to trust it. | **Open** | `personas/teacher-first-day.spec.ts:75`, now written against a promise being made rather than against the word "data" |
 | F61 | **High** | Authentication / account recovery | **There was no password reset anywhere in the product, and no way for an invited teacher to receive credentials.** `src/app/actions/auth.ts` signed a teacher in and that was all: a pilot teacher who mistyped their password had no route back except the owner opening `railway ssh`. Ten to fifteen pilot teachers arrive from 1 September. The second half was the same hole — `staffInviteEmail()` had been written, styled and left uncalled for months (`mailStatus.ts:48` recorded it), `resendInvite` was a documented no-op that refreshed the page, and `inviteStaff` created a Teacher row with an empty password hash and told nobody. | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 7-day invitation; neutral response; link never on screen in production; single-use; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (6 blocking properties) and `tests/e2e/password-reset.spec.ts`, which is the acceptance test: a teacher who does not know her password gets back in with nobody touching a terminal | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 72-hour invitation; neutral response; link never on screen in production; single-use enforced in the database; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (8 blocking properties incl. the concurrent double-spend), `tests/battery/security/staff-invite-isolation.spec.ts` (cross-tenant), and `tests/e2e/password-reset.spec.ts`, the acceptance test |
 | F62 | Medium | Test harness / assertions that cannot fail | **F58's gate covers persona regexes and not `expect(...)` assertions, and two unfailable assertions were written by F58's own author on the days after it.** `check-persona-patterns.mjs` refuses a short bare alternation or a failure word in a persona success pattern. It cannot see an `expect()` that is true whatever the product does. Two instances, both green, both found by reading output rather than by any gate: a persona check asserting the ABSENCE of a sentence that no longer existed anywhere in the product, and a cross-tenant test posting forged FormData that Next refused outright (`Failed to find Server Action`), so "no token was minted" held against a request that could never mint one. | **Open**, deliberately not fixed this week — a new static gate during a freeze is how a narrow exception stops being narrow (owner decision, 27 Aug 2026). After launch | none, and that is the finding. Both instances are now fixed at their sites; nothing stops a third |
@@ -3524,6 +3525,82 @@ lands notifies nobody until somebody does. The failure is LATE, never WRONG:
 `src/lib/messaging/notify.ts` says so in its own header: every earlier email was
 one a person had just asked for and was waiting for, so a failure was noticed by
 the person who did not get their link. Nobody waits for a notification.
+
+## F74 · A class of iPads lost the drawing canvas, and nothing could say why · Medium → Fixed 2026-09-10
+
+*Reported 2026-09-10 by a teacher: about 28 iPads (Safari 16.6 to 26.6 in
+desktop mode) had the drawing canvas "crash a lot" between 10:00 and 12:30; a
+refresh brought it back each time.*
+
+**What the server knew.** Nothing. Zero 5xx across 5,277 requests, no restart,
+CPU idle, 0.3 GB of 24 in use, every draft save and hand-in a 200. The one
+deploy that morning (PR #173, 09:00) started clean. A failure that never
+reaches the server is invisible to Railway.
+
+**What was true.** StoryJar had no browser-side error reporting of any kind.
+SAFEGUARDING rule 11 forbids third-party error tracking on a child's surface,
+and nothing first-party had been built in its place, so a page that died in a
+child's hands left no record anywhere. And `DrawingCanvas.tsx` held a great
+deal in memory: up to thirty undo entries per page, each a full 1000×700 PNG
+data URL of the stroke layer, re-encoded on every pen-down and every object
+drag; the redo stack uncapped; three further full-page copies per page (stroke
+layer, composite, preview) plus a fourth in React state as the tray's
+"thumbnails"; two throwaway 1000×700 canvases created per stroke and never
+released; decoded image bitmaps kept for objects long since deleted; nothing
+freed on unmount. On a laptop none of that matters. On a 2 GB iPad it is the
+whole budget, and iPadOS answers by killing the tab, which is not a JavaScript
+error and throws nothing.
+
+**What changed.**
+
+1. *A first-party, stdout-only report of browser failures.* `ClientErrorReporter`
+   listens for uncaught errors and unhandled rejections and, separately, keeps
+   a marker in `sessionStorage` that `pagehide` clears: a marker still present
+   when the next document loads means the last one ended without unloading,
+   which is exactly what a memory kill looks like and exactly what a person's
+   own refresh does not. Each report goes by `sendBeacon` to
+   `/api/client-error`, which answers 204 to everything, keeps nothing, and
+   writes one line to stdout assembled from validated tokens: error class name,
+   code location, route pattern (ids replaced by `:id`), browser family and
+   major, navigation type, kind. **Never the message.** The owner, as data
+   protection lead, chose that line over one carrying a truncated message on
+   10 September 2026. Retention row in `RETENTION.md`; DPIA §2.2 and §7.
+2. *A child-register error boundary at `/student`.* "Have another go" and
+   "Back to my jar", both at the 64px child floor, saying nothing about what
+   happened. `DevThrow`, compiled out of production, lets the tests reach it.
+3. *Canvas memory.* `MAX_HISTORY` 30 → 12 on both stacks; history entries share
+   the stroke-layer string with `pagesRef` unless a stroke actually landed, so
+   an object-only edit costs nothing; every scratch canvas is released after
+   encoding; the tray gets real 200×140 JPEG thumbnails; image caches are
+   pruned on delete and everything is cleared on unmount; the child's plain
+   drawing route renders one composite per stroke, not two.
+
+**Not done here.** The reporter is mounted in the student and teacher layouts,
+not the root, so `/login/*` and `/family` are not covered; a root mount would
+run every suite on every PR and the canvas is not on those pages. No
+`global-error.tsx`. The hidden form field still holds one JSON copy of every
+composite, because fourteen test call sites read it between actions and a lazy
+write would need a test seam. Whether the memory explanation is right is now
+something the log can say: an `unclean-exit` cluster from `Safari/*` on
+`/student/new/:type` confirms it, and a named `TypeError` at a location refutes
+it.
+
+**What could not be measured.** A Chromium heap reading (`usedJSHeapSize`,
+30 test strokes, five shapes, ten undos and redos) sat at 14 to 15 MB before
+and after, because a test stroke makes a PNG of a few kilobytes and the
+canvas backing stores this change releases are not JavaScript heap at all.
+The figure that matters is an iPad's, in Safari's Web Inspector, with a
+child's real drawing; that is the next lesson's job, and the `unclean-exit`
+line is what will say whether it was enough.
+
+**Found on the way, not fixed here.** `duplicatePageAt`, `movePageTo` and
+`deletePageAt` call `syncHidden()` straight after the asynchronous
+`loadPage()`, while the canvas is still blank mid-repaint: before this change
+that wrote a blank stroke layer *and* a blank composite over the page just
+landed on; now the stroke layer survives, but the composite is still taken
+from the blank canvas. And `duplicateObject` never copies the clone's entry
+into `imgCacheRef`, so a duplicated *picture* has never composited. Both
+predate this work and want their own finding.
 
 ## F60 · Nothing at signup says what happens to children's work · Medium → Open
 
