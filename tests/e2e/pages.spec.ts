@@ -282,6 +282,89 @@ test("a page can be moved up and down, and takes its contents with it", async ({
   await expect(page.getByRole("menuitem", { name: "Move down" })).toBeEnabled();
 });
 
+// Hold a page card until it lifts, then slide it along the tray to where
+// another card is, and let go — the gesture a finger uses to reorder pages.
+async function slidePageCard(page: Page, from: number, to: number) {
+  const card = (await page.getByRole("button", { name: `Page ${from + 1}`, exact: true }).boundingBox())!;
+  const dest = (await page.getByRole("button", { name: `Page ${to + 1}`, exact: true }).boundingBox())!;
+  const x = card.x + card.width / 2;
+  const y = card.y + card.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  // Past the 350ms hold, without moving, so the card lifts rather than scrolls.
+  await page.waitForTimeout(600);
+  await page.mouse.move(dest.x + dest.width / 2, y, { steps: 8 });
+  await page.mouse.up();
+}
+
+// Who may move which page (owner decision 2026-09-10, F76). The teacher's
+// pages are the worksheet, in the order the teacher set; a pupil may put a
+// page of their own anywhere among them, and the builder may move anything.
+test("a pupil holding and sliding the teacher's page leaves the pages in order", async ({ page }) => {
+  await openApples(page, "Ella");
+  await page.locator('button[title="Add page"]').click();
+  // The cross marks the page the pupil added, so it says which page is where.
+  await expect(page.getByRole("button", { name: "Throw away page 2", exact: true })).toBeVisible();
+
+  await slidePageCard(page, 0, 1);
+
+  await expect(
+    page.getByRole("button", { name: "Throw away page 2", exact: true }),
+    "the pupil's page is still second",
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Throw away page 1", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: "Page moved back" })).toHaveCount(0);
+  // The hold still landed, so the card's menu is open, and it does not promise
+  // a move that will not happen.
+  const menu = page.getByRole("group", { name: "Page 1" });
+  await expect(menu.getByRole("button", { name: "Clear page" })).toBeVisible();
+  await expect(menu.getByText("Hold and slide to move it")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Their own page's menu does make that promise.
+  await holdPageCard(page, 1);
+  await expect(page.getByRole("group", { name: "Page 2" }).getByText("Hold and slide to move it")).toBeVisible();
+});
+
+test("a pupil can slide a page they added in front of the teacher's", async ({ page }) => {
+  await openApples(page, "Dev");
+  await page.locator('button[title="Add page"]').click();
+  await drawOnCanvas(page);
+  const before = await settledPages(page, "drawingPages", 2);
+
+  await slidePageCard(page, 1, 0);
+
+  await expect(page.getByRole("button", { name: "Throw away page 1", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Throw away page 2", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: "Page moved back" })).toBeVisible();
+  // The whole page went, drawing and all, and the teacher's followed it along.
+  const after = await settledPages(page, "drawingPages", 2);
+  expect(after[0], "the pupil's drawing is on page 1 now").toBe(before[1]);
+  expect(after[1], "and the teacher's page is page 2").toBe(before[0]);
+});
+
+test("in the builder, any page can be held and slid, the template's own included", async ({ page }) => {
+  await builder(page, "Slide any page");
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Maths kit" }).click();
+  await page.getByRole("button", { name: "Number line", exact: true }).click();
+  await page.getByRole("button", { name: "Tuck away" }).click();
+  await page.locator('button[title="Add page"]').click();
+  // Closed and opened again, both pages come back as the template's pages
+  // rather than pages added on this canvas.
+  await page.locator('button[title="Done"]').click();
+  await page.getByRole("button", { name: /Edit template/ }).click();
+  const objects = page.locator("div[data-object]");
+  await expect(objects).toHaveCount(1);
+
+  await slidePageCard(page, 0, 1);
+
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveAttribute("aria-current", "true");
+  await expect(objects, "the number line went with its page").toHaveCount(1);
+  await page.getByRole("button", { name: "Page 1", exact: true }).click();
+  await expect(objects).toHaveCount(0);
+});
+
 // The pictures on the page cards are pictures, not the pages themselves.
 //
 // They used to be the full-size page image handed to a 96x84 <img> for the

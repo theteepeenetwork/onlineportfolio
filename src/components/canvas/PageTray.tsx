@@ -20,6 +20,12 @@
 // by accident if at all. A page they may throw away now wears a small jam ✕ on
 // its corner (a teacher's feedback, September 2026). Which pages those are is
 // the canvas's call — see `pageDelete` there — and the tray only draws it.
+//
+// Which pages may be slid is the canvas's call too, and for a child it is the
+// same pages (owner decision 2026-09-10, F76): the teacher's pages stay in the
+// order the teacher set, and a child's own may go anywhere among them. Holding
+// a teacher's page still lands — it is how the menu opens — but the card does
+// not come up to be slid.
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons/Icon";
@@ -62,6 +68,7 @@ export function PageTray({
   active,
   thumbs,
   deletable,
+  movable,
   canStructure,
   onGo,
   onAdd,
@@ -80,6 +87,9 @@ export function PageTray({
   /** Which pages may be thrown away, one flag per page. The canvas decides;
       the tray draws a cross on each and offers it in that page's menu. */
   deletable: boolean[];
+  /** Which pages may be held and slid to a new place, one flag per page. The
+      canvas decides, and refuses a move of any other page itself as well. */
+  movable: boolean[];
   canStructure: boolean;
   onGo: (i: number) => void;
   onAdd: () => void;
@@ -148,7 +158,9 @@ export function PageTray({
       const p = pressRef.current;
       if (!p) return;
       p.lifted = true;
-      setDrag({ from: i, to: i, dx: 0 });
+      // A page that may not move is not lifted: the hold has landed, so
+      // letting go opens its menu, but there is nothing to slide.
+      if (movable[i] === true) setDrag({ from: i, to: i, dx: 0 });
     }, HOLD_MS);
   }
 
@@ -165,6 +177,7 @@ export function PageTray({
       }
       return;
     }
+    if (movable[p.i] !== true) return;
     const step = Math.round(dx / u(SLOT));
     const to = Math.max(0, Math.min(count - 1, p.i + step));
     setDrag({ from: p.i, to, dx });
@@ -501,6 +514,7 @@ export function PageTray({
           index={menu}
           count={count}
           canDelete={deletable[menu] === true}
+          canMove={movable[menu] === true && count > 1}
           canStructure={canStructure}
           onDuplicate={() => { setMenu(null); onDuplicate(menu); }}
           onDelete={() => { setMenu(null); onDelete(menu); }}
@@ -517,6 +531,7 @@ function PageMenu({
   index,
   count,
   canDelete,
+  canMove,
   canStructure,
   onDuplicate,
   onDelete,
@@ -527,6 +542,8 @@ function PageMenu({
   index: number;
   count: number;
   canDelete: boolean;
+  /** Whether "hold and slide" would move this page. Not promised otherwise. */
+  canMove: boolean;
   canStructure: boolean;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -583,9 +600,13 @@ function PageMenu({
         animation: `sj-pop-in ${SPRING_MS}ms ${SPRING} backwards`,
       }}
     >
-      <span style={{ font: `600 ${u(15)}px var(--font-fredoka)`, color: "rgba(250,246,238,.8)", padding: `${u(4)}px ${u(6)}px` }}>
-        Hold and slide to move it
-      </span>
+      {/* Only where it is true: on a teacher's page a child would hold and
+          slide and nothing would happen. */}
+      {canMove && (
+        <span style={{ font: `600 ${u(15)}px var(--font-fredoka)`, color: "rgba(250,246,238,.8)", padding: `${u(4)}px ${u(6)}px` }}>
+          Hold and slide to move it
+        </span>
+      )}
       {canStructure && (
         <button type="button" onClick={onDuplicate} style={row} aria-label="Duplicate this page" title="Make a copy of this page">
           <Icon name="duplicate" size={u(20)} decorative /> Make a copy of this page

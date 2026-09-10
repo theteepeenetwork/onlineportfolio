@@ -720,6 +720,10 @@ export function DrawingCanvas({
   // are the worksheet, and the shape of what comes back. "any" is the template
   // builder, where the pages are the teacher's own to design. A default that
   // offers less is the safe one to forget (rule 8).
+  //
+  // The same answer decides which pages may be MOVED (owner decision,
+  // 2026-09-10, F76): under "added" a child slides only their own pages, to
+  // anywhere, and the teacher's stay in the order the teacher set.
   pageDelete?: "any" | "added";
   // Whether the pages themselves can be RESTRUCTURED — copied and reordered.
   // Separate from deleting one, and off unless asked for: a child's page count
@@ -2440,6 +2444,16 @@ export function DrawingCanvas({
     return pageDelete === "any" || addedRef.current[i] === true;
   }
 
+  // May this page be moved? The same pages as may go, for the same reason: the
+  // teacher's pages are the worksheet, in the order the teacher set it (owner
+  // decision 2026-09-10, F76). A page the child added may be slid anywhere,
+  // between two of the teacher's included, and that never reorders the
+  // teacher's pages among themselves, because they are never the page that
+  // moves. Asked by the tray and the menu, and by movePageTo itself.
+  function pageMayMove(i: number): boolean {
+    return pageDelete === "any" || addedRef.current[i] === true;
+  }
+
   function addPage() {
     finishEditing();
     setCaptureFrame(null);
@@ -2568,10 +2582,14 @@ export function DrawingCanvas({
     movePageTo(index, index + delta);
   }
 
-  function movePageTo(index: number, target: number) {
-    if (index === target) return;
-    if (index < 0 || index >= pagesRef.current.length) return;
-    if (target < 0 || target >= pagesRef.current.length) return;
+  // Returns whether it moved, so a caller only says it did when it did.
+  function movePageTo(index: number, target: number): boolean {
+    if (index === target) return false;
+    if (index < 0 || index >= pagesRef.current.length) return false;
+    if (target < 0 || target >= pagesRef.current.length) return false;
+    // Enforced here as well as at the tray and the menu, the way deletePageAt
+    // refuses a teacher's page: the next route to a move cannot forget it.
+    if (!pageMayMove(index)) return false;
     finishEditing();
     // Bake the page on screen first, so reordering from a DIFFERENT page never
     // drops the in-progress work on the one being viewed.
@@ -2581,6 +2599,7 @@ export function DrawingCanvas({
     // Stay with the page that moved rather than with the position it left, so
     // a teacher can press the same button again to keep going.
     showPage(target);
+    return true;
   }
 
   // Throw a page away (by index) — the tray's cross, the page menu and the
@@ -3046,11 +3065,13 @@ export function DrawingCanvas({
       y: at.y,
       items: [
         { label: "Duplicate page", onSelect: () => duplicatePageAt(i) },
-        { label: "Move up", onSelect: () => movePageBy(i, -1), disabled: i === 0 },
+        // Only the builder opens this menu today, where every page may move;
+        // asked anyway, so the menu never offers what movePageTo would refuse.
+        { label: "Move up", onSelect: () => movePageBy(i, -1), disabled: i === 0 || !pageMayMove(i) },
         {
           label: "Move down",
           onSelect: () => movePageBy(i, 1),
-          disabled: i >= pagesRef.current.length - 1,
+          disabled: i >= pagesRef.current.length - 1 || !pageMayMove(i),
         },
       ],
     });
@@ -4484,6 +4505,11 @@ export function DrawingCanvas({
                 deletable={Array.from({ length: pageCount }, (_, i) =>
                   pageDelete === "any" ? true : added[i] === true,
                 )}
+                // The same pages (see pageMayMove): a teacher's page stays put
+                // for a child, and the tray does not lift it.
+                movable={Array.from({ length: pageCount }, (_, i) =>
+                  pageDelete === "any" ? true : added[i] === true,
+                )}
                 canStructure={allowPageStructure}
                 onGo={(i) => {
                   closeFans();
@@ -4494,8 +4520,7 @@ export function DrawingCanvas({
                   say("New page gone");
                 }}
                 onReorder={(from, to) => {
-                  movePageTo(from, to);
-                  say("Page moved back");
+                  if (movePageTo(from, to)) say("Page moved back");
                 }}
                 onDuplicate={(i) => {
                   duplicatePageAt(i);
