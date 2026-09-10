@@ -116,18 +116,27 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
         Only you choose what goes up. Showing work doesn&apos;t put it in a jar. Work that is waiting for you can be
         added once you have opened it.
       </p>
+      {/* Opening a waiting piece shows it full size, and this page is very
+          often already mirrored to the projector: the look-first rule holds
+          on this screen, not in the room, so the teacher is told to do the
+          looking first. DPIA R23 names the risk. */}
+      {pieces.some((p) => p.status === "PENDING") && (
+        <p data-board-look-first style={{ margin: "0 0 12px", font: "700 15px/1.5 var(--font-atkinson)", color: "var(--ink-soft)", maxWidth: "46em" }}>
+          Open waiting work before this page is on the projector.
+        </p>
+      )}
 
       <ul aria-label="Work you could show" style={{ listStyle: "none", margin: "0 0 14px", padding: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
         {pieces.map((p) => {
           const can = mayPick(p);
-          const on = picked.includes(p.id);
+          const on = isPicked(p);
           const hintId = `board-hint-${p.id}`;
           // A waiting piece's picture is not drawn here until the teacher has
           // opened it. This page is very often the one already mirrored to
           // the projector, so a thumbnail in the list would put work in front
           // of the class that no adult had looked at — the one thing rule 25
           // exists to prevent — before the board was even opened.
-          const unseen = p.status === "PENDING" && !looked.has(p.id);
+          const unseen = p.status === "PENDING" && !looked.has(versionOf(p));
           return (
             <li key={p.id} data-board-piece={p.firstName} data-status={p.status} style={{ background: "var(--paper)", border: `2px solid ${on ? "var(--ink)" : "var(--calm-border)"}`, borderRadius: 14, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
               <button

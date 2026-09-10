@@ -161,6 +161,9 @@ test("what can be picked follows the status: jar yes, waiting once opened, sent 
   await expect(tick(page, "Ada"), "in a jar: pickable straight away").toBeEnabled();
   await expect(tick(page, "Bo"), "waiting: not until the teacher has looked").toBeDisabled();
   await expect(piece(page, "Bo")).toContainText("Open it first");
+  // Opening a waiting piece shows it full size, so with waiting work on the
+  // list the teacher is told to do the looking before the page is projected.
+  await expect(page.locator("[data-board-look-first]")).toHaveText("Open waiting work before this page is on the projector.");
 
   // The run page may already be on the projector, so a waiting piece's
   // picture is not drawn in the list until the teacher has opened it: a
