@@ -2,6 +2,7 @@ import Link from "next/link";
 import { jsonArray } from "@/lib/activities";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { runsSetForStudent } from "@/lib/studentRuns";
 import { Avatar } from "@/components/Avatar";
 import { LogoutForm } from "@/components/LogoutForm";
 import { Icon } from "@/components/icons/Icon";
@@ -12,16 +13,11 @@ export default async function StudentActivities() {
   if (user?.role !== "STUDENT") return null;
   const { student } = user;
 
-  // Live runs assigned to this child: whole-class runs for their class, or
-  // pick-children runs they were chosen for.
+  // Live runs on this child's list: whole-class runs for their class, or
+  // pick-children runs in their class they were chosen for, less any their
+  // teacher marked "not needed" (src/lib/studentRuns.ts).
   const assignments = await db.assignment.findMany({
-    where: {
-      status: "LIVE",
-      OR: [
-        { wholeClass: true, classId: student.classId },
-        { wholeClass: false, students: { some: { studentId: student.id } } },
-      ],
-    },
+    where: { AND: [{ status: "LIVE" }, runsSetForStudent(student)] },
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, instructions: true, previewSnapshotJson: true },
   });

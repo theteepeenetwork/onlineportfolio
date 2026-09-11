@@ -12,6 +12,7 @@ const RUN_COUNTING = {
   class: { select: { id: true, name: true, students: { select: { id: true } } } },
   students: { select: { studentId: true } },
   responses: { select: { studentId: true, status: true } },
+  excusals: { select: { studentId: true } },
 } as const;
 
 export default async function ActivityLibraryPage() {

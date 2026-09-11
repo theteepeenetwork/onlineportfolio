@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { runsSetForStudent } from "@/lib/studentRuns";
 import { jsonArray } from "@/lib/activities";
 import { readQuiz, readAnswers, type QuizAnswer } from "@/lib/quiz";
 import { readTemplateObjects } from "@/lib/canvasObjects";
@@ -15,16 +16,11 @@ export default async function RespondToActivity({
   if (user?.role !== "STUDENT") return null;
   const { id } = await params;
 
-  // The run (assignment) must be live and assigned to this child.
+  // The run (assignment) must be live and on this child's list — which also
+  // means not marked "not needed" for them (src/lib/studentRuns.ts). A link to
+  // one that was taken off goes back to their list, like any ended run.
   const assignment = await db.assignment.findFirst({
-    where: {
-      id,
-      status: "LIVE",
-      OR: [
-        { wholeClass: true, classId: user.student.classId },
-        { wholeClass: false, students: { some: { studentId: user.student.id } } },
-      ],
-    },
+    where: { AND: [{ id, status: "LIVE" }, runsSetForStudent(user.student)] },
   });
   // A bad id, a stale link, or a run that has ended: notFound() would unwind
   // the async component before Next.js closes a performance.measure, crashing

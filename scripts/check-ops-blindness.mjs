@@ -297,6 +297,11 @@ const AGGREGATE_ONLY = [
   "JournalItem",
   "Draft",
   "AssignmentStudent",
+  // A teacher's "not needed" mark: one pupil, one run, a time (added
+  // 2026-09-10). Per-child by construction — a row IS a fact about a named
+  // child's to-do list — so counts only, exactly like AssignmentStudent beside
+  // it, which is the same shape pointing the other way.
+  "AssignmentExcusal",
   "Assignment",
   "ActivityTemplate",
   "Folder",

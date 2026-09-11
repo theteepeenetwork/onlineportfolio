@@ -17,7 +17,7 @@
 // Deliberately free of the server-only guard: the labels are shown by client
 // components and the logic is imported by the test battery, outside Next.
 
-export type PupilRunStatus = "IN_JAR" | "WAITING" | "SENT_BACK" | "NOT_HANDED_IN";
+export type PupilRunStatus = "IN_JAR" | "WAITING" | "SENT_BACK" | "NOT_HANDED_IN" | "NOT_NEEDED";
 
 /** The words a teacher sees. "Pupils" in teacher copy, never "children". */
 export const RUN_STATUS_LABEL: Record<PupilRunStatus, string> = {
@@ -25,24 +25,30 @@ export const RUN_STATUS_LABEL: Record<PupilRunStatus, string> = {
   WAITING: "Waiting for you",
   SENT_BACK: "Sent back",
   NOT_HANDED_IN: "Not handed in yet",
+  NOT_NEEDED: "Not needed",
 };
 
 type Response = { studentId: string; status: string };
 
 /**
- * One pupil's standing on a run, from their own responses to it.
+ * One pupil's standing on a run, from their own responses to it, and whether
+ * their teacher marked it "not needed" for them.
  *
  * Normally a pupil has at most one response per run — a re-do after sending
  * back updates the same row — but nothing in the schema forbids two (a second
  * tab can hand in twice). So the order is fixed rather than "the latest": work
  * waiting for the teacher wins, because hiding it would hide a job; then work in
  * the jar; then work sent back.
+ *
+ * WORK OUTRANKS THE MARK. A mark is refused for a pupil who has handed in, and
+ * cleared when a marked pupil hands in anyway, so the two should never meet —
+ * but if they ever do, the pupil's work is what the teacher sees.
  */
-export function pupilRunStatus(responses: { status: string }[]): PupilRunStatus {
+export function pupilRunStatus(responses: { status: string }[], notNeeded = false): PupilRunStatus {
   if (responses.some((r) => r.status === "PENDING")) return "WAITING";
   if (responses.some((r) => r.status === "APPROVED")) return "IN_JAR";
   if (responses.some((r) => r.status === "RETURNED")) return "SENT_BACK";
-  return "NOT_HANDED_IN";
+  return notNeeded ? "NOT_NEEDED" : "NOT_HANDED_IN";
 }
 
 /**
@@ -65,7 +71,7 @@ export function runRosterIds(run: {
 }
 
 export type RunCounts = {
-  /** Pupils the run is set to. */
+  /** Pupils the run is set to, leaving out anybody marked "not needed". */
   assigned: number;
   /** Pupils who have handed something in, whatever became of it. */
   turnedIn: number;
@@ -73,24 +79,33 @@ export type RunCounts = {
   waiting: number;
   sentBack: number;
   notHandedIn: number;
+  /** Pupils marked "not needed" with nothing handed in. Not in `assigned`. */
+  notNeeded: number;
 };
 
 /**
  * The counts for one run, over the pupils it is set to. Responses from anybody
  * not on `rosterIds` are ignored, so a pupil who has moved class cannot push
- * "handed in" past "set to".
+ * "handed in" past "set to". A pupil marked "not needed" is counted on their
+ * own and left out of `assigned`, so "3 of 5 have handed in" means five pupils
+ * who are expected to.
  */
-export function summariseRun(rosterIds: string[], responses: Response[]): RunCounts {
+export function summariseRun(rosterIds: string[], responses: Response[], notNeededIds: string[] = []): RunCounts {
   const byPupil = new Map<string, Response[]>();
   for (const r of responses) {
     const list = byPupil.get(r.studentId);
     if (list) list.push(r);
     else byPupil.set(r.studentId, [r]);
   }
-  const counts: RunCounts = { assigned: 0, turnedIn: 0, inJar: 0, waiting: 0, sentBack: 0, notHandedIn: 0 };
+  const marked = new Set(notNeededIds);
+  const counts: RunCounts = { assigned: 0, turnedIn: 0, inJar: 0, waiting: 0, sentBack: 0, notHandedIn: 0, notNeeded: 0 };
   for (const id of new Set(rosterIds)) {
+    const status = pupilRunStatus(byPupil.get(id) ?? [], marked.has(id));
+    if (status === "NOT_NEEDED") {
+      counts.notNeeded += 1;
+      continue;
+    }
     counts.assigned += 1;
-    const status = pupilRunStatus(byPupil.get(id) ?? []);
     if (status !== "NOT_HANDED_IN") counts.turnedIn += 1;
     if (status === "IN_JAR") counts.inJar += 1;
     else if (status === "WAITING") counts.waiting += 1;
@@ -102,14 +117,20 @@ export function summariseRun(rosterIds: string[], responses: Response[]): RunCou
 
 /**
  * The shape every run query selects so that it can be counted: the class's
- * register, the chosen pupils, and the hand-ins. Structural, so a Prisma result
- * with `include: RUN_COUNT_INCLUDE`-shaped relations passes straight in.
+ * register, the chosen pupils, the hand-ins and the "not needed" marks.
+ * Structural, so a Prisma result that includes those four relations passes
+ * straight in. `excusals` is required rather than optional on purpose: a screen
+ * that forgot to select it would count a marked pupil as not handed in, and
+ * the compiler is the cheapest place to find that out. (An earlier version of
+ * this comment named a `RUN_COUNT_INCLUDE` constant; no such thing exists — each
+ * page declares its own include.)
  */
 export type RunForCounting = {
   wholeClass: boolean;
   class: { students: { id: string }[] };
   students: { studentId: string }[];
   responses: Response[];
+  excusals: { studentId: string }[];
 };
 
 export function countRun(run: RunForCounting): RunCounts {
@@ -118,7 +139,11 @@ export function countRun(run: RunForCounting): RunCounts {
     classStudentIds: run.class.students.map((s) => s.id),
     chosenStudentIds: run.students.map((s) => s.studentId),
   });
-  return summariseRun(rosterIds, run.responses);
+  return summariseRun(
+    rosterIds,
+    run.responses,
+    run.excusals.map((e) => e.studentId),
+  );
 }
 
 /** The URL of the page that answers "who has and hasn't done it". */

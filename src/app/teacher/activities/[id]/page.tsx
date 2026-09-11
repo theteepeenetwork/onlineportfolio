@@ -46,6 +46,7 @@ export default async function TemplateDetail({
           class: { select: { id: true, name: true, students: { select: { id: true } } } },
           students: { select: { studentId: true } },
           responses: { select: { studentId: true, status: true } },
+          excusals: { select: { studentId: true } },
         },
       },
     },

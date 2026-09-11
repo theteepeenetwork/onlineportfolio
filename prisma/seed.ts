@@ -62,6 +62,7 @@ async function main() {
   await db.session.deleteMany();
   await db.journalItem.deleteMany();
   await db.assignmentStudent.deleteMany();
+  await db.assignmentExcusal.deleteMany();
   await db.assignment.deleteMany();
   await db.activityTemplate.deleteMany();
   await db.parent.deleteMany(); // magic tokens + parent↔child links cascade
