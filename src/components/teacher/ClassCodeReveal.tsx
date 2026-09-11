@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Icon } from "@/components/icons/Icon";
+import { inertEverythingBut } from "@/components/inertEverythingBut";
 
 // The class code and its QR, one tap from the class header on Journals. A
 // teacher trying StoryJar in a school asked how you find the code: the small
@@ -21,22 +23,39 @@ export function ClassCodeReveal({
   printHref: string;
 }) {
   const [open, setOpen] = useState(false);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const close = () => setOpen(false);
 
+  // WHILE THE CARD IS UP, THE DASHBOARD BEHIND IT IS INERT. Opaque stops the
+  // eye reading it on the board; it does not stop Tab, or a screen reader on
+  // the projecting laptop, walking past Done onto the pupil names and who is
+  // waiting underneath. So everything outside the card is made inert while it
+  // is open, and only what this made inert is released when it closes. Then
+  // focus goes back to "Show code & QR", which it can only take once it is no
+  // longer inert. The opener is a ref rather than document.activeElement,
+  // because Safari does not focus a button that is clicked.
   useEffect(() => {
     if (!open) return;
+    const opener = openerRef.current;
+    const release = inertEverythingBut(rootRef.current);
     closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      release();
+      opener?.focus();
+    };
   }, [open]);
 
   return (
     <>
       <button
+        ref={openerRef}
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
@@ -60,8 +79,13 @@ export function ClassCodeReveal({
         </span>
       </button>
 
-      {open && (
+      {/* Portalled to <body>, so the card's only ancestor is <body> and every
+          other part of the page is a sibling that can be made inert. Inline,
+          any text sitting directly in an ancestor would stay readable. It is
+          only rendered after a click, so document is always there. */}
+      {open && createPortal(
         <div
+          ref={rootRef}
           role="dialog"
           aria-modal="true"
           aria-label={`Class code and QR for ${className}`}
@@ -102,7 +126,8 @@ export function ClassCodeReveal({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
