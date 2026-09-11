@@ -887,3 +887,72 @@ with the rest of the DPIA rather than on its own.
 
 **Decided by:** the founder, as data protection lead, including the export
 question (answered 2026-09-10). **Recorded:** 2026-09-10.
+
+---
+
+## 2026-09-10 — Work may go up on the classroom board once the teacher has looked at it
+
+**The ask.** A teacher wanted a way to show the class finished work before it
+is in the jars — the end-of-lesson pinboard. `SAFEGUARDING.md` rule 3 forbade
+it as written: waiting work reaching another child before approval is the
+thing that rule names.
+
+**Decided.** The teacher picks, then shows (`SAFEGUARDING.md` rule 25, with a
+dated scope note on rule 3). Waiting work can be picked only after the teacher
+has opened it full size; work in a jar straight away; work sent back never.
+First names by default, with a "Hide names" switch that also clears the
+picture's alternative text. The choices are held in the open page and nowhere
+else, the board is opaque and full screen, and showing changes no status.
+
+**Why this and not the alternatives.** Showing only approved work would make a
+teacher approve a piece in order to show it, which puts it in a jar and in
+front of the family: a bigger step than showing it to the room, taken for the
+wrong reason. Showing everything handed in, unpicked, would put work on a
+projector that no adult had seen. Looking first is the narrowest control that
+gives the teacher the moment they asked for.
+
+**What is processed.** Nothing new is stored. The teacher's own browser is
+given each showable piece's id, status, picture paths and the pupil's stored
+first name;
+the pictures come through the same authorising `/uploads` route as the queue
+(rule 7). There is no record of what was shown, anywhere, and that is the
+point: a list of what was shown to whom would be a publication record a family
+could reasonably ask for. The residual — a teacher who does not look properly —
+is at DPIA R23 and is left with the adult in the room on purpose.
+
+**Worth an outside check:** no. No new data category, no storage, no third
+party. What was traded away — waiting work seen by classmates after a look,
+rather than after approval — is written into the Amendments table so it cannot
+be mistaken for an accident.
+
+**DECISION, 2026-09-10: a quiz hand-in may go on the board, showing the
+child's chosen answers, and never a score, a total or any right-or-wrong
+marking.** The safeguarding review of the same day found that the picture of a
+quiz hand-in has the question boxes drawn on with the child's chosen answer
+showing, and the run page stopped offering one until this was answered. The
+answer: the chosen answers may be shown to the class; the judgement on them
+may not. Before building it,
+the picture was checked against its renderer (`drawQuizForPreview` in
+`src/components/DrawingCanvas.tsx`): it draws the question box, the prompt,
+every option as a pill, and a filled circle on the one the child picked, and it
+never reads the answer key, so nothing on the picture says which option was
+right and there is no score on it. Had it marked answers, it would not have
+been shown. A quiz hand-in is picked on the same terms as a drawing (waiting
+only after it is opened full size, in a jar straight away, sent back never),
+"Hide names" applies to it, and the score, the total and the stored answers are
+never sent to the teacher's browser from the run page, so the board has nothing
+to show them with. Rule 25 is amended and the Amendments table has the row;
+the risk that is left — a class seeing that a child chose a wrong answer — is
+at DPIA R23.
+
+**DECISION, 2026-09-11: the look may happen on a screen that is already on the
+projector, and that risk is accepted.** The look is the full-size viewer on the
+run page, and StoryJar cannot tell whether that screen is mirrored to the
+classroom board. A teacher who opens waiting work with the page already
+projected shows it to the room at the moment they look at it. Accepted as part
+of the look-first design: the look has to happen somewhere, and the alternative
+— approving to show — is the bigger step rejected above. The mitigation is one
+line on the run page whenever work is waiting, "Open waiting work before this
+page is on the projector.", and the residual stays at DPIA R23.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10.

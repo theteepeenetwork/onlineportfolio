@@ -174,6 +174,20 @@ test("a11y (AA): a run's page — who has and hasn't done it", async ({ page }) 
   assertNoSeriousViolations(await scan(page), "run page");
 });
 
+// The classroom board open over a run's page (SAFEGUARDING rule 25): the
+// state a projector shows, with a piece that is already in a jar picked.
+test("a11y (AA): the classroom board, open", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities");
+  await page.locator("#live-now").getByRole("link", { name: /Count the apples/ }).first().click();
+  await page.waitForURL(/\/teacher\/activities\/runs\/[^/]+$/);
+  const piece = page.locator('li[data-board-piece][data-status="APPROVED"]').first();
+  await piece.getByRole("checkbox", { name: "Add to the board" }).check();
+  await page.getByRole("button", { name: /Show on the board/ }).click();
+  await expect(page.getByRole("dialog", { name: "Work on the board" })).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "classroom board (open)");
+});
+
 test("a11y (AA): account settings, including the Claude connector panel", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/teacher/account");

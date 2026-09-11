@@ -38,6 +38,7 @@ export function WorkViewer({
   quizScore,
   quizTotal,
   onClose,
+  footer,
 }: {
   child: string;
   activity: string;
@@ -53,6 +54,11 @@ export function WorkViewer({
   quizScore: number | null;
   quizTotal: number | null;
   onClose: () => void;
+  // Something to do with the piece once it has been looked at, drawn under it.
+  // Used by the board on a run's page (SAFEGUARDING rule 25) for "Add to the
+  // board", which is offered for a waiting piece only once it has been opened
+  // here. The queue passes nothing, and looks exactly as it did.
+  footer?: React.ReactNode;
 }) {
   // A drawing can run to several pages. `mediaPath` is only ever the cover, so
   // reading it alone showed page one and quietly lost the rest — on the screen
@@ -256,6 +262,12 @@ export function WorkViewer({
             >
               Next ›
             </button>
+          </div>
+        )}
+
+        {footer && (
+          <div style={{ borderTop: "2px dashed var(--calm-border)", paddingTop: 12, display: "flex", justifyContent: "flex-end" }}>
+            {footer}
           </div>
         )}
       </div>

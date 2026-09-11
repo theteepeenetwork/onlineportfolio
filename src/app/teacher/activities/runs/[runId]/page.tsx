@@ -12,6 +12,8 @@ import {
 } from "@/lib/runStatus";
 import { RunBar } from "../../LiveNow";
 import { PupilRunControl } from "./PupilRunControl";
+import { ClassBoard, type BoardPiece } from "@/components/teacher/ClassBoard";
+import { workPages } from "@/lib/journalMedia";
 
 // Who has and hasn't done one activity, for one class. The question a teacher
 // actually asks ("who still hasn't done the apples?") is a CLASS question, and
@@ -94,6 +96,59 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
     const waitingId = status === "WAITING" ? mine.find((r) => r.status === "PENDING")?.id ?? null : null;
     return { ...p, status, waitingId };
   });
+
+  // What may go up on the classroom board (SAFEGUARDING rule 25): pictures and
+  // drawings from this run that are in a jar or waiting for the teacher. Never
+  // work that was sent back, and never words or a voice note, which a board
+  // cannot show.
+  //
+  // A QUIZ HAND-IN MAY GO UP, SHOWING THE CHILD'S CHOSEN ANSWERS AND NOTHING
+  // ELSE ABOUT THE QUIZ (owner decision, 10 September 2026; rule 25). Its
+  // picture (`previewPathsJson`, drawn by DrawingCanvas's `drawQuizForPreview`)
+  // is the question boxes with the prompt, every option, and the one the child
+  // picked filled in. That renderer never reads the answer key: nothing on the
+  // picture says which option was right, and there is no score on it. It is
+  // picked on exactly the same terms as a drawing — in a jar straight away,
+  // waiting only once opened, sent back never — and `workPages` below turns it
+  // into the page pictures like any other piece.
+  //
+  // THE SHAPE IS THE CONTROL. The board is a client component, so whatever
+  // reaches `boardPieces` is in the page. The query selects the pictures and
+  // the pupil's name, and `boardPieces` keeps only the id, the status, the
+  // page pictures and the first name. `quizScore`, `quizTotal` and
+  // `quizAnswersJson` are not selected, so they cannot be sent: a score or a
+  // right-or-wrong must never reach the projector, and the only way to be sure
+  // of that is never to have it in the browser. Nor any caption, teacher's
+  // note or stickers. security/class-board.spec.ts reads the page source for
+  // every one of them, a quiz's distinctive score and total included.
+  // The class scope repeats the run's on purpose: an item carries its own
+  // class, and this page shows only work in a class the teacher holds.
+  const showable = await db.journalItem.findMany({
+    where: {
+      assignmentId: run.id,
+      class: { teacherId },
+      studentId: { in: [...rosterIds] },
+      status: { in: ["PENDING", "APPROVED"] },
+      type: { in: ["PHOTO", "DRAWING"] },
+    },
+    select: {
+      id: true,
+      status: true,
+      mediaPath: true,
+      mediaPathsJson: true,
+      previewPathsJson: true,
+      student: { select: { name: true } },
+    },
+  });
+  const boardPieces: BoardPiece[] = showable
+    .map((i) => ({
+      id: i.id,
+      firstName: i.student.name,
+      status: i.status === "APPROVED" ? ("APPROVED" as const) : ("PENDING" as const),
+      pages: workPages(i),
+    }))
+    .filter((p) => p.pages.length > 0)
+    .sort((a, b) => a.firstName.localeCompare(b.firstName));
 
   // The activity itself is its author's. After a handover the class's new
   // teacher can see this run but not the template, so the link is drawn only
@@ -233,6 +288,13 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
           ))}
         </ul>
       )}
+
+      <section aria-labelledby="board-heading" style={{ marginTop: 30 }}>
+        <h2 id="board-heading" style={{ margin: "0 0 4px", font: "600 20px var(--font-fredoka)" }}>
+          Show work on the board
+        </h2>
+        <ClassBoard activity={run.title} pieces={boardPieces} />
+      </section>
     </div>
   );
 }
