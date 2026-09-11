@@ -60,7 +60,6 @@ export function ActivityResponseForm({
       <DrawingCanvas
         name="drawingPages"
         fullScreen
-        withCaption
         title={title}
         subtitle={instructions}
         background={template.length ? template : undefined}
@@ -83,7 +82,6 @@ export function ActivityResponseForm({
         // the place the complaint asked for. The activities list is one tap
         // from there. An unlabelled ✕ to the list was not a way back that a
         // four-year-old could see.
-        captionLabel={c.captionLabel}
         // The registers that cannot read yet get a listen button on the
         // question. KS2 does not — the same line CaptureSurface already draws
         // between "shown a speaker" and "reads it themselves". Whether the
