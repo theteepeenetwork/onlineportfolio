@@ -11,3 +11,5 @@
 - [Webhook spec freezes Oakfield](project-webhook-spec-freezes-oakfield.md) — School B left FROZEN poisons later specs in its shard; read the screenshot first
 - [ops-mail window filter is order-dependent](project-ops-mail-window-filter-order.md) — red in any single-lane full security run; a new template key is not the cause
 - [A battery timeout is a stuck click](project-battery-timeout-is-a-stuck-click.md) — read the screenshot first; the blamed line is usually the cleanup, not the cause
+- [Direct runs read PORT, not PW_BASE_PORT](project-direct-run-port-trap.md) — a direct spec run with only PW_BASE_PORT drives :3000; plus the isolation hook's compound-command refusals
+- [Anything on a teacher screen may be projected](project-teacher-screen-is-projected.md) — review lens for board/run page: unseen thumbnails, inert behind overlays, quiz pictures show answers (allowed; scores never); key "seen" state to content, not row id
