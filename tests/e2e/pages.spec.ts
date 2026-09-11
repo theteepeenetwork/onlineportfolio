@@ -347,6 +347,42 @@ test("a pupil can slide a page they added in front of the teacher's", async ({ p
   expect(after[1], "and the teacher's page is page 2").toBe(before[0]);
 });
 
+// The canvas starts by loading the teacher's worksheet, and the page tray is
+// drawn over the "Loading…" veil rather than under it. A page added in that
+// moment was taken by the start-up finishing behind it: the page stayed, but it
+// lost its mark as the pupil's own (no cross, and it would not slide), and the
+// page on screen and the page being drawn on stopped agreeing. On a fast machine
+// the window is a few milliseconds; on CI it failed three specs at once. So
+// the worksheet is held here, and the tray must not take a press until it is in.
+test("the page tray waits for the worksheet, so a page added first is still the pupil's own", async ({ page }) => {
+  await page.goto(`/login/student?code=${await demoClassCode()}`);
+  await page.getByRole("button", { name: "Ella", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/student");
+  await page.goto("/student/activities");
+
+  const held: import("@playwright/test").Route[] = [];
+  let holding = true;
+  await page.route(/seed-tmpl-sun\.svg/, (route) => {
+    if (holding) held.push(route);
+    else void route.continue();
+  });
+  await page.getByRole("link", { name: /Count the apples/ }).first().click();
+  await expect(page.locator("canvas").first()).toBeVisible();
+  await expect.poll(() => held.length, { message: "the worksheet's load was not held" }).toBeGreaterThan(0);
+  await expect(page.getByText("Loading…")).toBeVisible();
+
+  const add = page.locator('button[title="Add page"]');
+  await expect(add, "the tray takes no press while the worksheet loads").toBeDisabled();
+  await expect(page.getByRole("button", { name: "Page 1", exact: true })).toBeDisabled();
+
+  holding = false;
+  for (const route of held) await route.continue();
+  await expect(page.getByText("Loading…")).toHaveCount(0);
+  await add.click();
+  await expect(page.getByRole("button", { name: "Throw away page 2", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveAttribute("aria-current", "true");
+});
+
 // A card answers the keyboard's click as well as its own pointer events (F81),
 // and the pointer path must not be answered twice: every tap, hold and slide
 // ends in a click the browser sends after the pointerup.

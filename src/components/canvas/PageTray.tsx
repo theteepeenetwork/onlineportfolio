@@ -77,6 +77,7 @@ const POINTER_CLICK_MS = 1000;
 
 export function PageTray({
   u,
+  ready,
   count,
   active,
   thumbs,
@@ -93,6 +94,9 @@ export function PageTray({
   maxWidth,
 }: {
   u: Unit;
+  /** Whether the canvas has finished starting up. Until it has, nothing in
+      the tray takes a press: see `ready` in DrawingCanvas. */
+  ready: boolean;
   count: number;
   active: number;
   /** One preview PNG per page — strokes, objects and all. */
@@ -398,6 +402,7 @@ export function PageTray({
                   cardRefs.current[i] = el;
                 }}
                 type="button"
+                disabled={!ready}
                 onPointerDown={(e) => down(e, i)}
                 onPointerMove={move}
                 onPointerUp={up}
@@ -474,6 +479,7 @@ export function PageTray({
               {cross && (
                 <button
                   type="button"
+                  disabled={!ready}
                   onClick={() => {
                     keepFocus("active");
                     onDelete(i);
@@ -568,6 +574,7 @@ export function PageTray({
           operation. */}
       <button
         type="button"
+        disabled={!ready}
         onClick={onAdd}
         title="Add page"
         aria-label="new page"
