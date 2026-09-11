@@ -63,6 +63,7 @@ import {
 import { studentCopyNeutral } from "@/lib/copy/student";
 import { CameraDialog } from "./camera/CameraDialog";
 import { isStorableImageType } from "@/lib/imageTypes";
+import { quizPreviewLayout } from "@/lib/quizPreviewLayout";
 import { readAloudOnDevice } from "@/lib/readAloud";
 import { useOnDeviceVoiceReady } from "@/lib/useSpeechReady";
 import {
@@ -1365,43 +1366,42 @@ export function DrawingCanvas({
       const k = Math.min(1, q.w / QUIZ_W);
       const px = (n: number) => n * k;
       const txt = (n: number) => Math.max(15, px(n));
-      const pad = px(14);
+      // Where everything goes — and the box as tall as what is in it, not the
+      // stored `q.h`. See quizPreviewLayout.ts for how that left an answer
+      // outside its own box. The question is wrapped by the same helper the
+      // shape labels use, to the width alone: the card grows for a long
+      // question rather than shrinking it, so neither does the picture.
+      const promptPx = txt((q.prompt || "").length > 40 ? 16 : 20);
+      const { box, prompt, options } = quizPreviewLayout(q, k, H, (maxW) =>
+        fitTextToBox(q.prompt || "", maxW, H, promptPx),
+      );
       ec.save();
       // The box.
       ec.beginPath();
-      ec.roundRect(q.x, q.y, q.w, q.h, px(18));
+      ec.roundRect(box.x, box.y, box.w, box.h, box.r);
       ec.fillStyle = "#FFFDF7";
       ec.fill();
       ec.lineWidth = Math.max(1, px(3));
       ec.strokeStyle = "#22304A";
       ec.stroke();
 
-      // The question, wrapped by the same helper the shape labels use.
-      const promptPx = txt((q.prompt || "").length > 40 ? 16 : 20);
-      const fitted = fitTextToBox(q.prompt || "", q.w - pad * 2, q.h * 0.5, promptPx);
+      // The question.
       ec.fillStyle = "#22304A";
       ec.textAlign = "center";
       ec.textBaseline = "top";
-      ec.font = `600 ${fitted.fontPx}px ${FONT_STACK}`;
-      fitted.lines.forEach((line, i) =>
-        ec.fillText(line, q.x + q.w / 2, q.y + px(12) + i * fitted.lineHeight),
+      ec.font = `600 ${prompt.fontPx}px ${FONT_STACK}`;
+      prompt.lines.forEach((line, i) =>
+        ec.fillText(line, box.x + box.w / 2, prompt.top + i * prompt.lineHeight),
       );
 
-      // The answers, in the same one- or two-column grid the box uses.
-      // One answer a row, as pills — the design's card, and the same shape a
-      // child tapped.
-      const top = q.y + px(12) + Math.max(fitted.lines.length, 1) * fitted.lineHeight + px(10);
-      const gap = px(6);
-      const rows = q.options.length;
-      const cw = q.w - pad * 2;
-      const chB = Math.max(px(64), 44);
+      // The answers. One answer a row, as pills — the design's card, and the
+      // same shape a child tapped.
       const dot = px(24);
       ec.font = `700 ${Math.min(promptPx - 2, txt(18))}px ${FONT_STACK}`;
       ec.textBaseline = "middle";
       ec.textAlign = "left";
       q.options.forEach((o, i) => {
-        const cx = q.x + pad;
-        const cy = top + i * (chB + gap);
+        const { x: cx, y: cy, w: cw, h: chB } = options[i];
         const picked = answersRef.current.get(q.id) === o.id;
         ec.beginPath();
         ec.roundRect(cx, cy, cw, chB, chB / 2);
