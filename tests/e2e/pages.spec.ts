@@ -337,10 +337,90 @@ test("a pupil can slide a page they added in front of the teacher's", async ({ p
   await expect(page.getByRole("button", { name: "Throw away page 1", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Throw away page 2", exact: true })).toHaveCount(0);
   await expect(page.getByRole("status").filter({ hasText: "Page moved back" })).toBeVisible();
+  // The page that moved is the one on screen. The browser follows the slide's
+  // pointerup with a click on the card that was held, and a card that also
+  // answered that click would take the child to the page now in its old place.
+  await expect(page.getByRole("button", { name: "Page 1", exact: true })).toHaveAttribute("aria-current", "true");
   // The whole page went, drawing and all, and the teacher's followed it along.
   const after = await settledPages(page, "drawingPages", 2);
   expect(after[0], "the pupil's drawing is on page 1 now").toBe(before[1]);
   expect(after[1], "and the teacher's page is page 2").toBe(before[0]);
+});
+
+// A card answers the keyboard's click as well as its own pointer events (F81),
+// and the pointer path must not be answered twice: every tap, hold and slide
+// ends in a click the browser sends after the pointerup.
+test("holding a page card opens its menu, and does not also go to the page", async ({ page }) => {
+  await openApples(page, "Ella");
+  await page.locator('button[title="Add page"]').click();
+  await expect(page.getByRole("button", { name: "Page 2", exact: true })).toHaveAttribute("aria-current", "true");
+
+  await holdPageCard(page, 0);
+  await expect(page.getByRole("group", { name: "Page 1" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Page 2", exact: true }),
+    "the hold opened a menu; it did not take the pupil to page 1",
+  ).toHaveAttribute("aria-current", "true");
+});
+
+// The keyboard's way to move a page obeys the pointer's rule (F76): a pupil
+// moves only a page they added, and the teacher's pages keep their order.
+test("from the keyboard, a pupil moves a page they added, and never the teacher's", async ({ page }) => {
+  await openApples(page, "Dev");
+  await page.locator('button[title="Add page"]').click();
+  const card = (n: number) => page.getByRole("button", { name: `Page ${n}`, exact: true });
+
+  // The teacher's page: its menu has nothing that moves it.
+  await card(1).focus();
+  await page.keyboard.press("Shift+F10");
+  const teachers = page.getByRole("group", { name: "Page 1" });
+  await expect(teachers.getByRole("button", { name: "Clear page" })).toBeFocused();
+  await expect(teachers.getByRole("button", { name: /^Move this page/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Her own page, second: left is on offer, right is the end of the tray.
+  await card(2).focus();
+  await page.keyboard.press("Shift+F10");
+  const left = page.getByRole("button", { name: "Move this page left" });
+  const right = page.getByRole("button", { name: "Move this page right" });
+  await expect(left).toBeFocused();
+  await expect(right).toHaveAttribute("aria-disabled", "true");
+  await page.keyboard.press("Enter");
+
+  // Moved in front of the worksheet, and she is on it, with the menu still
+  // open on it so the next press keeps going.
+  await expect(page.getByRole("button", { name: "Throw away page 1", exact: true })).toBeVisible();
+  await expect(card(1)).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("group", { name: "Page 1" })).toBeVisible();
+  await expect(left, "focus stays where the key was pressed").toBeFocused();
+  await expect(left).toHaveAttribute("aria-disabled", "true");
+  // Pressing at the end of the tray does nothing.
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Throw away page 1", exact: true })).toBeVisible();
+
+  await right.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Throw away page 2", exact: true })).toBeVisible();
+  await expect(card(2)).toHaveAttribute("aria-current", "true");
+});
+
+test("in the builder, the keyboard's page menu copies and moves any page", async ({ page }) => {
+  await builder(page, "Keyboard pages");
+  await page.locator('button[title="Add page"]').click();
+  const card = (n: number) => page.getByRole("button", { name: `Page ${n}`, exact: true });
+
+  await card(1).focus();
+  await page.keyboard.press("ContextMenu");
+  const menu = page.getByRole("group", { name: "Page 1" });
+  await expect(menu.getByRole("button", { name: "Move this page right" })).not.toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await menu.getByRole("button", { name: "Duplicate this page" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(card(3)).toBeVisible();
+  await expect(card(2), "the copy is on screen, and the keyboard is on its card").toBeFocused();
+  await expect(card(2)).toHaveAttribute("aria-current", "true");
 });
 
 // A draft keeps the pages in the pupil's order, but the questions come from

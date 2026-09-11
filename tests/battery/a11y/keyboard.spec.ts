@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { SCHOOL_A, SCHOOL_E, loginTeacher } from "../helpers";
+import { test, expect, type Page } from "@playwright/test";
+import { SCHOOL_A, SCHOOL_E, loginStudent, loginTeacher } from "../helpers";
 
 // ===========================================================================
 // B1 — Keyboard-only navigation for the core flows
@@ -163,4 +163,123 @@ test("a staff-row menu opens, is walked and is left again with the keyboard alon
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(trigger, "closing the panel must hand focus back to the button that opened it").toBeFocused();
+});
+
+// THE PAGE TRAY ON A CHILD'S CANVAS (F81). Every page card is a real <button>,
+// so Tab reaches "Page 2" — and until 11 September 2026 Enter and Space then
+// did nothing, because the card listened only to pointer events (tap, hold,
+// hold-and-slide). Its menu, where "Wipe this page clean" lives, had no
+// keyboard route at all. No gate saw it for the reason F50 gives: axe cannot
+// tell a button that works from one that does not, and a sweep that only
+// counts what focus can REACH passes a control that does nothing once reached.
+// So this presses the keys and asserts what happened.
+async function childCanvasWithTwoPages(page: Page) {
+  await loginStudent(page, SCHOOL_A.classCode, "Chloe");
+  await page.goto("/student/new/drawing");
+  await expect(page.locator("canvas")).toBeVisible();
+  // A drawing of their own, so every page is the child's: each wears a cross,
+  // and each may be moved. (Which pages a child may NOT move — a teacher's —
+  // is e2e/pages.spec.ts's business.)
+  const add = page.getByRole("button", { name: "new page" });
+  await add.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Throw away page 2", exact: true })).toBeVisible();
+  return {
+    card: (n: number) => page.getByRole("button", { name: `Page ${n}`, exact: true }),
+  };
+}
+
+test("a child goes to a page with Enter or Space", async ({ page }) => {
+  const { card } = await childCanvasWithTwoPages(page);
+  await expect(card(2)).toHaveAttribute("aria-current", "true");
+
+  await card(1).focus();
+  await page.keyboard.press("Enter");
+  await expect(card(1), "Enter on a page card goes to that page").toHaveAttribute("aria-current", "true");
+  await expect(card(1), "and focus stays on the card").toBeFocused();
+
+  // Tab passes Page 1's cross on the way to Page 2.
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Throw away page 1", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(card(2)).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(card(2), "Space does the same").toHaveAttribute("aria-current", "true");
+});
+
+test("a page card's menu opens from the keyboard, is walked, and hands focus back", async ({ page }) => {
+  const { card } = await childCanvasWithTwoPages(page);
+
+  // Shift+F10, the platform's key for "the menu for this thing".
+  await card(1).focus();
+  await page.keyboard.press("Shift+F10");
+  const menu1 = page.getByRole("group", { name: "Page 1" });
+  await expect(menu1).toBeVisible();
+  // A keyboard cannot hold and slide, so the menu offers the move as buttons.
+  // The first page has nowhere to go to the left: that one says so, and focus
+  // opens on the first item that does something.
+  await expect(menu1.getByRole("button", { name: "Move this page left" })).toHaveAttribute("aria-disabled", "true");
+  await expect(
+    menu1.getByRole("button", { name: "Move this page right" }),
+    "the menu opens with focus inside it, not left behind on the card",
+  ).toBeFocused();
+  await expect(card(2), "opening a page's menu is not going to it").toHaveAttribute("aria-current", "true");
+
+  await page.keyboard.press("Escape");
+  await expect(menu1).toHaveCount(0);
+  await expect(card(1), "Escape hands focus back to the card that opened the menu").toBeFocused();
+
+  // The ContextMenu key does the same, and the menu speaks of keys, not of
+  // holding and sliding.
+  await card(2).focus();
+  await page.keyboard.press("ContextMenu");
+  const menu2 = page.getByRole("group", { name: "Page 2" });
+  await expect(menu2).toBeVisible();
+  await expect(menu2.getByRole("button", { name: "Move this page left" })).toBeFocused();
+  await expect(menu2.getByText("Hold and slide to move it")).toHaveCount(0);
+
+  // Everything in the menu is a child's target, so it is held to the floor
+  // (SAFEGUARDING rule 18). The sweep in child-touch-targets.spec.ts loads the
+  // canvas with no menu open, and so never measures these. Measured once the
+  // menu has finished popping in: it grows from smaller, and a box read in
+  // flight is the animation's size, not the menu's.
+  await menu2.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+  const small = await menu2.evaluate((el) =>
+    Array.from(el.querySelectorAll("button"))
+      .map((b) => ({ label: b.textContent?.trim(), ...b.getBoundingClientRect().toJSON() }))
+      .filter((b) => b.width < 64 || b.height < 64)
+      .map((b) => `${b.label} ${Math.round(b.width)}x${Math.round(b.height)}`),
+  );
+  expect(small, "menu items under the 64px child floor").toEqual([]);
+
+  // Tab walks the menu and, past its last item, leaves it — and it closes
+  // behind the keyboard rather than hanging open over the page.
+  const names: string[] = [];
+  for (let i = 0; i < 8 && (await menu2.count()); i++) {
+    names.push(await page.evaluate(() => document.activeElement?.textContent?.trim() ?? ""));
+    await page.keyboard.press("Tab");
+  }
+  expect(names).toEqual(["Move this page left", "Move this page right", "Wipe this page clean", "Throw this page away"]);
+  await expect(menu2, "Tab out of the menu closes it").toHaveCount(0);
+});
+
+test("the keyboard lands somewhere after a page is thrown away, not on the page body", async ({ page }) => {
+  const { card } = await childCanvasWithTwoPages(page);
+  const cross = page.getByRole("button", { name: "Throw away page 2", exact: true });
+  await cross.focus();
+  await page.keyboard.press("Enter");
+  await expect(card(2)).toHaveCount(0);
+  // The cross went with its page. Focus must not go with it to <body>, where the
+  // next Tab starts again at the top of the screen.
+  await expect(card(1), "focus moves to the page now on screen").toBeFocused();
+
+  // And from the menu, the same.
+  await page.getByRole("button", { name: "new page" }).focus();
+  await page.keyboard.press("Enter");
+  await card(2).focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("group", { name: "Page 2" }).getByRole("button", { name: "Delete page 2" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(card(2)).toHaveCount(0);
+  await expect(card(1)).toBeFocused();
 });

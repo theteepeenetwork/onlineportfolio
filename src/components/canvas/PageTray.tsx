@@ -26,6 +26,13 @@
 // order the teacher set, and a child's own may go anywhere among them. Holding
 // a teacher's page still lands — it is how the menu opens — but the card does
 // not come up to be slid.
+//
+// And all of it from the keyboard (F81). The card is a real <button>, so Tab
+// always reached it, but it listened only to pointer events, so Enter and
+// Space did nothing and the menu had no key at all. Now Enter or Space goes to
+// the page; Shift+F10 or the ContextMenu key opens its menu with focus inside
+// it; and a menu opened that way offers "Move this page left / right" in place
+// of the hold-and-slide it cannot do — for the same pages the slide would move.
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons/Icon";
@@ -61,6 +68,12 @@ const CROSS_OUT = GAP;
 // Extra headroom in the strip, so the cross on the LIFTED card is not clipped
 // by the strip's own edge: that card rises about 27, and its press 42 more.
 const CROSS_HEAD = 30;
+// How long after a pointer press ends its click may still arrive. The browser
+// sends one after every pointerup on the card — a tap, a hold, a slide — and
+// the pointer path has already answered each of those. Generous, because the
+// cost of being wrong is only that a key pressed within a second of a tap is
+// not swallowed (a key press clears it anyway).
+const POINTER_CLICK_MS = 1000;
 
 export function PageTray({
   u,
@@ -93,7 +106,8 @@ export function PageTray({
   canStructure: boolean;
   onGo: (i: number) => void;
   onAdd: () => void;
-  onReorder: (from: number, to: number) => void;
+  /** Returns whether the page moved: the canvas may still refuse. */
+  onReorder: (from: number, to: number) => boolean;
   onDuplicate: (i: number) => void;
   onDelete: (i: number) => void;
   /** Wipe the drawing off a page, leaving the page. */
@@ -108,7 +122,24 @@ export function PageTray({
   maxWidth: number;
 }) {
   const stripRef = useRef<HTMLDivElement>(null);
-  const [menu, setMenu] = useState<number | null>(null);
+  const trayRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // Which card's menu is open, whether a key opened it, and which opening this
+  // is — the menu takes focus when it opens, and a move re-anchors it to the
+  // page's new place without opening it again.
+  const [menu, setMenu] = useState<{ i: number; keys: boolean; seq: number } | null>(null);
+  const menuSeqRef = useRef(0);
+  const openMenu = (i: number, keys: boolean) => setMenu({ i, keys, seq: ++menuSeqRef.current });
+  // A card to hand focus to once the pages have changed under the keyboard:
+  // "active" for whichever page the canvas landed on, or a card by index. The
+  // cross and the menu both unmount when they are used, and focus that went
+  // with them would land on <body> and start the next Tab from the top. Only
+  // ever set by a handler whose action re-renders the tray.
+  const refocusRef = useRef<"active" | number | null>(null);
+  // When the last pointer press on a card ended, and when a key last opened a
+  // menu, by the events' own clocks (see `click` and `contextMenu`).
+  const pointerEndRef = useRef(-Infinity);
+  const keyMenuAtRef = useRef(-Infinity);
   const [drag, setDrag] = useState<{ from: number; to: number; dx: number } | null>(null);
   // Where the strip is scrolled to, so the fade and chevron sit only at an end
   // that has more pages beyond it — as the design draws them.
@@ -138,6 +169,66 @@ export function PageTray({
   useEffect(() => {
     readScroll();
   }, [count]);
+  // After the render that carries the canvas's answer, so "active" is the page
+  // it landed on. Without scrolling: the strip's own effect above does that.
+  useEffect(() => {
+    const want = refocusRef.current;
+    if (want === null) return;
+    refocusRef.current = null;
+    cardRefs.current[want === "active" ? active : want]?.focus({ preventScroll: true });
+  });
+
+  // If focus is somewhere in the tray — on a cross, or in a menu — that is
+  // about to disappear, send it to a card after the next render. Asked before
+  // acting, while it is still there. A finger's tap on the cross leaves focus
+  // alone; a key press does not.
+  function keepFocus(to: "active" | number) {
+    if (trayRef.current?.contains(document.activeElement)) refocusRef.current = to;
+  }
+
+  // Enter or Space. A button turns both into a click, and so does a screen
+  // reader's "activate", which is why this is onClick and not a key handler.
+  // But the pointer path has already answered every click that follows a
+  // pointerup — with a page, a menu or a move — so those are let go.
+  function click(e: React.MouseEvent, i: number) {
+    if (e.timeStamp - pointerEndRef.current < POINTER_CLICK_MS) {
+      pointerEndRef.current = -Infinity;
+      return;
+    }
+    setMenu(null);
+    onGo(i);
+  }
+
+  function keyDown(e: React.KeyboardEvent, i: number) {
+    // A key is never the tail of a pointer press.
+    pointerEndRef.current = -Infinity;
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      e.preventDefault();
+      keyMenuAtRef.current = e.timeStamp;
+      openMenu(i, true);
+    }
+  }
+
+  // Some browsers follow Shift+F10 or the ContextMenu key with a contextmenu
+  // event on the focused card, after the key has already opened this tray's
+  // menu. That one is not a right-click, and is not passed on.
+  function contextMenu(e: React.MouseEvent, i: number) {
+    if (e.timeStamp - keyMenuAtRef.current < POINTER_CLICK_MS) {
+      e.preventDefault();
+      return;
+    }
+    onContextMenu?.(e, i);
+  }
+
+  // The keyboard's hold-and-slide: one place at a time, for the same pages the
+  // slide would lift, and the canvas still has the last word. The menu stays
+  // open on the page at its new place, so the next press keeps going.
+  function moveBy(delta: number) {
+    if (!menu) return;
+    const to = menu.i + delta;
+    if (movable[menu.i] !== true || to < 0 || to >= count) return;
+    if (onReorder(menu.i, to)) setMenu({ ...menu, i: to });
+  }
 
   // Five pages' worth, or whatever room there is between the discs — whichever
   // is less. Past that the strip scrolls, which it already knows how to do.
@@ -183,7 +274,7 @@ export function PageTray({
     setDrag({ from: p.i, to, dx });
   }
 
-  function up() {
+  function up(e: React.PointerEvent) {
     const p = pressRef.current;
     pressRef.current = null;
     if (holdRef.current) {
@@ -191,13 +282,16 @@ export function PageTray({
       holdRef.current = null;
     }
     if (!p) return;
+    // Whatever this press did, it is done, and the click behind it is not a
+    // second press (see `click`).
+    pointerEndRef.current = e.timeStamp;
     if (p.lifted) {
       const d = drag;
       setDrag(null);
       if (d && d.to !== d.from) onReorder(d.from, d.to);
       // Held and let go without moving: the menu, which is where copy and
       // throw-away live.
-      else setMenu(p.i);
+      else openMenu(p.i, false);
       return;
     }
     if (!p.moved) onGo(p.i);
@@ -214,6 +308,7 @@ export function PageTray({
 
   return (
     <div
+      ref={trayRef}
       className="absolute"
       style={{
         left: "50%",
@@ -299,13 +394,19 @@ export function PageTray({
                 }}
               >
               <button
+                ref={(el) => {
+                  cardRefs.current[i] = el;
+                }}
                 type="button"
                 onPointerDown={(e) => down(e, i)}
                 onPointerMove={move}
                 onPointerUp={up}
                 onPointerCancel={up}
-                onContextMenu={onContextMenu ? (e) => onContextMenu(e, i) : undefined}
+                onClick={(e) => click(e, i)}
+                onKeyDown={(e) => keyDown(e, i)}
+                onContextMenu={(e) => contextMenu(e, i)}
                 aria-current={isActive ? "true" : undefined}
+                aria-keyshortcuts="Shift+F10 ContextMenu"
                 aria-label={`Page ${i + 1}`}
                 title={`Page ${i + 1}`}
                 style={{
@@ -373,7 +474,10 @@ export function PageTray({
               {cross && (
                 <button
                   type="button"
-                  onClick={() => onDelete(i)}
+                  onClick={() => {
+                    keepFocus("active");
+                    onDelete(i);
+                  }}
                   aria-label={`Throw away page ${i + 1}`}
                   title={`Throw away page ${i + 1}`}
                   data-page-cross={i + 1}
@@ -510,16 +614,36 @@ export function PageTray({
 
       {menu !== null && (
         <PageMenu
+          key={menu.seq}
           u={u}
-          index={menu}
+          index={menu.i}
           count={count}
-          canDelete={deletable[menu] === true}
-          canMove={movable[menu] === true && count > 1}
+          keys={menu.keys}
+          canDelete={deletable[menu.i] === true}
+          canMove={movable[menu.i] === true && count > 1}
           canStructure={canStructure}
-          onDuplicate={() => { setMenu(null); onDuplicate(menu); }}
-          onDelete={() => { setMenu(null); onDelete(menu); }}
-          onClear={() => { setMenu(null); onClear(menu); }}
-          onClose={() => setMenu(null)}
+          onMove={moveBy}
+          onDuplicate={() => {
+            keepFocus("active");
+            setMenu(null);
+            onDuplicate(menu.i);
+          }}
+          onDelete={() => {
+            keepFocus("active");
+            setMenu(null);
+            onDelete(menu.i);
+          }}
+          onClear={() => {
+            keepFocus("active");
+            setMenu(null);
+            onClear(menu.i);
+          }}
+          onClose={(back) => {
+            // Escape hands the keyboard back to the card it came from; a tap
+            // elsewhere, or Tab out, leaves focus where it went.
+            if (back) keepFocus(menu.i);
+            setMenu(null);
+          }}
         />
       )}
     </div>
@@ -530,9 +654,11 @@ function PageMenu({
   u,
   index,
   count,
+  keys,
   canDelete,
   canMove,
   canStructure,
+  onMove,
   onDuplicate,
   onDelete,
   onClear,
@@ -541,22 +667,26 @@ function PageMenu({
   u: Unit;
   index: number;
   count: number;
+  /** Opened from the keyboard: it takes focus, and offers moves by button. */
+  keys: boolean;
   canDelete: boolean;
   /** Whether "hold and slide" would move this page. Not promised otherwise. */
   canMove: boolean;
   canStructure: boolean;
+  onMove: (delta: number) => void;
   onDuplicate: () => void;
   onDelete: () => void;
   onClear: () => void;
-  onClose: () => void;
+  /** `back`: hand focus back to the card (Escape), rather than leave it. */
+  onClose: (back: boolean) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     function away(e: PointerEvent) {
-      if (!ref.current?.contains(e.target as Node)) onClose();
+      if (!ref.current?.contains(e.target as Node)) onClose(false);
     }
     function esc(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onClose(true);
     }
     document.addEventListener("pointerdown", away, true);
     document.addEventListener("keydown", esc);
@@ -565,6 +695,16 @@ function PageMenu({
       document.removeEventListener("keydown", esc);
     };
   }, [onClose]);
+
+  // Opened by a key, it opens with focus on its first item: it is drawn at
+  // the end of the tray, and a keyboard would otherwise have to walk every
+  // card after this one to reach it. A finger's menu leaves focus alone.
+  useEffect(() => {
+    if (!keys) return;
+    ref.current
+      ?.querySelector<HTMLButtonElement>('button:not([aria-disabled="true"])')
+      ?.focus({ preventScroll: true });
+  }, [keys]);
 
   const row: React.CSSProperties = {
     display: "flex",
@@ -584,6 +724,16 @@ function PageMenu({
       ref={ref}
       role="group"
       aria-label={`Page ${index + 1}`}
+      // Tab past the last item leaves the menu, and it closes behind the
+      // keyboard rather than hanging open over the page. Nothing focusable
+      // follows the tray, so that Tab usually leaves the document and focus
+      // goes to no element at all — which counts. The group itself takes focus
+      // from a press on its words, so that press does not count as leaving.
+      tabIndex={-1}
+      onBlur={(e) => {
+        const to = e.relatedTarget as Node | null;
+        if (!to || !ref.current?.contains(to)) onClose(false);
+      }}
       className="absolute"
       style={{
         left: `calc(50% + ${u(index * SLOT)}px)`,
@@ -602,10 +752,36 @@ function PageMenu({
     >
       {/* Only where it is true: on a teacher's page a child would hold and
           slide and nothing would happen. */}
-      {canMove && (
+      {canMove && !keys && (
         <span style={{ font: `600 ${u(15)}px var(--font-fredoka)`, color: "rgba(250,246,238,.8)", padding: `${u(4)}px ${u(6)}px` }}>
           Hold and slide to move it
         </span>
+      )}
+      {/* A keyboard cannot hold and slide, so it gets the same move as two
+          buttons. At the end of the tray one of them has nowhere to go, and
+          says so with aria-disabled rather than `disabled`: a disabled button
+          drops out of the tab order, and the one a key has just pressed to the
+          end would take the keyboard's focus with it. */}
+      {canMove && keys && (
+        <>
+          {([-1, 1] as const).map((delta) => {
+            const stuck = delta < 0 ? index === 0 : index === count - 1;
+            const word = delta < 0 ? "left" : "right";
+            return (
+              <button
+                key={word}
+                type="button"
+                aria-disabled={stuck ? "true" : undefined}
+                onClick={() => {
+                  if (!stuck) onMove(delta);
+                }}
+                style={{ ...row, opacity: stuck ? 0.45 : 1 }}
+              >
+                <Icon name={delta < 0 ? "back" : "next"} size={u(20)} decorative /> Move this page {word}
+              </button>
+            );
+          })}
+        </>
       )}
       {canStructure && (
         <button type="button" onClick={onDuplicate} style={row} aria-label="Duplicate this page" title="Make a copy of this page">

@@ -4854,7 +4854,9 @@ export function DrawingCanvas({
                   say("New page gone");
                 }}
                 onReorder={(from, to) => {
-                  if (movePageTo(from, to)) say("Page moved back");
+                  const moved = movePageTo(from, to);
+                  if (moved) say("Page moved back");
+                  return moved;
                 }}
                 onDuplicate={(i) => {
                   duplicatePageAt(i);
