@@ -915,6 +915,11 @@ export function DrawingCanvas({
   // Which photo frame the camera is open for, and on which page — a photo that
   // arrives after the page changed under it is dropped rather than misfiled.
   const [captureFrame, setCaptureFrame] = useState<{ id: string; page: number } | null>(null);
+  // Whether the start-up below has finished: the worksheet loaded, the pages
+  // built. Every page action waits for it. The page tray sits above the
+  // "Loading…" veil, and a page added in that moment was overwritten when the
+  // start-up finished behind it — kept, but no longer the child's own, and
+  // with the page on screen and the page being drawn on out of step.
   const [ready, setReady] = useState(false);
   // "Ready to hand in?" confirmation (child submit only — see confirmSubmit).
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
@@ -2347,6 +2352,7 @@ export function DrawingCanvas({
   }
 
   function goToPage(index: number) {
+    if (!ready) return;
     if (index < 0 || index >= pagesRef.current.length || index === currentRef.current) return;
     finishEditing();
     setCaptureFrame(null);
@@ -2485,6 +2491,7 @@ export function DrawingCanvas({
   }
 
   function addPage() {
+    if (!ready) return;
     finishEditing();
     setCaptureFrame(null);
     syncHidden();
@@ -2557,6 +2564,7 @@ export function DrawingCanvas({
   }
 
   function duplicatePageAt(target: number) {
+    if (!ready) return;
     if (target < 0 || target >= pagesRef.current.length) return;
     finishEditing();
     setCaptureFrame(null);
@@ -2614,7 +2622,7 @@ export function DrawingCanvas({
 
   // Returns whether it moved, so a caller only says it did when it did.
   function movePageTo(index: number, target: number): boolean {
-    if (index === target) return false;
+    if (!ready || index === target) return false;
     if (index < 0 || index >= pagesRef.current.length) return false;
     if (target < 0 || target >= pagesRef.current.length) return false;
     // Enforced here as well as at the tray and the menu, the way deletePageAt
@@ -2638,7 +2646,7 @@ export function DrawingCanvas({
   //
   // Returns whether it went, so a caller only says it did when it did.
   function deletePageAt(target: number): boolean {
-    if (pagesRef.current.length <= 1) return false;
+    if (!ready || pagesRef.current.length <= 1) return false;
     if (target < 0 || target >= pagesRef.current.length) return false;
     // Enforced here as well as at every button: this is the one place that
     // cannot be forgotten when the next route to it is added (rule 8).
@@ -4528,6 +4536,7 @@ export function DrawingCanvas({
                   out of the tray. */}
               <PageTray
                 u={u}
+                ready={ready}
                 count={pageCount}
                 active={current}
                 maxWidth={Math.max(200, paper.w - 2 * (NEAR_X + DISC / 2 + 10))}
@@ -4563,6 +4572,7 @@ export function DrawingCanvas({
                   if (deletePageAt(i)) say(`Undo brings page ${i + 1} back`);
                 }}
                 onClear={(i) => {
+                  if (!ready) return;
                   if (i !== currentRef.current) goToPage(i);
                   clearPage();
                   say("Drawing is back");
