@@ -771,6 +771,7 @@ each recorded here so it can be reversed at review:
    classroom, and a link in a library activity still reaches a class only
    after a teacher has added the activity and set it. `docs/library-publishing.md`
    says so, so whoever publishes checks the link as they would a picture.
+   *Confirmed by the owner on 2026-09-11.*
 2. **The Claude connector gets no link tool,** and there is no field for one.
    An edit through the connector keeps a teacher's own link, because it only
    ever replaces objects the API itself made (`docs/claude-connector.md`).
@@ -799,9 +800,13 @@ a school to turn links off; a link a child makes; a link in a message, a notice,
 a caption or a note on returned work; a website shown inside StoryJar. Each would
 be its own amendment.
 
-**OPEN — for the owner, not decided: should the validator refuse known link
-shorteners (bit.ly, tinyurl.com and the like)?** *(Raised 2026-09-10 by the
-safeguarding review of this change.)* The card shows the host of the address the
+**DECISION, 2026-09-11: link shorteners are allowed; the validator does not
+refuse bit.ly, tinyurl.com and the like.** *(Raised 2026-09-10 by the
+safeguarding review of this change; answered by the owner the next day.)* The
+school's web filter governs where the tab lands, the card shows the address the
+teacher entered (so a child sees `bit.ly`, not a borrowed name), and rule 26 and
+DPIA R24 already say the host on the card is not always the host visited. The
+question as it was put: The card shows the host of the address the
 teacher entered, and for almost every link that is where the tab goes. A
 shortener or a redirect page breaks that: the card says `bit.ly` and the tab
 lands wherever the short link points today, which its owner can change after the
@@ -811,7 +816,7 @@ is not the host visited, and rule 26 and DPIA R24 have been reworded to say so
 rather than promise otherwise. Refusing a named list would close the common case
 and cost a teacher nothing (they can paste the address the short link opens),
 but a list is never complete, so it would narrow the gap rather than shut it.
-Nothing is built either way until this is answered.
+Nothing is built: the answer is to leave the validator as it is.
 
 **Worth an outside check:** worth putting the card, and the line in the builder
 about the school's web filter, in front of a pilot school's online-safety lead.
