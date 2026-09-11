@@ -872,4 +872,14 @@ to show them with. Rule 25 is amended and the Amendments table has the row;
 the risk that is left — a class seeing that a child chose a wrong answer — is
 at DPIA R23.
 
+**DECISION, 2026-09-11: the look may happen on a screen that is already on the
+projector, and that risk is accepted.** The look is the full-size viewer on the
+run page, and StoryJar cannot tell whether that screen is mirrored to the
+classroom board. A teacher who opens waiting work with the page already
+projected shows it to the room at the moment they look at it. Accepted as part
+of the look-first design: the look has to happen somewhere, and the alternative
+— approving to show — is the bigger step rejected above. The mitigation is one
+line on the run page whenever work is waiting, "Open waiting work before this
+page is on the projector.", and the residual stays at DPIA R23.
+
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10.
