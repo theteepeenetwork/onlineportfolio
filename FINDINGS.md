@@ -113,13 +113,15 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F59 | **Critical** | Access control / children's data (Rule 1) | **"Remove from school" does not remove access.** `removeStaff` sets `teacher.schoolId = null`; `Class` has **no `schoolId`**, so a class belongs to a school only through its teacher. Measured 25 Aug 2026 on the persona school: removing an ACTIVE teacher in one click, with no confirmation, took the school from 5 classes/17 pupils to **1 class/3 pupils** — while he signed straight back in to `/teacher` with all four classes, **14 pupils, 7 journal items and 2 items waiting in his approval queue**. The admin's intent is not achieved, the school cannot reassign the classes it can no longer see (the action's own comment claims it can), and the audit log records "Removed Nathan Reeves from the school", which is now false in the direction that matters. Found only because F58's cannot-fail check was tightened; `grep -rln "removeStaff\|STAFF_REMOVED" tests/` returned **nothing** — the action had never been exercised by any test. | **Fixed** 2026-08-29, option A: classes move to the removing admin in one transaction, class codes rotate, sessions and unspent password tokens are deleted. `Class.schoolId` (option B) remains the correct model and is deferred to the school-identity work | `tests/battery/security/class-handover.spec.ts` — blocking, drives the real action through the console, verified to fail without the fix |
 | F73 | Low | Mail / notification completeness | **The message notification has one path where the design has two.** Rule 6b's email is raised when a message becomes deliverable, and `notifyDeliveredMessages` is written to be called from a lazy path (a member of staff opening their inbox) **and** from the nightly by-state sweep in `scripts/freeze-expired.mjs`. Only the lazy one is wired. The sweep runs under `tsx` outside Next, where `@/lib/mailer`'s own `server-only` line throws, so wiring it means either moving the Mailjet transport out from behind that guard or writing a second sender in a script — neither of which is a decision to take as a side effect of adding a job. **What it costs:** a school where nobody opens StoryJar on the morning a held message lands is notified late rather than wrongly. The office-hours hold is enforced by `deliverAt` and not by who happens to look, so no message can arrive early; the badge in the family space, which is the whole model for every household without an address, is unaffected. Found while building it, 2026-09-08, and named rather than left as an absence. | **Open**, and deliberately so — the fix is a decision about where the mailer's credentials may be imported from, which is the owner's | `tests/battery/security/message-notification.spec.ts` covers the FUNCTION both paths would call, including that a held message notifies nobody and that each message is considered exactly once, so the missing job is wiring rather than untested behaviour |
 | F74 | Medium | Observability / child-surface memory | **A class of iPads lost the drawing canvas repeatedly and nothing could say why.** Reported 2026-09-10: about 28 iPads had the canvas "crash a lot" during one lesson, a refresh fixed it each time, and Railway showed no server fault of any kind. StoryJar had no browser-side error reporting (rule 11 forbids third-party trackers, and nothing first-party had been built), and `DrawingCanvas.tsx` held up to thirty full-page PNG snapshots per page for undo, re-encoded on every pen-down and every object gesture, plus three more full-page copies per page and two throwaway 1000×700 canvases per stroke that were never released. The leading explanation is iPadOS jettisoning the tab for memory, which is not a JavaScript error and leaves no trace. | **Fixed 2026-09-10**: a first-party, stdout-only beacon (`/api/client-error`) carrying error class, code location, route pattern, browser family and an unclean-exit flag — never message text; a child-register `/student` error boundary; undo depth 30 → 12 on both stacks, snapshots shared between object-only edits, scratch canvases released, real thumbnails, image caches pruned. Owner (DPO) decision on the log line's contents; retention row and DPIA entry added. | `tests/battery/security/client-error-route.spec.ts`, `tests/e2e/student-error-boundary.spec.ts`, `tests/e2e/undo-stroke-layer.spec.ts`, the a11y scan of the error page |
+| F78 | Medium | Test correctness / tenant isolation | **Two cross-tenant tests proved nothing.** `tenant-isolation.spec.ts` read "a School A template id" as the first `a[href^="/teacher/activities/"]` on School A's library, which is the "＋ New activity" button, so the id was the word `new`; `/teacher/activities/new/edit` and `/new/preview` answer 404 **to the owner too** (verified 2026-09-10), so "School B gets 404 editing / previewing a School A template" held against a URL that named no template. Same species as F62: an assertion that could not fail. The scoping it was meant to check was correct throughout. | **Fixed 2026-09-10**: the card is found by its seeded title, the id is refused if it is a route segment, and the owner must get a 200 on both URLs before School B's 404 counts | `security/tenant-isolation.spec.ts` ("Activity edit / preview are scoped across tenants") |
+| F79 | Medium | Children's to-do lists / year-end rollover | **A chosen-pupil activity followed a child into next year's class.** Every copy of "which activities are on this pupil's list" matched a chosen-pupil run on its `AssignmentStudent` row alone, with no class. The September move-up moves the children and archives last year's class without closing its runs, so a chosen-pupil run LIVE in July stayed on the child's list in their new class, opened, took drafts, and accepted a hand-in filed with this year's class under last year's run — into the new teacher's queue, against a run only last year's teacher can open. Nothing crossed a school and nobody saw another child's work. | **Fixed 2026-09-10**: one definition (`src/lib/studentRuns.ts`) requires the run's class to be the pupil's class on both branches, and replaces all five copies (jar, activities list, activity page, draft store, hand-in) | `security/student-runs-follow-the-class.spec.ts`, verified to fail against the old query |
 | F60 | Medium | Trust / transparency at signup | **A teacher signs up, and nothing on the way in says what happens to children's work or who can see it.** Step 1 of 5 asks for their name, school email and password; the next steps ask for their school and their class. The only nearby sentence is "Just you — pupils never need accounts or emails", which is about accounts, not about the work. Discovered 25 Aug 2026 by tightening one of F58's four cannot-fail checks: the old pattern was `/safeguard\|approv\|privacy\|data\|only you\|never/i` and it had been matching the word **"never"** in that unrelated sentence since the day it was written. Safeguarding is the product's whole pitch and `docs/brand-and-copy.md` governs what is claimed in StoryJar's name — the promise exists everywhere except the one screen where somebody is deciding whether to trust it. | **Open** | `personas/teacher-first-day.spec.ts:75`, now written against a promise being made rather than against the word "data" |
 | F61 | **High** | Authentication / account recovery | **There was no password reset anywhere in the product, and no way for an invited teacher to receive credentials.** `src/app/actions/auth.ts` signed a teacher in and that was all: a pilot teacher who mistyped their password had no route back except the owner opening `railway ssh`. Ten to fifteen pilot teachers arrive from 1 September. The second half was the same hole — `staffInviteEmail()` had been written, styled and left uncalled for months (`mailStatus.ts:48` recorded it), `resendInvite` was a documented no-op that refreshed the page, and `inviteStaff` created a Teacher row with an empty password hash and told nobody. | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 7-day invitation; neutral response; link never on screen in production; single-use; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (6 blocking properties) and `tests/e2e/password-reset.spec.ts`, which is the acceptance test: a teacher who does not know her password gets back in with nobody touching a terminal | **Fixed** 2026-08-25. One `TeacherPasswordToken` behind both paths, stored as a SHA-256 digest; 30-minute reset, 72-hour invitation; neutral response; link never on screen in production; single-use enforced in the database; sessions destroyed in the same transaction as the password write | `tests/battery/security/password-reset.spec.ts` (8 blocking properties incl. the concurrent double-spend), `tests/battery/security/staff-invite-isolation.spec.ts` (cross-tenant), and `tests/e2e/password-reset.spec.ts`, the acceptance test |
 | F62 | Medium | Test harness / assertions that cannot fail | **F58's gate covers persona regexes and not `expect(...)` assertions, and two unfailable assertions were written by F58's own author on the days after it.** `check-persona-patterns.mjs` refuses a short bare alternation or a failure word in a persona success pattern. It cannot see an `expect()` that is true whatever the product does. Two instances, both green, both found by reading output rather than by any gate: a persona check asserting the ABSENCE of a sentence that no longer existed anywhere in the product, and a cross-tenant test posting forged FormData that Next refused outright (`Failed to find Server Action`), so "no token was minted" held against a request that could never mint one. | **Open**, deliberately not fixed this week — a new static gate during a freeze is how a narrow exception stops being narrow (owner decision, 27 Aug 2026). After launch | none, and that is the finding. Both instances are now fixed at their sites; nothing stops a third |
 | F63 | Medium | Fleet reliability / review coverage | **A safeguarding reviewer produced nothing across four idle cycles while a second reviewer, given the same brief, returned three must-fix findings that a green suite could not have found.** `pw-review` was asked for a verdict on F61, went idle four times, and never answered — while the change sat committed-ready. `pw-review2`, same tree, same four questions, found: single-use unenforced under concurrency, a false justification for the 7-day invitation window (an invited teacher can already hold a class), and a missing cross-tenant test on an action that had just started emitting live credentials. All three were green at the time. | **Open.** Standing rule agreed 27 Aug 2026: replace a reviewer that goes idle twice without answering, rather than chasing it | n/a — this is about how the fleet is run, not about the product |
 | F64 | Low | Accessibility (operator) | **The operator lookup's result is announced by a live region that is created at the same instant as its text, so several screen readers will not read it.** `src/app/ops/lookup/forms.tsx:150` puts `role="status"` on a div inside `Result`, which returns null until a lookup has run — so assistive technology meets a node that has just appeared rather than a region it was already watching. The same file guards against exactly this for the error region six lines up (`:113-115`, "Always in the DOM, so assistive technology is already watching"), so the principle is understood and applied unevenly. The refusal is the case where **nothing else on the screen changes**, which makes it the one most worth hearing. Found by `lookup-review` while reviewing an unrelated copy change; pre-existing, not caused by it. | **Open.** Deferred past the freeze — a render-structure change on a Rule 1 screen wants its own commit and its own run, not a ride-along | axe will not catch it: this is an announcement-timing property, not a static violation. Needs the always-mounted pattern the error region already uses |
 | F65 | Medium | Correctness surfacing as copy | **A sentence that claims more than the code behind it checked. Four instances, three on unrelated screens and one in this file's own diagnostics.** The school mail badge would have read "All 3 sign-in emails StoryJar tried to send were accepted" for a school whose only mail was staff invitations, because its filter widened while its words did not. The operator lookup said "No account has that address" — a claim about every account in StoryJar, from a screen that had read one table. And "No parent or carer has that address" gets relayed down a phone as "we have no record of that parent", when rule 6a means many parents deliberately gave no address at all. | **Open as a standing risk.** All three instances fixed; the class is not. Every screen reporting a NEGATIVE result is a candidate | none possible — no gate can read a sentence and know what the query behind it asked. The remedy is a standing review question, below |
-| F66 | **High** | Access control / class handover (Rule 1) | **When a class moves between staff, nothing revokes what the previous teacher holds.** Live today via `assignClassToStaff` — the ordinary September handover, with nobody removed from anything. Two limbs, one root. **(a) The class code is a bearer credential and does not rotate.** `classCodeLookup.ts:41` is `db.class.findUnique({ where: { classCode } })` with no teacher in the path: the previous teacher signs in **as any pupil** in a class they no longer hold, with no session and no token, and the work they then create is indistinguishable from that child's. **(b) Template authorship outlives class ownership.** `updateTemplate` (`activities.ts:201-212`) writes title, instructions, pages and quiz into LIVE runs filtered on `templateId` alone — a write into what those children see this minute — and `activities/[id]/page.tsx:28-40` renders the new teacher's full pupil roster, first names and per-child status. Seven sites share the shape. | **Fixed** 2026-08-29. Codes rotate on BOTH triggers; all seven template→class sites now require the class as a second scope | `tests/battery/security/class-handover.spec.ts` |
+| F66 | **High** | Access control / class handover (Rule 1) | **When a class moves between staff, nothing revokes what the previous teacher holds.** Live today via `assignClassToStaff` — the ordinary September handover, with nobody removed from anything. Two limbs, one root. **(a) The class code is a bearer credential and does not rotate.** `classCodeLookup.ts:41` is `db.class.findUnique({ where: { classCode } })` with no teacher in the path: the previous teacher signs in **as any pupil** in a class they no longer hold, with no session and no token, and the work they then create is indistinguishable from that child's. **(b) Template authorship outlives class ownership.** `updateTemplate` (`activities.ts:201-212`) writes title, instructions, pages and quiz into LIVE runs filtered on `templateId` alone — a write into what those children see this minute — and `activities/[id]/page.tsx:28-40` renders the new teacher's full pupil roster, first names and per-child status. Seven sites share the shape. | **Fixed** 2026-08-29. Codes rotate on BOTH triggers; all seven template→class sites now require the class as a second scope. **An eighth site — the activity library's own template query — was found and fixed 2026-09-10** (see the entry) | `tests/battery/security/class-handover.spec.ts` |
 
 ---
 
@@ -4204,6 +4206,32 @@ Covered by `tests/battery/security/class-handover.spec.ts`, which drives the
 real control through the admin console rather than simulating the click at the
 database level, and which was verified to fail with the fix removed.
 
+### An eighth site, found and fixed 10 September 2026
+
+The list above said seven, and there were eight. `src/app/teacher/activities/page.tsx`,
+the activity library itself, read `activityTemplate.findMany({ where: { teacherId } })`
+with its `assignments` included **and no class filter** — the same shape as the
+detail page's roster read, one screen up. After a handover the author's library
+card still said "1 waiting to approve" for work in a class they no longer held,
+and the card's assign sheet listed that class by name, with its turned-in
+figure, under "Already ran". Counts and a class name; no pupil's name or work,
+which is what keeps it inside the original severity rather than above it.
+
+Found while building the per-run "who has and hasn't done it" page (teacher
+feedback, item 4), which is the view that makes the rule matter most: that page
+names every pupil, so it is scoped by the class alone and never by the
+template. The library query now has the class as its second scope, and the
+dashboard's "activities live now" count, which the new "Live now" list sits
+under, is now the list's own query (class-scoped, archived classes excluded)
+rather than the conjunction of author and class.
+
+The repro is in the blocking suite from the start: the F66 run-page test in
+`class-handover.spec.ts` asserts the author's card and assign sheet after a
+real console handover, with a positive control on the same screen before it,
+and was run with the new `where` removed to watch it fail ("1 waiting to
+approve" on the card). No separate finding number, because it is this finding's
+own rule at a site its fix missed.
+
 **A note on this entry surviving.** The convention in AGENTS.md is to delete a
 finding once its repro moves into a blocking suite. F59 and F66 are kept because
 they carry measurements — the 5→1 classes, the 17→3 pupils, the seven sites —
@@ -4534,3 +4562,71 @@ product was not changed; a production build emits no location at all.
 Same family as F70 and F71: **a blocking gate whose verdict depends on the
 machine, not on the code under test.** It would have presented as the fault of
 whoever next cloned the repository into a folder with the wrong name.
+
+## F78 · Two tenant-isolation tests aimed at the "New activity" button · Medium → Fixed 2026-09-10
+
+Found 10 September 2026 while adding the run page's own cross-tenant test
+beside them, by reading what the helper actually returned.
+
+`schoolATemplateId()` in `tests/battery/security/tenant-isolation.spec.ts`
+signed in as St Bede's admin, opened `/teacher/activities`, and took the first
+`a[href^="/teacher/activities/"]` on the page. The first such link is the
+"＋ New activity" button in the header, so the "template id" was `new`.
+Measured on 10 September 2026: that selector returns `/teacher/activities/new`,
+and `/teacher/activities/new/edit` and `/teacher/activities/new/preview` answer
+**404 to St Bede's own admin**, because `new` is no template's id. So both tests — "School B
+teacher gets 404 editing / previewing a School A template" — passed against a
+request that named nothing, and would have gone on passing if the edit and
+preview pages had lost their ownership scope entirely.
+
+**The product was never wrong.** Both pages are scoped by `teacherId` and still
+are; what was missing was any evidence of it. That is the F62 species — an
+assertion that cannot fail — found in the blocking security suite rather than
+in the personas.
+
+### Fixed
+
+The card is found by the title the seed gives it (`getByRole("link", { name:
+"Count the apples", exact: true })`), the id is refused if it is a route segment
+(`new`, `shared`, `library`, `runs`), and — the part that closes it — the
+owner is shown `/edit` and `/preview` for that id and must get a **200** before
+School B's 404 is taken as meaning anything. The run page's new cross-tenant
+tests beside them are built the same way from the start.
+
+No test moved from `findings/`, because none was ever there: the defect was in
+the blocking test itself, and the fixed test is the covering one.
+
+## F79 · A chosen-pupil activity followed a child into next year's class · Medium → Fixed 2026-09-10
+
+Found 10 September 2026 while replacing the five copies of "which activities
+are on this pupil's list" with one (`src/lib/studentRuns.ts`), for "Not needed".
+
+Every copy matched a run in one of two ways: a whole-class run in the pupil's
+class, **or** a chosen-pupil run with an `AssignmentStudent` row for the pupil.
+The second branch had no class in it. The September move-up
+(`moveClassUp`, `src/app/actions/rollover.ts:164`) moves the children with
+`student.updateMany({ classId: next.id })` and archives last year's class
+without closing its runs, so a chosen-pupil run that was LIVE in July stayed
+LIVE and stayed matched:
+
+- it sat on the child's to-do list in their new class, under last year's
+  teacher's title, and opened;
+- a hand-in against it was accepted by `createJournalItem`, which re-resolved
+  the run through the same unscoped branch and wrote the item with the child's
+  **current** class and last year's `assignmentId` — so the work went into the
+  new teacher's queue attached to a run in an archived class that the new
+  teacher cannot open.
+
+No other child's work was reachable and nothing crossed a school: the pupil only
+ever saw an activity that had genuinely been set to them. That is why it is
+Medium and not higher. What it did was put last year's work on this year's list
+and file this year's work under last year's run, both silently.
+
+**Fixed** by the shared helper, which requires the run's class to be the
+pupil's class on both branches, and is now the only definition: the jar, the
+activities list, the activity page, the draft store's `resolveScope`, and the
+hand-in. Covered by `tests/battery/security/student-runs-follow-the-class.spec.ts`,
+which moves a pupil the way the move-up does and checks their list, the
+activity's own URL and a draft save, after a positive control on the same
+pupil and run before the move. Verified to fail against the old query, on the
+list: "To do · Rowans chosen · Start" in the new class.

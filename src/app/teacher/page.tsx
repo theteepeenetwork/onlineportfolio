@@ -82,7 +82,11 @@ export default async function TeacherDashboard({
         },
       },
     }),
-    db.assignment.count({ where: { AND: [{ status: "LIVE", template: { teacherId } }, { class: { teacherId } }] } }),
+    // EXACTLY the "Live now" list's query (src/app/teacher/activities/page.tsx),
+    // because the card links there and a number that disagrees with the list it
+    // opens is worse than no number. Scoped by the class alone: after a handover
+    // a run in your class is yours to follow whoever wrote the activity (F66).
+    db.assignment.count({ where: { status: "LIVE", class: { teacherId, archivedAt: null } } }),
     db.journalItem.findMany({
       where: { status: "APPROVED", class: { teacherId } },
       orderBy: [{ approvedAt: "desc" }, { createdAt: "desc" }],
@@ -153,7 +157,7 @@ export default async function TeacherDashboard({
       {/* ── the three numbers that decide what to do next ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14, marginBottom: 20 }}>
         <StatCard href="/teacher/queue" bg="var(--honey-tint)" icon="waiting" value={pending} label="waiting for you" labelColor="var(--honey-ink)" />
-        <StatCard href="/teacher/calendar" bg="var(--glass-light)" icon="calendar" value={liveRuns} label="activities live now" labelColor="var(--glass-ink)" />
+        <StatCard href="/teacher/activities#live-now" bg="var(--glass-light)" icon="calendar" value={liveRuns} label="activities live now" labelColor="var(--glass-ink)" />
         <StatCard
           href="/teacher/class"
           bg="var(--cream)"

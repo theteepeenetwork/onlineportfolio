@@ -163,6 +163,17 @@ test("a11y (AA): a teacher's own activities grid", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "teacher activities grid");
 });
 
+// Who has and hasn't done an activity: a class's register with a status per
+// pupil, reached the way a teacher reaches it, from the Live now list.
+test("a11y (AA): a run's page — who has and hasn't done it", async ({ page }) => {
+  await loginTeacher(page, SCHOOL_A.admin);
+  await page.goto("/teacher/activities");
+  await page.locator("#live-now").getByRole("link", { name: /Count the apples/ }).first().click();
+  await page.waitForURL(/\/teacher\/activities\/runs\/[^/]+$/);
+  await expect(page.locator("li[data-pupil]").first()).toBeVisible();
+  assertNoSeriousViolations(await scan(page), "run page");
+});
+
 test("a11y (AA): account settings, including the Claude connector panel", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/teacher/account");

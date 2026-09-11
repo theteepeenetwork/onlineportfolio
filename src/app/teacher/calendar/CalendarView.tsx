@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { classTint } from "@/lib/classTints";
 import { Icon } from "@/components/icons/Icon";
+import { runHref } from "@/lib/runStatus";
 
 export type CalendarRun = {
   id: string;
@@ -352,7 +353,7 @@ function RunRow({ run, today }: { run: CalendarRun; today: Date }) {
   const assigned = new Date(run.assignedAtISO);
   const due = run.dueAtISO ? new Date(run.dueAtISO) : null;
   return (
-    <a href={`/teacher/activities/${run.templateId}?run=${run.id}`}
+    <a href={runHref(run.id)}
       className="sj-card" style={{ display: "block", padding: "14px 16px", textDecoration: "none", color: "var(--ink)", opacity: run.status === "CLOSED" ? 0.8 : 1 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ font: "700 12px var(--font-atkinson)", background: run.status === "LIVE" ? "#D1F0E4" : "#EDEDED", color: run.status === "LIVE" ? "#1B6B57" : "#5B6472", borderRadius: 999, padding: "3px 10px" }}>{run.status === "LIVE" ? "● Live" : "Closed"}</span>

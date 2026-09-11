@@ -52,6 +52,15 @@ import { threadForExport } from "@/lib/messaging/threads";
 // rather than widening rule 21 for the sake of a file. When it is withheld, the
 // file SAYS SO in `notIncluded` — the school can then supply it, which is a
 // better answer to a subject access request than a silent omission.
+//
+// WHAT WAS ADDED ON 10 SEPTEMBER 2026: the child's "not needed" marks
+// (`AssignmentExcusal`) — each activity a teacher took off this child's to-do
+// list, and the date. The data protection lead decided it that day: it is data
+// about the child, and Article 15 asks what is held (`docs/dpo-decisions.md`,
+// 2026-09-10). Exactly two things per mark, because the row holds exactly
+// three and the third is the child: the run's own title, as the child was
+// shown it, and when the mark was made. There is no reason to export — the
+// table has no column for one, by design — and none is to be invented here.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ studentId: string }> }) {
   const { studentId } = await params;
   const user = await getCurrentUser();
@@ -94,6 +103,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
           respondedAt: true,
           form: { select: { title: true, formBody: true, closesAt: true, asksPackedLunch: true, createdByName: true } },
         },
+      },
+      // "Not needed" marks, read off THIS child's row and nowhere else, so a
+      // classmate's mark on the same activity cannot be in this file by
+      // construction rather than by a filter somebody could loosen. Every mark
+      // the child has, whichever class the run was in: a mark from last year's
+      // class that is still held is still about them. `title` is the run's
+      // snapshot, frozen at assign time, not the template's current name.
+      excusals: {
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true, assignment: { select: { title: true } } },
       },
     },
   });
@@ -202,6 +221,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ stu
       startsAt: m.startsAt.toISOString(),
       with: m.teacher.displayName ?? m.teacher.name,
       bookedAt: m.bookedAt ? m.bookedAt.toISOString() : null,
+    })),
+    // Activities a teacher took off this child's to-do list, and when. Only the
+    // marks that stand today: Put back, or the child handing in anyway, deletes
+    // the row (RETENTION.md), so a mark that was undone is not held and is not
+    // here.
+    notNeeded: student.excusals.map((x) => ({
+      activity: x.assignment.title,
+      markedAt: x.createdAt.toISOString(),
     })),
     // Named rather than silently missing, so the reader knows what exists and
     // can ask the school for it. The school states how it handles those

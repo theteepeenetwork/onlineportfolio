@@ -1066,6 +1066,8 @@ model Student {
   journalItems   JournalItem[]
   sessions       Session[]
   assignments    AssignmentStudent[]
+  // Runs a teacher marked "not needed" for this pupil (AssignmentExcusal).
+  excusals       AssignmentExcusal[]
   parents        Parent[]            @relation("ParentChildren")
   drafts         Draft[] // in-progress activity-response drafts (cross-device autosave)
   // The one conversation between this child's guardians and their class
@@ -1400,6 +1402,7 @@ model Assignment {
   students             AssignmentStudent[] // set only when wholeClass = false
   responses            JournalItem[]
   drafts               Draft[]
+  excusals             AssignmentExcusal[] // pupils this run was marked "not needed" for
 }
 
 // An in-progress, unsubmitted draft synced to the account for cross-device
@@ -1442,6 +1445,38 @@ model Draft {
 
 // A chosen child on a "pick children" run. (Formerly `ActivityAssignment`.)
 model AssignmentStudent {
+  id           String     @id @default(cuid())
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    String
+  createdAt    DateTime   @default(now())
+
+  @@unique([assignmentId, studentId])
+}
+
+// "Not needed": a teacher took this run off this pupil's to-do list — the pupil
+// who was away for the lesson, or did it on paper (teacher feedback, item 5).
+//
+// THE FACT, AND NOTHING ELSE. Which run, which pupil, when. There is NO REASON
+// COLUMN and one must not be added: the reason a child missed an activity is
+// very often that they were ill, and a free-text box beside a child's name is
+// where health data (UK GDPR Art. 9) gets written by accident — the argument
+// that gave permission slips fixed answers (SAFEGUARDING rule 22). Not audited
+// either (owner decision, 10 September 2026).
+//
+// Written and removed only by src/app/actions/runs.ts, on a live run in a class
+// the teacher holds, and refused when the pupil has handed anything in. A
+// hand-in by a marked pupil (their page was already open) is ACCEPTED and this
+// row deleted in the same transaction (createJournalItem). Read by the to-do
+// queries through src/lib/studentRuns.ts, the one place that decides what is on
+// a pupil's list. Disclosed, as the run's title and the date, in that pupil's
+// own subject-access export (src/app/teacher/export/pupil/[studentId]/route.ts;
+// data protection lead, 10 September 2026).
+//
+// Cascades from both sides, so it never outlives the run or the pupil
+// (RETENTION.md, "Not needed" marks).
+model AssignmentExcusal {
   id           String     @id @default(cuid())
   assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   assignmentId String
