@@ -39,6 +39,23 @@ test("the page behind the class code is inert, and Tab never leaves the card", a
   expect(await card(page).evaluate((el) => !!el.closest("[inert]")), "the card itself is not").toBe(false);
   expect(await opener.evaluate((el) => !!el.closest("[inert]")), "the opener is behind it too").toBe(true);
 
+  // And what a screen reader is given. This asks Chromium for its own
+  // accessibility tree, the one assistive technology reads, rather than
+  // Playwright's ariaSnapshot, which computes its own and does not honour
+  // inert — it lists every pupil link above. Behind the card, nothing but the
+  // card is exposed: no pupil's name, no "Open the queue".
+  const pupil = (await page.locator('a[href^="/teacher/students/"]').first().innerText()).split("\n")[0].trim();
+  expect(pupil.length).toBeGreaterThan(0);
+  const cdp = await page.context().newCDPSession(page);
+  const { nodes } = (await cdp.send("Accessibility.getFullAXTree")) as {
+    nodes: { ignored: boolean; name?: { value?: unknown } }[];
+  };
+  const exposed = nodes.filter((n) => !n.ignored).map((n) => String(n.name?.value ?? ""));
+  expect(exposed, "the card is in the tree").toContain("Done");
+  expect(exposed.some((name) => name.includes(pupil)), `a screen reader is not given ${pupil}'s name`).toBe(false);
+  expect(exposed.some((name) => name.includes("Open the queue")), "nor the dashboard round it").toBe(false);
+  await cdp.detach();
+
   // Forwards and backwards from Done, however far, focus is on the card or on nothing.
   for (let n = 0; n < 6; n++) {
     await page.keyboard.press("Tab");
@@ -69,4 +86,16 @@ test("Done closes the class code and gives focus back to the opener", async ({ p
   expect(
     await page.evaluate(() => !!document.querySelector('a[href^="/teacher/students/"]')?.closest("[inert]")),
   ).toBe(true);
+});
+
+// Leaving through "Print for the classroom door" unmounts the card rather than
+// closing it. The page it goes to must not inherit anything inert.
+test("leaving by the print link leaves nothing inert on the next page", async ({ page }) => {
+  await openCard(page);
+  await card(page).getByRole("link", { name: /Print for the classroom door/ }).click();
+  await page.waitForURL(/\/signup\/teacher\/welcome\?class=/);
+  await expect(page.getByRole("heading", { name: /class code/ })).toBeVisible();
+  expect(await page.evaluate(() => document.querySelectorAll("[inert]").length), "nothing is inert").toBe(0);
+  await page.keyboard.press("Tab");
+  expect(await focusIsOn(page), "Tab reaches a control on the new page").not.toBe("nothing");
 });
