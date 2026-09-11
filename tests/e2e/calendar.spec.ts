@@ -32,8 +32,10 @@ test.describe("Teacher calendar", () => {
     await expect(run).toBeVisible();
     await expect(page.getByText(/in the jar/).first()).toBeVisible();
 
+    // To the run's own page — who has and hasn't done it — rather than the
+    // template, which only its author can open.
     await run.click();
-    await expect(page).toHaveURL(/\/teacher\/activities\/[^/]+\?run=/);
+    await expect(page).toHaveURL(/\/teacher\/activities\/runs\/[^/?#]+$/);
   });
 
   test("the class filter scopes the grid", async ({ page }) => {

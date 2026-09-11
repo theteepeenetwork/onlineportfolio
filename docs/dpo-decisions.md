@@ -824,3 +824,66 @@ No new data category and no child data, so no professional review is needed for
 the data protection side.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10.
+
+---
+
+## 2026-09-10 — "Not needed": a teacher may take an activity off one pupil's list, and no reason is kept
+
+**The ask.** A teacher wanted a way to take an activity off one child's to-do
+list — the child who was away for the lesson, or who did it on paper — without
+it sitting there as undone for ever.
+
+**Decided.** A teacher may mark one live activity "not needed" for one pupil,
+from that activity's own page, and put it back. One row is stored: which run,
+which pupil, when (`AssignmentExcusal`). It is refused if the pupil has handed
+anything in for that run: work that exists is the teacher's to look at, not to
+wave away. No audit row: a to-do list is not a safeguarding-relevant action, and
+an audit row would be one more place the fact is copied to.
+
+**No reason field, by design.** The reason a child missed an activity is very
+often that they were ill. A free-text "why" beside a child's name is where
+health data — special category data under UK GDPR Art. 9 — gets written by
+accident, which is the same argument that gave permission slips fixed answers
+(`SAFEGUARDING.md` rule 22). There is nowhere to type one.
+
+**If the pupil hands in anyway** — their page was already open when the teacher
+pressed the button — the work is accepted and the mark is cleared in the same
+transaction. A child's finished work is never turned away. A draft the pupil
+already had is left to the ordinary 30-day expiry (`RETENTION.md`) rather than
+deleted by the mark: the draft is the child's, and "not needed" is about the
+list.
+
+**Fixed in the same change (FINDINGS F79).** A chosen-pupil activity used to
+follow a child into next year's class after the September move-up. Every to-do
+query now goes through one definition that requires the run to be in the
+pupil's own class.
+
+**Retention.** `RETENTION.md`, "Not needed" marks: gone on Put back, on a
+hand-in, or with the run or the pupil.
+
+**DECISION, 2026-09-10: a "not needed" mark IS in the pupil's subject-access
+export — included, because it is data about the child.** This was left open
+when the feature was written, and answered the same day. The case against was
+that the mark is short-lived by design, carries no reason, and says little
+beyond "their teacher took one activity off their list on this date". The case
+for won: Article 15 asks what is held, not what is shown or how long it lasts,
+which is the argument the 2026-08-23 scope note on rule 3 already makes for
+work still in the approval queue. What the file carries, for each mark that
+stands on the day of the export: the activity's title as the run froze it, and
+the date it was marked (`notNeeded` in
+`src/app/teacher/export/pupil/[studentId]/route.ts`). No reason, because none
+exists and none is to be added to answer this. Only that child's marks, read
+off that child's own row, so a classmate marked on the same activity is never
+in the file. A mark that was put back, or cleared by the child handing in, has
+been deleted and so is not held and not exported. The whole-class export is
+unchanged: it carries journal items only, and no permission slips or
+appointments either; this decision is about the one child's file. Proved in
+`tests/battery/security/data-protection.spec.ts`.
+
+**Worth an outside check:** the export question was the only item flagged for
+one. It is now decided on the principle the rest of the export already rests
+on, adds no data category and no recipient, and goes to professional review
+with the rest of the DPIA rather than on its own.
+
+**Decided by:** the founder, as data protection lead, including the export
+question (answered 2026-09-10). **Recorded:** 2026-09-10.

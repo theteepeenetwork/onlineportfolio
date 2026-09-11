@@ -362,6 +362,119 @@ test("removing an INVITED colleague who holds a class destroys nothing [F68]", a
   }
 });
 
+// One activity's card in the library: the innermost block holding both its
+// title link and its "Set for a class" button, which is the card's body.
+function libraryCard(page: import("@playwright/test").Page, title: string) {
+  return page
+    .locator("div")
+    .filter({ has: page.getByRole("link", { name: title, exact: true }) })
+    .filter({ has: page.getByRole("button", { name: "Set for a class" }) })
+    .last();
+}
+
+// ===========================================================================
+// F66, the run page: who has and hasn't done an activity follows the CLASS.
+//
+// The run page (/teacher/activities/runs/[runId]) names every pupil in a class
+// and says where each stands. It is found by run id AND a class the viewer
+// holds today, never by who wrote the activity — the shape F66 found at seven
+// sites where authorship of a template outlived ownership of the class it was
+// set to. So after the ordinary September handover:
+//   - the activity's author, who no longer holds the class, gets a 404 and no
+//     pupil's name, and the run leaves their "Live now" list;
+//   - the class's new teacher sees it, whoever wrote the activity, without the
+//     "Open the activity" link, which would 404 for them.
+//
+// Driven through the console's "Assign classes", as the F68 test above does,
+// and on rows it builds itself, so nothing seeded is borrowed.
+// ===========================================================================
+test("after a handover the run page belongs to the class's new teacher, not the activity's author [F66]", async ({
+  page,
+  browser,
+}) => {
+  const school = await db.school.findFirstOrThrow({ where: { name: { contains: "Oakfield" } } });
+  const admin = await db.teacher.findFirstOrThrow({ where: { email: SCHOOL_B.admin.email } });
+  const incoming = await db.teacher.findFirstOrThrow({ where: { email: SCHOOL_B.teacher.email } });
+
+  const TITLE = "Leaf rubbing (handover run)";
+  const klass = await db.class.create({
+    data: { name: "Rowan Wrens", ageMode: "KS1", classCode: "F66RUN", teacherId: admin.id, schoolId: school.id },
+  });
+  const wren = await db.student.create({ data: { name: "Wren", classId: klass.id, avatarColor: "#4f46e5" } });
+  const template = await db.activityTemplate.create({ data: { title: TITLE, teacherId: admin.id } });
+  const run = await db.assignment.create({
+    data: { templateId: template.id, classId: klass.id, wholeClass: true, status: "LIVE", title: TITLE },
+  });
+  await db.journalItem.create({
+    data: { type: "TEXT", textContent: "A big oak leaf.", status: "PENDING", authorRole: "STUDENT", studentId: wren.id, classId: klass.id, assignmentId: run.id },
+  });
+
+  try {
+    // Before: the author holds the class, and the run page is theirs.
+    await loginTeacher(page, SCHOOL_B.admin);
+    const before = await page.goto(`/teacher/activities/runs/${run.id}`);
+    expect(before?.status(), "positive control: the class's teacher reaches the run page").toBe(200);
+    await expect(page.locator('li[data-pupil="Wren"]')).toBeVisible();
+    // And the same library screen the negative below reads does show this run's
+    // count and this class's name while the class is theirs, so their absence
+    // afterwards is the scope and not a page that rendered nothing.
+    await page.goto("/teacher/activities");
+    const ownCard = libraryCard(page, TITLE);
+    await expect(ownCard).toContainText("1 waiting to approve");
+    await ownCard.getByRole("button", { name: "Set for a class" }).click();
+    await expect(page.getByText("Already ran")).toBeVisible();
+
+    // The handover, through the control a head teacher presses.
+    await page.goto("/admin");
+    await page.getByRole("button", { name: new RegExp(`actions for ${incoming.name}`, "i") }).click();
+    await page.getByRole("menuitem", { name: /assign classes/i }).click();
+    await page.getByRole("menuitem", { name: klass.name, exact: true }).click();
+    await expect
+      .poll(async () => (await db.class.findUnique({ where: { id: klass.id }, select: { teacherId: true } }))?.teacherId, {
+        message: "the class must really have moved, or nothing below means anything",
+        timeout: 15_000,
+      })
+      .toBe(incoming.id);
+
+    // The author, who still wrote the activity and no longer holds the class.
+    const after = await page.goto(`/teacher/activities/runs/${run.id}`);
+    expect(after?.status(), "authorship of the activity is not a way into the class").toBe(404);
+    await expect(page.locator("body")).not.toContainText("Wren");
+    await page.goto("/teacher/activities");
+    await expect(page.locator("#live-now"), "the run leaves the author's Live now list").not.toContainText(TITLE);
+
+    // The eighth F66 site, found on 10 September 2026: the library's own
+    // template query joined runs by authorship alone, so the author's card still
+    // said "1 waiting to approve" for a class they no longer held, and its
+    // assign sheet listed that class by name under "Already ran". Opening the
+    // sheet is how the name reached the page.
+    const card = libraryCard(page, TITLE);
+    await expect(card, "no count from a class the author no longer holds").not.toContainText(/waiting/);
+    await card.getByRole("button", { name: "Set for a class" }).click();
+    await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
+    await expect(page.locator("body"), "the assign sheet must not name a class the author no longer holds").not.toContainText(klass.name);
+
+    // The class's new teacher, who did not write it.
+    const ctx = await browser.newContext();
+    const theirs = await ctx.newPage();
+    await loginTeacher(theirs, SCHOOL_B.teacher);
+    const res = await theirs.goto(`/teacher/activities/runs/${run.id}`);
+    expect(res?.status(), "the class's new teacher follows the run whoever wrote it").toBe(200);
+    await expect(theirs.locator('li[data-pupil="Wren"]')).toHaveAttribute("data-status", "WAITING");
+    await expect(
+      theirs.getByRole("link", { name: "Open the activity" }),
+      "the template is still its author's, so the link is not drawn for somebody it would 404 for",
+    ).toHaveCount(0);
+    await theirs.goto("/teacher/activities");
+    await expect(theirs.locator("#live-now")).toContainText(TITLE);
+    await ctx.close();
+  } finally {
+    await db.auditLog.deleteMany({ where: { subjectId: klass.id } });
+    await db.class.deleteMany({ where: { id: klass.id } });
+    await db.activityTemplate.deleteMany({ where: { id: template.id } });
+    await db.$disconnect();
+  }
+});
 
 // ===========================================================================
 // The fifth property in this file's header, which until now was advertised and

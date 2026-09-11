@@ -13,6 +13,7 @@ import type { ClassInfo, RunSummary } from "@/lib/activities";
 import { Icon, type IconName } from "@/components/icons/Icon";
 import { ActivitySearchBox } from "@/components/ActivitySearchBox";
 import { matchesActivitySearch, searchResultLabel } from "@/lib/activitySearch";
+import { LiveNow, type LiveRun } from "./LiveNow";
 
 export type TemplateSummary = {
   id: string;
@@ -44,11 +45,14 @@ function typeMeta(t: TemplateSummary): { icon: IconName; bg: string; label: stri
 
 export function ActivityLibrary({
   templates,
+  liveRuns = [],
   classes,
   folders,
   canPublish = false,
 }: {
   templates: TemplateSummary[];
+  /** What is live in this teacher's classes today — see LiveNow. */
+  liveRuns?: LiveRun[];
   classes: ClassInfo[];
   folders: FolderInfo[];
   /** True only at StoryJar Academy. See the Publishing link below. */
@@ -118,6 +122,11 @@ export function ActivityLibrary({
           ＋ New activity
         </Link>
       </div>
+
+      {/* What is live, by class, before the library by activity. It sits above
+          the folders because the folders and the search narrow the library
+          below and do not touch this list. */}
+      <LiveNow runs={liveRuns} />
 
       {/* ══ folders, as a row ══
           The global rail already owns the left edge of every teacher screen, so

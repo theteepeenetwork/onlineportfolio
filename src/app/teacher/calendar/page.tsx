@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CLASS_TINTS } from "@/lib/classTints";
+import { countRun } from "@/lib/runStatus";
 import { CalendarView, type CalendarRun, type CalendarClass } from "./CalendarView";
 
 // A month calendar of every activity run, plotted on its due day (or, with no
@@ -21,9 +22,10 @@ export default async function CalendarPage() {
       where: { AND: [{ template: { teacherId } }, { class: { teacherId } }] },
       orderBy: { createdAt: "desc" },
       include: {
-        class: { select: { id: true, name: true, _count: { select: { students: true } } } },
-        _count: { select: { students: true } }, // AssignmentStudent count (chosen-children runs)
+        class: { select: { id: true, name: true, students: { select: { id: true } } } },
+        students: { select: { studentId: true } }, // the chosen pupils, on a chosen-pupil run
         responses: { select: { studentId: true, status: true } },
+        excusals: { select: { studentId: true } }, // "not needed" pupils leave the counts
         template: { select: { id: true } },
       },
     }),
@@ -35,12 +37,11 @@ export default async function CalendarPage() {
   const tintIndexById = new Map(classes.map((c, i) => [c.id, i % CLASS_TINTS.length]));
 
   const runs: CalendarRun[] = assignments.map((a) => {
-    const assigned = a.wholeClass ? a.class._count.students : a._count.students;
-    const turnedIn = new Set(a.responses.map((r) => r.studentId)).size;
-    const completed = new Set(
-      a.responses.filter((r) => r.status === "APPROVED").map((r) => r.studentId),
-    ).size;
-    const waiting = a.responses.filter((r) => r.status === "PENDING" || r.status === "RETURNED").length;
+    // The same counts as the library, the template page and the run page
+    // (src/lib/runStatus.ts). "Waiting" is work waiting for the teacher only:
+    // this used to add work that had been SENT BACK, which is waiting on the
+    // pupil, under a heading that says "Waiting to approve".
+    const { assigned, turnedIn, inJar: completed, waiting } = countRun(a);
     return {
       id: a.id,
       templateId: a.template.id,

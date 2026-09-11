@@ -179,6 +179,89 @@ test("the per-pupil export answers for one child, and only to that child's teach
   expect(theirs.status(), "School A reached School B's pupil").toBe(404);
 });
 
+test("a pupil's export carries their own \"not needed\" marks, and no other child's [cross-tenant]", async ({ page }) => {
+  // Data protection lead, 10 September 2026: a "not needed" mark is data about
+  // the child, so it is in their subject-access file — the run's title and the
+  // date, and nothing else, because there is nothing else (no reason column,
+  // by design). The marks are written directly rather than through the button:
+  // pressing it is run-excusal.spec.ts's subject, and THIS test is about what
+  // the file discloses once a mark is held.
+  //
+  // Its own two classes in two schools, so the shared fixtures are untouched.
+  // The titles are distinctive so "absent" is a real search: a run title that
+  // appeared anywhere else in a file would make not.toContain() meaningless.
+  const B_TITLE = "Leaf rubbing on the field (Rowans)";
+  const A_TITLE = "Counting conkers (Hollies)";
+  const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const code = () => Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
+
+  const bTeacher = await db.teacher.findFirstOrThrow({ where: { email: SCHOOL_B.teacher.email } });
+  const aTeacher = await db.teacher.findFirstOrThrow({ where: { email: SCHOOL_A.otherTeacher.email } });
+  const bClass = await db.class.create({
+    data: { name: "Export Rowans", ageMode: "KS1", classCode: code(), teacherId: bTeacher.id, schoolId: bTeacher.schoolId },
+  });
+  const aClass = await db.class.create({
+    data: { name: "Export Hollies", ageMode: "KS1", classCode: code(), teacherId: aTeacher.id, schoolId: aTeacher.schoolId },
+  });
+  const bTemplate = await db.activityTemplate.create({ data: { title: "Rowans template", teacherId: bTeacher.id } });
+  const aTemplate = await db.activityTemplate.create({ data: { title: "Hollies template", teacherId: aTeacher.id } });
+  try {
+    const tamsin = await db.student.create({ data: { name: "Tamsin", classId: bClass.id } });
+    const idris = await db.student.create({ data: { name: "Idris", classId: bClass.id } });
+    const orla = await db.student.create({ data: { name: "Orla", classId: aClass.id } });
+    const bRun = await db.assignment.create({
+      data: { templateId: bTemplate.id, classId: bClass.id, wholeClass: true, status: "LIVE", title: B_TITLE },
+    });
+    const aRun = await db.assignment.create({
+      data: { templateId: aTemplate.id, classId: aClass.id, wholeClass: true, status: "LIVE", title: A_TITLE },
+    });
+    // Tamsin is marked; Idris, on the same run in the same class, is not.
+    // Orla at St Bede's is marked on her own school's run.
+    const tamsinMark = await db.assignmentExcusal.create({ data: { assignmentId: bRun.id, studentId: tamsin.id } });
+    const orlaMark = await db.assignmentExcusal.create({ data: { assignmentId: aRun.id, studentId: orla.id } });
+
+    // Tamsin's teacher exports Tamsin: her one mark, as a title and a date,
+    // and exactly those two fields. toEqual fails on any extra key, which is
+    // the guard against a reason, a teacher's name or a class being added.
+    await loginTeacher(page, SCHOOL_B.teacher);
+    const tamsinRes = await page.request.get(`/teacher/export/pupil/${tamsin.id}`);
+    expect(tamsinRes.status()).toBe(200);
+    const tamsinBody = await tamsinRes.json();
+    expect(tamsinBody.notNeeded, "the marked pupil's file carries the mark").toEqual([
+      { activity: B_TITLE, markedAt: tamsinMark.createdAt.toISOString() },
+    ]);
+    const tamsinRaw = JSON.stringify(tamsinBody);
+    expect(tamsinRaw, "a classmate on the same run must not be named").not.toContain("Idris");
+    expect(tamsinRaw, "another school's mark must never be in this file").not.toContain(A_TITLE);
+
+    // Idris: same class, same run, no mark. Nothing about the run is in his
+    // file, so Tamsin's mark cannot have leaked into it.
+    const idrisBody = await (await page.request.get(`/teacher/export/pupil/${idris.id}`)).json();
+    expect(idrisBody.pupil.firstName).toBe("Idris");
+    expect(idrisBody.notNeeded, "an unmarked pupil's file has no marks").toEqual([]);
+    expect(JSON.stringify(idrisBody), "a classmate's mark leaked into this pupil's file").not.toContain(B_TITLE);
+
+    // Oakfield cannot reach Orla's file at all.
+    expect((await page.request.get(`/teacher/export/pupil/${orla.id}`)).status(), "School B reached School A's pupil").toBe(404);
+
+    // St Bede's: cannot reach Tamsin's file; its own pupil's file carries its
+    // own mark and nothing of Oakfield's. The positive control for the 404.
+    await loginTeacher(page, SCHOOL_A.otherTeacher);
+    expect((await page.request.get(`/teacher/export/pupil/${tamsin.id}`)).status(), "School A reached School B's pupil").toBe(404);
+    const orlaRes = await page.request.get(`/teacher/export/pupil/${orla.id}`);
+    expect(orlaRes.status()).toBe(200);
+    const orlaBody = await orlaRes.json();
+    expect(orlaBody.notNeeded).toEqual([{ activity: A_TITLE, markedAt: orlaMark.createdAt.toISOString() }]);
+    expect(JSON.stringify(orlaBody), "School B's mark in School A's file").not.toContain(B_TITLE);
+  } finally {
+    // Runs (their marks cascade), then classes (their pupils cascade), then
+    // the templates the runs pointed at.
+    await db.assignment.deleteMany({ where: { templateId: { in: [bTemplate.id, aTemplate.id] } } });
+    await db.class.deleteMany({ where: { id: { in: [bClass.id, aClass.id] } } });
+    await db.activityTemplate.deleteMany({ where: { id: { in: [bTemplate.id, aTemplate.id] } } });
+  }
+});
+
 test("deleting a moment erases its media file too (rule 9 — regression guard)", async ({ page }) => {
   // Guards the PR #28 fix: deleteItem must remove the row AND the file. If a
   // future change reverts to a row-only delete, this fails. (The pupil-removal
