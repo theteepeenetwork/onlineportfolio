@@ -322,6 +322,24 @@ test("the picks are kept nowhere: a reload forgets them, and no status changed",
   page.on("request", (r) => {
     if (r.method() !== "GET") sent.push(`${r.method()} ${r.url()}`);
   });
+  // What the browser holds before anything is picked. The page keeps keys of
+  // its own that come and go with page loads — the error reporter's "alive"
+  // marker is written on load and removed on hide — so the claim is not that
+  // storage never changes, but that picking and showing add nothing to it.
+  const held = () =>
+    page.evaluate(() => {
+      const all: Record<string, string> = {};
+      for (const s of [localStorage, sessionStorage]) {
+        for (let i = 0; i < s.length; i++) {
+          const k = s.key(i)!;
+          all[k] = s.getItem(k) ?? "";
+        }
+      }
+      return all;
+    });
+  const baseline = Object.keys(await held()).sort();
+  const namesAWork = (store: Record<string, string>) =>
+    Object.values(store).filter((v) => Object.values(itemIds).some((id) => v.includes(id)));
   await tick(page, "Ada").check();
   await page.getByRole("button", { name: /Show on the board \(1\)/ }).click();
   await expect(board(page)).toBeVisible();
@@ -330,17 +348,21 @@ test("the picks are kept nowhere: a reload forgets them, and no status changed",
   await expect(board(page)).toHaveCount(0);
   expect(sent, "picking and showing must not reach the server").toEqual([]);
 
-  // Nothing in the address, nothing in storage.
+  // Nothing in the address, nothing in storage: the same keys as before the
+  // first tick, and none of them holding a piece of work.
   expect(new URL(page.url()).search).toBe("");
-  const stored = await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }));
-  const beforeReload = stored;
+  const shown = await held();
+  expect(Object.keys(shown).sort(), "picking and showing added nothing to storage").toEqual(baseline);
+  expect(namesAWork(shown), "nothing stored names a piece of work").toEqual([]);
 
   await page.reload();
   await expect(page.getByRole("button", { name: /Show on the board \(0\)/ })).toBeDisabled();
   await expect(tick(page, "Ada")).not.toBeChecked();
-  // Storage did not grow by showing anything (it may hold unrelated keys).
-  const after = await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }));
-  expect(after).toEqual(beforeReload);
+  // Across the reload, too: whether the new page has written its own marker
+  // yet is timing, so only keys that were there before any pick are allowed.
+  const after = await held();
+  expect(Object.keys(after).filter((k) => !baseline.includes(k)), "a key appeared that was not there before").toEqual([]);
+  expect(namesAWork(after)).toEqual([]);
 
   // Showing is not approving, returning or anything else.
   const rows = await db.journalItem.findMany({ where: { id: { in: Object.values(itemIds) } }, select: { id: true, status: true } });
