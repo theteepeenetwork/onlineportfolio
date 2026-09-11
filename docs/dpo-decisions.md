@@ -754,6 +754,79 @@ outline; what is new is that it now happens rather than being left undone.
 
 ---
 
+## 2026-09-10 — A teacher may put a web link on a canvas, and a child reaches it only through a "leaving StoryJar" card
+
+**Decision:** Approved `SAFEGUARDING.md` rule 26, the single carve-out from rule
+15's "never render links as clickable". A teacher may place a web link on an
+activity's canvas; a child may press it; a full-screen card — *This opens
+{host} — a website your teacher chose*, with **Stay here** focused and **Open
+it** beside it — always comes first. The card's wording was chosen by the owner
+on the day and is recorded as approved in `docs/AGE_MODE_COPY.md`.
+
+Three sub-decisions were not asked and were taken as the recommended default,
+each recorded here so it can be reversed at review:
+
+1. **Links are kept when StoryJar staff publish an activity to the library.**
+   Stripping them would silently change an activity between the Academy and a
+   classroom, and a link in a library activity still reaches a class only
+   after a teacher has added the activity and set it. `docs/library-publishing.md`
+   says so, so whoever publishes checks the link as they would a picture.
+   *Confirmed by the owner on 2026-09-11.*
+2. **The Claude connector gets no link tool,** and there is no field for one.
+   An edit through the connector keeps a teacher's own link, because it only
+   ever replaces objects the API itself made (`docs/claude-connector.md`).
+3. **Nothing counts a press.** No row, log line or audit entry says which child
+   opened which link, or that anyone did.
+
+**Why this is a data-protection decision and not only a safeguarding one.** A
+link is a way for a child's browser to reach a third party chosen by an adult.
+What travels with that visit is what data protection is about, and the answer is
+deliberately *nothing StoryJar holds*: the tab is opened `noopener noreferrer`,
+so the site is not told which StoryJar page sent the child and cannot script
+back into it, and the address comes from the teacher's copy of the activity, so
+nothing in the URL was put there by StoryJar or by the child. The visit itself —
+the school's network address, the browser — is what any visit from a classroom
+shows a website, and is governed by the school's filtering and monitoring under
+KCSIE rather than by StoryJar.
+
+**What is retained, precisely.** A web address and an optional name, as teaching
+material inside the template's `objectsJson` and the run's snapshot, deleted with
+them (`RETENTION.md`, "Web links on an activity canvas"). No personal data. No
+new sub-processor: StoryJar never fetches the site, only the child's browser
+does, and only after the card.
+
+**What this does NOT decide.** Any per-school allowlist of sites, or a switch for
+a school to turn links off; a link a child makes; a link in a message, a notice,
+a caption or a note on returned work; a website shown inside StoryJar. Each would
+be its own amendment.
+
+**DECISION, 2026-09-11: link shorteners are allowed; the validator does not
+refuse bit.ly, tinyurl.com and the like.** *(Raised 2026-09-10 by the
+safeguarding review of this change; answered by the owner the next day.)* The
+school's web filter governs where the tab lands, the card shows the address the
+teacher entered (so a child sees `bit.ly`, not a borrowed name), and rule 26 and
+DPIA R24 already say the host on the card is not always the host visited. The
+question as it was put: The card shows the host of the address the
+teacher entered, and for almost every link that is where the tab goes. A
+shortener or a redirect page breaks that: the card says `bit.ly` and the tab
+lands wherever the short link points today, which its owner can change after the
+teacher checked it. The school's web filter still governs where it lands, so
+this is not an unguarded path, but it is the one case where the host on the card
+is not the host visited, and rule 26 and DPIA R24 have been reworded to say so
+rather than promise otherwise. Refusing a named list would close the common case
+and cost a teacher nothing (they can paste the address the short link opens),
+but a list is never complete, so it would narrow the gap rather than shut it.
+Nothing is built: the answer is to leave the validator as it is.
+
+**Worth an outside check:** worth putting the card, and the line in the builder
+about the school's web filter, in front of a pilot school's online-safety lead.
+No new data category and no child data, so no professional review is needed for
+the data protection side.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10.
+
+---
+
 ## 2026-09-10 — "Not needed": a teacher may take an activity off one pupil's list, and no reason is kept
 
 **The ask.** A teacher wanted a way to take an activity off one child's to-do

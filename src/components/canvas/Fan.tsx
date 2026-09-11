@@ -35,6 +35,7 @@ import {
   NIBS,
   PLUS_INNER_ANGLES,
   PLUS_OUTER_ANGLES,
+  PLUS_OUTER_ANGLES_4,
   polar,
   R_COLOUR_BAND,
   R_COLOUR_IN,
@@ -672,7 +673,11 @@ export function PlusFan({
             const isOuter = item.ring === 1;
             const list = isOuter ? outer : inner;
             const i = list.indexOf(item);
-            const angles = isOuter ? PLUS_OUTER_ANGLES : PLUS_INNER_ANGLES;
+            const angles = isOuter
+              ? outer.length > PLUS_OUTER_ANGLES.length
+                ? PLUS_OUTER_ANGLES_4
+                : PLUS_OUTER_ANGLES
+              : PLUS_INNER_ANGLES;
             const deg = angles[i] ?? angles[angles.length - 1];
             const pressed = item.pressed || row === item.key;
             return (

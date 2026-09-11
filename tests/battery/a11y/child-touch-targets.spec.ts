@@ -90,6 +90,11 @@ test("every tool on a child's drawing canvas meets the child touch floor", async
   await loginStudent(page, SCHOOL_A.classCode, "Chloe");
   await page.goto("/student/new/drawing");
   await expect(page.locator("canvas")).toBeVisible();
+  // A second page first, so each page card carries its throw-away cross: a
+  // small jam dot inside a press that has to be as big as everything else.
+  // With one page there is nothing to throw away, and nothing would be measured.
+  await page.locator('button[title="Add page"]').click();
+  await expect(page.getByRole("button", { name: "Throw away page 2", exact: true })).toBeVisible();
 
   const small = await undersizedControls(page);
   expect(small, `controls below ${FLOOR}px on the drawing canvas: ${JSON.stringify(small)}`).toEqual([]);
@@ -148,6 +153,9 @@ test("every tool on an activity response meets the child touch floor", async ({ 
   await expect(activity).toBeVisible();
   await activity.click();
   await expect(page.locator("canvas")).toBeVisible();
+  // A page of the child's own, so the cross it wears is on the page to measure.
+  await page.locator('button[title="Add page"]').click();
+  await expect(page.getByRole("button", { name: /^Throw away page/ }).first()).toBeVisible();
 
   const small = await undersizedControls(page);
   expect(small, `controls below ${FLOOR}px on an activity response: ${JSON.stringify(small)}`).toEqual([]);
@@ -323,4 +331,64 @@ test("every shape button carries a name, and no two are the same", async ({ page
 
   const all = [...childNames, ...kitNames];
   expect([...new Set(all)].length).toBe(all.length);
+});
+
+// A teacher's web link and the card in front of it (SAFEGUARDING rule 26), on
+// the tablet a Reception class holds in portrait. The link is the smallest a
+// teacher can save, because that is where the canvas scale bites (see the quiz
+// answer test above). With the card open the sweep measures only the card —
+// it covers everything — and a keyboard stays inside it.
+test("a web link and its leaving card meet the floor, and the card keeps focus", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  const { PrismaClient } = await import("@prisma/client");
+  const db = new PrismaClient();
+  const title = `Touch links ${Date.now()}`;
+  const teacher = await db.teacher.findUniqueOrThrow({ where: { email: SCHOOL_A.admin.email } });
+  const klass = await db.class.findFirstOrThrow({ where: { classCode: SCHOOL_A.classCode } });
+  const objectsJson = JSON.stringify([
+    [{ id: "o1", type: "link", x: 80, y: 320, w: 200, h: 84, href: "https://example.org/", label: "Rain" }],
+  ]);
+  const template = await db.activityTemplate.create({ data: { title, teacherId: teacher.id, objectsJson } });
+  const run = await db.assignment.create({
+    data: { templateId: template.id, classId: klass.id, wholeClass: true, status: "LIVE", title, objectsSnapshotJson: objectsJson },
+  });
+  try {
+    await loginStudent(page, SCHOOL_A.classCode, "Dev");
+    await page.goto("/student/activities");
+    await page.getByRole("link", { name: new RegExp(title) }).first().click();
+    const link = page.getByRole("button", { name: "Rain, example.org" });
+    const box = (await link.boundingBox())!;
+    expect(Math.min(box.width, box.height), "the smallest link, on the smallest tablet").toBeGreaterThanOrEqual(FLOOR);
+
+    await link.click();
+    const card = page.getByRole("dialog", { name: /This opens example\.org/ });
+    await expect(card).toBeVisible();
+    const small = await undersizedControls(page);
+    expect(small, `controls below ${FLOOR}px with the leaving card open: ${JSON.stringify(small)}`).toEqual([]);
+
+    // Stay here first, and Tab goes round the card's own controls — Open it,
+    // Stay here and, in this register, Hear it — and never back to the canvas
+    // hidden behind it.
+    const stay = card.getByRole("button", { name: "Stay here" });
+    await expect(stay).toBeFocused();
+    const seen = new Set<string>();
+    for (let i = 0; i < 4; i++) {
+      await page.keyboard.press("Tab");
+      const where = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        return el?.closest("[data-leaving-card]") ? (el.textContent ?? "").trim() : null;
+      });
+      expect(where, "focus left the card").not.toBeNull();
+      seen.add(where!);
+    }
+    expect(seen.has("Open it") && seen.has("Stay here")).toBe(true);
+    await stay.focus();
+    await page.keyboard.press("Enter");
+    await expect(card, "Enter on Stay here stays").toHaveCount(0);
+  } finally {
+    await db.draft.deleteMany({ where: { assignmentId: run.id } });
+    await db.assignment.delete({ where: { id: run.id } }).catch(() => {});
+    await db.activityTemplate.delete({ where: { id: template.id } }).catch(() => {});
+    await db.$disconnect();
+  }
 });

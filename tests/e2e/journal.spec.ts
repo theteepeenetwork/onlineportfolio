@@ -124,20 +124,31 @@ test.describe("Adding work stays in the child's world", () => {
     await expect(waiting, "the words moment joins the queue, it doesn't publish itself").toHaveCount(before + 1);
   });
 
-  // The caption floating on the full-screen canvas was placeholder-only: silent
-  // to a screen reader, and gone from the screen the moment a child tapped into
-  // the box to answer it. The standalone capture pages fixed this at SJ-03; the
-  // canvas kept the old one.
-  test("the canvas caption keeps its instruction too", async ({ page }) => {
+  // The full-screen canvas used to float a caption box on the page, over the
+  // drawing. A teacher asked for it to go and the owner agreed (2026-09-10):
+  // a child answering a worksheet does not caption it — the activity's title
+  // names that work — and a free drawing is "My drawing" in the jar. The photo
+  // and voice captions, which sit beside the work rather than on it, stay (the
+  // test above holds them to their visible label).
+  //
+  // Both canvases, because the box was switched on separately at each call
+  // site, and a removal that reached only one would pass a test of the other.
+  test("the drawing canvas has no caption box", async ({ page }) => {
     await studentLogin(page, "Finn");
+
     await openDrawing(page);
-    const caption = page.getByRole("textbox", { name: /tell us about your work/i });
-    await expect(caption, "the caption must have a name a screen reader can read").toBeVisible();
-    await caption.fill("My rocket");
-    await expect(
-      page.getByText(/tell us about your work/i),
-      "the instruction must survive being answered",
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+    await expect(page.locator('input[name="caption"]'), "free drawing: no caption field").toHaveCount(0);
+    await expect(page.getByText(/tell us about your work/i)).toHaveCount(0);
+
+    // "Count the apples" is a seeded live run for the whole of Sunflower.
+    // Opening it hands nothing in.
+    await page.goto("/student/activities");
+    await page.getByRole("link", { name: /Count the apples/ }).first().click();
+    await expect(page.locator("canvas").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+    await expect(page.locator('input[name="caption"]'), "activity: no caption field").toHaveCount(0);
+    await expect(page.getByText(/tell us about your work/i)).toHaveCount(0);
   });
 
   // The canvas has kept a draft since F34. The words box never did, and on the

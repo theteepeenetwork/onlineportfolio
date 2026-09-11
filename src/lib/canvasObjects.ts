@@ -176,7 +176,20 @@ export type FrameObj = ObjCommon & {
   label?: string;
 };
 
-export type CanvasObj = ImageObj | ShapeObj | TextObj | FrameObj;
+// A web link (SAFEGUARDING rule 26): a box on the page naming a website the
+// teacher chose. Like a frame it is a TEACHER's object, fixed for a child by
+// what it is, so `locked` is never stored on one. `href` is stored only after
+// `parseTeacherLink` has said yes, here as well as in the builder.
+export type LinkObj = ObjCommon & {
+  type: "link";
+  w: number;
+  h: number;
+  href: string;
+  // The teacher's name for it. Shown beside the real host, never instead of it.
+  label?: string;
+};
+
+export type CanvasObj = ImageObj | ShapeObj | TextObj | FrameObj | LinkObj;
 
 // Frame geometry, in model units. The floor leaves room for the child's 64px
 // "take it again" button at scale 1, so a photo is never uncorrectable.
@@ -188,6 +201,198 @@ export const FRAME_DEFAULT_H = 300;
 // wide and a page composite is 1000px, so more pixels than this only inflate
 // the draft and the hand-in.
 export const FRAME_PHOTO_MAX_PX = 1600;
+
+// ---------------------------------------------------------------------------
+// Web links (SAFEGUARDING rule 26)
+// ---------------------------------------------------------------------------
+//
+// The one thing on a canvas a child can press that leaves StoryJar. Rule 15
+// says a link from a child's input is never clickable; rule 26 is the single
+// carve-out, and its address rules live here, in one function the builder,
+// the server and the tests all call:
+//
+//   - https only, to a named public host, with nothing in the address that
+//     could hide where it really goes: no name or password before the host,
+//     no IP address, no localhost or single-word intranet name, no port.
+//   - Never anything containing `/uploads/`, even a path on another site.
+//     The media route authorises a file by matching its path as TEXT inside a
+//     template's payload columns (FINDINGS F75), so an address carrying
+//     `/uploads/<name>` would authorise that file for whoever holds the
+//     template. A link does not get to be a second way in.
+//
+// What a child is SHOWN is `displayHost`, below: the real host, always.
+
+export const MAX_LINK_LEN = 2000;
+export const MAX_LINK_LABEL_LEN = 80;
+export const LINK_DEFAULT_W = 380;
+export const LINK_DEFAULT_H = 110;
+// The floor is the child touch floor divided by the smallest scale a child's
+// canvas is drawn at (768px portrait: 0.77), so a link is never smaller than a
+// finger on the tablet a Reception class actually holds.
+export const MIN_LINK_W = 200;
+export const MIN_LINK_H = 84;
+
+export type LinkRefusal =
+  | "empty"
+  | "too-long"
+  | "not-a-web-address"
+  | "not-https"
+  | "credentials"
+  | "ip-address"
+  | "not-a-public-host"
+  | "port"
+  | "uploads";
+
+// What a teacher is told, one sentence each, shown under the box they typed in.
+export const LINK_REFUSAL_COPY: Record<LinkRefusal, string> = {
+  empty: "Type or paste a web address.",
+  "too-long": "That address is too long to use.",
+  "not-a-web-address": "That doesn't look like a web address. Try copying it from the address bar.",
+  "not-https": "Only secure addresses can go on a canvas. They start with https://",
+  credentials: "Take the name or password out of the address.",
+  "ip-address": "Use the website's name, not a number address.",
+  "not-a-public-host": "That address isn't a public website.",
+  port: "That address uses an unusual port. Use the website's ordinary address.",
+  uploads: "That address can't go on a canvas.",
+};
+// And for a name, which is held to the one rule an address is (see
+// `tidyLinkLabel`).
+export const LINK_LABEL_REFUSAL_COPY = "That name can't go on a canvas.";
+
+// C0 and C1 control characters. The URL parser deletes a tab, a newline or a
+// carriage return wherever it finds one, so "/up<tab>loads/" typed becomes
+// "/uploads/" stored; a check has to see through them the same way.
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/g;
+
+// Does this text name an upload, in any spelling the media route's text match
+// could be made to see? Asked of the text as it is, with its control
+// characters taken out, and percent-decoded (repeatedly, so a double-encoded
+// copy is caught too). `strictDecode` says what an escape that cannot be
+// decoded means: for an address it is refused, because an address we cannot
+// read is not one we can vouch for; for a label it is ordinary text ("50% off").
+function namesAnUpload(text: string, strictDecode: boolean): boolean | "undecodable" {
+  const forms = new Set<string>();
+  let current = text;
+  for (let i = 0; i < 4; i++) {
+    forms.add(current);
+    forms.add(current.replace(CONTROL_CHARS, ""));
+    let next: string;
+    try {
+      next = decodeURIComponent(current);
+    } catch {
+      if (strictDecode) return "undecodable";
+      break;
+    }
+    if (next === current) break;
+    current = next;
+  }
+  for (const f of forms) {
+    if (/\/uploads\//i.test(f) || /%2fuploads%2f/i.test(f)) return true;
+  }
+  return false;
+}
+
+/**
+ * Check an address and hand back the one to store, or say why not. Pure, so
+ * the builder, the server and a test all ask exactly the same question.
+ */
+export function parseTeacherLink(
+  raw: unknown,
+): { ok: true; href: string; host: string } | { ok: false; why: LinkRefusal } {
+  if (typeof raw !== "string") return { ok: false, why: "empty" };
+  const text = raw.trim();
+  if (!text) return { ok: false, why: "empty" };
+  if (text.length > MAX_LINK_LEN) return { ok: false, why: "too-long" };
+  // Refused on the text as typed, before the parser has had a chance to
+  // rewrite it — and again below on the address the parser produced, which is
+  // the text that is actually stored.
+  if (namesAnUpload(text, false) === true) return { ok: false, why: "uploads" };
+  // A teacher pasting "bbc.co.uk/bitesize" means https. An address that names
+  // any other scheme is refused below rather than guessed at.
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`;
+  let url: URL;
+  try {
+    url = new URL(withScheme);
+  } catch {
+    return { ok: false, why: "not-a-web-address" };
+  }
+  if (url.protocol !== "https:") return { ok: false, why: "not-https" };
+  if (url.username || url.password) return { ok: false, why: "credentials" };
+  if (url.port) return { ok: false, why: "port" };
+  const host = url.hostname.toLowerCase();
+  if (!host) return { ok: false, why: "not-a-web-address" };
+  // An IPv4 address in any spelling (the URL parser turns 0x7f.1 and 2130706433
+  // into dotted form) and any IPv6 literal.
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith("[")) {
+    return { ok: false, why: "ip-address" };
+  }
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal") ||
+    host.endsWith(".") ||
+    !host.includes(".")
+  ) {
+    return { ok: false, why: "not-a-public-host" };
+  }
+  const href = url.href;
+  if (href.length > MAX_LINK_LEN) return { ok: false, why: "too-long" };
+  // The whole stored address — path, query and fragment — and its decoded
+  // form. Checking only the path let "?q=/up<tab>loads/…" and
+  // "#/up<newline>loads/…" through: the parser had deleted the character that
+  // hid them from the check on the typed text, and nothing looked again.
+  const named = namesAnUpload(href, true);
+  if (named === "undecodable") return { ok: false, why: "not-a-web-address" };
+  if (named) return { ok: false, why: "uploads" };
+  return { ok: true, href, host };
+}
+
+/**
+ * A teacher's name for a link, tidied to what may be stored and shown: control
+ * characters out, trimmed, capped. `undefined` when there is nothing left, or
+ * when it names an upload — a label is stored beside the address in the same
+ * payload the media route reads as text (FINDINGS F75), so it is held to the
+ * same rule. The builder refuses such a name in words before this drops it.
+ */
+export function tidyLinkLabel(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  // A tab or a newline in a name becomes a space: a name is one line. The
+  // upload check below looks at it with them taken out altogether, which is
+  // how the "/up<tab>loads/" spelling is caught.
+  const label = raw.replace(CONTROL_CHARS, " ").replace(/\s+/g, " ").trim().slice(0, MAX_LINK_LABEL_LEN);
+  if (!label) return undefined;
+  if (linkLabelNamesUpload(raw)) return undefined;
+  return label;
+}
+
+/** Whether a link's name would be refused for naming an upload. */
+export function linkLabelNamesUpload(raw: string): boolean {
+  return namesAnUpload(raw, false) === true;
+}
+
+/**
+ * The host a child is shown, never the teacher's label: a label can say "BBC
+ * Bitesize" over any address at all, and the whole point of showing a host is
+ * to say which website the address really names. (Not always where the tab
+ * ends up: a link shortener or a redirect page can send it on, and the school's
+ * web filter governs that — SAFEGUARDING rule 26.) The URL parser has already
+ * turned an international name into its `xn--` form, so a look-alike letter from another
+ * alphabet shows up as what it is. `www.` is dropped because it tells a child
+ * nothing, and a host too long to show is shortened from the LEFT, because the
+ * end of a host is the part that says who owns it.
+ */
+export function displayHost(href: string, max = 40): string {
+  let host: string;
+  try {
+    host = new URL(href).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+  if (host.startsWith("www.")) host = host.slice(4);
+  if (host.length <= max) return host;
+  return `…${host.slice(host.length - (max - 1))}`;
+}
 
 // The stored payload: one array of objects per canvas page (index-aligned with
 // the template pages), so an object always lands back on its page.
@@ -420,6 +625,29 @@ function normalizeObject(raw: unknown): CanvasObj | null {
       // what it is, not by a padlock, and the padlock is never offered on one;
       // storing it would pin the frame for the teacher too. No `rot` either:
       // a photo is drawn flat, as a picture is.
+    };
+  }
+
+  if (o.type === "link") {
+    // The address is checked again here, on the server, whatever the builder
+    // said. One that fails is dropped with its object: a link box with no
+    // address is not a thing to keep.
+    const parsed = parseTeacherLink(o.href);
+    if (!parsed.ok) return null;
+    const w = clamp(num(o.w, LINK_DEFAULT_W), MIN_LINK_W, OBJ_W);
+    const h = clamp(num(o.h, LINK_DEFAULT_H), MIN_LINK_H, OBJ_H);
+    const label = tidyLinkLabel(o.label);
+    return {
+      id,
+      type: "link",
+      x,
+      y,
+      w,
+      h,
+      href: parsed.href,
+      ...(label ? { label } : {}),
+      // No `locked` (fixed for a child by what it is, like a frame) and no
+      // `rot`: a link reads level or not at all.
     };
   }
 

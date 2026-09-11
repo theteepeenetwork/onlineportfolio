@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Icon, type IconName } from "./icons/Icon";
 import { ShapeThumb } from "./canvas/ShapeThumb";
 import { PenArt, PenFan, PlusFan, type PlusItem, type PlusOption } from "./canvas/Fan";
@@ -56,6 +56,17 @@ import {
   FRAME_DEFAULT_W,
   FRAME_DEFAULT_H,
   FRAME_PHOTO_MAX_PX,
+  LINK_DEFAULT_H,
+  LINK_DEFAULT_W,
+  LINK_LABEL_REFUSAL_COPY,
+  LINK_REFUSAL_COPY,
+  MAX_LINK_LABEL_LEN,
+  MIN_LINK_H,
+  MIN_LINK_W,
+  displayHost,
+  linkLabelNamesUpload,
+  parseTeacherLink,
+  tidyLinkLabel,
   rotateStepFor,
   wrapRotation,
   type CanvasObj,
@@ -63,7 +74,8 @@ import {
 import { studentCopyNeutral } from "@/lib/copy/student";
 import { CameraDialog } from "./camera/CameraDialog";
 import { isStorableImageType } from "@/lib/imageTypes";
-import { readAloudOnDevice } from "@/lib/readAloud";
+import { quizPreviewLayout } from "@/lib/quizPreviewLayout";
+import { readAloud, readAloudOnDevice } from "@/lib/readAloud";
 import { useOnDeviceVoiceReady } from "@/lib/useSpeechReady";
 import {
   detailStrokeWidth,
@@ -106,6 +118,15 @@ import {
 // drawing free of the question boxes and the compositing tests untouched.
 function cloneQuestions(qs: QuizQuestion[]): QuizQuestion[] {
   return qs.map((q) => ({ ...q, options: q.options.map((o) => ({ ...o })) }));
+}
+
+// Which pages were added, read back from a stored draft. Anything other than
+// one flag per page reads as "none were": a cross on a teacher's template page
+// is the failure to avoid, and a cross missing from a child's own page is only
+// a missing shortcut — the page is still theirs to wipe clean.
+function addedFlags(raw: unknown, n: number): boolean[] {
+  if (!Array.isArray(raw) || raw.length !== n) return Array.from({ length: n }, () => false);
+  return raw.map((v) => v === true);
 }
 
 // ONE palette, everywhere a colour is offered: the pen fan, the object bar's
@@ -209,8 +230,9 @@ const MAX_HISTORY = 12;
 const IMAGE_LOAD_BUDGET_MS = 30_000;
 
 // A quiz box is born at this size, and its contents are designed at it: the
-// type sizes below are "at QUIZ_W × QUIZ_H". A resized box scales its contents
-// from these, so they're the maximum rather than a fixed size.
+// type sizes below are "at QUIZ_W". A narrowed box scales its contents down
+// from these, so they're the maximum rather than a fixed size. The height is
+// only where a new box starts: the card then follows its content.
 const QUIZ_W = 380;
 const QUIZ_H = 300;
 // How much a question box grows for each answer added, and shrinks for each
@@ -525,8 +547,51 @@ type FrameObj = ObjLock & {
   alt?: string;
   label?: string;
 };
-type Obj = ImageObj | ShapeObj | TextObj | FrameObj;
-type HistoryEntry = { img: string; objects: Obj[] };
+// Mirrors LinkObj in src/lib/canvasObjects.ts (SAFEGUARDING rule 26). A box
+// naming a website the teacher chose; on a child's canvas it is pressed through
+// LinkTapLayer, which reads the address from the teacher's snapshot and never
+// from this object.
+type LinkObj = ObjLock & {
+  id: string;
+  type: "link";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  href: string;
+  label?: string;
+};
+type Obj = ImageObj | ShapeObj | TextObj | FrameObj | LinkObj;
+// `seq` orders an entry against the page actions below, which live on a stack
+// of their own: undo takes whichever is newest, across every page.
+type HistoryEntry = { img: string; objects: Obj[]; seq?: number };
+
+// A page lifted out whole, so that it can be put back exactly. Every per-page
+// array holds one entry for it, its questions carry their own page index, and
+// it keeps its own undo history: dropping that history would let a later undo
+// take away a page that still had a drawing on it nobody had undone.
+type PageSnapshot = {
+  page: string;
+  template: string | null;
+  objects: Obj[];
+  composite: string;
+  preview: string;
+  thumb: string;
+  added: boolean;
+  questions: QuizQuestion[];
+  history: HistoryEntry[];
+};
+// Something done to the pages rather than on one. There is no redo for these:
+// redo replays the step just undone, and a page action is the rarer thing to
+// regret undoing than the stroke a child is chasing.
+//
+// Each carries what it takes to go back to the page the person was on:
+// `from` for the three that make or move a page.
+type PageAction =
+  | { kind: "delete"; seq: number; index: number; snap: PageSnapshot }
+  | { kind: "add"; seq: number; index: number; from: number }
+  | { kind: "copy"; seq: number; index: number; from: number }
+  | { kind: "move"; seq: number; from: number; to: number };
 
 // One cap, in one place, for both stacks. The redo stack used to be uncapped,
 // which is not a smaller stack — an undo pushes the page onto it, so undoing
@@ -547,7 +612,102 @@ function minObjSize(o: Obj): { w: number; h: number } {
     return { w: m, h: m };
   }
   if (o.type === "frame") return { w: MIN_FRAME_W, h: MIN_FRAME_H };
+  if (o.type === "link") return { w: MIN_LINK_W, h: MIN_LINK_H };
   return { w: 24, h: 24 };
+}
+
+// A web link, drawn into a page picture: the same chip the screen shows, at the
+// same model-unit sizes, so a child's hand-in shows the link they worked beside.
+// Only fixed shapes and the two strings — the teacher's label and the real host
+// — and both are drawn as text, never interpreted.
+const LINK_PAD = 16;
+const LINK_ICON = 44;
+// The chip's words, in model units: what is left of its width once the padding,
+// the round badge and the gap beside it are taken out.
+function linkTextRoom(o: { w: number }) {
+  return Math.max(10, o.w - (LINK_PAD * 3 + LINK_ICON));
+}
+function linkFont(weight: number, px: number) {
+  return `${weight} ${px}px ${FONT_STACK}`;
+}
+
+// A host too long for the room it has, shortened from the LEFT with an
+// ellipsis, so the end of it — the part that says who owns it — is always what
+// shows (rule 26). "bbc.co.uk.evil-site.example.com" cut from the right reads
+// "bbc.co.uk.evi…", which is the one reading a host must never have. Measured
+// with the font it is drawn in, in model units, so the screen and the hand-in
+// picture shorten it by the same rule.
+let hostMeasure: CanvasRenderingContext2D | null | undefined;
+function fitHostFromLeft(host: string, font: string, room: number): string {
+  if (typeof document === "undefined") return host;
+  if (hostMeasure === undefined) hostMeasure = document.createElement("canvas").getContext("2d");
+  const m = hostMeasure;
+  if (!m) return host;
+  m.font = font;
+  const fits = (s: string) => m.measureText(s).width <= room;
+  if (fits(host)) return host;
+  // Whole parts first, so the cut falls at a dot — "…evil-site.example.com"
+  // rather than "…k.homework.evil-site.example.com" — keeping at least the
+  // last two parts, which are the ones that say who owns it.
+  const parts = host.replace(/^…/, "").split(".");
+  for (let i = 1; i < parts.length - 1; i++) {
+    const s = `…${parts.slice(i).join(".")}`;
+    if (fits(s)) return s;
+  }
+  // Too narrow even for that: letters from the end, never starting on a dot
+  // (an ellipsis followed by a dot reads as four dots).
+  for (let keep = host.length - 1; keep > 1; keep--) {
+    const s = `…${host.slice(host.length - keep).replace(/^\./, "")}`;
+    if (fits(s)) return s;
+  }
+  return `…${host.slice(-1)}`;
+}
+
+function drawLinkChip(ec: CanvasRenderingContext2D, o: LinkObj) {
+  const host = displayHost(o.href);
+  ec.save();
+  ec.beginPath();
+  ec.roundRect(o.x, o.y, o.w, o.h, 18);
+  ec.fillStyle = "#FFFDF7";
+  ec.fill();
+  ec.lineWidth = 3;
+  ec.strokeStyle = "#22304A";
+  ec.stroke();
+  // The round badge the chain sits in.
+  const cx = o.x + LINK_PAD + LINK_ICON / 2;
+  const cy = o.y + o.h / 2;
+  ec.beginPath();
+  ec.arc(cx, cy, LINK_ICON / 2, 0, Math.PI * 2);
+  ec.fillStyle = "#D8ECE8";
+  ec.fill();
+  ec.lineWidth = 2.5;
+  ec.stroke();
+  ec.lineCap = "round";
+  ec.beginPath();
+  ec.moveTo(cx - 6, cy + 6);
+  ec.lineTo(cx + 6, cy - 6);
+  ec.stroke();
+  const tx = o.x + LINK_PAD * 2 + LINK_ICON;
+  const room = linkTextRoom(o);
+  ec.fillStyle = "#22304A";
+  ec.textAlign = "left";
+  ec.textBaseline = "middle";
+  // `room` is passed to fillText as well, as a last resort: if a font has not
+  // finished loading and measures differently, the words are squeezed rather
+  // than spilling past the chip.
+  if (o.label) {
+    ec.font = linkFont(600, 22);
+    ec.fillText(o.label, tx, cy - 13, room);
+    const font = linkFont(400, 18);
+    ec.font = font;
+    ec.fillStyle = "#4A5670";
+    ec.fillText(fitHostFromLeft(host, font, room), tx, cy + 14, room);
+  } else {
+    const font = linkFont(600, 22);
+    ec.font = font;
+    ec.fillText(fitHostFromLeft(host, font, room), tx, cy, room);
+  }
+  ec.restore();
 }
 
 // Crop a captured photo to the frame's proportion, about its centre, capped on
@@ -598,8 +758,6 @@ export function DrawingCanvas({
   title,
   subtitle,
   teacherNote,
-  withCaption = false,
-  captionLabel = "Add a caption",
   hearItLabel,
   onClose,
   closeLabel,
@@ -616,7 +774,7 @@ export function DrawingCanvas({
   getExtraDraftFields,
   onRestoreFields,
   confirmSubmit = false,
-  allowPageDelete = true,
+  pageDelete = "added",
   allowPageStructure = false,
   resumeMode,
   kits = BASE_KITS,
@@ -633,16 +791,12 @@ export function DrawingCanvas({
    * button — see TeacherNote for why that button is conditional.
    */
   teacherNote?: string;
-  withCaption?: boolean;
-  /**
-   * The words above the caption box. A visible label, not a placeholder:
-   * placeholder text vanishes the moment a child taps the box, taking the
-   * instruction away exactly when they need it, and a screen reader was given
-   * nothing at all. Child surfaces pass their own register's wording
-   * (`studentCopy(mode).add.captionLabel`); the default is for the teacher's
-   * preview.
-   */
-  captionLabel?: string;
+  // There is no caption box on this canvas, for a child or a teacher's
+  // preview of one (owner's call, 2026-09-10, on a teacher's feedback). It sat
+  // on the page itself, over the drawing, and a child answering a worksheet
+  // does not caption it: the activity's title is what names that work (see
+  // `momentTitle`). A free drawing is "My drawing" in the jar. Photos and
+  // voice notes keep their caption, which lives beside the work, not on it.
   /**
    * Set on a CHILD's response for a register that cannot read yet, and it puts
    * a listen button on the quiz question. The string is the child's own "hear
@@ -683,14 +837,22 @@ export function DrawingCanvas({
   // opens a "ready to hand in?" confirmation first — so a child can't submit an
   // activity with a single tap before working through all the pages.
   confirmSubmit?: boolean;
-  // Whether the "Delete page" control is offered. Pupils answering an assigned
-  // activity get `false` so they can't remove the teacher's template pages.
-  allowPageDelete?: boolean;
-  // Whether the pages themselves can be RESTRUCTURED — copied and reordered.
-  // Separate from deleting one, and off unless asked for: a child's page count
-  // is the shape of what they hand in, and copying pages of somebody else's
-  // worksheet is not something they need. Only the template builder turns it
-  // on (rule 8, deny by default).
+  // Which pages may be thrown away. "added" — the default, and what a child
+  // gets — is only the pages added on this canvas: a teacher's template pages
+  // are the worksheet, and the shape of what comes back. "any" is the template
+  // builder, where the pages are the teacher's own to design. A default that
+  // offers less is the safe one to forget (rule 8).
+  //
+  // The same answer decides which pages may be MOVED (owner decision,
+  // 2026-09-10, F76): under "added" a child slides only their own pages, to
+  // anywhere, and the teacher's stay in the order the teacher set.
+  pageDelete?: "any" | "added";
+  // Whether the pages themselves can be RESTRUCTURED — copied, and moved from
+  // the right-click menu. Who may slide which page is `pageDelete`'s answer,
+  // not this one (F76). Separate from deleting one, and off unless asked for:
+  // a child's page count is the shape of what they hand in, and copying pages
+  // of somebody else's worksheet is not something they need. Only the template
+  // builder turns it on (rule 8, deny by default).
   allowPageStructure?: boolean;
   // Which toolbox kits the ＋ fan offers. A LIST rather than a flag per kit, so
   // a new kit needs no new prop and no call-site edit. Defaults to the smallest
@@ -773,6 +935,14 @@ export function DrawingCanvas({
   // every page operation, because a thumbnail left behind by a move or a delete
   // is a page showing another page's picture.
   const thumbRef = useRef<string[]>([]);
+  // Whether each page was ADDED on this canvas, rather than arriving as one of
+  // a template's pages. It is what decides which pages a child may throw away
+  // (see `pageDelete`), so it travels with its page through every page
+  // operation and survives a restore — from the device's own copy as
+  // `DraftCanvasV1.added`, and from the server copy as the `addedPages` field.
+  // Missing means false: a page nobody can vouch for gets no cross.
+  const addedRef = useRef<boolean[]>([]);
+  const [added, setAdded] = useState<boolean[]>([]);
   const imgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const objIdRef = useRef(0);
   const currentRef = useRef(0);
@@ -788,11 +958,6 @@ export function DrawingCanvas({
   const serverContext = draftSurface === "template-new" ? "tmpl-new" : (draftKey?.split(":")[1] ?? "");
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const serverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const captionRef = useRef<HTMLInputElement>(null);
-  // The caption's label needs an id to point at. Generated rather than fixed:
-  // one full-screen canvas mounts at a time today, so a constant would work —
-  // and would break the label association SILENTLY on the day two do.
-  const captionId = useId();
   const [draftPrompt, setDraftPrompt] = useState<DraftCanvasV1 | null>(null);
   const [draftSource, setDraftSource] = useState<"local" | "server">("local");
   const draftFieldsRef = useRef<Record<string, string> | null>(null); // fields from a pending restore
@@ -822,6 +987,19 @@ export function DrawingCanvas({
   // Undo / redo: per page, a stack of { drawing layer, objects } snapshots.
   const undoRef = useRef<Record<number, HistoryEntry[]>>({});
   const redoRef = useRef<Record<number, HistoryEntry[]>>({});
+  // What has been done to the pages themselves, newest last. Undo checks it
+  // first, and takes from it when its newest action is newer than every step
+  // on every page (`pageActionIsNext`). Deleting a page used to clear all the
+  // history instead, which made "Undo brings it back" untrue.
+  const pageUndoRef = useRef<PageAction[]>([]);
+  // The clock both kinds of undo step are stamped from.
+  const seqRef = useRef(0);
+  // Whether a page action has happened in this session: a page thrown away and
+  // put back again has still been worked on (see `hasUserEdits`).
+  const pageEditedRef = useRef(false);
+  // The last repaint of the page on screen, settled. A page action waits for
+  // it (see `undo`).
+  const settleRef = useRef<Promise<unknown>>(Promise.resolve());
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -860,6 +1038,11 @@ export function DrawingCanvas({
   // Which photo frame the camera is open for, and on which page — a photo that
   // arrives after the page changed under it is dropped rather than misfiled.
   const [captureFrame, setCaptureFrame] = useState<{ id: string; page: number } | null>(null);
+  // Whether the start-up below has finished: the worksheet loaded, the pages
+  // built. Every page action waits for it. The page tray sits above the
+  // "Loading…" veil, and a page added in that moment was overwritten when the
+  // start-up finished behind it — kept, but no longer the child's own, and
+  // with the page on screen and the page being drawn on out of step.
   const [ready, setReady] = useState(false);
   // "Ready to hand in?" confirmation (child submit only — see confirmSubmit).
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
@@ -1133,8 +1316,27 @@ export function DrawingCanvas({
     );
   }
   function refreshUndoRedo() {
-    setCanUndo((undoRef.current[currentRef.current]?.length ?? 0) > 0);
+    setCanUndo((undoRef.current[currentRef.current]?.length ?? 0) > 0 || pageActionIsNext());
     setCanRedo((redoRef.current[currentRef.current]?.length ?? 0) > 0);
+  }
+  // The newest step anywhere in the per-page history. Each stack is pushed in
+  // time order, so its top is its newest.
+  function newestStepSeq(): number {
+    let newest = 0;
+    for (const stack of Object.values(undoRef.current)) {
+      const top = stack?.[stack.length - 1];
+      if (top?.seq && top.seq > newest) newest = top.seq;
+    }
+    return newest;
+  }
+  // Is the next undo a page action? Only when it is newer than every step on
+  // every page, so undoing a page can never skip past a drawing made after it.
+  function pageActionIsNext(): boolean {
+    const action = pageUndoRef.current[pageUndoRef.current.length - 1];
+    return !!action && action.seq > newestStepSeq();
+  }
+  function refreshAdded() {
+    setAdded([...addedRef.current]);
   }
   function refreshThumbs() {
     setThumbs([...thumbRef.current]);
@@ -1270,6 +1472,8 @@ export function DrawingCanvas({
           ec.strokeRect(o.x + 2, o.y + 2, o.w - 4, o.h - 4);
           ec.restore();
         }
+      } else if (o.type === "link") {
+        drawLinkChip(ec, o);
       } else {
         // text
         ec.save();
@@ -1376,43 +1580,42 @@ export function DrawingCanvas({
       const k = Math.min(1, q.w / QUIZ_W);
       const px = (n: number) => n * k;
       const txt = (n: number) => Math.max(15, px(n));
-      const pad = px(14);
+      // Where everything goes — and the box as tall as what is in it, not the
+      // stored `q.h`. See quizPreviewLayout.ts for how that left an answer
+      // outside its own box. The question is wrapped by the same helper the
+      // shape labels use, to the width alone: the card grows for a long
+      // question rather than shrinking it, so neither does the picture.
+      const promptPx = txt((q.prompt || "").length > 40 ? 16 : 20);
+      const { box, prompt, options } = quizPreviewLayout(q, k, H, (maxW) =>
+        fitTextToBox(q.prompt || "", maxW, H, promptPx),
+      );
       ec.save();
       // The box.
       ec.beginPath();
-      ec.roundRect(q.x, q.y, q.w, q.h, px(18));
+      ec.roundRect(box.x, box.y, box.w, box.h, box.r);
       ec.fillStyle = "#FFFDF7";
       ec.fill();
       ec.lineWidth = Math.max(1, px(3));
       ec.strokeStyle = "#22304A";
       ec.stroke();
 
-      // The question, wrapped by the same helper the shape labels use.
-      const promptPx = txt((q.prompt || "").length > 40 ? 16 : 20);
-      const fitted = fitTextToBox(q.prompt || "", q.w - pad * 2, q.h * 0.5, promptPx);
+      // The question.
       ec.fillStyle = "#22304A";
       ec.textAlign = "center";
       ec.textBaseline = "top";
-      ec.font = `600 ${fitted.fontPx}px ${FONT_STACK}`;
-      fitted.lines.forEach((line, i) =>
-        ec.fillText(line, q.x + q.w / 2, q.y + px(12) + i * fitted.lineHeight),
+      ec.font = `600 ${prompt.fontPx}px ${FONT_STACK}`;
+      prompt.lines.forEach((line, i) =>
+        ec.fillText(line, box.x + box.w / 2, prompt.top + i * prompt.lineHeight),
       );
 
-      // The answers, in the same one- or two-column grid the box uses.
-      // One answer a row, as pills — the design's card, and the same shape a
-      // child tapped.
-      const top = q.y + px(12) + Math.max(fitted.lines.length, 1) * fitted.lineHeight + px(10);
-      const gap = px(6);
-      const rows = q.options.length;
-      const cw = q.w - pad * 2;
-      const chB = Math.max(px(64), 44);
+      // The answers. One answer a row, as pills — the design's card, and the
+      // same shape a child tapped.
       const dot = px(24);
       ec.font = `700 ${Math.min(promptPx - 2, txt(18))}px ${FONT_STACK}`;
       ec.textBaseline = "middle";
       ec.textAlign = "left";
       q.options.forEach((o, i) => {
-        const cx = q.x + pad;
-        const cy = top + i * (chB + gap);
+        const { x: cx, y: cy, w: cw, h: chB } = options[i];
         const picked = answersRef.current.get(q.id) === o.id;
         ec.beginPath();
         ec.roundRect(cx, cy, cw, chB, chB / 2);
@@ -1472,6 +1675,14 @@ export function DrawingCanvas({
       }
       syncPageImages(i);
     }
+    publishHidden();
+  }
+
+  // Tell the form (and the autosave) what the pages are now, without drawing
+  // anything. A page operation has already moved every page's composite into
+  // place; re-rendering the one on screen straight after it would read a stroke
+  // layer whose repaint is still in flight.
+  function publishHidden() {
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
     }
@@ -1522,7 +1733,17 @@ export function DrawingCanvas({
   // Build a canvas draft from server composite pages (the owner's /uploads
   // paths): each composite becomes a page background with a blank stroke layer.
   // Composite fidelity — enough to resume on another device via hydrateFromDraft.
-  function serverPagesToCanvas(pages: string[]): DraftCanvasV1 {
+  //
+  // Every page comes back as a background, so on its own this copy would mark
+  // every page a template page and none would have a cross. Which pages were
+  // added rides along in the draft's fields for exactly that reason.
+  function serverPagesToCanvas(pages: string[], fields?: Record<string, string>): DraftCanvasV1 {
+    let added: unknown = undefined;
+    try {
+      added = fields?.addedPages ? JSON.parse(fields.addedPages) : undefined;
+    } catch {
+      /* unreadable: no page gets a cross */
+    }
     return {
       v: 1,
       pages: pages.map(() => ""),
@@ -1531,13 +1752,15 @@ export function DrawingCanvas({
       current: 0,
       anyDrawn: true,
       nextObjId: 0,
+      added: addedFlags(added, pages.length),
     };
   }
 
   function collectFields(): Record<string, string> {
-    const fields = { ...(getExtraDraftFields?.() ?? {}) };
-    if (withCaption && captionRef.current) fields.caption = captionRef.current.value;
-    return fields;
+    return {
+      ...(getExtraDraftFields?.() ?? {}),
+      addedPages: JSON.stringify(addedRef.current),
+    };
   }
 
   async function doPersist() {
@@ -1567,6 +1790,7 @@ export function DrawingCanvas({
       current: currentRef.current,
       anyDrawn: anyDrawnRef.current,
       nextObjId: objIdRef.current,
+      added: [...addedRef.current],
     };
   }
 
@@ -1578,8 +1802,15 @@ export function DrawingCanvas({
     const c = ctx();
     templatesRef.current = [...canvas.templates];
     pagesRef.current = [...canvas.pages];
-    objectsRef.current = (canvas.objects as Obj[][]).map((pg) => pg.map((o) => ({ ...o })));
+    // A draft is the child's device's copy, and the child's to change; its web
+    // links are put back to the teacher's before anything draws them (rule 26).
+    objectsRef.current = withTeacherLinks(
+      (canvas.objects as Obj[][]).map((pg) => pg.map((o) => ({ ...o }))),
+    );
+    addedRef.current = addedFlags(canvas.added, pagesRef.current.length);
     anyDrawnRef.current = canvas.anyDrawn;
+    // Before anything is drawn: the pictures of each page carry its questions.
+    placeQuestionsOnTeacherPages();
 
     // Next object id: never collide with a restored `o<n>` id.
     let maxId = canvas.nextObjId - 1;
@@ -1644,17 +1875,47 @@ export function DrawingCanvas({
     }
     undoRef.current = {};
     redoRef.current = {};
+    pageUndoRef.current = [];
     strokeDirtyRef.current = false; // the canvas holds exactly what was restored
     setPageCount(pagesRef.current.length);
+    refreshAdded();
     setCurrent(currentRef.current);
     setObjects(objectsRef.current[currentRef.current] ?? []);
     setThumbs([...thumbRef.current]);
+    setQuizQuestions([...quizRef.current]);
     refreshUndoRedo();
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
     }
     flushPreviewField();
     loadingRef.current = false;
+  }
+
+  // Put each quiz question back on the teacher's page it belongs to, after a
+  // restore.
+  //
+  // A draft keeps the pages in the child's order but not the questions: those
+  // come from the teacher's copy, and name their page by the TEACHER'S
+  // numbering. A child who put a page of their own in front of a question's
+  // page, and came back to it, found the question on their own blank page.
+  //
+  // On a child's canvas the teacher's pages are never moved among themselves
+  // (F76) and never thrown away, so the teacher's page k is the k-th page the
+  // child did not add, wherever their own pages were put. A draft that cannot
+  // say which pages were added marks none, and every question stays where the
+  // teacher put it — what happened before. The builder is left alone: there
+  // the questions are the teacher's own, being written.
+  function placeQuestionsOnTeacherPages() {
+    if (pageDelete !== "added") return;
+    const teacherPages: number[] = [];
+    addedRef.current.forEach((a, i) => {
+      if (!a) teacherPages.push(i);
+    });
+    const theirs = new Map((initialQuiz?.questions ?? []).map((q) => [q.id, q.pageIndex]));
+    quizRef.current = quizRef.current.map((q) => {
+      const k = theirs.get(q.id) ?? q.pageIndex;
+      return { ...q, pageIndex: teacherPages[k] ?? k };
+    });
   }
 
   // The stroke layer as it is right now, as a string.
@@ -1679,6 +1940,7 @@ export function DrawingCanvas({
     pushCapped((undoRef.current[currentRef.current] ??= []), {
       img: currentStrokeSnapshot(),
       objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
+      seq: ++seqRef.current,
     });
     redoRef.current[currentRef.current] = [];
     refreshUndoRedo();
@@ -1716,16 +1978,21 @@ export function DrawingCanvas({
         templatesRef.current = [null];
         pagesRef.current = [blankStroke];
       }
+      // A template's pages are the worksheet; a blank canvas's first page is
+      // the child's own, as much as any page they add after it.
+      addedRef.current = background && background.length ? background.map(() => false) : [true];
       currentRef.current = 0;
 
       // Hydrate the template's movable objects (per page). In "answer" mode they
       // are marked fromTemplate so a child's lock rules apply; a plain drawing
       // canvas (no initialObjects) starts empty.
-      const seededObjects: Obj[][] = pagesRef.current.map((_, i) => {
-        const page = initialObjects?.[i];
-        if (!Array.isArray(page)) return [];
-        return page.map((o) => ({ ...(o as Obj), fromTemplate: !isObjectAuthor }));
-      });
+      const seededObjects: Obj[][] = withTeacherLinks(
+        pagesRef.current.map((_, i) => {
+          const page = initialObjects?.[i];
+          if (!Array.isArray(page)) return [];
+          return page.map((o) => ({ ...(o as Obj), fromTemplate: !isObjectAuthor }));
+        }),
+      );
       objectsRef.current = seededObjects;
 
       // Never collide a freshly-added object id with a hydrated one.
@@ -1743,6 +2010,7 @@ export function DrawingCanvas({
       await ensureObjectImages(seededObjects.flat());
 
       setPageCount(pagesRef.current.length);
+      refreshAdded();
 
       // Initial composite per page: white + template, plus the objects flattened
       // in (except while authoring — there objects stay a separate layer).
@@ -1840,6 +2108,7 @@ export function DrawingCanvas({
       // unmounts, so nothing here is still needed by anything.
       undoRef.current = {};
       redoRef.current = {};
+      pageUndoRef.current = [];
       pagesRef.current = [];
       compositeRef.current = [];
       previewRef.current = [];
@@ -1852,13 +2121,18 @@ export function DrawingCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Has the person changed anything in this session? Every user edit goes through
-  // pushHistory(), so a non-empty undo stack is the canvas's own record of "there
-  // is work here now". hydrateFromDraft clears the stacks, so a restore does not
-  // count as an edit. Used to make sure a late cross-device draft never opens a
-  // dialog over work in progress.
+  // Has the person changed anything in this session? Every edit ON a page goes
+  // through pushHistory(), so a non-empty undo stack is the canvas's own record
+  // of "there is work here now"; an edit TO the pages — adding, copying, moving
+  // or throwing one away — counts too, and is remembered separately because
+  // undoing it empties the stack it was on. hydrateFromDraft clears the stacks,
+  // so a restore does not count as an edit. Used to make sure a late
+  // cross-device draft never opens a dialog over work in progress.
   function hasUserEdits(): boolean {
-    return Object.values(undoRef.current).some((stack) => (stack?.length ?? 0) > 0);
+    return (
+      pageEditedRef.current ||
+      Object.values(undoRef.current).some((stack) => (stack?.length ?? 0) > 0)
+    );
   }
 
   // Restore-on-mount: once the canvas is ready, offer any saved draft. Gated so
@@ -1907,7 +2181,7 @@ export function DrawingCanvas({
         // Work happened on another device (a same-fidelity composite).
         draftFieldsRef.current = server.fields ?? {};
         setDraftSource("server");
-        chosen = serverPagesToCanvas(server.pages);
+        chosen = serverPagesToCanvas(server.pages, server.fields);
       } else if (local?.canvas) {
         draftFieldsRef.current = local.fields ?? {};
         setDraftSource("local");
@@ -1955,7 +2229,7 @@ export function DrawingCanvas({
           if (restoreDecidedRef.current || hasUserEdits()) return;
           draftFieldsRef.current = late.fields ?? {};
           setDraftSource("server");
-          const upgraded = serverPagesToCanvas(late.pages);
+          const upgraded = serverPagesToCanvas(late.pages, late.fields);
           if (resumeMode === "continue") void applyRestore(upgraded);
           else setDraftPrompt(upgraded);
         });
@@ -1973,12 +2247,7 @@ export function DrawingCanvas({
     restoreDecidedRef.current = true;
     await hydrateFromDraft(canvas);
     const f = draftFieldsRef.current;
-    if (f) {
-      onRestoreFields?.(f);
-      if (withCaption && captionRef.current && typeof f.caption === "string") {
-        captionRef.current.value = f.caption;
-      }
-    }
+    if (f) onRestoreFields?.(f);
     draftFieldsRef.current = null;
     // Push the restored session back so the local + server copies converge.
     if (draftingEnabled) flushServerSync();
@@ -2143,7 +2412,7 @@ export function DrawingCanvas({
     clearCanvas();
     if (!dataUrl) return Promise.resolve();
     loadingRef.current = true;
-    return loadImage(dataUrl)
+    const painted = loadImage(dataUrl)
       .then((img) => {
         const c = ctx();
         if (c) c.drawImage(img, 0, 0, W, H);
@@ -2155,6 +2424,8 @@ export function DrawingCanvas({
       .finally(() => {
         loadingRef.current = false;
       });
+    settleRef.current = painted;
+    return painted;
   }
 
   function loadPage(index: number) {
@@ -2166,15 +2437,26 @@ export function DrawingCanvas({
     setObjects([...entry.objects]);
     // The images too: undoing a retake must composite the photo that was
     // there before, not the one the cache was last told about.
-    void Promise.all([paintDataUrl(entry.img), ensureObjectImages(entry.objects)]).then(() => {
+    const done = Promise.all([paintDataUrl(entry.img), ensureObjectImages(entry.objects)]).then(() => {
       pagesRef.current[currentRef.current] = entry.img;
       syncHidden();
       refreshThumbs();
       refreshUndoRedo();
     });
+    settleRef.current = done;
   }
 
   function undo() {
+    if (pageActionIsNext()) {
+      // Once the page on screen has finished repainting from the step before.
+      // That repaint writes its strokes back to `pagesRef` when it lands, and
+      // a page moved or taken away under it would have them written onto the
+      // wrong page. The wait is a few milliseconds; the press is not lost.
+      void settleRef.current.then(() => {
+        if (pageActionIsNext() && !loadingRef.current) undoPageAction();
+      });
+      return;
+    }
     const stack = undoRef.current[currentRef.current];
     if (!stack || !stack.length) return;
     pushCapped((redoRef.current[currentRef.current] ??= []), {
@@ -2188,15 +2470,19 @@ export function DrawingCanvas({
   function redo() {
     const stack = redoRef.current[currentRef.current];
     if (!stack || !stack.length) return;
+    // A redo is a step taken now, so it is stamped now: newer than any page
+    // action before it.
     pushCapped((undoRef.current[currentRef.current] ??= []), {
       img: currentStrokeSnapshot(),
       objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
+      seq: ++seqRef.current,
     });
     setSelectedId(null);
     restore(stack.pop()!);
   }
 
   function goToPage(index: number) {
+    if (!ready) return;
     if (index < 0 || index >= pagesRef.current.length || index === currentRef.current) return;
     finishEditing();
     setCaptureFrame(null);
@@ -2209,21 +2495,152 @@ export function DrawingCanvas({
     refreshUndoRedo();
   }
 
+  // ---- Pages, and putting them back -----------------------------------------
+  //
+  // A page is not one thing. It is an entry in seven parallel arrays (strokes,
+  // background, objects, composite, preview, thumbnail, and whether it was
+  // added), a set of quiz questions that know which page they are on BY INDEX,
+  // and its own undo history, keyed by index too. Every page operation moves
+  // all of them together through the primitives below, so none of them can
+  // move six and hand in wrong.
+
+  // Re-key the per-page undo history after pages have moved. `to` answers
+  // "where is the page that was at index i now?", or null for a page that has
+  // gone. The redo stacks are dropped: redo replays the step just undone, and
+  // a page action is a new step.
+  function rekeyHistory(to: (i: number) => number | null) {
+    const next: Record<number, HistoryEntry[]> = {};
+    for (const [k, stack] of Object.entries(undoRef.current)) {
+      const n = to(Number(k));
+      if (n !== null && stack) next[n] = stack;
+    }
+    undoRef.current = next;
+    redoRef.current = {};
+  }
+
+  // Lift page i out whole. The caller keeps the snapshot to put back, or lets
+  // it go.
+  function takePage(i: number): PageSnapshot {
+    const snap: PageSnapshot = {
+      page: pagesRef.current[i],
+      template: templatesRef.current[i] ?? null,
+      objects: objectsRef.current[i] ?? [],
+      composite: compositeRef.current[i],
+      preview: previewRef.current[i],
+      thumb: thumbRef.current[i],
+      added: addedRef.current[i] === true,
+      questions: quizRef.current.filter((q) => q.pageIndex === i),
+      history: undoRef.current[i] ?? [],
+    };
+    pagesRef.current.splice(i, 1);
+    templatesRef.current.splice(i, 1);
+    objectsRef.current.splice(i, 1);
+    compositeRef.current.splice(i, 1);
+    previewRef.current.splice(i, 1);
+    thumbRef.current.splice(i, 1);
+    addedRef.current.splice(i, 1);
+    // The page's questions go with it, and every question after it moves up a
+    // page. Without this, throwing away page 2 of 3 in the builder left page
+    // 3's question pointing at a page that no longer existed.
+    quizRef.current = quizRef.current
+      .filter((q) => q.pageIndex !== i)
+      .map((q) => (q.pageIndex > i ? { ...q, pageIndex: q.pageIndex - 1 } : q));
+    rekeyHistory((k) => (k < i ? k : k === i ? null : k - 1));
+    return snap;
+  }
+
+  // Put a page back at index i: takePage, backwards, to the letter.
+  function putPage(i: number, snap: PageSnapshot) {
+    pagesRef.current.splice(i, 0, snap.page);
+    templatesRef.current.splice(i, 0, snap.template);
+    objectsRef.current.splice(i, 0, snap.objects);
+    compositeRef.current.splice(i, 0, snap.composite);
+    previewRef.current.splice(i, 0, snap.preview);
+    thumbRef.current.splice(i, 0, snap.thumb);
+    addedRef.current.splice(i, 0, snap.added);
+    quizRef.current = [
+      ...quizRef.current.map((q) => (q.pageIndex >= i ? { ...q, pageIndex: q.pageIndex + 1 } : q)),
+      ...snap.questions.map((q) => ({ ...q, pageIndex: i })),
+    ];
+    rekeyHistory((k) => (k < i ? k : k + 1));
+    if (snap.history.length) undoRef.current[i] = snap.history;
+    // Its decoded pictures were let go when it went (see deletePageAt), so
+    // they are fetched again, by the ordinary cache-miss path. The page's
+    // composite and thumbnail came back with it, so nothing waits on these.
+    const url = snap.template;
+    if (url && !templateImgRef.current.has(url)) {
+      void loadImage(url)
+        .then((img) => void templateImgRef.current.set(url, img))
+        .catch(() => {});
+    }
+    void ensureObjectImages(snap.objects);
+  }
+
+  // Remember a page action so undo can take it back. Capped like every other
+  // history: the oldest simply stops being undoable.
+  function pushPageAction(action: PageAction) {
+    pageUndoRef.current.push(action);
+    if (pageUndoRef.current.length > MAX_HISTORY) pageUndoRef.current.shift();
+    pageEditedRef.current = true;
+  }
+
+  // Land on a page after the pages have changed under it, and tell everything
+  // that shows them.
+  function showPage(index: number) {
+    currentRef.current = index;
+    setPageCount(pagesRef.current.length);
+    refreshAdded();
+    setCurrent(index);
+    setSelectedId(null);
+    setMultiIds([]);
+    setObjects(objectsRef.current[index] ?? []);
+    setQuizQuestions([...quizRef.current]);
+    refreshThumbs();
+    refreshUndoRedo();
+    // Published before the repaint starts, for two reasons: the field must say
+    // what the pages are NOW, and the autosave is only scheduled while nothing
+    // is loading.
+    publishHidden();
+    loadPage(index);
+  }
+
+  // May this page be thrown away? Asked by the tray, the menu, the inline
+  // button AND by deletePageAt itself, which is where every route ends up.
+  function pageMayGo(i: number): boolean {
+    return pageDelete === "any" || addedRef.current[i] === true;
+  }
+
+  // May this page be moved? The same pages as may go, for the same reason: the
+  // teacher's pages are the worksheet, in the order the teacher set it (owner
+  // decision 2026-09-10, F76). A page the child added may be slid anywhere,
+  // between two of the teacher's included, and that never reorders the
+  // teacher's pages among themselves, because they are never the page that
+  // moves. Asked by the tray and the menu, and by movePageTo itself.
+  function pageMayMove(i: number): boolean {
+    return pageDelete === "any" || addedRef.current[i] === true;
+  }
+
   function addPage() {
+    if (!ready) return;
     finishEditing();
     setCaptureFrame(null);
     syncHidden();
+    const from = currentRef.current;
     clearCanvas();
     const blank = canvasRef.current!.toDataURL("image/png"); // transparent strokes
     pagesRef.current.push(blank);
     templatesRef.current.push(null);
     objectsRef.current.push([]);
+    addedRef.current.push(true);
     const index = pagesRef.current.length - 1;
     currentRef.current = index;
     // White paper, and nothing on it yet — so the preview IS the composite, and
     // the thumbnail comes off the same render.
     syncPageImages(index);
+    // "New page gone" is what the toast promises, so it has to be undoable.
+    pushPageAction({ kind: "add", seq: ++seqRef.current, index, from });
     setPageCount(pagesRef.current.length);
+    refreshAdded();
     setCurrent(index);
     setSelectedId(null);
     setObjects([]);
@@ -2242,13 +2659,8 @@ export function DrawingCanvas({
   // Copied objects and questions get NEW ids. Two objects sharing an id would
   // be one object as far as selection, deletion and the answer map are
   // concerned, so a child editing the copy would silently edit the original.
-  function duplicatePageAt(target: number) {
-    if (target < 0 || target >= pagesRef.current.length) return;
-    finishEditing();
-    setCaptureFrame(null);
-    // Bake the page on screen first, so duplicating a DIFFERENT page never
-    // drops the in-progress work on the one being viewed.
-    syncHidden();
+  // The copy is a page added here, so it can be thrown away again.
+  function copyPage(target: number): number {
     const at = target + 1;
     pagesRef.current.splice(at, 0, pagesRef.current[target]);
     templatesRef.current.splice(at, 0, templatesRef.current[target]);
@@ -2260,6 +2672,7 @@ export function DrawingCanvas({
     compositeRef.current.splice(at, 0, compositeRef.current[target]);
     previewRef.current.splice(at, 0, previewRef.current[target]);
     thumbRef.current.splice(at, 0, thumbRef.current[target]);
+    addedRef.current.splice(at, 0, true);
 
     // A question knows which page it is on by index, so inserting a page moves
     // every question after the insertion up one — and the copied page's own
@@ -2276,46 +2689,29 @@ export function DrawingCanvas({
       ...quizRef.current.map((q) => (q.pageIndex >= at ? { ...q, pageIndex: q.pageIndex + 1 } : q)),
       ...copies,
     ];
-    setQuizQuestions([...quizRef.current]);
-
-    // Page indices shift, so drop the (now-misaligned) history — the same rule
-    // deleting a page follows.
-    undoRef.current = {};
-    redoRef.current = {};
-    currentRef.current = at;
-    setPageCount(pagesRef.current.length);
-    setCurrent(at);
-    setSelectedId(null);
-    setObjects(objectsRef.current[at] ?? []);
-    loadPage(at);
-    anyDrawnRef.current = true;
-    syncHidden();
-    refreshThumbs();
-    refreshUndoRedo();
+    rekeyHistory((k) => (k < at ? k : k + 1));
+    return at;
   }
 
-  // Move a page one place up or down the strip.
-  //
-  // A page is not one thing. It is an entry in five parallel arrays plus a set
-  // of quiz questions that know which page they are on BY INDEX, and a reorder
-  // that moved four of the five would look right and hand in wrong. So this
-  // follows the same order duplicate and delete do, for the same reasons.
-  function movePageBy(index: number, delta: number) {
-    movePageTo(index, index + delta);
+  function duplicatePageAt(target: number) {
+    if (!ready) return;
+    if (target < 0 || target >= pagesRef.current.length) return;
+    finishEditing();
+    setCaptureFrame(null);
+    // Bake the page on screen first, so duplicating a DIFFERENT page never
+    // drops the in-progress work on the one being viewed.
+    syncHidden();
+    const from = currentRef.current;
+    const at = copyPage(target);
+    pushPageAction({ kind: "copy", seq: ++seqRef.current, index: at, from });
+    anyDrawnRef.current = true;
+    showPage(at);
   }
 
   // Move a page to a position, not just past its neighbour. The page tray drags
   // a card several slots at once, and a run of swaps would fire the whole
-  // reorder (and its history reset) once per slot crossed.
-  function movePageTo(index: number, target: number) {
-    if (index === target) return;
-    if (index < 0 || index >= pagesRef.current.length) return;
-    if (target < 0 || target >= pagesRef.current.length) return;
-    finishEditing();
-    // Bake the page on screen first, so reordering from a DIFFERENT page never
-    // drops the in-progress work on the one being viewed.
-    syncHidden();
-
+  // reorder once per slot crossed.
+  function liftPage(index: number, target: number) {
     const lift = <T,>(arr: T[]) => {
       const [item] = arr.splice(index, 1);
       arr.splice(target, 0, item);
@@ -2326,6 +2722,7 @@ export function DrawingCanvas({
     lift(compositeRef.current);
     lift(previewRef.current);
     lift(thumbRef.current);
+    lift(addedRef.current);
 
     // The questions travel with their pages. This is the part a naive reorder
     // silently breaks: the pictures move and the questions stay behind. Every
@@ -2341,74 +2738,111 @@ export function DrawingCanvas({
           ? { ...q, pageIndex: q.pageIndex + step }
           : q,
     );
-    setQuizQuestions([...quizRef.current]);
 
-    // Page indices moved, so drop the (now-misaligned) history — the same rule
-    // duplicate and delete follow.
-    undoRef.current = {};
-    redoRef.current = {};
-    // Stay with the page that moved rather than with the position it left, so
-    // a teacher can press the same button again to keep going.
-    currentRef.current = target;
-    setPageCount(pagesRef.current.length);
-    setCurrent(target);
-    setSelectedId(null);
-    setMultiIds([]);
-    setObjects(objectsRef.current[target] ?? []);
-    loadPage(target);
-    syncHidden();
-    refreshThumbs();
-    refreshUndoRedo();
+    // And each page's history goes where its page went.
+    const order = pagesRef.current.map((_, i) => i);
+    lift(order); // order[now] = where that page was before
+    rekeyHistory((k) => order.indexOf(k));
   }
 
-  // Delete a specific page (by index). Used by the per-thumbnail delete cross,
-  // so it can remove any page — not only the one on screen.
-  function deletePageAt(target: number) {
-    if (pagesRef.current.length <= 1) return;
-    if (target < 0 || target >= pagesRef.current.length) return;
+  // Move a page one place up or down the strip.
+  function movePageBy(index: number, delta: number) {
+    movePageTo(index, index + delta);
+  }
+
+  // Returns whether it moved, so a caller only says it did when it did.
+  function movePageTo(index: number, target: number): boolean {
+    if (!ready || index === target) return false;
+    if (index < 0 || index >= pagesRef.current.length) return false;
+    if (target < 0 || target >= pagesRef.current.length) return false;
+    // Enforced here as well as at the tray and the menu, the way deletePageAt
+    // refuses a teacher's page: the next route to a move cannot forget it.
+    if (!pageMayMove(index)) return false;
+    finishEditing();
+    // Bake the page on screen first, so reordering from a DIFFERENT page never
+    // drops the in-progress work on the one being viewed.
+    syncHidden();
+    liftPage(index, target);
+    pushPageAction({ kind: "move", seq: ++seqRef.current, from: index, to: target });
+    // Stay with the page that moved rather than with the position it left, so
+    // a teacher can press the same button again to keep going.
+    showPage(target);
+    return true;
+  }
+
+  // Throw a page away (by index) — the tray's cross, the page menu and the
+  // inline layout's "Delete page" all end here. Undo puts it back: the drawing,
+  // the pieces on it, its questions and its own history.
+  //
+  // Returns whether it went, so a caller only says it did when it did.
+  function deletePageAt(target: number): boolean {
+    if (!ready || pagesRef.current.length <= 1) return false;
+    if (target < 0 || target >= pagesRef.current.length) return false;
+    // Enforced here as well as at every button: this is the one place that
+    // cannot be forgotten when the next route to it is added (rule 8).
+    if (!pageMayGo(target)) return false;
     finishEditing();
     setCaptureFrame(null);
+    setSelectedQuestionId(null);
     // Bake the page on screen first, so deleting a DIFFERENT page never drops
     // the in-progress work on the page you're currently viewing.
     syncHidden();
     // The decoded pictures that page was holding go with it. Every one is a
     // full-size bitmap kept outside the JavaScript heap, and a lesson spent
     // adding a photo page and throwing it away again kept all of them. If the
-    // deletion is undone the objects come back through `ensureObjectImages`,
-    // which reloads on a cache miss by design.
+    // deletion is undone, `putPage` fetches them again.
     const goneUrl = templatesRef.current[target];
     for (const o of objectsRef.current[target] ?? []) imgCacheRef.current.delete(o.id);
-    pagesRef.current.splice(target, 1);
-    templatesRef.current.splice(target, 1);
-    objectsRef.current.splice(target, 1);
-    compositeRef.current.splice(target, 1);
-    previewRef.current.splice(target, 1);
-    thumbRef.current.splice(target, 1);
+    const snap = takePage(target);
     // A worksheet background is cached by URL and SHARED between pages, so it
     // may only be dropped once no page is still standing on it.
     if (goneUrl && !templatesRef.current.includes(goneUrl)) templateImgRef.current.delete(goneUrl);
-    // Page indices shift, so drop the (now-misaligned) history.
-    undoRef.current = {};
-    redoRef.current = {};
+    pushPageAction({ kind: "delete", seq: ++seqRef.current, index: target, snap });
     // Keep the viewer on the same page where possible: a page removed at or
     // before the current one shifts the current index back by one; a page
     // removed after it leaves the current index alone.
     let index = target <= currentRef.current ? currentRef.current - 1 : currentRef.current;
     index = Math.max(0, Math.min(index, pagesRef.current.length - 1));
-    currentRef.current = index;
-    setPageCount(pagesRef.current.length);
-    setCurrent(index);
-    setSelectedId(null);
-    setObjects(objectsRef.current[index] ?? []);
-    loadPage(index);
-    syncHidden();
-    refreshThumbs();
-    refreshUndoRedo();
+    showPage(index);
+    return true;
   }
 
   // Delete the page currently on screen (the inline layout's "Delete page").
   function deletePage() {
     deletePageAt(currentRef.current);
+  }
+
+  // Take back the newest page action. Only called when it is newer than every
+  // step on every page (`pageActionIsNext`), so nothing done since is lost.
+  function undoPageAction() {
+    const action = pageUndoRef.current.pop();
+    if (!action) return;
+    finishEditing();
+    setCaptureFrame(null);
+    setSelectedQuestionId(null);
+    syncHidden();
+    switch (action.kind) {
+      case "delete":
+        // The page comes back where it was, and the child is taken to it:
+        // what they just asked for is on screen.
+        putPage(action.index, action.snap);
+        showPage(action.index);
+        return;
+      case "add":
+      case "copy": {
+        // Nothing done on the new page since is still standing — undo only
+        // reaches this once every step on it has been undone — so the page
+        // goes exactly as it came, and the person is back where they were.
+        for (const o of objectsRef.current[action.index] ?? []) imgCacheRef.current.delete(o.id);
+        takePage(action.index);
+        showPage(Math.min(action.from, pagesRef.current.length - 1));
+        return;
+      }
+      case "move":
+        liftPage(action.to, action.from);
+        showPage(action.from);
+        return;
+    }
   }
 
   function clearPage() {
@@ -2799,11 +3233,13 @@ export function DrawingCanvas({
       y: at.y,
       items: [
         { label: "Duplicate page", onSelect: () => duplicatePageAt(i) },
-        { label: "Move up", onSelect: () => movePageBy(i, -1), disabled: i === 0 },
+        // Only the builder opens this menu today, where every page may move;
+        // asked anyway, so the menu never offers what movePageTo would refuse.
+        { label: "Move up", onSelect: () => movePageBy(i, -1), disabled: i === 0 || !pageMayMove(i) },
         {
           label: "Move down",
           onSelect: () => movePageBy(i, 1),
-          disabled: i >= pagesRef.current.length - 1,
+          disabled: i >= pagesRef.current.length - 1 || !pageMayMove(i),
         },
       ],
     });
@@ -3039,6 +3475,113 @@ export function DrawingCanvas({
     setFanOpen(false);
     syncHidden();
     refreshThumbs();
+  }
+
+  // A web link (SAFEGUARDING rule 26): the teacher's form, then a chip on the
+  // page. Author-only — the fan button that opens the form is not rendered
+  // anywhere else, and a link is fixed on any canvas that is not the builder.
+  const [linkForm, setLinkForm] = useState<{ id?: string } | null>(null);
+
+  function saveLink(href: string, label: string) {
+    const target = linkForm;
+    setLinkForm(null);
+    // Checked again here, not trusted from the form: the builder and the
+    // server share one validator, and this is the builder's copy of it.
+    const parsed = parseTeacherLink(href);
+    if (!parsed.ok || !isObjectAuthor) return;
+    const tidy = tidyLinkLabel(label) ?? "";
+    if (target?.id) {
+      pushHistory();
+      updateObject(target.id, { href: parsed.href, label: tidy || undefined } as Partial<Obj>);
+      syncHidden();
+      refreshThumbs();
+      return;
+    }
+    const list = objectsRef.current[currentRef.current] ?? [];
+    if (list.length >= MAX_OBJECTS_PER_PAGE) return;
+    finishEditing();
+    pushHistory();
+    const id = `o${objIdRef.current++}`;
+    const obj: LinkObj = {
+      id,
+      type: "link",
+      x: placeX(LINK_DEFAULT_W),
+      y: (H - LINK_DEFAULT_H) / 2,
+      w: LINK_DEFAULT_W,
+      h: LINK_DEFAULT_H,
+      href: parsed.href,
+      ...(tidy ? { label: tidy } : {}),
+    };
+    objectsRef.current[currentRef.current] = [...list, obj];
+    setObjects(objectsRef.current[currentRef.current]);
+    anyDrawnRef.current = true;
+    setSelectedId(id);
+    setTool("cursor");
+    syncHidden();
+    refreshThumbs();
+  }
+
+  // The link a child has pressed, waiting on the "leaving StoryJar" card.
+  const [leaving, setLeaving] = useState<{ href: string; host: string } | null>(null);
+
+  // The links a child may press: only those that arrived in the teacher's
+  // snapshot of the activity, keyed by id, with the address as the teacher
+  // saved it. Whatever a child's device holds — a restored draft, an object
+  // state that has been meddled with — can place a chip on the page, and can
+  // never make one open. Re-checked with the same validator on the way in.
+  const teacherLinks = useMemo(() => {
+    const byId = new Map<string, { href: string; host: string; label?: string; obj: LinkObj }>();
+    for (const page of initialObjects ?? []) {
+      if (!Array.isArray(page)) continue;
+      for (const raw of page) {
+        const o = raw as Partial<LinkObj> | null;
+        if (!o || o.type !== "link" || typeof o.id !== "string") continue;
+        if (byId.has(o.id)) continue;
+        const parsed = parseTeacherLink(o.href);
+        if (!parsed.ok) continue;
+        const label = tidyLinkLabel(o.label);
+        const w = typeof o.w === "number" && Number.isFinite(o.w) ? o.w : LINK_DEFAULT_W;
+        const h = typeof o.h === "number" && Number.isFinite(o.h) ? o.h : LINK_DEFAULT_H;
+        byId.set(o.id, {
+          href: parsed.href,
+          host: displayHost(parsed.href),
+          label,
+          obj: {
+            id: o.id,
+            type: "link",
+            x: typeof o.x === "number" && Number.isFinite(o.x) ? o.x : 0,
+            y: typeof o.y === "number" && Number.isFinite(o.y) ? o.y : 0,
+            w: Math.max(MIN_LINK_W, w),
+            h: Math.max(MIN_LINK_H, h),
+            href: parsed.href,
+            ...(label ? { label } : {}),
+          },
+        });
+      }
+    }
+    return byId;
+  }, [initialObjects]);
+
+  // A child's pages with every web link put back to the teacher's own copy of
+  // it: the address, the name, where it sits and how big it is all come from
+  // the snapshot, and a link the snapshot never had — or a second copy of one
+  // it did — is taken off the page. Applied wherever a child's canvas takes in
+  // objects from outside itself (the template, a restored draft), so the chip
+  // on the page, the card it opens and the picture that is handed in all name
+  // the same website, and it is the teacher's. The builder is left alone: there
+  // the objects ARE the teacher's copy, being written.
+  function withTeacherLinks(pages: Obj[][]): Obj[][] {
+    if (isObjectAuthor) return pages;
+    const seen = new Set<string>();
+    return pages.map((pg) =>
+      pg.flatMap((o): Obj[] => {
+        if (o.type !== "link") return [o];
+        const theirs = teacherLinks.get(o.id);
+        if (!theirs || seen.has(o.id)) return [];
+        seen.add(o.id);
+        return [{ ...theirs.obj, fromTemplate: true }];
+      }),
+    );
   }
 
   // The child's photo arriving from the camera dialog. Normalised like an
@@ -3301,6 +3844,10 @@ export function DrawingCanvas({
       correctOptionId: "opt0",
     };
     quizRef.current = [...quizRef.current, q];
+    // A question is not on the undo history, so undo must not walk back past
+    // one: undoing the page it was added to would take it away unasked.
+    pageUndoRef.current = [];
+    refreshUndoRedo();
     anyDrawnRef.current = true;
     setSelectedQuestionId(qid);
     openQuizPanel();
@@ -3619,6 +4166,10 @@ export function DrawingCanvas({
       canDuplicate={(objects.length || 0) < MAX_OBJECTS_PER_PAGE}
       onSpawn={spawnFromSource}
       onEditText={editTextObject}
+      onEditLink={(id) => {
+        finishEditing();
+        setLinkForm({ id });
+      }}
       onTextChange={updateText}
       onFinishEditing={finishEditing}
       onContextMenu={openObjectMenu}
@@ -3670,6 +4221,54 @@ export function DrawingCanvas({
         }}
       />
     ) : null;
+
+  // The web links on the current page that a child may press (rule 26). Where
+  // each sits comes from the page — a child cannot move one, so it is where the
+  // teacher put it — and what it opens comes only from `teacherLinks`.
+  const linksOnPage = isObjectAuthor
+    ? []
+    : objects.flatMap((o) => {
+        if (o.type !== "link") return [];
+        const theirs = teacherLinks.get(o.id);
+        return theirs ? [{ id: o.id, x: o.x, y: o.y, w: o.w, h: o.h, label: theirs.label, host: theirs.host }] : [];
+      });
+  const linkTapLayer = linksOnPage.length ? (
+    <LinkTapLayer
+      links={linksOnPage}
+      scale={scale}
+      onTap={(id) => {
+        finishEditing();
+        const theirs = teacherLinks.get(id);
+        if (theirs) setLeaving({ href: theirs.href, host: theirs.host });
+      }}
+    />
+  ) : null;
+
+  const editingLink =
+    linkForm?.id !== undefined
+      ? (objectsRef.current[currentRef.current] ?? []).find(
+          (o): o is LinkObj => o.id === linkForm.id && o.type === "link",
+        )
+      : undefined;
+  const linkOverlays = (
+    <>
+      {linkForm && isObjectAuthor && (
+        <LinkDialog
+          initial={editingLink ? { href: editingLink.href, label: editingLink.label } : undefined}
+          onSave={saveLink}
+          onCancel={() => setLinkForm(null)}
+        />
+      )}
+      {leaving && (
+        <LeavingCard
+          href={leaving.href}
+          host={leaving.host}
+          hearItLabel={hearItLabel}
+          onClose={() => setLeaving(null)}
+        />
+      )}
+    </>
+  );
 
   const cameraDialog = captureFrame ? (
     <CameraDialog
@@ -3759,6 +4358,7 @@ export function DrawingCanvas({
       />
       {quizLayer}
       {frameTapLayer}
+      {linkTapLayer}
     </>
   );
 
@@ -3904,6 +4504,20 @@ export function DrawingCanvas({
           addFrame();
         },
       });
+      // A web link (rule 26). The teacher's toolbox is the only place one
+      // can come from; a child's ＋ fan never carries this item.
+      plusItems.push({
+        key: "link",
+        icon: "link",
+        label: "Web link",
+        ring: 1,
+        onSelect: () => {
+          closeFans();
+          setOpenKit(null);
+          finishEditing();
+          setLinkForm({});
+        },
+      });
     }
     if (isQuizAuthor) {
       plusItems.push({
@@ -3922,8 +4536,15 @@ export function DrawingCanvas({
     }
 
     // Nothing on this page yet, so the paper says what it is for. Gone the
-    // moment there is a stroke, a piece or a template underneath.
-    const pageIsBare = !canUndo && objects.length === 0 && !currentTemplate;
+    // moment there is a stroke, a piece or a template underneath — or a
+    // question, which is kept apart from the pieces and so has to be asked
+    // about separately. Left out, the hint was printed across a question box's
+    // answers.
+    const pageIsBare =
+      !canUndo &&
+      objects.length === 0 &&
+      !currentTemplate &&
+      !quizQuestions.some((q) => q.pageIndex === current);
 
     return (
       <div className="fixed inset-0 z-40 flex flex-col" style={{ background: "var(--paper)" }}>
@@ -3935,6 +4556,7 @@ export function DrawingCanvas({
           <ConfirmSubmitPrompt pageCount={pageCount} onCancel={() => setConfirmingSubmit(false)} />
         )}
         {cameraDialog}
+        {linkOverlays}
 
         <div
           ref={wrapRef}
@@ -4226,11 +4848,19 @@ export function DrawingCanvas({
                   out of the tray. */}
               <PageTray
                 u={u}
+                ready={ready}
                 count={pageCount}
                 active={current}
                 maxWidth={Math.max(200, paper.w - 2 * (NEAR_X + DISC / 2 + 10))}
                 thumbs={thumbs}
-                canDelete={allowPageDelete}
+                deletable={Array.from({ length: pageCount }, (_, i) =>
+                  pageDelete === "any" ? true : added[i] === true,
+                )}
+                // The same pages (see pageMayMove): a teacher's page stays put
+                // for a child, and the tray does not lift it.
+                movable={Array.from({ length: pageCount }, (_, i) =>
+                  pageDelete === "any" ? true : added[i] === true,
+                )}
                 canStructure={allowPageStructure}
                 onGo={(i) => {
                   closeFans();
@@ -4241,18 +4871,20 @@ export function DrawingCanvas({
                   say("New page gone");
                 }}
                 onReorder={(from, to) => {
-                  movePageTo(from, to);
-                  say("Page moved back");
+                  if (movePageTo(from, to)) say("Page moved back");
                 }}
                 onDuplicate={(i) => {
                   duplicatePageAt(i);
                   say("Page copy gone");
                 }}
                 onDelete={(i) => {
-                  deletePageAt(i);
-                  say(`Page ${i + 1} is back`);
+                  closeFans();
+                  // Said only when it went, and in words that are true: undo
+                  // really does bring it back now (see undoPageAction).
+                  if (deletePageAt(i)) say(`Undo brings page ${i + 1} back`);
                 }}
                 onClear={(i) => {
+                  if (!ready) return;
                   if (i !== currentRef.current) goToPage(i);
                   clearPage();
                   say("Drawing is back");
@@ -4389,29 +5021,6 @@ export function DrawingCanvas({
                   {importError ?? "Adding your file…"}
                 </div>
               )}
-
-              {withCaption && (
-                // Above the ＋ disc, not beside it: the disc owns the bottom
-                // corner, and a caption box overlapping it swallowed the taps
-                // meant for the toolbox.
-                <div className="absolute" style={{ left: u(16), bottom: u(150), width: u(280), zIndex: Z_BASE + 4 }}>
-                  <label
-                    htmlFor={captionId}
-                    className="mb-1 inline-block rounded-full bg-white/90 px-3 py-1 text-sm font-bold text-foreground shadow"
-                  >
-                    {captionLabel}
-                  </label>
-                  {/* min-h-16: a child taps into this to say what their picture
-                      is, so it carries the same 64px floor as everything else. */}
-                  <input
-                    id={captionId}
-                    ref={captionRef}
-                    name="caption"
-                    className="input min-h-16 bg-white/90 shadow"
-                    placeholder="💬 Add a caption…"
-                  />
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -4424,6 +5033,7 @@ export function DrawingCanvas({
     <div>
       {hiddenInputs}
       {cameraDialog}
+      {linkOverlays}
 
       <div className="mb-2 flex flex-wrap items-center gap-2">
         {TOOLS.map((t) => (
@@ -4544,7 +5154,8 @@ export function DrawingCanvas({
           </button>
         )}
         <button type="button" onClick={() => fileRef.current?.click()} className="btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"><Icon name="add-file" size={16} decorative /> Add PDF / image</button>
-        {allowPageDelete && pageCount > 1 && (
+        {/* The same rule as the tray's cross: the page on screen, when it may go. */}
+        {pageCount > 1 && (pageDelete === "any" || added[current] === true) && (
           <button type="button" onClick={deletePage} className="px-3 py-1.5 text-sm text-muted hover:text-rose-600">Delete page</button>
         )}
       </div>
@@ -4869,6 +5480,8 @@ type ObjHandlers = {
   // the page is full.
   onSpawn: (id: string) => string | null;
   onEditText: (id: string) => void;
+  // Open a web link's own form again (teacher only; rule 26).
+  onEditLink: (id: string) => void;
   onTextChange: (id: string, text: string) => void;
   onFinishEditing: () => void;
   // Right click / two-finger click / long press on an object.
@@ -4886,7 +5499,10 @@ function objCapabilities(o: Obj, author: boolean) {
   // duplicate / order) but no padlock, because it is always fixed for a child.
   // Child: fixed by what it is, whatever `locked` says; the tap layer above the
   // stroke canvas is what a child interacts with, not this wrapper.
-  if (o.type === "frame") {
+  // A web link, the same way and for a stronger reason (rule 26): only a
+  // teacher places, moves or changes one. A child presses it through
+  // LinkTapLayer, never through this wrapper.
+  if (o.type === "frame" || o.type === "link") {
     return author
       ? { movable: true, editable: true, showLock: false, fixed: false, source: false }
       : { movable: false, editable: false, showLock: false, fixed: true, source: false };
@@ -4962,6 +5578,7 @@ function ObjectToolbar({
   onDuplicate,
   canDuplicate,
   onEdit,
+  editLabel,
 }: {
   o: Obj;
   showAuthor: boolean; // teacher: show order + padlock
@@ -4996,6 +5613,9 @@ function ObjectToolbar({
   // and a fifth disc at the top-centre landed on the settings row whenever a
   // tall piece pushed the bar down onto it.
   onEdit?: () => void;
+  // What the edit button says, where "Edit text" would be wrong — a web link's
+  // form is an address, not words on the page.
+  editLabel?: string;
 }) {
   const shape = o.type === "shape" ? (o as ShapeObj) : null;
   // Locked, seen by the person who locked it. Everything except the padlock is
@@ -5202,7 +5822,7 @@ function ObjectToolbar({
           )}
           {/* No padlock on a photo frame: a child can never move one, so
               there is nothing for a padlock to decide. */}
-          {o.type !== "frame" && (
+          {o.type !== "frame" && o.type !== "link" && (
           <button
             type="button"
             onClick={() => onToggleLock(o.id)}
@@ -5275,8 +5895,8 @@ function ObjectToolbar({
           onClick={onEdit}
           className={btn}
           style={btnStyle}
-          title="Change the words"
-          aria-label="Edit text"
+          title={editLabel ?? "Change the words"}
+          aria-label={editLabel ?? "Edit text"}
         >
           <Icon name="edit" size={GLYPH} decorative />
         </button>
@@ -5710,10 +6330,16 @@ function MediaObjectView({
   canDuplicate,
   onSpawn,
   onEditText,
+  onEditLink,
   onTextChange,
   onFinishEditing,
   onContextMenu,
-}: ObjHandlers & { o: ImageObj | ShapeObj | FrameObj; selected: boolean; grouped: boolean; editing: boolean }) {
+}: ObjHandlers & {
+  o: ImageObj | ShapeObj | FrameObj | LinkObj;
+  selected: boolean;
+  grouped: boolean;
+  editing: boolean;
+}) {
   const cap = objCapabilities(o, author);
   // `cap.showLock` is the author. A locked object is not movable by anyone, but
   // its author must still be able to TAP it — that is how they reach the
@@ -5954,7 +6580,7 @@ function MediaObjectView({
       // different angle instead. Turning is the turn handle's job; this one
       // only makes it bigger.
       const lock =
-        o.type === "frame"
+        o.type === "frame" || o.type === "link"
           ? null
           : o.type === "image"
             ? o.aspect
@@ -6028,7 +6654,15 @@ function MediaObjectView({
       onPointerDown={startMove}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onDoubleClick={(o.type === "shape" || o.type === "frame") && cap.editable ? () => onEditText(o.id) : undefined}
+      onDoubleClick={
+        cap.editable
+          ? o.type === "link"
+            ? () => onEditLink(o.id)
+            : o.type === "shape" || o.type === "frame"
+              ? () => onEditText(o.id)
+              : undefined
+          : undefined
+      }
       className={`absolute touch-none ${
         canGrab ? "pointer-events-auto cursor-move" : "pointer-events-none"
       } ${
@@ -6081,7 +6715,73 @@ function MediaObjectView({
         </>
       )}
 
-      {o.type === "frame" ? (
+      {o.type === "link" ? (
+        // The chip: the teacher's name for the link, and under it the REAL
+        // host, always (rule 26). Sized in model units like everything else on
+        // the page, and mirrored by `drawLinkChip` for the hand-in picture.
+        <div
+          data-link={displayHost(o.href)}
+          className="pointer-events-none flex h-full w-full items-center overflow-hidden"
+          style={{
+            gap: LINK_PAD * scale,
+            padding: `0 ${LINK_PAD * scale}px`,
+            borderRadius: 18 * scale,
+            border: "3px solid var(--ink)",
+            background: "var(--cream)",
+            boxShadow: "0 4px 0 rgba(34,48,74,.15)",
+            color: "var(--ink)",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="flex shrink-0 items-center justify-center"
+            style={{
+              width: LINK_ICON * scale,
+              height: LINK_ICON * scale,
+              borderRadius: 999,
+              background: "#D8ECE8",
+              border: "2.5px solid var(--ink)",
+            }}
+          >
+            <Icon name="link" size={26 * scale} decorative />
+          </span>
+          <span className="flex min-w-0 flex-col" style={{ lineHeight: 1.2 }}>
+            {o.label && (
+              <span
+                className="truncate"
+                style={{ font: `600 ${22 * scale}px ${FONT_STACK}` }}
+              >
+                {o.label}
+              </span>
+            )}
+            {/* The host, shortened from the LEFT (never `truncate`, which cuts
+                the owning end off). The string is fitted by measuring; the
+                right-to-left box is the belt under it — should a font measure
+                wider on screen than it did here, the overflow is off the LEFT
+                edge, and the end of the host still shows. The <bdi> keeps
+                the host itself reading left to right. */}
+            <span
+              data-link-host
+              dir="rtl"
+              className="overflow-hidden whitespace-nowrap"
+              style={{
+                textAlign: "left",
+                font: `${o.label ? 400 : 600} ${(o.label ? 18 : 22) * scale}px ${FONT_STACK}`,
+                color: o.label ? "var(--ink-soft)" : "var(--ink)",
+              }}
+            >
+              <bdi dir="ltr">
+                {fitHostFromLeft(
+                  displayHost(o.href),
+                  linkFont(o.label ? 400 : 600, o.label ? 18 : 22),
+                  // The chip's 3px border is in screen pixels, not model units.
+                  (linkTextRoom(o) - 6 / Math.max(scale, 0.1)) * 0.96,
+                )}
+              </bdi>
+            </span>
+          </span>
+        </div>
+      ) : o.type === "frame" ? (
         <div
           // `data-frame` names the kind and its state on the element that
           // draws it, as `data-shape` does for a shape.
@@ -6266,7 +6966,7 @@ function MediaObjectView({
           onDuplicate={o.type !== "frame" && canDuplicate ? () => onDuplicate(o.id) : undefined}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          noun={o.type === "frame" ? "photo frame" : "shape"}
+          noun={o.type === "frame" ? "photo frame" : o.type === "link" ? "web link" : "shape"}
           deleteLabel="Remove object"
         />
       )}
@@ -6294,7 +6994,16 @@ function MediaObjectView({
         // A picture has no `rot` — the export renderer draws it flat — so it is
         // A picture has no words to change. A frame's words are the teacher's
         // prompt; a shape's are its label.
-        onEdit={(o.type === "shape" || o.type === "frame") && cap.editable ? () => onEditText(o.id) : undefined}
+        onEdit={
+          !cap.editable
+            ? undefined
+            : o.type === "link"
+              ? () => onEditLink(o.id)
+              : o.type === "shape" || o.type === "frame"
+                ? () => onEditText(o.id)
+                : undefined
+        }
+        editLabel={o.type === "link" ? "Change the link" : undefined}
         onStyle={(patch) => {
           onChange(o.id, patch);
           onEnd();
@@ -6877,6 +7586,356 @@ function FrameTapLayer({
 }
 
 // ===========================================================================
+// Web links (SAFEGUARDING rule 26). Three pieces, and the rule is in how they
+// fit together rather than in any one of them:
+//
+//   - `LinkDialog`: the teacher's form. The address is checked by the same
+//     `parseTeacherLink` the server runs, so a teacher is told at once rather
+//     than finding the link missing after saving.
+//   - `LinkTapLayer`: a CHILD's way into a link, above the stroke canvas like
+//     the photo frames. It only presses links that came in with the teacher's
+//     snapshot, and the address it opens is read from that copy.
+//   - `LeavingCard`: what always stands between that press and a new tab.
+// ===========================================================================
+
+// Tab stays inside a modal. Shared by the two dialogs here, which is two more
+// than the canvas had a helper for; the older prompts keep their own copies.
+function trapTab(e: React.KeyboardEvent, root: HTMLElement | null) {
+  if (e.key !== "Tab" || !root) return;
+  const focusable = Array.from(
+    root.querySelectorAll<HTMLElement>("button, a[href], input, textarea"),
+  ).filter((el) => !el.hasAttribute("disabled"));
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+function LinkDialog({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial?: { href: string; label?: string };
+  onSave: (href: string, label: string) => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [href, setHref] = useState(initial?.href ?? "");
+  const [label, setLabel] = useState(initial?.label ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [labelError, setLabelError] = useState<string | null>(null);
+  const addressId = useId();
+  const nameId = useId();
+  const errorId = useId();
+  const labelErrorId = useId();
+  useEffect(() => {
+    ref.current?.querySelector<HTMLInputElement>("input")?.focus();
+  }, []);
+  function submit() {
+    const parsed = parseTeacherLink(href);
+    if (!parsed.ok) {
+      setError(LINK_REFUSAL_COPY[parsed.why]);
+      ref.current?.querySelector<HTMLInputElement>("input")?.focus();
+      return;
+    }
+    // Refused in words here rather than dropped quietly on save: the server
+    // would take the name off (`tidyLinkLabel`), and a teacher should know.
+    if (linkLabelNamesUpload(label)) {
+      setLabelError(LINK_LABEL_REFUSAL_COPY);
+      document.getElementById(nameId)?.focus();
+      return;
+    }
+    onSave(parsed.href, tidyLinkLabel(label) ?? "");
+  }
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`${addressId}-title`}
+      onKeyDown={(e) => {
+        // The canvas listens on the window for Backspace and ⌘C/V; typing an
+        // address must never reach it.
+        e.stopPropagation();
+        if (e.key === "Escape") onCancel();
+        if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
+          e.preventDefault();
+          submit();
+        }
+        trapTab(e, ref.current);
+      }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+    >
+      {/* Not a <form>. The builder's canvas sits INSIDE the template's own
+          form, so a form here would be nested — and Enter in a plain field
+          would submit the template, closing the builder under the teacher.
+          Enter is handled on the fields instead. */}
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <h2 id={`${addressId}-title`} className="text-xl font-bold text-foreground">
+          {initial ? "Change this web link" : "Add a web link"}
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Pupils see the website&apos;s real address, and a &ldquo;leaving StoryJar&rdquo; card
+          before it opens in a new tab. Your school&apos;s web filter still applies.
+        </p>
+        <label htmlFor={addressId} className="label mt-4 block">
+          Web address
+        </label>
+        <input
+          id={addressId}
+          className="input"
+          inputMode="url"
+          autoComplete="off"
+          spellCheck={false}
+          value={href}
+          onChange={(e) => {
+            setHref(e.target.value);
+            setError(null);
+          }}
+          placeholder="https://www.bbc.co.uk/bitesize"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+        />
+        {error && (
+          <p id={errorId} role="alert" className="mt-1 text-sm font-semibold text-rose-700">
+            {error}
+          </p>
+        )}
+        <label htmlFor={nameId} className="label mt-3 block">
+          Name for it <span className="font-normal text-muted">(optional)</span>
+        </label>
+        <input
+          id={nameId}
+          className="input"
+          maxLength={MAX_LINK_LABEL_LEN}
+          value={label}
+          onChange={(e) => {
+            setLabel(e.target.value);
+            setLabelError(null);
+          }}
+          placeholder="Bitesize: the water cycle"
+          aria-invalid={labelError ? true : undefined}
+          aria-describedby={labelError ? labelErrorId : undefined}
+        />
+        {labelError && (
+          <p id={labelErrorId} role="alert" className="mt-1 text-sm font-semibold text-rose-700">
+            {labelError}
+          </p>
+        )}
+        <div className="mt-5 flex flex-col gap-2">
+          <button type="button" onClick={submit} className="btn-brand min-h-[48px] w-full text-base">
+            {initial ? "Save link" : "Add link"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-[48px] w-full rounded-xl border-2 border-border text-base font-semibold text-muted hover:bg-background"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A child's way into a web link. Above the stroke canvas, like the photo
+// frames, so a link is pressable under any pen — an EYFS child never reaches
+// for the Move tool. Each press is at least the 64px floor (rule 18).
+//
+// It is handed only links that came in the teacher's snapshot, with the address
+// from that snapshot (see where it is built), so nothing a child's device has
+// stored can become a link that opens.
+function LinkTapLayer({
+  links,
+  scale,
+  onTap,
+}: {
+  links: { id: string; x: number; y: number; w: number; h: number; label?: string; host: string }[];
+  scale: number;
+  onTap: (id: string) => void;
+}) {
+  const FLOOR = 64;
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {links.map((l) => (
+        <button
+          key={l.id}
+          type="button"
+          data-link-tap={l.host}
+          onClick={() => onTap(l.id)}
+          className="pointer-events-auto absolute rounded-2xl focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2"
+          style={{
+            left: l.x * scale,
+            top: l.y * scale,
+            width: Math.max(FLOOR, l.w * scale),
+            height: Math.max(FLOOR, l.h * scale),
+            background: "transparent",
+            outlineColor: "var(--ink)",
+          }}
+        >
+          {/* The chip underneath says this already; a screen reader gets the
+              same words, label first and the real address after it. */}
+          <span className="sr-only">
+            {l.label ? `${l.label}, ` : ""}
+            {l.host}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// "You are leaving StoryJar." Full screen and opaque, on the ClassCodeReveal
+// pattern: nothing of the canvas shows through, so there is one thing on the
+// screen and it is this question. Stay here is focused first, so Enter keeps
+// the child where they are, and so does Escape. Open it is a real link to a new
+// tab that is told nothing about where it came from, and the card closes as it
+// opens, so coming back to StoryJar is coming back to the work (rule 26).
+function LeavingCard({
+  href,
+  host,
+  hearItLabel,
+  onClose,
+}: {
+  href: string;
+  host: string;
+  hearItLabel?: string;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const stayRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const copy = studentCopyNeutral.add.link;
+  useEffect(() => {
+    stayRef.current?.focus();
+  }, []);
+  const big: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    minHeight: 72,
+    minWidth: 200,
+    padding: "0 32px",
+    borderRadius: 999,
+    font: "600 24px var(--font-fredoka)",
+    textDecoration: "none",
+    boxSizing: "border-box",
+  };
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      data-leaving-card
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onClose();
+          return;
+        }
+        trapTab(e, ref.current);
+      }}
+      className="fixed inset-0 z-[70] flex items-center justify-center p-6"
+      style={{ background: "var(--paper)" }}
+    >
+      <div style={{ maxWidth: 640, textAlign: "center", color: "var(--ink)" }}>
+        <span
+          aria-hidden="true"
+          className="mx-auto flex items-center justify-center"
+          style={{
+            width: 96,
+            height: 96,
+            borderRadius: 999,
+            background: "var(--cream)",
+            border: "3px solid var(--ink)",
+          }}
+        >
+          <Icon name="link" size={52} decorative />
+        </span>
+        <h2
+          id={titleId}
+          style={{ margin: "24px 0 0", font: "600 32px/1.3 var(--font-fredoka)", textWrap: "balance" }}
+        >
+          {copy.before}
+          {/* Allowed to break anywhere, so the WHOLE host is always on the
+              screen: on a phone a 40-character host at this size is wider than
+              the card, and a host that does not wrap is cut off at both ends.
+              `anywhere` rather than `break-word` because only it lets the
+              card itself shrink to the screen round the host. */}
+          <span
+            data-leaving-host
+            style={{ display: "inline-block", overflowWrap: "anywhere", color: "var(--jam)" }}
+          >
+            {/* One box, so a host that will not fit beside "This opens" starts
+                a line of its own rather than leaving "bbc." on the first line
+                to be read as the destination. Inside it, a break is offered
+                after each dot but the last, so it wraps between its parts
+                ("homework." / "evil-site.example.com") and never inside a word
+                ("evi" / "l-site"), and the owning end stays in one piece.
+                `anywhere` is only the fallback for a part too long for a line.
+                <wbr> adds no text: the dialog's name is unchanged. */}
+            {host.split(".").map((part, i, all) => (
+              <Fragment key={i}>
+                {part}
+                {i < all.length - 2 && (
+                  <>
+                    .<wbr />
+                  </>
+                )}
+                {i === all.length - 2 && "."}
+              </Fragment>
+            ))}
+          </span>
+          {copy.after}
+        </h2>
+        <div className="flex flex-wrap items-center justify-center" style={{ gap: 16, marginTop: 32 }}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => onClose()}
+            style={{ ...big, background: "var(--glass)", color: "var(--paper)", boxShadow: "0 5px 0 #2b5f57" }}
+          >
+            {copy.open}
+          </a>
+          <button
+            ref={stayRef}
+            type="button"
+            onClick={onClose}
+            style={{ ...big, background: "var(--cream)", color: "var(--ink)", border: "3px solid var(--ink)" }}
+          >
+            {copy.stay}
+          </button>
+        </div>
+        {hearItLabel && (
+          <button
+            type="button"
+            onClick={() => readAloud(copy.spoken)}
+            className="mx-auto mt-6 flex items-center"
+            style={{ ...big, minWidth: 0, gap: 8, font: "700 20px var(--font-atkinson)", color: "var(--ink)", background: "transparent" }}
+          >
+            {/* The speaker every other Hear it in the child surface wears. */}
+            <span aria-hidden="true">🔊</span>
+            {hearItLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ===========================================================================
 // Quiz layer — floating multiple-choice question boxes. Rendered above the
 // stroke canvas and kept entirely separate from the flattened page image.
 // ===========================================================================
@@ -7118,12 +8177,21 @@ function QuizBoxView({
   // chrome is still the drag handle.
   const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
 
-  // Everything inside is designed at QUIZ_W × QUIZ_H and scales down with the
-  // box, so a teacher can shrink a question to an aside and still have it read
-  // — smaller text is the point, not a compromise. Capped at 1 so a big box
-  // gets more room rather than giant type. Driven by whichever axis is tighter,
-  // so a short-and-wide box doesn't overflow vertically.
-  const k = Math.min(1, q.w / QUIZ_W, q.h / QUIZ_H);
+  // Everything inside is designed at QUIZ_W wide and scales down with the box,
+  // so a teacher can narrow a question to an aside and still have it read —
+  // smaller text is the point, not a compromise. Capped at 1 so a big box gets
+  // more room rather than giant type.
+  //
+  // By WIDTH alone. The height used to be in here too, back when a teacher
+  // dragged it. Now the card follows its content and writes that height back
+  // to `q.h`, so the height is the card's output and cannot also be its input:
+  // shrinking by it made the card shorter, which shrank it again, and a default
+  // two-answer question settled at a third of its size — 104 tall, with 8px
+  // answer dots — on the teacher's worksheet and on the child's screen. The
+  // resize handle only changes the width, so the width is the control a
+  // teacher actually has. The picture of the page (`drawQuizForPreview`) uses
+  // the same rule, so the two agree.
+  const k = Math.min(1, q.w / QUIZ_W);
   const px = (n: number) => Math.round(n * k * 10) / 10;
   // A finger is a physical size, and `px()` is not: it scales model units by the
   // canvas's display scale, so a "64px" answer button rendered at k≈0.9 reaches

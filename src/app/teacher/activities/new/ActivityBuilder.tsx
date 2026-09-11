@@ -167,6 +167,8 @@ export function ActivityBuilder({
           // The one place pages are a structure being designed rather than a
           // book being written in.
           allowPageStructure
+          // Every page here is the teacher's own, being designed.
+          pageDelete="any"
           initialQuiz={quiz}
           objectMode="author"
           initialObjects={objects}

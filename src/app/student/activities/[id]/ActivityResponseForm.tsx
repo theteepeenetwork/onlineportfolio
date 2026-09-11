@@ -60,7 +60,6 @@ export function ActivityResponseForm({
       <DrawingCanvas
         name="drawingPages"
         fullScreen
-        withCaption
         title={title}
         subtitle={instructions}
         background={template.length ? template : undefined}
@@ -77,13 +76,15 @@ export function ActivityResponseForm({
         draftKey={`resp:${assignmentId}:${studentId}`}
         ownerId={studentId}
         confirmSubmit
-        allowPageDelete={false}
+        // The teacher's pages are the worksheet and stay; a page the child
+        // adds is theirs to throw away again. That is the canvas's default
+        // (`pageDelete="added"`), said here so nobody has to look it up.
+        pageDelete="added"
         // Every way out of a child screen lands on the jar, in the words of
         // their own register: the one landmark a non-reader navigates by, and
         // the place the complaint asked for. The activities list is one tap
         // from there. An unlabelled ✕ to the list was not a way back that a
         // four-year-old could see.
-        captionLabel={c.captionLabel}
         // The registers that cannot read yet get a listen button on the
         // question. KS2 does not — the same line CaptureSurface already draws
         // between "shown a speaker" and "reads it themselves". Whether the
