@@ -90,6 +90,11 @@ test("every tool on a child's drawing canvas meets the child touch floor", async
   await loginStudent(page, SCHOOL_A.classCode, "Chloe");
   await page.goto("/student/new/drawing");
   await expect(page.locator("canvas")).toBeVisible();
+  // A second page first, so each page card carries its throw-away cross: a
+  // small jam dot inside a press that has to be as big as everything else.
+  // With one page there is nothing to throw away, and nothing would be measured.
+  await page.locator('button[title="Add page"]').click();
+  await expect(page.getByRole("button", { name: "Throw away page 2", exact: true })).toBeVisible();
 
   const small = await undersizedControls(page);
   expect(small, `controls below ${FLOOR}px on the drawing canvas: ${JSON.stringify(small)}`).toEqual([]);
@@ -148,6 +153,9 @@ test("every tool on an activity response meets the child touch floor", async ({ 
   await expect(activity).toBeVisible();
   await activity.click();
   await expect(page.locator("canvas")).toBeVisible();
+  // A page of the child's own, so the cross it wears is on the page to measure.
+  await page.locator('button[title="Add page"]').click();
+  await expect(page.getByRole("button", { name: /^Throw away page/ }).first()).toBeVisible();
 
   const small = await undersizedControls(page);
   expect(small, `controls below ${FLOOR}px on an activity response: ${JSON.stringify(small)}`).toEqual([]);

@@ -109,6 +109,15 @@ function cloneQuestions(qs: QuizQuestion[]): QuizQuestion[] {
   return qs.map((q) => ({ ...q, options: q.options.map((o) => ({ ...o })) }));
 }
 
+// Which pages were added, read back from a stored draft. Anything other than
+// one flag per page reads as "none were": a cross on a teacher's template page
+// is the failure to avoid, and a cross missing from a child's own page is only
+// a missing shortcut — the page is still theirs to wipe clean.
+function addedFlags(raw: unknown, n: number): boolean[] {
+  if (!Array.isArray(raw) || raw.length !== n) return Array.from({ length: n }, () => false);
+  return raw.map((v) => v === true);
+}
+
 // ONE palette, everywhere a colour is offered: the pen fan, the object bar's
 // fill and line menus, the inline editor. They used to be a stock Tailwind row
 // here and the brand ten in the design; a child who picked "the green one" on
@@ -528,7 +537,36 @@ type FrameObj = ObjLock & {
   label?: string;
 };
 type Obj = ImageObj | ShapeObj | TextObj | FrameObj;
-type HistoryEntry = { img: string; objects: Obj[] };
+// `seq` orders an entry against the page actions below, which live on a stack
+// of their own: undo takes whichever is newest, across every page.
+type HistoryEntry = { img: string; objects: Obj[]; seq?: number };
+
+// A page lifted out whole, so that it can be put back exactly. Every per-page
+// array holds one entry for it, its questions carry their own page index, and
+// it keeps its own undo history: dropping that history would let a later undo
+// take away a page that still had a drawing on it nobody had undone.
+type PageSnapshot = {
+  page: string;
+  template: string | null;
+  objects: Obj[];
+  composite: string;
+  preview: string;
+  thumb: string;
+  added: boolean;
+  questions: QuizQuestion[];
+  history: HistoryEntry[];
+};
+// Something done to the pages rather than on one. There is no redo for these:
+// redo replays the step just undone, and a page action is the rarer thing to
+// regret undoing than the stroke a child is chasing.
+//
+// Each carries what it takes to go back to the page the person was on:
+// `from` for the three that make or move a page.
+type PageAction =
+  | { kind: "delete"; seq: number; index: number; snap: PageSnapshot }
+  | { kind: "add"; seq: number; index: number; from: number }
+  | { kind: "copy"; seq: number; index: number; from: number }
+  | { kind: "move"; seq: number; from: number; to: number };
 
 // One cap, in one place, for both stacks. The redo stack used to be uncapped,
 // which is not a smaller stack — an undo pushes the page onto it, so undoing
@@ -616,7 +654,7 @@ export function DrawingCanvas({
   getExtraDraftFields,
   onRestoreFields,
   confirmSubmit = false,
-  allowPageDelete = true,
+  pageDelete = "added",
   allowPageStructure = false,
   resumeMode,
   kits = BASE_KITS,
@@ -679,9 +717,16 @@ export function DrawingCanvas({
   // opens a "ready to hand in?" confirmation first — so a child can't submit an
   // activity with a single tap before working through all the pages.
   confirmSubmit?: boolean;
-  // Whether the "Delete page" control is offered. Pupils answering an assigned
-  // activity get `false` so they can't remove the teacher's template pages.
-  allowPageDelete?: boolean;
+  // Which pages may be thrown away. "added" — the default, and what a child
+  // gets — is only the pages added on this canvas: a teacher's template pages
+  // are the worksheet, and the shape of what comes back. "any" is the template
+  // builder, where the pages are the teacher's own to design. A default that
+  // offers less is the safe one to forget (rule 8).
+  //
+  // The same answer decides which pages may be MOVED (owner decision,
+  // 2026-09-10, F76): under "added" a child slides only their own pages, to
+  // anywhere, and the teacher's stay in the order the teacher set.
+  pageDelete?: "any" | "added";
   // Whether the pages themselves can be RESTRUCTURED — copied and reordered.
   // Separate from deleting one, and off unless asked for: a child's page count
   // is the shape of what they hand in, and copying pages of somebody else's
@@ -769,6 +814,14 @@ export function DrawingCanvas({
   // every page operation, because a thumbnail left behind by a move or a delete
   // is a page showing another page's picture.
   const thumbRef = useRef<string[]>([]);
+  // Whether each page was ADDED on this canvas, rather than arriving as one of
+  // a template's pages. It is what decides which pages a child may throw away
+  // (see `pageDelete`), so it travels with its page through every page
+  // operation and survives a restore — from the device's own copy as
+  // `DraftCanvasV1.added`, and from the server copy as the `addedPages` field.
+  // Missing means false: a page nobody can vouch for gets no cross.
+  const addedRef = useRef<boolean[]>([]);
+  const [added, setAdded] = useState<boolean[]>([]);
   const imgCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const objIdRef = useRef(0);
   const currentRef = useRef(0);
@@ -813,6 +866,19 @@ export function DrawingCanvas({
   // Undo / redo: per page, a stack of { drawing layer, objects } snapshots.
   const undoRef = useRef<Record<number, HistoryEntry[]>>({});
   const redoRef = useRef<Record<number, HistoryEntry[]>>({});
+  // What has been done to the pages themselves, newest last. Undo checks it
+  // first, and takes from it when its newest action is newer than every step
+  // on every page (`pageActionIsNext`). Deleting a page used to clear all the
+  // history instead, which made "Undo brings it back" untrue.
+  const pageUndoRef = useRef<PageAction[]>([]);
+  // The clock both kinds of undo step are stamped from.
+  const seqRef = useRef(0);
+  // Whether a page action has happened in this session: a page thrown away and
+  // put back again has still been worked on (see `hasUserEdits`).
+  const pageEditedRef = useRef(false);
+  // The last repaint of the page on screen, settled. A page action waits for
+  // it (see `undo`).
+  const settleRef = useRef<Promise<unknown>>(Promise.resolve());
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -851,6 +917,11 @@ export function DrawingCanvas({
   // Which photo frame the camera is open for, and on which page — a photo that
   // arrives after the page changed under it is dropped rather than misfiled.
   const [captureFrame, setCaptureFrame] = useState<{ id: string; page: number } | null>(null);
+  // Whether the start-up below has finished: the worksheet loaded, the pages
+  // built. Every page action waits for it. The page tray sits above the
+  // "Loading…" veil, and a page added in that moment was overwritten when the
+  // start-up finished behind it — kept, but no longer the child's own, and
+  // with the page on screen and the page being drawn on out of step.
   const [ready, setReady] = useState(false);
   // "Ready to hand in?" confirmation (child submit only — see confirmSubmit).
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
@@ -1124,8 +1195,27 @@ export function DrawingCanvas({
     );
   }
   function refreshUndoRedo() {
-    setCanUndo((undoRef.current[currentRef.current]?.length ?? 0) > 0);
+    setCanUndo((undoRef.current[currentRef.current]?.length ?? 0) > 0 || pageActionIsNext());
     setCanRedo((redoRef.current[currentRef.current]?.length ?? 0) > 0);
+  }
+  // The newest step anywhere in the per-page history. Each stack is pushed in
+  // time order, so its top is its newest.
+  function newestStepSeq(): number {
+    let newest = 0;
+    for (const stack of Object.values(undoRef.current)) {
+      const top = stack?.[stack.length - 1];
+      if (top?.seq && top.seq > newest) newest = top.seq;
+    }
+    return newest;
+  }
+  // Is the next undo a page action? Only when it is newer than every step on
+  // every page, so undoing a page can never skip past a drawing made after it.
+  function pageActionIsNext(): boolean {
+    const action = pageUndoRef.current[pageUndoRef.current.length - 1];
+    return !!action && action.seq > newestStepSeq();
+  }
+  function refreshAdded() {
+    setAdded([...addedRef.current]);
   }
   function refreshThumbs() {
     setThumbs([...thumbRef.current]);
@@ -1462,6 +1552,14 @@ export function DrawingCanvas({
       }
       syncPageImages(i);
     }
+    publishHidden();
+  }
+
+  // Tell the form (and the autosave) what the pages are now, without drawing
+  // anything. A page operation has already moved every page's composite into
+  // place; re-rendering the one on screen straight after it would read a stroke
+  // layer whose repaint is still in flight.
+  function publishHidden() {
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
     }
@@ -1512,7 +1610,17 @@ export function DrawingCanvas({
   // Build a canvas draft from server composite pages (the owner's /uploads
   // paths): each composite becomes a page background with a blank stroke layer.
   // Composite fidelity — enough to resume on another device via hydrateFromDraft.
-  function serverPagesToCanvas(pages: string[]): DraftCanvasV1 {
+  //
+  // Every page comes back as a background, so on its own this copy would mark
+  // every page a template page and none would have a cross. Which pages were
+  // added rides along in the draft's fields for exactly that reason.
+  function serverPagesToCanvas(pages: string[], fields?: Record<string, string>): DraftCanvasV1 {
+    let added: unknown = undefined;
+    try {
+      added = fields?.addedPages ? JSON.parse(fields.addedPages) : undefined;
+    } catch {
+      /* unreadable: no page gets a cross */
+    }
     return {
       v: 1,
       pages: pages.map(() => ""),
@@ -1521,11 +1629,15 @@ export function DrawingCanvas({
       current: 0,
       anyDrawn: true,
       nextObjId: 0,
+      added: addedFlags(added, pages.length),
     };
   }
 
   function collectFields(): Record<string, string> {
-    return { ...(getExtraDraftFields?.() ?? {}) };
+    return {
+      ...(getExtraDraftFields?.() ?? {}),
+      addedPages: JSON.stringify(addedRef.current),
+    };
   }
 
   async function doPersist() {
@@ -1555,6 +1667,7 @@ export function DrawingCanvas({
       current: currentRef.current,
       anyDrawn: anyDrawnRef.current,
       nextObjId: objIdRef.current,
+      added: [...addedRef.current],
     };
   }
 
@@ -1567,7 +1680,10 @@ export function DrawingCanvas({
     templatesRef.current = [...canvas.templates];
     pagesRef.current = [...canvas.pages];
     objectsRef.current = (canvas.objects as Obj[][]).map((pg) => pg.map((o) => ({ ...o })));
+    addedRef.current = addedFlags(canvas.added, pagesRef.current.length);
     anyDrawnRef.current = canvas.anyDrawn;
+    // Before anything is drawn: the pictures of each page carry its questions.
+    placeQuestionsOnTeacherPages();
 
     // Next object id: never collide with a restored `o<n>` id.
     let maxId = canvas.nextObjId - 1;
@@ -1632,17 +1748,47 @@ export function DrawingCanvas({
     }
     undoRef.current = {};
     redoRef.current = {};
+    pageUndoRef.current = [];
     strokeDirtyRef.current = false; // the canvas holds exactly what was restored
     setPageCount(pagesRef.current.length);
+    refreshAdded();
     setCurrent(currentRef.current);
     setObjects(objectsRef.current[currentRef.current] ?? []);
     setThumbs([...thumbRef.current]);
+    setQuizQuestions([...quizRef.current]);
     refreshUndoRedo();
     if (hiddenRef.current) {
       hiddenRef.current.value = anyDrawnRef.current ? JSON.stringify(compositeRef.current) : "[]";
     }
     flushPreviewField();
     loadingRef.current = false;
+  }
+
+  // Put each quiz question back on the teacher's page it belongs to, after a
+  // restore.
+  //
+  // A draft keeps the pages in the child's order but not the questions: those
+  // come from the teacher's copy, and name their page by the TEACHER'S
+  // numbering. A child who put a page of their own in front of a question's
+  // page, and came back to it, found the question on their own blank page.
+  //
+  // On a child's canvas the teacher's pages are never moved among themselves
+  // (F76) and never thrown away, so the teacher's page k is the k-th page the
+  // child did not add, wherever their own pages were put. A draft that cannot
+  // say which pages were added marks none, and every question stays where the
+  // teacher put it — what happened before. The builder is left alone: there
+  // the questions are the teacher's own, being written.
+  function placeQuestionsOnTeacherPages() {
+    if (pageDelete !== "added") return;
+    const teacherPages: number[] = [];
+    addedRef.current.forEach((a, i) => {
+      if (!a) teacherPages.push(i);
+    });
+    const theirs = new Map((initialQuiz?.questions ?? []).map((q) => [q.id, q.pageIndex]));
+    quizRef.current = quizRef.current.map((q) => {
+      const k = theirs.get(q.id) ?? q.pageIndex;
+      return { ...q, pageIndex: teacherPages[k] ?? k };
+    });
   }
 
   // The stroke layer as it is right now, as a string.
@@ -1667,6 +1813,7 @@ export function DrawingCanvas({
     pushCapped((undoRef.current[currentRef.current] ??= []), {
       img: currentStrokeSnapshot(),
       objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
+      seq: ++seqRef.current,
     });
     redoRef.current[currentRef.current] = [];
     refreshUndoRedo();
@@ -1704,6 +1851,9 @@ export function DrawingCanvas({
         templatesRef.current = [null];
         pagesRef.current = [blankStroke];
       }
+      // A template's pages are the worksheet; a blank canvas's first page is
+      // the child's own, as much as any page they add after it.
+      addedRef.current = background && background.length ? background.map(() => false) : [true];
       currentRef.current = 0;
 
       // Hydrate the template's movable objects (per page). In "answer" mode they
@@ -1731,6 +1881,7 @@ export function DrawingCanvas({
       await ensureObjectImages(seededObjects.flat());
 
       setPageCount(pagesRef.current.length);
+      refreshAdded();
 
       // Initial composite per page: white + template, plus the objects flattened
       // in (except while authoring — there objects stay a separate layer).
@@ -1828,6 +1979,7 @@ export function DrawingCanvas({
       // unmounts, so nothing here is still needed by anything.
       undoRef.current = {};
       redoRef.current = {};
+      pageUndoRef.current = [];
       pagesRef.current = [];
       compositeRef.current = [];
       previewRef.current = [];
@@ -1840,13 +1992,18 @@ export function DrawingCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Has the person changed anything in this session? Every user edit goes through
-  // pushHistory(), so a non-empty undo stack is the canvas's own record of "there
-  // is work here now". hydrateFromDraft clears the stacks, so a restore does not
-  // count as an edit. Used to make sure a late cross-device draft never opens a
-  // dialog over work in progress.
+  // Has the person changed anything in this session? Every edit ON a page goes
+  // through pushHistory(), so a non-empty undo stack is the canvas's own record
+  // of "there is work here now"; an edit TO the pages — adding, copying, moving
+  // or throwing one away — counts too, and is remembered separately because
+  // undoing it empties the stack it was on. hydrateFromDraft clears the stacks,
+  // so a restore does not count as an edit. Used to make sure a late
+  // cross-device draft never opens a dialog over work in progress.
   function hasUserEdits(): boolean {
-    return Object.values(undoRef.current).some((stack) => (stack?.length ?? 0) > 0);
+    return (
+      pageEditedRef.current ||
+      Object.values(undoRef.current).some((stack) => (stack?.length ?? 0) > 0)
+    );
   }
 
   // Restore-on-mount: once the canvas is ready, offer any saved draft. Gated so
@@ -1895,7 +2052,7 @@ export function DrawingCanvas({
         // Work happened on another device (a same-fidelity composite).
         draftFieldsRef.current = server.fields ?? {};
         setDraftSource("server");
-        chosen = serverPagesToCanvas(server.pages);
+        chosen = serverPagesToCanvas(server.pages, server.fields);
       } else if (local?.canvas) {
         draftFieldsRef.current = local.fields ?? {};
         setDraftSource("local");
@@ -1943,7 +2100,7 @@ export function DrawingCanvas({
           if (restoreDecidedRef.current || hasUserEdits()) return;
           draftFieldsRef.current = late.fields ?? {};
           setDraftSource("server");
-          const upgraded = serverPagesToCanvas(late.pages);
+          const upgraded = serverPagesToCanvas(late.pages, late.fields);
           if (resumeMode === "continue") void applyRestore(upgraded);
           else setDraftPrompt(upgraded);
         });
@@ -2126,7 +2283,7 @@ export function DrawingCanvas({
     clearCanvas();
     if (!dataUrl) return Promise.resolve();
     loadingRef.current = true;
-    return loadImage(dataUrl)
+    const painted = loadImage(dataUrl)
       .then((img) => {
         const c = ctx();
         if (c) c.drawImage(img, 0, 0, W, H);
@@ -2138,6 +2295,8 @@ export function DrawingCanvas({
       .finally(() => {
         loadingRef.current = false;
       });
+    settleRef.current = painted;
+    return painted;
   }
 
   function loadPage(index: number) {
@@ -2149,15 +2308,26 @@ export function DrawingCanvas({
     setObjects([...entry.objects]);
     // The images too: undoing a retake must composite the photo that was
     // there before, not the one the cache was last told about.
-    void Promise.all([paintDataUrl(entry.img), ensureObjectImages(entry.objects)]).then(() => {
+    const done = Promise.all([paintDataUrl(entry.img), ensureObjectImages(entry.objects)]).then(() => {
       pagesRef.current[currentRef.current] = entry.img;
       syncHidden();
       refreshThumbs();
       refreshUndoRedo();
     });
+    settleRef.current = done;
   }
 
   function undo() {
+    if (pageActionIsNext()) {
+      // Once the page on screen has finished repainting from the step before.
+      // That repaint writes its strokes back to `pagesRef` when it lands, and
+      // a page moved or taken away under it would have them written onto the
+      // wrong page. The wait is a few milliseconds; the press is not lost.
+      void settleRef.current.then(() => {
+        if (pageActionIsNext() && !loadingRef.current) undoPageAction();
+      });
+      return;
+    }
     const stack = undoRef.current[currentRef.current];
     if (!stack || !stack.length) return;
     pushCapped((redoRef.current[currentRef.current] ??= []), {
@@ -2171,15 +2341,19 @@ export function DrawingCanvas({
   function redo() {
     const stack = redoRef.current[currentRef.current];
     if (!stack || !stack.length) return;
+    // A redo is a step taken now, so it is stamped now: newer than any page
+    // action before it.
     pushCapped((undoRef.current[currentRef.current] ??= []), {
       img: currentStrokeSnapshot(),
       objects: cloneObjs(objectsRef.current[currentRef.current] ?? []),
+      seq: ++seqRef.current,
     });
     setSelectedId(null);
     restore(stack.pop()!);
   }
 
   function goToPage(index: number) {
+    if (!ready) return;
     if (index < 0 || index >= pagesRef.current.length || index === currentRef.current) return;
     finishEditing();
     setCaptureFrame(null);
@@ -2192,21 +2366,152 @@ export function DrawingCanvas({
     refreshUndoRedo();
   }
 
+  // ---- Pages, and putting them back -----------------------------------------
+  //
+  // A page is not one thing. It is an entry in seven parallel arrays (strokes,
+  // background, objects, composite, preview, thumbnail, and whether it was
+  // added), a set of quiz questions that know which page they are on BY INDEX,
+  // and its own undo history, keyed by index too. Every page operation moves
+  // all of them together through the primitives below, so none of them can
+  // move six and hand in wrong.
+
+  // Re-key the per-page undo history after pages have moved. `to` answers
+  // "where is the page that was at index i now?", or null for a page that has
+  // gone. The redo stacks are dropped: redo replays the step just undone, and
+  // a page action is a new step.
+  function rekeyHistory(to: (i: number) => number | null) {
+    const next: Record<number, HistoryEntry[]> = {};
+    for (const [k, stack] of Object.entries(undoRef.current)) {
+      const n = to(Number(k));
+      if (n !== null && stack) next[n] = stack;
+    }
+    undoRef.current = next;
+    redoRef.current = {};
+  }
+
+  // Lift page i out whole. The caller keeps the snapshot to put back, or lets
+  // it go.
+  function takePage(i: number): PageSnapshot {
+    const snap: PageSnapshot = {
+      page: pagesRef.current[i],
+      template: templatesRef.current[i] ?? null,
+      objects: objectsRef.current[i] ?? [],
+      composite: compositeRef.current[i],
+      preview: previewRef.current[i],
+      thumb: thumbRef.current[i],
+      added: addedRef.current[i] === true,
+      questions: quizRef.current.filter((q) => q.pageIndex === i),
+      history: undoRef.current[i] ?? [],
+    };
+    pagesRef.current.splice(i, 1);
+    templatesRef.current.splice(i, 1);
+    objectsRef.current.splice(i, 1);
+    compositeRef.current.splice(i, 1);
+    previewRef.current.splice(i, 1);
+    thumbRef.current.splice(i, 1);
+    addedRef.current.splice(i, 1);
+    // The page's questions go with it, and every question after it moves up a
+    // page. Without this, throwing away page 2 of 3 in the builder left page
+    // 3's question pointing at a page that no longer existed.
+    quizRef.current = quizRef.current
+      .filter((q) => q.pageIndex !== i)
+      .map((q) => (q.pageIndex > i ? { ...q, pageIndex: q.pageIndex - 1 } : q));
+    rekeyHistory((k) => (k < i ? k : k === i ? null : k - 1));
+    return snap;
+  }
+
+  // Put a page back at index i: takePage, backwards, to the letter.
+  function putPage(i: number, snap: PageSnapshot) {
+    pagesRef.current.splice(i, 0, snap.page);
+    templatesRef.current.splice(i, 0, snap.template);
+    objectsRef.current.splice(i, 0, snap.objects);
+    compositeRef.current.splice(i, 0, snap.composite);
+    previewRef.current.splice(i, 0, snap.preview);
+    thumbRef.current.splice(i, 0, snap.thumb);
+    addedRef.current.splice(i, 0, snap.added);
+    quizRef.current = [
+      ...quizRef.current.map((q) => (q.pageIndex >= i ? { ...q, pageIndex: q.pageIndex + 1 } : q)),
+      ...snap.questions.map((q) => ({ ...q, pageIndex: i })),
+    ];
+    rekeyHistory((k) => (k < i ? k : k + 1));
+    if (snap.history.length) undoRef.current[i] = snap.history;
+    // Its decoded pictures were let go when it went (see deletePageAt), so
+    // they are fetched again, by the ordinary cache-miss path. The page's
+    // composite and thumbnail came back with it, so nothing waits on these.
+    const url = snap.template;
+    if (url && !templateImgRef.current.has(url)) {
+      void loadImage(url)
+        .then((img) => void templateImgRef.current.set(url, img))
+        .catch(() => {});
+    }
+    void ensureObjectImages(snap.objects);
+  }
+
+  // Remember a page action so undo can take it back. Capped like every other
+  // history: the oldest simply stops being undoable.
+  function pushPageAction(action: PageAction) {
+    pageUndoRef.current.push(action);
+    if (pageUndoRef.current.length > MAX_HISTORY) pageUndoRef.current.shift();
+    pageEditedRef.current = true;
+  }
+
+  // Land on a page after the pages have changed under it, and tell everything
+  // that shows them.
+  function showPage(index: number) {
+    currentRef.current = index;
+    setPageCount(pagesRef.current.length);
+    refreshAdded();
+    setCurrent(index);
+    setSelectedId(null);
+    setMultiIds([]);
+    setObjects(objectsRef.current[index] ?? []);
+    setQuizQuestions([...quizRef.current]);
+    refreshThumbs();
+    refreshUndoRedo();
+    // Published before the repaint starts, for two reasons: the field must say
+    // what the pages are NOW, and the autosave is only scheduled while nothing
+    // is loading.
+    publishHidden();
+    loadPage(index);
+  }
+
+  // May this page be thrown away? Asked by the tray, the menu, the inline
+  // button AND by deletePageAt itself, which is where every route ends up.
+  function pageMayGo(i: number): boolean {
+    return pageDelete === "any" || addedRef.current[i] === true;
+  }
+
+  // May this page be moved? The same pages as may go, for the same reason: the
+  // teacher's pages are the worksheet, in the order the teacher set it (owner
+  // decision 2026-09-10, F76). A page the child added may be slid anywhere,
+  // between two of the teacher's included, and that never reorders the
+  // teacher's pages among themselves, because they are never the page that
+  // moves. Asked by the tray and the menu, and by movePageTo itself.
+  function pageMayMove(i: number): boolean {
+    return pageDelete === "any" || addedRef.current[i] === true;
+  }
+
   function addPage() {
+    if (!ready) return;
     finishEditing();
     setCaptureFrame(null);
     syncHidden();
+    const from = currentRef.current;
     clearCanvas();
     const blank = canvasRef.current!.toDataURL("image/png"); // transparent strokes
     pagesRef.current.push(blank);
     templatesRef.current.push(null);
     objectsRef.current.push([]);
+    addedRef.current.push(true);
     const index = pagesRef.current.length - 1;
     currentRef.current = index;
     // White paper, and nothing on it yet — so the preview IS the composite, and
     // the thumbnail comes off the same render.
     syncPageImages(index);
+    // "New page gone" is what the toast promises, so it has to be undoable.
+    pushPageAction({ kind: "add", seq: ++seqRef.current, index, from });
     setPageCount(pagesRef.current.length);
+    refreshAdded();
     setCurrent(index);
     setSelectedId(null);
     setObjects([]);
@@ -2225,13 +2530,8 @@ export function DrawingCanvas({
   // Copied objects and questions get NEW ids. Two objects sharing an id would
   // be one object as far as selection, deletion and the answer map are
   // concerned, so a child editing the copy would silently edit the original.
-  function duplicatePageAt(target: number) {
-    if (target < 0 || target >= pagesRef.current.length) return;
-    finishEditing();
-    setCaptureFrame(null);
-    // Bake the page on screen first, so duplicating a DIFFERENT page never
-    // drops the in-progress work on the one being viewed.
-    syncHidden();
+  // The copy is a page added here, so it can be thrown away again.
+  function copyPage(target: number): number {
     const at = target + 1;
     pagesRef.current.splice(at, 0, pagesRef.current[target]);
     templatesRef.current.splice(at, 0, templatesRef.current[target]);
@@ -2243,6 +2543,7 @@ export function DrawingCanvas({
     compositeRef.current.splice(at, 0, compositeRef.current[target]);
     previewRef.current.splice(at, 0, previewRef.current[target]);
     thumbRef.current.splice(at, 0, thumbRef.current[target]);
+    addedRef.current.splice(at, 0, true);
 
     // A question knows which page it is on by index, so inserting a page moves
     // every question after the insertion up one — and the copied page's own
@@ -2259,46 +2560,29 @@ export function DrawingCanvas({
       ...quizRef.current.map((q) => (q.pageIndex >= at ? { ...q, pageIndex: q.pageIndex + 1 } : q)),
       ...copies,
     ];
-    setQuizQuestions([...quizRef.current]);
-
-    // Page indices shift, so drop the (now-misaligned) history — the same rule
-    // deleting a page follows.
-    undoRef.current = {};
-    redoRef.current = {};
-    currentRef.current = at;
-    setPageCount(pagesRef.current.length);
-    setCurrent(at);
-    setSelectedId(null);
-    setObjects(objectsRef.current[at] ?? []);
-    loadPage(at);
-    anyDrawnRef.current = true;
-    syncHidden();
-    refreshThumbs();
-    refreshUndoRedo();
+    rekeyHistory((k) => (k < at ? k : k + 1));
+    return at;
   }
 
-  // Move a page one place up or down the strip.
-  //
-  // A page is not one thing. It is an entry in five parallel arrays plus a set
-  // of quiz questions that know which page they are on BY INDEX, and a reorder
-  // that moved four of the five would look right and hand in wrong. So this
-  // follows the same order duplicate and delete do, for the same reasons.
-  function movePageBy(index: number, delta: number) {
-    movePageTo(index, index + delta);
+  function duplicatePageAt(target: number) {
+    if (!ready) return;
+    if (target < 0 || target >= pagesRef.current.length) return;
+    finishEditing();
+    setCaptureFrame(null);
+    // Bake the page on screen first, so duplicating a DIFFERENT page never
+    // drops the in-progress work on the one being viewed.
+    syncHidden();
+    const from = currentRef.current;
+    const at = copyPage(target);
+    pushPageAction({ kind: "copy", seq: ++seqRef.current, index: at, from });
+    anyDrawnRef.current = true;
+    showPage(at);
   }
 
   // Move a page to a position, not just past its neighbour. The page tray drags
   // a card several slots at once, and a run of swaps would fire the whole
-  // reorder (and its history reset) once per slot crossed.
-  function movePageTo(index: number, target: number) {
-    if (index === target) return;
-    if (index < 0 || index >= pagesRef.current.length) return;
-    if (target < 0 || target >= pagesRef.current.length) return;
-    finishEditing();
-    // Bake the page on screen first, so reordering from a DIFFERENT page never
-    // drops the in-progress work on the one being viewed.
-    syncHidden();
-
+  // reorder once per slot crossed.
+  function liftPage(index: number, target: number) {
     const lift = <T,>(arr: T[]) => {
       const [item] = arr.splice(index, 1);
       arr.splice(target, 0, item);
@@ -2309,6 +2593,7 @@ export function DrawingCanvas({
     lift(compositeRef.current);
     lift(previewRef.current);
     lift(thumbRef.current);
+    lift(addedRef.current);
 
     // The questions travel with their pages. This is the part a naive reorder
     // silently breaks: the pictures move and the questions stay behind. Every
@@ -2324,74 +2609,111 @@ export function DrawingCanvas({
           ? { ...q, pageIndex: q.pageIndex + step }
           : q,
     );
-    setQuizQuestions([...quizRef.current]);
 
-    // Page indices moved, so drop the (now-misaligned) history — the same rule
-    // duplicate and delete follow.
-    undoRef.current = {};
-    redoRef.current = {};
-    // Stay with the page that moved rather than with the position it left, so
-    // a teacher can press the same button again to keep going.
-    currentRef.current = target;
-    setPageCount(pagesRef.current.length);
-    setCurrent(target);
-    setSelectedId(null);
-    setMultiIds([]);
-    setObjects(objectsRef.current[target] ?? []);
-    loadPage(target);
-    syncHidden();
-    refreshThumbs();
-    refreshUndoRedo();
+    // And each page's history goes where its page went.
+    const order = pagesRef.current.map((_, i) => i);
+    lift(order); // order[now] = where that page was before
+    rekeyHistory((k) => order.indexOf(k));
   }
 
-  // Delete a specific page (by index). Used by the per-thumbnail delete cross,
-  // so it can remove any page — not only the one on screen.
-  function deletePageAt(target: number) {
-    if (pagesRef.current.length <= 1) return;
-    if (target < 0 || target >= pagesRef.current.length) return;
+  // Move a page one place up or down the strip.
+  function movePageBy(index: number, delta: number) {
+    movePageTo(index, index + delta);
+  }
+
+  // Returns whether it moved, so a caller only says it did when it did.
+  function movePageTo(index: number, target: number): boolean {
+    if (!ready || index === target) return false;
+    if (index < 0 || index >= pagesRef.current.length) return false;
+    if (target < 0 || target >= pagesRef.current.length) return false;
+    // Enforced here as well as at the tray and the menu, the way deletePageAt
+    // refuses a teacher's page: the next route to a move cannot forget it.
+    if (!pageMayMove(index)) return false;
+    finishEditing();
+    // Bake the page on screen first, so reordering from a DIFFERENT page never
+    // drops the in-progress work on the one being viewed.
+    syncHidden();
+    liftPage(index, target);
+    pushPageAction({ kind: "move", seq: ++seqRef.current, from: index, to: target });
+    // Stay with the page that moved rather than with the position it left, so
+    // a teacher can press the same button again to keep going.
+    showPage(target);
+    return true;
+  }
+
+  // Throw a page away (by index) — the tray's cross, the page menu and the
+  // inline layout's "Delete page" all end here. Undo puts it back: the drawing,
+  // the pieces on it, its questions and its own history.
+  //
+  // Returns whether it went, so a caller only says it did when it did.
+  function deletePageAt(target: number): boolean {
+    if (!ready || pagesRef.current.length <= 1) return false;
+    if (target < 0 || target >= pagesRef.current.length) return false;
+    // Enforced here as well as at every button: this is the one place that
+    // cannot be forgotten when the next route to it is added (rule 8).
+    if (!pageMayGo(target)) return false;
     finishEditing();
     setCaptureFrame(null);
+    setSelectedQuestionId(null);
     // Bake the page on screen first, so deleting a DIFFERENT page never drops
     // the in-progress work on the page you're currently viewing.
     syncHidden();
     // The decoded pictures that page was holding go with it. Every one is a
     // full-size bitmap kept outside the JavaScript heap, and a lesson spent
     // adding a photo page and throwing it away again kept all of them. If the
-    // deletion is undone the objects come back through `ensureObjectImages`,
-    // which reloads on a cache miss by design.
+    // deletion is undone, `putPage` fetches them again.
     const goneUrl = templatesRef.current[target];
     for (const o of objectsRef.current[target] ?? []) imgCacheRef.current.delete(o.id);
-    pagesRef.current.splice(target, 1);
-    templatesRef.current.splice(target, 1);
-    objectsRef.current.splice(target, 1);
-    compositeRef.current.splice(target, 1);
-    previewRef.current.splice(target, 1);
-    thumbRef.current.splice(target, 1);
+    const snap = takePage(target);
     // A worksheet background is cached by URL and SHARED between pages, so it
     // may only be dropped once no page is still standing on it.
     if (goneUrl && !templatesRef.current.includes(goneUrl)) templateImgRef.current.delete(goneUrl);
-    // Page indices shift, so drop the (now-misaligned) history.
-    undoRef.current = {};
-    redoRef.current = {};
+    pushPageAction({ kind: "delete", seq: ++seqRef.current, index: target, snap });
     // Keep the viewer on the same page where possible: a page removed at or
     // before the current one shifts the current index back by one; a page
     // removed after it leaves the current index alone.
     let index = target <= currentRef.current ? currentRef.current - 1 : currentRef.current;
     index = Math.max(0, Math.min(index, pagesRef.current.length - 1));
-    currentRef.current = index;
-    setPageCount(pagesRef.current.length);
-    setCurrent(index);
-    setSelectedId(null);
-    setObjects(objectsRef.current[index] ?? []);
-    loadPage(index);
-    syncHidden();
-    refreshThumbs();
-    refreshUndoRedo();
+    showPage(index);
+    return true;
   }
 
   // Delete the page currently on screen (the inline layout's "Delete page").
   function deletePage() {
     deletePageAt(currentRef.current);
+  }
+
+  // Take back the newest page action. Only called when it is newer than every
+  // step on every page (`pageActionIsNext`), so nothing done since is lost.
+  function undoPageAction() {
+    const action = pageUndoRef.current.pop();
+    if (!action) return;
+    finishEditing();
+    setCaptureFrame(null);
+    setSelectedQuestionId(null);
+    syncHidden();
+    switch (action.kind) {
+      case "delete":
+        // The page comes back where it was, and the child is taken to it:
+        // what they just asked for is on screen.
+        putPage(action.index, action.snap);
+        showPage(action.index);
+        return;
+      case "add":
+      case "copy": {
+        // Nothing done on the new page since is still standing — undo only
+        // reaches this once every step on it has been undone — so the page
+        // goes exactly as it came, and the person is back where they were.
+        for (const o of objectsRef.current[action.index] ?? []) imgCacheRef.current.delete(o.id);
+        takePage(action.index);
+        showPage(Math.min(action.from, pagesRef.current.length - 1));
+        return;
+      }
+      case "move":
+        liftPage(action.to, action.from);
+        showPage(action.from);
+        return;
+    }
   }
 
   function clearPage() {
@@ -2782,11 +3104,13 @@ export function DrawingCanvas({
       y: at.y,
       items: [
         { label: "Duplicate page", onSelect: () => duplicatePageAt(i) },
-        { label: "Move up", onSelect: () => movePageBy(i, -1), disabled: i === 0 },
+        // Only the builder opens this menu today, where every page may move;
+        // asked anyway, so the menu never offers what movePageTo would refuse.
+        { label: "Move up", onSelect: () => movePageBy(i, -1), disabled: i === 0 || !pageMayMove(i) },
         {
           label: "Move down",
           onSelect: () => movePageBy(i, 1),
-          disabled: i >= pagesRef.current.length - 1,
+          disabled: i >= pagesRef.current.length - 1 || !pageMayMove(i),
         },
       ],
     });
@@ -3284,6 +3608,10 @@ export function DrawingCanvas({
       correctOptionId: "opt0",
     };
     quizRef.current = [...quizRef.current, q];
+    // A question is not on the undo history, so undo must not walk back past
+    // one: undoing the page it was added to would take it away unasked.
+    pageUndoRef.current = [];
+    refreshUndoRedo();
     anyDrawnRef.current = true;
     setSelectedQuestionId(qid);
     openQuizPanel();
@@ -4216,11 +4544,19 @@ export function DrawingCanvas({
                   out of the tray. */}
               <PageTray
                 u={u}
+                ready={ready}
                 count={pageCount}
                 active={current}
                 maxWidth={Math.max(200, paper.w - 2 * (NEAR_X + DISC / 2 + 10))}
                 thumbs={thumbs}
-                canDelete={allowPageDelete}
+                deletable={Array.from({ length: pageCount }, (_, i) =>
+                  pageDelete === "any" ? true : added[i] === true,
+                )}
+                // The same pages (see pageMayMove): a teacher's page stays put
+                // for a child, and the tray does not lift it.
+                movable={Array.from({ length: pageCount }, (_, i) =>
+                  pageDelete === "any" ? true : added[i] === true,
+                )}
                 canStructure={allowPageStructure}
                 onGo={(i) => {
                   closeFans();
@@ -4231,18 +4567,20 @@ export function DrawingCanvas({
                   say("New page gone");
                 }}
                 onReorder={(from, to) => {
-                  movePageTo(from, to);
-                  say("Page moved back");
+                  if (movePageTo(from, to)) say("Page moved back");
                 }}
                 onDuplicate={(i) => {
                   duplicatePageAt(i);
                   say("Page copy gone");
                 }}
                 onDelete={(i) => {
-                  deletePageAt(i);
-                  say(`Page ${i + 1} is back`);
+                  closeFans();
+                  // Said only when it went, and in words that are true: undo
+                  // really does bring it back now (see undoPageAction).
+                  if (deletePageAt(i)) say(`Undo brings page ${i + 1} back`);
                 }}
                 onClear={(i) => {
+                  if (!ready) return;
                   if (i !== currentRef.current) goToPage(i);
                   clearPage();
                   say("Drawing is back");
@@ -4511,7 +4849,8 @@ export function DrawingCanvas({
           </button>
         )}
         <button type="button" onClick={() => fileRef.current?.click()} className="btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-sm"><Icon name="add-file" size={16} decorative /> Add PDF / image</button>
-        {allowPageDelete && pageCount > 1 && (
+        {/* The same rule as the tray's cross: the page on screen, when it may go. */}
+        {pageCount > 1 && (pageDelete === "any" || added[current] === true) && (
           <button type="button" onClick={deletePage} className="px-3 py-1.5 text-sm text-muted hover:text-rose-600">Delete page</button>
         )}
       </div>
