@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { teacherLogin } from "./helpers";
 
@@ -322,21 +322,26 @@ test("the picks are kept nowhere: a reload forgets them, and no status changed",
   page.on("request", (r) => {
     if (r.method() !== "GET") sent.push(`${r.method()} ${r.url()}`);
   });
-  // What the browser holds before anything is picked. The page keeps keys of
-  // its own that come and go with page loads — the error reporter's "alive"
-  // marker is written on load and removed on hide — so the claim is not that
-  // storage never changes, but that picking and showing add nothing to it.
+  // What the browser holds before anything is picked. Every page also keeps a
+  // key of its own: the error reporter's "alive" marker (#177), written once a
+  // page has hydrated and removed when it is hidden. When that lands is timing
+  // — it has arrived both before and after this baseline on CI — so it is left
+  // out, by the name the reporter itself gives it. The claim is that picking
+  // and showing add nothing, not that storage never changes.
+  const aliveKey = /const ALIVE_KEY = "([^"]+)"/.exec(
+    readFileSync(path.join(process.cwd(), "src/components/ClientErrorReporter.tsx"), "utf8"),
+  )![1];
   const held = () =>
-    page.evaluate(() => {
+    page.evaluate((skip) => {
       const all: Record<string, string> = {};
       for (const s of [localStorage, sessionStorage]) {
         for (let i = 0; i < s.length; i++) {
           const k = s.key(i)!;
-          all[k] = s.getItem(k) ?? "";
+          if (k !== skip) all[k] = s.getItem(k) ?? "";
         }
       }
       return all;
-    });
+    }, aliveKey);
   const baseline = Object.keys(await held()).sort();
   const namesAWork = (store: Record<string, string>) =>
     Object.values(store).filter((v) => Object.values(itemIds).some((id) => v.includes(id)));
@@ -358,10 +363,9 @@ test("the picks are kept nowhere: a reload forgets them, and no status changed",
   await page.reload();
   await expect(page.getByRole("button", { name: /Show on the board \(0\)/ })).toBeDisabled();
   await expect(tick(page, "Ada")).not.toBeChecked();
-  // Across the reload, too: whether the new page has written its own marker
-  // yet is timing, so only keys that were there before any pick are allowed.
+  // And across the reload.
   const after = await held();
-  expect(Object.keys(after).filter((k) => !baseline.includes(k)), "a key appeared that was not there before").toEqual([]);
+  expect(Object.keys(after).sort(), "the reload found nothing stored by the board").toEqual(baseline);
   expect(namesAWork(after)).toEqual([]);
 
   // Showing is not approving, returning or anything else.
