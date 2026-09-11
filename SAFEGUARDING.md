@@ -510,6 +510,81 @@ Each rule is testable. A change that breaks one does not ship.
     escapes by default — do not use `dangerouslySetInnerHTML` on user content).
     Validate upload type and size; never render links from child input as
     clickable. Keep dependencies patched.
+26. **A web link a teacher puts on a canvas is the one link a child may press,
+    and a "leaving StoryJar" card always comes first.** *(Added 2026-09-10; see
+    "Amendments" below. This is the single carve-out from rule 15's "never
+    render links as clickable", placed beside it for that reason, and bound as
+    tightly as rule 1's PIN.)* A teacher may put a web link on an activity's
+    canvas so that a class can open a website the teacher has chosen. The
+    constraints, every one of them a blocking test:
+
+    - **It reaches a child only in an activity a teacher chose to set.** The
+      link object is offered in the template builder's toolbox and nowhere
+      else. A child's toolbox never offers one, and on a child's canvas a link
+      cannot be added, moved, resized, copied, changed or opened without the
+      card. Wiping a page clean removes it along with everything else on that
+      page, as it removes the teacher's pictures and shapes, and Undo puts it
+      back. The Claude connector has no way to place one
+      (`docs/claude-connector.md`). A link StoryJar
+      staff put in a library activity is kept when it is published, and reaches
+      a class only once a teacher has added that activity and set it
+      (`docs/library-publishing.md`) — so the accurate word is teacher-*adopted*,
+      as it is for quiz content.
+    - **https only, to a named public host.** One validator,
+      `parseTeacherLink` in `src/lib/canvasObjects.ts`, runs in the builder and
+      again on the server before anything is stored, and again on a child's
+      canvas before a link can be pressed. It refuses anything that is not
+      `https:`; a name or password before the host; an IP address; `localhost`,
+      `.local`, `.internal` or a single-word host; a port; an address over 2,000
+      characters; an escape that cannot be decoded; and any address containing
+      `/uploads/` anywhere — path, query or fragment, as typed, as the parser
+      stores it, or percent-decoded (FINDINGS F75: the media route authorises a
+      file by matching its path as text, and a link must not be a second way to
+      name one). A teacher's name for a link is held to the same `/uploads/`
+      rule, because it is stored in the same payload.
+    - **The real host is always what a child sees.** The chip on the page and
+      the card both show `displayHost()` — the address's own host, in its
+      `xn--` form where it has one — and a teacher's label sits beside it,
+      never instead of it. A host too long for the room it has is shortened
+      from the LEFT, so its owning end always shows: on the chip to fit the
+      chip, and on the card only past forty characters — up to that the card
+      wraps it rather than cutting it, so on any screen all of it is visible.
+      A label can say anything; the host is the one in the address the
+      teacher entered. It is not a promise about where the tab ends up: a link
+      shortener or a redirect page can send the tab somewhere else once it has
+      opened, and that is governed by the school's web filter (below), not by
+      the card.
+    - **The card always comes first.** Pressing a link opens a full-screen,
+      opaque "leaving StoryJar" card — *This opens {host} — a website your
+      teacher chose* — with **Stay here** focused and **Open it** beside it.
+      Nothing opens without a second, deliberate press, and Escape stays.
+    - **Only the teacher's own copy can be pressed, or drawn.** A child's
+      canvas presses only links that arrived in the teacher's snapshot of the
+      activity, and opens the address from that snapshot — never from anything
+      the child's device has stored or changed, including a restored draft.
+      The chip and the picture that is handed in are drawn from the same
+      snapshot, and a link the snapshot never had is taken off the page, so
+      all three name the same website. (A draft restored on a different device
+      comes back as page pictures, in which a link is drawn but cannot be
+      pressed: FINDINGS F80. That fails safe.)
+    - **A new tab that knows nothing about where it came from.** Open it is an
+      `<a target="_blank" rel="noopener noreferrer">`: the website cannot script
+      back into the child's tab and is not told which page sent them.
+    - **Nothing counts the press.** No record is made of which child opened
+      which link, or that anyone did. A link is teaching material, not a way to
+      watch a class (rule 11).
+    - **The school's web filter governs the tab.** StoryJar vouches for none of
+      the sites a teacher links to and cannot see what the tab shows once it is
+      open, and the builder says so to the teacher. Filtering and monitoring of
+      the open web remain the school's, under KCSIE.
+    - **Only StoryJar's fixed words are read aloud** on the card. The host is
+      shown and never spoken (rule 10 and the read-aloud scope notes below).
+
+    **Not covered by this rule**, and each needing its own amendment: a link a
+    child makes, in any form; a link in a caption, a note on returned work, a
+    message or a notice (rules 15, 21 and 24 still govern those — text to read,
+    never a link to press); a website embedded or framed inside StoryJar; a link
+    that opens without the card; any count, log or report of links pressed.
 
 ### G. Accountability
 16. **Safeguarding-relevant actions are audited.** Who approved / returned /
@@ -562,7 +637,7 @@ StoryJar must help schools meet, and itself comply with, at least:
 |---|---|
 | **UK GDPR + Data Protection Act 2018** | Lawful basis (the school's), data minimisation, purpose limitation, security (Art. 32), data-subject rights, retention limits (schedule: [`RETENTION.md`](./RETENTION.md)), **processor duties (Art. 28)** → a DPA. |
 | **ICO Age Appropriate Design Code (Children's Code)** | 15 standards: high-privacy **defaults**, data minimisation, no nudge/dark patterns, no profiling of children, transparency in language a child/parent understands, DPIA. |
-| **Keeping Children Safe in Education (KCSIE)** | The product operates in schools' safeguarding regime: teacher moderation, no unsupervised child-to-child contact, clear reporting routes, filtering/monitoring expectations. |
+| **Keeping Children Safe in Education (KCSIE)** | The product operates in schools' safeguarding regime: teacher moderation, no unsupervised child-to-child contact, clear reporting routes, filtering/monitoring expectations. **From 2026-09-10 a child can open a website a teacher linked to (rule 26)**: the new tab is the open web, under the school's own filtering and monitoring, and StoryJar neither vouches for the site nor records the visit. |
 | **DfE digital & technology standards** (incl. filtering & monitoring, data protection in schools) | Supports schools' duties; secure by design; clear data-handling. |
 | **PECR** | Cookie/consent rules — we use **essential cookies only** (the session cookie); no marketing/analytics cookies. |
 | **Online Safety Act 2023** | Children's content is private and teacher-moderated (not public). **Assessed afresh on 2026-09-07 when parent–teacher messages were added (rule 21):** the new user-to-user content is a private, one-to-one-household conversation between adults about one child, reachable only by that child's linked parents and named school staff, closable by the school, off by default, with no child able to read or write it and nothing public or searchable. It creates no route by which a child can be contacted by, or contact, anyone. Any *further* widening — child-reachable, public, or cross-family content — needs its own assessment. |
@@ -640,6 +715,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-10 | 15 (carve-out), 26 (new) | A teacher may put a web link on an activity's canvas, and a child may press it — only through a full-screen "leaving StoryJar" card with Stay here focused, only to an https address on a named public host, always showing the real host, opening a new tab that is `noopener noreferrer`, and with nothing recorded about who pressed it. The connector cannot place one; links are kept when StoryJar staff publish to the library. | Product owner (who is also the data protection lead), on a teacher's request | A teacher asked to put a website on a worksheet — the page a class is working from — rather than on the board beside it. Rule 15 said a link is never clickable, and that line was written about links from a *child's* input, where it stands unchanged. The risk that matters is a child being taken somewhere by surprise, or somewhere that is not what it says; the card, the real host and the https-to-a-public-name rule answer those structurally, and the new tab is the open web under the school's own filter, exactly as a link on the whiteboard would be. **What was traded away:** rule 15's absolute that nothing in a child's surface is a link. **What was not:** a child still cannot make a link, no link opens without the card, no message, notice, note or caption becomes pressable, and StoryJar does not watch what a class opens. Owner decisions, 2026-09-10: a child may press one, the card comes first, and the card's words are approved as written (`docs/AGE_MODE_COPY.md`). Links kept on library publish and no connector tool were the recommended defaults, taken; `docs/dpo-decisions.md` records them. |
 | 2026-09-09 | 24 (new) | A school may send one-way notices to families — whole school by an admin, a class by its teacher — with no reply table, no reply action and no form; not held to office hours, not emailed; taken down rather than deleted; the operator may read one. | Product owner | The office's "closed on Friday" and the teacher's "PE kit tomorrow" had no route except thirty identical conversations, each of which could be replied to and each of which a teacher then owned. A notice is the opposite of a conversation, and the owner's one requirement was that families cannot respond. That is met structurally rather than by policy: nothing exists to respond to. **What was traded away:** nothing in rule 21, which governs conversations and is untouched; nothing in rule 6b, whose exclusion of "a notification about anything other than a message" is applied rather than amended. **What was not:** the operator's blindness to children — a notice holds no child, and reaching one through it still fails the gate. The risk worth naming is an adult naming a child in a whole-school notice, which the composer warns against and taking it down remedies (DPIA R22). |
 | 2026-09-08 | 6a (scope note), 6b (new), 21 (list) | Rule 6a's "notifications they switched on themselves" gets its first use, and 6b says what that one email may contain: only that a message is waiting, with no content, no names, and no sign-in token, sent when the message is DELIVERED rather than when it is written. Rule 21's "not covered" list loses the email-notification entry, which this answers, and the safeguarding-lead entry, which 21a answers. | Product owner | Rule 6a was written on 2026-08-17 deliberately wider than "StoryJar never emails a parent", so that a preference a parent set themselves would not be banned before it existed. This is that preference. The risk it carries is not the sending but the CONTENT: a notification is the natural place for "Mrs Hartley wrote about Amara" to appear, and that sentence in a shared mailbox is a disclosure the product cannot take back. So the email says nothing, and the omissions are the feature. **What was traded away:** the clean absolute that StoryJar emails a parent only a link they asked for. **What was not:** the office-hours hold, which the delivery-time trigger preserves rather than works around; the badge model for the many households with no address; and rule 21's ban on message content leaving the product. Worth recording that this makes FINDINGS F30 and F31 cost more: every earlier email was one somebody was waiting for, so a failure was noticed by the person who did not get it. Nobody waits for this one. |
 | 2026-09-08 | 21a (new) | A teacher may raise one conversation to a member of staff the school has named as a safeguarding lead, with a reason recorded on the share row. The lead reads only what is raised to them; whether they may reply is decided by the existing per-staff messaging permission, unchanged; the parent is not told, because the reader list rule 21 already shows them is the transparency. | Product owner | Rule 21 named this in its own "not covered" list as needing an amendment, and `COMPETITIVE_POSITIONING.md` said in terms not to promise it to a school until it existed. It is smaller than it sounds because per-thread sharing is already the mechanism: this is a share with a named recipient and a recorded reason, which is why it adds **no new route to a child's data**. **What was traded away:** nothing structural — one more adult can read one conversation, chosen by a teacher, from a list the school itself set. **What was not:** the lead has no standing access to anything not raised to them; reading is not writing; the reason never reaches the audit log; and the parent's pages still never carry the word "safeguarding". The risk actually worth naming is a school mistaking this for a reporting channel, which is answered on the screen rather than in this document. |
@@ -657,7 +733,8 @@ to.
 order rules were added, not positions on the page. They are cited from
 `schema.prisma`, `docs/DPIA.md` and the test battery, so a rule is never
 renumbered to tidy the sequence. Rule 20 therefore sits beside rule 5, which is
-the rule it extends, and rule 6a sits beside rule 6.
+the rule it extends, rule 6a sits beside rule 6, and rule 26 sits beside rule
+15, the rule it carves out of.
 
 *Last reviewed by engineering; **not yet reviewed by a data-protection professional / legal.** Update the
 "Last reviewed" line and the backlog whenever this changes.*

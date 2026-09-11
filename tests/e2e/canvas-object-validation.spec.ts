@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { normalizeTemplateObjects } from "../../src/lib/canvasObjects";
+import { displayHost, normalizeTemplateObjects, parseTeacherLink } from "../../src/lib/canvasObjects";
 
 // Pure tests over the shape-object validator. No browser: this is the gate that
 // decides what actually reaches the database, and it is worth pinning directly
@@ -172,5 +172,150 @@ test.describe("photo frame validation", () => {
   test("a page of frames is capped like any other page", () => {
     const page = Array.from({ length: 121 }, (_, i) => ({ ...frameBase, id: `f${i}` }));
     expect(normalizeTemplateObjects([page]).pages[0]).toHaveLength(120);
+  });
+});
+
+// Web links (SAFEGUARDING rule 26). The one thing on a canvas a child can press
+// that leaves StoryJar, so the address rules are pinned here as a table: one
+// validator, `parseTeacherLink`, decides in the builder AND on the server, and
+// `normalizeTemplateObjects` drops the whole object when it says no.
+test.describe("web link validation", () => {
+  const linkBase = { id: "l1", type: "link", x: 50, y: 50, w: 380, h: 110 };
+
+  const accepted: [string, string][] = [
+    ["https://www.bbc.co.uk/bitesize", "https://www.bbc.co.uk/bitesize"],
+    // A teacher pasting without the scheme means https.
+    ["bbc.co.uk/bitesize/topics", "https://bbc.co.uk/bitesize/topics"],
+    ["  https://example.org/a?b=c#d  ", "https://example.org/a?b=c#d"],
+    ["HTTPS://Example.ORG/Path", "https://example.org/Path"],
+    // The default port is the ordinary address, and the parser drops it.
+    ["https://example.org:443/x", "https://example.org/x"],
+  ];
+  for (const [typed, stored] of accepted) {
+    test(`accepts ${JSON.stringify(typed)}`, () => {
+      const r = parseTeacherLink(typed);
+      expect(r.ok && r.href).toBe(stored);
+      expect(normaliseOne({ ...linkBase, href: typed })?.href).toBe(stored);
+    });
+  }
+
+  const refused: [unknown, string][] = [
+    ["", "empty"],
+    [42, "empty"],
+    ["http://example.org", "not-https"],
+    ["javascript:alert(1)", "not-https"],
+    ["data:text/html,<script>alert(1)</script>", "not-https"],
+    ["file:///etc/passwd", "not-https"],
+    ["ftp://example.org/x", "not-https"],
+    ["https://teacher:secret@example.org/", "credentials"],
+    ["https://example.org@evil.example/", "credentials"],
+    ["https://127.0.0.1/", "ip-address"],
+    ["https://2130706433/", "ip-address"],
+    ["https://0x7f.1/", "ip-address"],
+    ["https://[::1]/", "ip-address"],
+    ["https://localhost/", "not-a-public-host"],
+    ["https://printer.local/", "not-a-public-host"],
+    ["https://intranet/", "not-a-public-host"],
+    ["https://metadata.internal/", "not-a-public-host"],
+    ["https://example.org:8443/", "port"],
+    // The media route authorises by matching path TEXT (FINDINGS F75), so an
+    // address that names an upload is refused wherever it names it.
+    ["https://example.org/uploads/abc.webp", "uploads"],
+    ["https://storyjar.co.uk/uploads/abc.webp", "uploads"],
+    ["https://example.org/x?next=/uploads/abc.webp", "uploads"],
+    ["https://example.org/%2Fuploads%2Fabc.webp", "uploads"],
+    // The URL parser deletes a tab, a newline or a carriage return wherever it
+    // finds one, so each of these is STORED as "/uploads/…". A check on the
+    // typed text alone sees "/up<tab>loads/"; a check on the path alone never
+    // sees the query or the fragment.
+    ["https://example.org/?q=/up\tloads/abc123.png", "uploads"],
+    ["https://example.org/#/up\nloads/abc123.png", "uploads"],
+    ["https://example.org/?q=/up\rloads/abc123.png", "uploads"],
+    // Encoded, in the path and in the query, including an encoded letter.
+    ["https://example.org/%75ploads/abc.webp", "uploads"],
+    ["https://example.org/x?q=%2F%75ploads%2Fabc.webp", "uploads"],
+    ["https://example.org/x#%2F%75ploads%2Fabc.webp", "uploads"],
+    ["https://example.org/x?q=%252Fuploads%252Fabc.webp", "uploads"],
+    ["https://example.org/up%09loads/abc.webp", "uploads"],
+    // An escape that cannot be decoded is an address that cannot be read, so
+    // it cannot be vouched for either.
+    ["https://example.org/x?q=%E0%A4%A", "not-a-web-address"],
+    ["https://example.org/" + "a".repeat(2000), "too-long"],
+    ["not a web address", "not-a-web-address"],
+  ];
+  for (const [typed, why] of refused) {
+    test(`refuses ${JSON.stringify(typed).slice(0, 60)} (${why})`, () => {
+      const r = parseTeacherLink(typed);
+      expect(r.ok ? "accepted" : r.why).toBe(why);
+      // A refused address takes its object with it: a link box with no
+      // address is not a thing to keep.
+      expect(normaliseOne({ ...linkBase, href: typed })).toBeUndefined();
+    });
+  }
+
+  test("a link carries no padlock and no turn, and its name is capped", () => {
+    const l = normaliseOne({
+      ...linkBase,
+      href: "https://example.org",
+      locked: true,
+      rot: 30,
+      label: "x".repeat(200),
+    });
+    expect(l?.locked).toBeUndefined();
+    expect(l?.rot).toBeUndefined();
+    expect((l?.label as string).length).toBe(80);
+    expect(normaliseOne({ ...linkBase, href: "https://example.org", label: "   " })?.label).toBeUndefined();
+  });
+
+  // A link's name is stored in the same payload as its address, and the media
+  // route reads that payload as text (FINDINGS F75). So the name is held to the
+  // address's rule: one that names an upload is taken off, and the link stays.
+  const refusedLabels = [
+    "/uploads/deadbeef.png",
+    "see /UPLOADS/deadbeef.png",
+    "/up\tloads/deadbeef.png",
+    "/up\nloads/deadbeef.png",
+    "%2Fuploads%2Fdeadbeef.png",
+    "/%75ploads/deadbeef.png",
+  ];
+  for (const label of refusedLabels) {
+    test(`a link's name ${JSON.stringify(label)} is taken off`, () => {
+      const out = normalizeTemplateObjects([[{ ...linkBase, href: "https://example.org/", label }]]);
+      expect(out.pages[0][0]).toMatchObject({ type: "link", href: "https://example.org/" });
+      expect((out.pages[0][0] as { label?: string }).label).toBeUndefined();
+      expect(JSON.stringify(out), "nothing the route could read as a file").not.toMatch(/\/uploads\//i);
+    });
+  }
+
+  test("an ordinary name is kept, including one a decoder cannot read", () => {
+    expect(normaliseOne({ ...linkBase, href: "https://example.org", label: "50% off: uploads of fun" })?.label).toBe(
+      "50% off: uploads of fun",
+    );
+    // A name is one line: control characters never reach the page.
+    expect(normaliseOne({ ...linkBase, href: "https://example.org", label: "Rain\tand\nsnow" })?.label).toBe(
+      "Rain and snow",
+    );
+  });
+
+  test("a link is never smaller than a child's finger on the smallest tablet", () => {
+    const l = normaliseOne({ ...linkBase, href: "https://example.org", w: 10, h: 10 });
+    // 64px at the 0.77 scale of a 768px portrait tablet is 84 model units.
+    expect(l?.h as number).toBeGreaterThanOrEqual(84);
+    expect(l?.w as number).toBeGreaterThanOrEqual(200);
+  });
+
+  test("the host a child is shown is the real one", () => {
+    expect(displayHost("https://www.bbc.co.uk/bitesize")).toBe("bbc.co.uk");
+    expect(displayHost("https://example.org/")).toBe("example.org");
+    // A Cyrillic "а" in place of the Latin one: shown in the form that cannot
+    // pass for the real apple.com.
+    const lookalike = parseTeacherLink("https://аpple.com/");
+    expect(lookalike.ok).toBe(true);
+    expect(displayHost(lookalike.ok ? lookalike.href : "")).toMatch(/^xn--/);
+    // Shortened from the LEFT: the end of a host says who owns it.
+    const long = displayHost(`https://${"a".repeat(60)}.evil.example/`);
+    expect(long.startsWith("…")).toBe(true);
+    expect(long.endsWith(".evil.example")).toBe(true);
+    expect(long.length).toBe(40);
   });
 });

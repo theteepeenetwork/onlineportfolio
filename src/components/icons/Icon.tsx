@@ -62,7 +62,8 @@ export type IconName =
   | "duplicate"
   | "maths-kit"
   | "rotate"
-  | "infinite";
+  | "infinite"
+  | "link";
 
 type Glyph = { label: string; glyph: ReactNode };
 
@@ -221,6 +222,12 @@ const ICONS: Record<IconName, Glyph> = {
   // Library sheet — one continuous figure-of-eight filling its keyline, glass
   // tint inside. The old one sat in the left two thirds with an amber dot
   // beside it, which read as a symbol with a full stop after it.
+  // Two links of a chain, one inked and one in glass, held by a short bar. The
+  // canvas's web link (SAFEGUARDING rule 26), in the builder's toolbox and on
+  // the "leaving StoryJar" card.
+  "link": { label: "Web link", glyph: (
+    <><path d="M10.6 13.4 L13.4 10.6" /> <path d="M9.2 10.6 L6.7 13.1 Q4.2 15.6 6.7 18.1 Q9.2 20.6 11.7 18.1 L14.2 15.6" /> <path d="M14.8 13.4 L17.3 10.9 Q19.8 8.4 17.3 5.9 Q14.8 3.4 12.3 5.9 L9.8 8.4" stroke="#4E9C94" /></>
+  ) },
   "infinite": { label: "Endless supply", glyph: (
     <path d="M12 12 C9.6 7.8 3.6 7.8 3.6 12 C3.6 16.2 9.6 16.2 12 12 C14.4 7.8 20.4 7.8 20.4 12 C20.4 16.2 14.4 16.2 12 12 Z" fill="#D8ECE8" />
   ) },

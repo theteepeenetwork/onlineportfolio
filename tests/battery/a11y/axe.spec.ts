@@ -472,3 +472,35 @@ test("a11y (AA 1.4.10): the parent sign-in reflows to 320px without a sideways s
   );
   expect(overflow, "content must not require scrolling in two dimensions").toBeLessThanOrEqual(1);
 });
+
+// The "leaving StoryJar" card (SAFEGUARDING rule 26) — the one screen that
+// stands between a child and the open web, so it has to be the easiest screen
+// in the product to read and to leave. Scanned open, over a run whose only page
+// carries one teacher's link, written straight to the fixture database.
+test("a11y (AA): the leaving-StoryJar card before a web link", async ({ page }) => {
+  const { PrismaClient } = await import("@prisma/client");
+  const db = new PrismaClient();
+  const title = `Axe links ${Date.now()}`;
+  const teacher = await db.teacher.findUniqueOrThrow({ where: { email: SCHOOL_A.admin.email } });
+  const klass = await db.class.findFirstOrThrow({ where: { classCode: SCHOOL_A.classCode } });
+  const objectsJson = JSON.stringify([
+    [{ id: "o1", type: "link", x: 80, y: 80, w: 380, h: 110, href: "https://kids.example.org/rain", label: "All about rain" }],
+  ]);
+  const template = await db.activityTemplate.create({ data: { title, teacherId: teacher.id, objectsJson } });
+  const run = await db.assignment.create({
+    data: { templateId: template.id, classId: klass.id, wholeClass: true, status: "LIVE", title, objectsSnapshotJson: objectsJson },
+  });
+  try {
+    await loginStudent(page, SCHOOL_A.classCode, SCHOOL_A.student);
+    await page.goto("/student/activities");
+    await page.getByRole("link", { name: new RegExp(title) }).first().click();
+    await page.getByRole("button", { name: "All about rain, kids.example.org" }).click();
+    await expect(page.getByRole("dialog", { name: /This opens kids\.example\.org/ })).toBeVisible();
+    assertNoSeriousViolations(await scan(page), "leaving-StoryJar card");
+  } finally {
+    await db.draft.deleteMany({ where: { assignmentId: run.id } });
+    await db.assignment.delete({ where: { id: run.id } }).catch(() => {});
+    await db.activityTemplate.delete({ where: { id: template.id } }).catch(() => {});
+    await db.$disconnect();
+  }
+});

@@ -194,6 +194,27 @@ does not now.
 
 ---
 
+## Web links in a published activity (2026-09-10)
+
+A template can carry a teacher's web link (`SAFEGUARDING.md` rule 26). **Links
+are kept when an activity is published**, and on into every teacher's copy.
+That was the recommended default rather than a question the owner was asked, so
+it is recorded in `docs/dpo-decisions.md` and can be reversed: stripping them
+would change an activity silently between the Academy and a classroom, and a
+link in a library activity reaches a class only after a teacher has added it
+and set it, behind the same "leaving StoryJar" card as any other.
+
+What that asks of whoever publishes: **check a link the way you would check a
+picture.** It goes to every school that adds the activity, and each of those
+schools' web filters will decide what their pupils can open, not ours.
+
+Two things that do not need checking, because they cannot happen. A link can
+never name a StoryJar media file — `parseTeacherLink` refuses any address with
+`/uploads/` in it — so `ownMediaPathsIn()` will never mistake one for a file to
+copy, and `publishRefusal()` never sees one as borrowed media. And the address
+is re-checked by the same validator whenever a pupil's canvas reads the
+activity, so a link that would be refused today is dropped rather than shown.
+
 ## Still open
 
 - **A community hub is not enabled by any of this.** `SharedActivity.origin`

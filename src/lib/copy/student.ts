@@ -114,6 +114,19 @@ function reg(mode: AgeMode) {
         flip: "Switch camera",
         failed: "We couldn't open the camera. You can choose a picture instead.",
       },
+      // The "leaving StoryJar" card before a teacher's web link opens
+      // (SAFEGUARDING rule 26). Approved by the owner 2026-09-10; one voice for
+      // every register, like the photo frame's, because the teacher's preview
+      // must say what a child will see. The heading is `before` + the link's
+      // real host + `after`. Only `spoken` is ever read aloud: the host is the
+      // teacher's choice, not our copy, so it is shown and never spoken.
+      link: {
+        before: "This opens ",
+        after: " — a website your teacher chose",
+        spoken: "This opens a website your teacher chose.",
+        open: "Open it",
+        stay: "Stay here",
+      },
       wordsHeading: "My words",
       audioHeading: p("Record your voice", "Record a voice note"),
       // Voice-note controls. Plain, calm words a pre-reader can be shown by an

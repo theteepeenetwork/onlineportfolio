@@ -187,6 +187,13 @@ export const WHITE = { hex: "#ffffff", label: "white" };
 // two or three keeps the same spacing as the design.
 export const PLUS_INNER_ANGLES = [-36, -6, 24];
 export const PLUS_OUTER_ANGLES = [-45, -15, 15];
+// The teacher's outer ring once it carries a fourth item — the web link, in the
+// template builder (SAFEGUARDING rule 26). Spread over a wider sweep rather than
+// stacked: a fourth item given the last angle again lands exactly on the third,
+// and one button covering another is a button nobody can press. 27° apart at
+// R_PLUS_OUTER is 105px between centres, clear of two 72px items, and the
+// outermost stays inside the paper's edge.
+export const PLUS_OUTER_ANGLES_4 = [-54, -27, 0, 27];
 
 /**
  * The second row: a kit's options, on one arc if there are four or fewer and

@@ -3,3 +3,8 @@
 - [Ask what the repo already decided](ask-what-the-repo-already-decided.md) — triage by hazard, not by subsystem; the rule is often in a comment the change never touches
 - [Teacher-authored is now teacher-adopted](teacher-authored-is-now-teacher-adopted.md) — the MCP connector can write quiz content; don't assert authorship in safeguarding records
 - [Canvas hidden field lags an undo](canvas-hidden-field-lags-undo.md) — restore() writes the composite in a .then(); read it on the click and you read the pre-undo value
+- [The canvas lives inside a form](canvas-lives-inside-a-form.md) — no <form> in a canvas dialog; handle Enter, or it submits the template
+- [Worktree agent shell limits](worktree-agent-shell-limits.md) — scratchpad is shared and two battery logs DID collide; name logs agent+branch+sha; compound git bash refused
+- [Child canvas not laid out for phones](child-canvas-not-laid-out-for-phones.md) — at 390px the stage collapses; open an overlay on a tablet, then narrow the window
+- [Validate what is stored](validate-what-is-stored.md) — the URL parser rewrites input (drops tab/newline); a text check on the typed form is not a check on the stored one
+- [Press where a person presses](press-where-a-person-presses.md) — a gesture test moved to where it passes stops testing; an <img> in a control cancels a mouse slide
