@@ -63,8 +63,11 @@ test("teacher creates a template, assigns it, a child responds, teacher sees the
   await teacherLogin(page);
   await page.goto(templatePath);
   await expect(page.getByText(/1 waiting/).first()).toBeVisible();
-  // Amara's tile shows in the response grid as waiting for approval.
-  await expect(page.getByText("Amara")).toBeVisible();
+  // Who has done it is the run's own page now, not a grid on the template.
+  // Amara is there as waiting for approval.
+  await page.getByRole("link", { name: /Who has done it/ }).first().click();
+  await page.waitForURL(/\/teacher\/activities\/runs\/[^/]+$/);
+  await expect(page.locator('li[data-pupil="Amara"]')).toHaveAttribute("data-status", "WAITING");
 });
 
 // Editing a template must reopen it in the builder AND push the change onto any
@@ -116,15 +119,20 @@ test("the folders sidebar filters the activity library", async ({ page }) => {
 
   // Seed files "Count the apples" under Maths & number, "Minibeast hunt" under
   // Autumn term, and leaves "Draw your family" unfiled.
-  await expect(page.getByRole("link", { name: "Count the apples" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
+  //
+  // `exact`, because each card's title is a link named exactly its title, and
+  // the "Live now" list above the folders also links to the live runs of the
+  // same activities — by class, and deliberately untouched by the folder
+  // filter. What this test is about is the cards.
+  await expect(page.getByRole("link", { name: "Count the apples", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Draw your family", exact: true })).toBeVisible();
 
   // Pick the Maths & number folder → only its template remains.
   await page.getByRole("button", { name: /Maths & number/ }).click();
   await expect(page.getByRole("heading", { name: "Maths & number" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Count the apples" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Draw your family" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Minibeast hunt" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Count the apples", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Draw your family", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Minibeast hunt", exact: true })).toHaveCount(0);
 });
 
 test("the 3-dot menu opens above the cards and can move a template into a folder", async ({ page }) => {
@@ -143,8 +151,8 @@ test("the 3-dot menu opens above the cards and can move a template into a folder
 
   // It now shows under that folder alongside the seeded one.
   await page.getByRole("button", { name: /Maths & number/ }).first().click();
-  await expect(page.getByRole("link", { name: "Draw your family" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Count the apples" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Draw your family", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Count the apples", exact: true })).toBeVisible();
 });
 
 // One activity, one picture, on every screen that offers it.
@@ -230,7 +238,8 @@ test("renaming an activity keeps its pages, even without opening the canvas", as
 
   // "Minibeast hunt" is seeded with two template pages (prisma/seed.ts).
   await page.goto("/teacher/activities");
-  await page.getByRole("link", { name: /Minibeast hunt/ }).first().click();
+  // The card's own title link, not a run of it in the "Live now" list.
+  await page.getByRole("link", { name: "Minibeast hunt", exact: true }).click();
   await page.waitForURL(/\/teacher\/activities\/[a-z0-9]+$/);
   const activityUrl = page.url();
 

@@ -116,6 +116,8 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F75 | Medium | Access control / uploaded media (rule 7) | **Teacher-typed text containing `/uploads/<name>` authorises that file for whoever holds the text.** The media route decides by matching the requested path as TEXT inside a row's JSON columns (`objectsJson`, `templatePathsJson`, `quizJson` and every run snapshot, via `contains`), and `ownMediaPathsIn()` finds a template's files by the same token when it is published. A text box, a shape label, a frame prompt and a quiz answer are all free text, so a teacher who types `/uploads/<a file name>` into one has made their template "reference" that file: the route then serves it to them, and to every pupil on a run of it. File names are 96 random bits, so this reaches only a file whose name is already known — but a name is known to whoever was ever shown the file, which includes a previous teacher of a class (F66). Predates this work; found 2026-09-10 while writing the web-link validator. | **Open.** Closed for web links only: `parseTeacherLink` refuses any address containing `/uploads/` — as typed, as the URL parser stores it (which deletes tabs and newlines, so `/up<tab>loads/` in a query became `/uploads/` and passed the first version), and percent-decoded — and `tidyLinkLabel` drops a link's name that names one. The general fix is to authorise against the paths a payload actually STORES (an image's `src`, an option's `imagePath`, the page lists) by parsing it, not against any text that happens to contain one — in the route and in `ownMediaPathsIn()` alike | None yet. The repro is a template whose text box reads `/uploads/<a pupil's file>`, then a GET of that path as its teacher: expected 404, observed 200 |
 | F76 | Low | Child-facing / canvas | **A child could hold and slide the teacher's template pages into a new order**, although the `allowPageStructure` comment said only the template builder may reorder. Found 2026-09-10 while building the page-tray cross. | **Fixed 2026-09-10** by owner decision: a child slides only the pages they added, to anywhere; the teacher's pages keep the order the teacher set, and `movePageTo` itself refuses to move one on a child's canvas. The builder still moves any page | `tests/e2e/pages.spec.ts` ("Who may move which page") |
 | F77 | Medium | Approval queue / activity lifecycle | **`createJournalItem` accepts a hand-in to a CLOSED run.** It looks the run up scoped to the child and never asks its `status`, so a tablet with the activity still open, a stale tab or a replayed form can hand work in after the teacher has closed the run. The work lands PENDING as normal, so nothing reaches a parent unseen (rule 3 holds); what breaks is the teacher's own "this is finished", and the run's counts. The page a child opens already filters to LIVE; the action does not. Found 2026-09-10 reading the hand-in path for the page-tray work. | **Open.** The fix is one clause in the lookup, plus a decision about what the child is told ("your teacher has finished this one", not an error) and that their work is kept as a draft rather than thrown away | None yet |
+| F78 | Medium | Test correctness / tenant isolation | **Two cross-tenant tests proved nothing.** `tenant-isolation.spec.ts` read "a School A template id" as the first `a[href^="/teacher/activities/"]` on School A's library, which is the "＋ New activity" button, so the id was the word `new`; `/teacher/activities/new/edit` and `/new/preview` answer 404 **to the owner too** (verified 2026-09-10), so "School B gets 404 editing / previewing a School A template" held against a URL that named no template. Same species as F62: an assertion that could not fail. The scoping it was meant to check was correct throughout. | **Fixed 2026-09-10**: the card is found by its seeded title, the id is refused if it is a route segment, and the owner must get a 200 on both URLs before School B's 404 counts | `security/tenant-isolation.spec.ts` ("Activity edit / preview are scoped across tenants") |
+| F79 | Medium | Children's to-do lists / year-end rollover | **A chosen-pupil activity followed a child into next year's class.** Every copy of "which activities are on this pupil's list" matched a chosen-pupil run on its `AssignmentStudent` row alone, with no class. The September move-up moves the children and archives last year's class without closing its runs, so a chosen-pupil run LIVE in July stayed on the child's list in their new class, opened, took drafts, and accepted a hand-in filed with this year's class under last year's run — into the new teacher's queue, against a run only last year's teacher can open. Nothing crossed a school and nobody saw another child's work. | **Fixed 2026-09-10**: one definition (`src/lib/studentRuns.ts`) requires the run's class to be the pupil's class on both branches, and replaces all five copies (jar, activities list, activity page, draft store, hand-in) | `security/student-runs-follow-the-class.spec.ts`, verified to fail against the old query |
 | F80 | Low | Child-facing / canvas (rule 26) | **After a draft is restored on a different device, a teacher's web link is only part of the picture and cannot be pressed.** A draft restored from the server rather than from the device's own store goes through `serverPagesToCanvas`, which rebuilds each page as its handed-back composite with `objects: []`. The link chip is baked into that composite, so the child still sees it, but no link object exists for `LinkTapLayer` to put a press over, and the leaving card can never open. The same is true of every other teacher object on those pages (they come back as picture, not as things to move), so this is the existing cross-device fidelity trade rather than something the link work introduced. **Fails safe:** nothing opens, nothing opens without the card, and the address a child could reach is still only ever the teacher's. What is lost is the teacher's intent — a class that swaps tablets between lessons cannot open the website the worksheet names. Found 2026-09-10 by the safeguarding review of the web-link work, and logged as F78 in that work's commit messages; renumbered the same day because another branch already uses F78 and F79. | **Open.** The fix is to lay the teacher's snapshot links back over a server-restored page: a child cannot move a link, so it belongs exactly where the picture already shows it. Which page that is cannot be assumed from the snapshot, because a child's own pages may sit in front of the teacher's; but the teacher's pages never move among themselves (owner decision 2026-09-10), so the teacher's page k is the k-th page the child did not add, which the draft's `addedPages` field already carries. That is how a restored quiz question finds its page (`placeQuestionsOnTeacherPages`). Small, but a change to draft restore that wants its own test | None yet. The repro: open a run with a link on one browser, draw, let the draft sync, open the same run in a fresh browser context and restore; the chip shows and no `button[data-link-tap]` exists |
 | F81 | Medium | A11y (child-facing) / gate blindness | **A page card on the drawing canvas could be reached by Tab and operated by no key.** Each card in the page tray (`src/components/canvas/PageTray.tsx`) is a real `<button>` driven only by `onPointerDown/Move/Up` — tap, hold-to-lift, hold-and-slide — with no `onClick` and no `onKeyDown`. A keyboard or switch user could Tab to "Page 2" and Enter and Space did nothing: a WCAG 2.2 **2.1.1 Keyboard** failure on the control a child uses to find their own pages. The card's menu ("Wipe this page clean", and for a teacher "Make a copy of this page") had no keyboard route at all, and neither did reordering. **No gate caught it, for F50's reason turned inside out:** F50's handles were unreachable, so a keyboard walk never met them; these were reachable, so a walk that counts what focus *reaches* passed them — and axe cannot tell a button that works from one that does nothing. Found 2026-09-10 while building the page-tray cross (#179). | **Fixed 2026-09-11.** Enter or Space goes to the page — as `onClick`, so a screen reader's "activate" works too, and a click that follows a pointer press the pointer path already answered (tap, hold, slide) is let go, so nothing fires twice. Shift+F10 or the ContextMenu key opens the card's menu with focus inside it; Escape hands focus back to the card; Tab out closes it. A menu opened from the keyboard offers "Move this page left / right" in place of "Hold and slide", for exactly the pages the slide would move (F76), and the canvas's `movePageTo` still refuses the rest. Using the cross or a menu item no longer drops focus on `<body>` | `a11y/keyboard.spec.ts` — the three page-tray tests, which press the keys and assert what happened, measure the open menu against the 64px floor, and check that focus survives a page being thrown away. `e2e/pages.spec.ts` — the keyboard moves only a pupil's own page; a hold or a slide does not also go to a page (both fail against an `onClick` without the guard) |
 | F83 | Medium | Child-facing / canvas / test harness | **A page added while the canvas was still starting up was overwritten when the start-up finished.** The canvas loads the teacher's worksheet asynchronously before it is `ready`, and the page tray is drawn above the "Loading…" veil, so "new page" could be pressed during that `await`. The start-up then resumed and reset `addedRef` and `currentRef` from the worksheet alone: the new page survived but lost its mark as the pupil's own (no cross, would not slide, handed back as a teacher's page), and the page on screen (`current`) and the page being drawn on (`currentRef`) no longer agreed. The second half predates the page cross; the first came with it. Milliseconds wide on a fast machine, so every local run passed; on CI it failed three specs across #179, #180 and #185 at once, each looking like a different bug — `pages.spec` "a question stays on the teacher's page after a restore", the a11y activity-response touch floor, and `drafts.spec` "a page's cross survives a restore" (`[false]` for `[false,true]`). Found 2026-09-11 by reading the three failures together; confirmed by holding the worksheet's request in a probe (2 pages, 0 crosses, "Page 2" current). | **Fixed 2026-09-11** on #179. Every tray button is `disabled` until the canvas is ready, and `goToPage`, `addPage`, `duplicatePageAt`, `movePageTo`, `deletePageAt` and the tray's clear refuse until then too — so the next route to a page action cannot forget it. Playwright's click waits for an enabled button, which is why the three specs are now deterministic rather than lucky | `e2e/pages.spec.ts` — "the page tray waits for the worksheet, so a page added first is still the pupil's own", which holds the worksheet's request so start-up cannot finish and asserts the tray takes no press; it fails without the fix |
@@ -126,7 +128,7 @@ Severity key: **Critical** · **High** · **Medium** · **Low** · **Info**.
 | F63 | Medium | Fleet reliability / review coverage | **A safeguarding reviewer produced nothing across four idle cycles while a second reviewer, given the same brief, returned three must-fix findings that a green suite could not have found.** `pw-review` was asked for a verdict on F61, went idle four times, and never answered — while the change sat committed-ready. `pw-review2`, same tree, same four questions, found: single-use unenforced under concurrency, a false justification for the 7-day invitation window (an invited teacher can already hold a class), and a missing cross-tenant test on an action that had just started emitting live credentials. All three were green at the time. | **Open.** Standing rule agreed 27 Aug 2026: replace a reviewer that goes idle twice without answering, rather than chasing it | n/a — this is about how the fleet is run, not about the product |
 | F64 | Low | Accessibility (operator) | **The operator lookup's result is announced by a live region that is created at the same instant as its text, so several screen readers will not read it.** `src/app/ops/lookup/forms.tsx:150` puts `role="status"` on a div inside `Result`, which returns null until a lookup has run — so assistive technology meets a node that has just appeared rather than a region it was already watching. The same file guards against exactly this for the error region six lines up (`:113-115`, "Always in the DOM, so assistive technology is already watching"), so the principle is understood and applied unevenly. The refusal is the case where **nothing else on the screen changes**, which makes it the one most worth hearing. Found by `lookup-review` while reviewing an unrelated copy change; pre-existing, not caused by it. | **Open.** Deferred past the freeze — a render-structure change on a Rule 1 screen wants its own commit and its own run, not a ride-along | axe will not catch it: this is an announcement-timing property, not a static violation. Needs the always-mounted pattern the error region already uses |
 | F65 | Medium | Correctness surfacing as copy | **A sentence that claims more than the code behind it checked. Four instances, three on unrelated screens and one in this file's own diagnostics.** The school mail badge would have read "All 3 sign-in emails StoryJar tried to send were accepted" for a school whose only mail was staff invitations, because its filter widened while its words did not. The operator lookup said "No account has that address" — a claim about every account in StoryJar, from a screen that had read one table. And "No parent or carer has that address" gets relayed down a phone as "we have no record of that parent", when rule 6a means many parents deliberately gave no address at all. | **Open as a standing risk.** All three instances fixed; the class is not. Every screen reporting a NEGATIVE result is a candidate | none possible — no gate can read a sentence and know what the query behind it asked. The remedy is a standing review question, below |
-| F66 | **High** | Access control / class handover (Rule 1) | **When a class moves between staff, nothing revokes what the previous teacher holds.** Live today via `assignClassToStaff` — the ordinary September handover, with nobody removed from anything. Two limbs, one root. **(a) The class code is a bearer credential and does not rotate.** `classCodeLookup.ts:41` is `db.class.findUnique({ where: { classCode } })` with no teacher in the path: the previous teacher signs in **as any pupil** in a class they no longer hold, with no session and no token, and the work they then create is indistinguishable from that child's. **(b) Template authorship outlives class ownership.** `updateTemplate` (`activities.ts:201-212`) writes title, instructions, pages and quiz into LIVE runs filtered on `templateId` alone — a write into what those children see this minute — and `activities/[id]/page.tsx:28-40` renders the new teacher's full pupil roster, first names and per-child status. Seven sites share the shape. | **Fixed** 2026-08-29. Codes rotate on BOTH triggers; all seven template→class sites now require the class as a second scope | `tests/battery/security/class-handover.spec.ts` |
+| F66 | **High** | Access control / class handover (Rule 1) | **When a class moves between staff, nothing revokes what the previous teacher holds.** Live today via `assignClassToStaff` — the ordinary September handover, with nobody removed from anything. Two limbs, one root. **(a) The class code is a bearer credential and does not rotate.** `classCodeLookup.ts:41` is `db.class.findUnique({ where: { classCode } })` with no teacher in the path: the previous teacher signs in **as any pupil** in a class they no longer hold, with no session and no token, and the work they then create is indistinguishable from that child's. **(b) Template authorship outlives class ownership.** `updateTemplate` (`activities.ts:201-212`) writes title, instructions, pages and quiz into LIVE runs filtered on `templateId` alone — a write into what those children see this minute — and `activities/[id]/page.tsx:28-40` renders the new teacher's full pupil roster, first names and per-child status. Seven sites share the shape. | **Fixed** 2026-08-29. Codes rotate on BOTH triggers; all seven template→class sites now require the class as a second scope. **An eighth site — the activity library's own template query — was found and fixed 2026-09-10** (see the entry) | `tests/battery/security/class-handover.spec.ts` |
 
 ---
 
@@ -4211,6 +4213,32 @@ Covered by `tests/battery/security/class-handover.spec.ts`, which drives the
 real control through the admin console rather than simulating the click at the
 database level, and which was verified to fail with the fix removed.
 
+### An eighth site, found and fixed 10 September 2026
+
+The list above said seven, and there were eight. `src/app/teacher/activities/page.tsx`,
+the activity library itself, read `activityTemplate.findMany({ where: { teacherId } })`
+with its `assignments` included **and no class filter** — the same shape as the
+detail page's roster read, one screen up. After a handover the author's library
+card still said "1 waiting to approve" for work in a class they no longer held,
+and the card's assign sheet listed that class by name, with its turned-in
+figure, under "Already ran". Counts and a class name; no pupil's name or work,
+which is what keeps it inside the original severity rather than above it.
+
+Found while building the per-run "who has and hasn't done it" page (teacher
+feedback, item 4), which is the view that makes the rule matter most: that page
+names every pupil, so it is scoped by the class alone and never by the
+template. The library query now has the class as its second scope, and the
+dashboard's "activities live now" count, which the new "Live now" list sits
+under, is now the list's own query (class-scoped, archived classes excluded)
+rather than the conjunction of author and class.
+
+The repro is in the blocking suite from the start: the F66 run-page test in
+`class-handover.spec.ts` asserts the author's card and assign sheet after a
+real console handover, with a positive control on the same screen before it,
+and was run with the new `where` removed to watch it fail ("1 waiting to
+approve" on the card). No separate finding number, because it is this finding's
+own rule at a site its fix missed.
+
 **A note on this entry surviving.** The convention in AGENTS.md is to delete a
 finding once its repro moves into a blocking suite. F59 and F66 are kept because
 they carry measurements — the 5→1 classes, the 17→3 pupils, the seven sites —
@@ -4541,3 +4569,71 @@ product was not changed; a production build emits no location at all.
 Same family as F70 and F71: **a blocking gate whose verdict depends on the
 machine, not on the code under test.** It would have presented as the fault of
 whoever next cloned the repository into a folder with the wrong name.
+
+## F78 · Two tenant-isolation tests aimed at the "New activity" button · Medium → Fixed 2026-09-10
+
+Found 10 September 2026 while adding the run page's own cross-tenant test
+beside them, by reading what the helper actually returned.
+
+`schoolATemplateId()` in `tests/battery/security/tenant-isolation.spec.ts`
+signed in as St Bede's admin, opened `/teacher/activities`, and took the first
+`a[href^="/teacher/activities/"]` on the page. The first such link is the
+"＋ New activity" button in the header, so the "template id" was `new`.
+Measured on 10 September 2026: that selector returns `/teacher/activities/new`,
+and `/teacher/activities/new/edit` and `/teacher/activities/new/preview` answer
+**404 to St Bede's own admin**, because `new` is no template's id. So both tests — "School B
+teacher gets 404 editing / previewing a School A template" — passed against a
+request that named nothing, and would have gone on passing if the edit and
+preview pages had lost their ownership scope entirely.
+
+**The product was never wrong.** Both pages are scoped by `teacherId` and still
+are; what was missing was any evidence of it. That is the F62 species — an
+assertion that cannot fail — found in the blocking security suite rather than
+in the personas.
+
+### Fixed
+
+The card is found by the title the seed gives it (`getByRole("link", { name:
+"Count the apples", exact: true })`), the id is refused if it is a route segment
+(`new`, `shared`, `library`, `runs`), and — the part that closes it — the
+owner is shown `/edit` and `/preview` for that id and must get a **200** before
+School B's 404 is taken as meaning anything. The run page's new cross-tenant
+tests beside them are built the same way from the start.
+
+No test moved from `findings/`, because none was ever there: the defect was in
+the blocking test itself, and the fixed test is the covering one.
+
+## F79 · A chosen-pupil activity followed a child into next year's class · Medium → Fixed 2026-09-10
+
+Found 10 September 2026 while replacing the five copies of "which activities
+are on this pupil's list" with one (`src/lib/studentRuns.ts`), for "Not needed".
+
+Every copy matched a run in one of two ways: a whole-class run in the pupil's
+class, **or** a chosen-pupil run with an `AssignmentStudent` row for the pupil.
+The second branch had no class in it. The September move-up
+(`moveClassUp`, `src/app/actions/rollover.ts:164`) moves the children with
+`student.updateMany({ classId: next.id })` and archives last year's class
+without closing its runs, so a chosen-pupil run that was LIVE in July stayed
+LIVE and stayed matched:
+
+- it sat on the child's to-do list in their new class, under last year's
+  teacher's title, and opened;
+- a hand-in against it was accepted by `createJournalItem`, which re-resolved
+  the run through the same unscoped branch and wrote the item with the child's
+  **current** class and last year's `assignmentId` — so the work went into the
+  new teacher's queue attached to a run in an archived class that the new
+  teacher cannot open.
+
+No other child's work was reachable and nothing crossed a school: the pupil only
+ever saw an activity that had genuinely been set to them. That is why it is
+Medium and not higher. What it did was put last year's work on this year's list
+and file this year's work under last year's run, both silently.
+
+**Fixed** by the shared helper, which requires the run's class to be the
+pupil's class on both branches, and is now the only definition: the jar, the
+activities list, the activity page, the draft store's `resolveScope`, and the
+hand-in. Covered by `tests/battery/security/student-runs-follow-the-class.spec.ts`,
+which moves a pupil the way the move-up does and checks their list, the
+activity's own URL and a draft save, after a positive control on the same
+pupil and run before the move. Verified to fail against the old query, on the
+list: "To do · Rowans chosen · Start" in the new class.

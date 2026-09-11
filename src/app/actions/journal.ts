@@ -7,6 +7,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { savePhoto, saveAudio, saveImageDataUrl, saveImagePages } from "@/lib/media";
 import { eraseJournalItem, eraseJournalItemMedia } from "@/lib/erasure";
 import { discardResponseDraftFor } from "@/lib/drafts";
+import { runsSetForStudent } from "@/lib/studentRuns";
 import { recordAudit } from "@/lib/audit";
 import { readQuiz, readAnswers, sanitizeAnswers, scoreQuiz } from "@/lib/quiz";
 import { sanitizeStickerKeys } from "@/lib/stickers";
@@ -157,14 +158,14 @@ export async function createJournalItem(
   let quizScore: number | null = null;
   let quizTotal: number | null = null;
   if (assignmentId) {
+    // The run as the pupil's list defines it (src/lib/studentRuns.ts) — their
+    // class, set to them — but WITH runs their teacher marked "not needed".
+    // A pupil whose page was already open when the mark went on can still hand
+    // in: their work is accepted and the mark is cleared below, in the same
+    // transaction as the write. A child's finished work is never turned away
+    // (owner decision, 10 September 2026).
     const assignment = await db.assignment.findFirst({
-      where: {
-        id: assignmentId,
-        OR: [
-          { wholeClass: true, classId },
-          { wholeClass: false, students: { some: { studentId } } },
-        ],
-      },
+      where: { AND: [{ id: assignmentId }, runsSetForStudent({ id: studentId, classId }, { includeExcused: true })] },
       select: { id: true, quizSnapshotJson: true },
     });
     if (!assignment) return { error: "That activity isn't available." };
@@ -192,27 +193,36 @@ export async function createJournalItem(
       })
     : null;
 
+  // Handing in clears a "not needed" mark on this run, in the same transaction
+  // as the write, so a teacher never sees a pupil both marked and handed in.
+  // Scoped to THIS pupil and this run; a no-op when there is no mark, which is
+  // almost always.
+  const clearMark = assignmentId ? [db.assignmentExcusal.deleteMany({ where: { assignmentId, studentId } })] : [];
+
   if (returned) {
-    await db.journalItem.update({
-      where: { id: returned.id },
-      data: {
-        type,
-        caption,
-        textContent,
-        mediaPath,
-        mediaPathsJson,
-        previewPathsJson,
-        quizAnswersJson,
-        quizScore,
-        quizTotal,
-        status: isTeacher ? "APPROVED" : "PENDING",
-        approvedAt: isTeacher ? new Date() : null,
-        teacherNote: null, // the previous feedback has been acted on
-        returnMode: null, // fresh submission — no longer a returned item
-        authorRole,
-        skills: { set: skillIds.map((id) => ({ id })) },
-      },
-    });
+    await db.$transaction([
+      db.journalItem.update({
+        where: { id: returned.id },
+        data: {
+          type,
+          caption,
+          textContent,
+          mediaPath,
+          mediaPathsJson,
+          previewPathsJson,
+          quizAnswersJson,
+          quizScore,
+          quizTotal,
+          status: isTeacher ? "APPROVED" : "PENDING",
+          approvedAt: isTeacher ? new Date() : null,
+          teacherNote: null, // the previous feedback has been acted on
+          returnMode: null, // fresh submission — no longer a returned item
+          authorRole,
+          skills: { set: skillIds.map((id) => ({ id })) },
+        },
+      }),
+      ...clearMark,
+    ]);
 
     // Erase the previous attempt's media (right to erasure, SAFEGUARDING rule 9).
     // The new attempt saved to fresh paths above, so these are safe to remove.
@@ -221,28 +231,31 @@ export async function createJournalItem(
     // gives us the old filenames. See src/lib/erasure.ts.
     await eraseJournalItemMedia(returned);
   } else {
-    await db.journalItem.create({
-      data: {
-        type,
-        caption,
-        textContent,
-        mediaPath,
-        mediaPathsJson,
-        previewPathsJson,
-        quizAnswersJson,
-        quizScore,
-        quizTotal,
-        status: isTeacher ? "APPROVED" : "PENDING",
-        approvedAt: isTeacher ? new Date() : null,
-        authorRole,
-        studentId,
-        classId,
-        assignmentId,
-        skills: skillIds.length
-          ? { connect: skillIds.map((id) => ({ id })) }
-          : undefined,
-      },
-    });
+    await db.$transaction([
+      db.journalItem.create({
+        data: {
+          type,
+          caption,
+          textContent,
+          mediaPath,
+          mediaPathsJson,
+          previewPathsJson,
+          quizAnswersJson,
+          quizScore,
+          quizTotal,
+          status: isTeacher ? "APPROVED" : "PENDING",
+          approvedAt: isTeacher ? new Date() : null,
+          authorRole,
+          studentId,
+          classId,
+          assignmentId,
+          skills: skillIds.length
+            ? { connect: skillIds.map((id) => ({ id })) }
+            : undefined,
+        },
+      }),
+      ...clearMark,
+    ]);
   }
 
   if (user.role === "STUDENT") {

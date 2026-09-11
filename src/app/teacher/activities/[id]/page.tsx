@@ -3,11 +3,11 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/icons/Icon";
 import { jsonArray, templateThumb, type RunSummary } from "@/lib/activities";
 import { ClearMarkedDraft } from "@/components/ClearMarkedDraft";
 import { canPublish } from "@/lib/libraryPublishing";
+import { countRun, runHref } from "@/lib/runStatus";
 import { TemplateActions } from "./TemplateActions";
 
 function fmtDate(d: Date) {
@@ -39,12 +39,14 @@ export default async function TemplateDetail({
         // which is what kept this a leak of names and progress rather than of
         // children's work.
         where: { class: { teacherId: user.teacher.id } },
+        // Ids only. The names and each pupil's standing live on the run's own
+        // page (/teacher/activities/runs/[runId]), which is scoped by the class
+        // alone; this page carries counts.
         include: {
-          class: {
-            select: { id: true, name: true, students: { select: { id: true, name: true, avatarColor: true }, orderBy: { name: "asc" } } },
-          },
-          students: { include: { student: { select: { id: true, name: true, avatarColor: true } } } },
-          responses: { select: { id: true, studentId: true, status: true } },
+          class: { select: { id: true, name: true, students: { select: { id: true } } } },
+          students: { select: { studentId: true } },
+          responses: { select: { studentId: true, status: true } },
+          excusals: { select: { studentId: true } },
         },
       },
     },
@@ -75,27 +77,25 @@ export default async function TemplateDetail({
   const previews = jsonArray(template.previewPathsJson);
   const tags = jsonArray(template.tagsJson);
 
-  const pastRuns: RunSummary[] = runs.map((a) => ({
-    id: a.id,
-    className: a.class.name,
-    wholeClass: a.wholeClass,
-    status: a.status as "LIVE" | "CLOSED",
-    createdAt: a.createdAt.toISOString(),
-    assigned: a.wholeClass ? a.class.students.length : a.students.length,
-    turnedIn: new Set(a.responses.map((r) => r.studentId)).size,
-    waiting: a.responses.filter((r) => r.status === "PENDING").length,
-  }));
+  const pastRuns: RunSummary[] = runs.map((a) => {
+    const counts = countRun(a);
+    return {
+      id: a.id,
+      className: a.class.name,
+      wholeClass: a.wholeClass,
+      status: a.status as "LIVE" | "CLOSED",
+      createdAt: a.createdAt.toISOString(),
+      assigned: counts.assigned,
+      turnedIn: counts.turnedIn,
+      waiting: counts.waiting,
+    };
+  });
 
-  const selected = runs.find((a) => a.id === run) ?? runs.find((a) => a.status === "LIVE") ?? runs[0];
-
-  // The children assigned to the selected run + each one's response status.
-  const roster = selected
-    ? selected.wholeClass
-      ? selected.class.students
-      : selected.students.map((s) => s.student)
-    : [];
-  const responseByStudent = new Map(selected?.responses.map((r) => [r.studentId, r.status]) ?? []);
-  const selectedWaiting = selected ? pastRuns.find((p) => p.id === selected.id)?.waiting ?? 0 : 0;
+  // `?run=` still outlines one run — the one just set, when the assign sheet
+  // lands here — but the per-pupil grid that used to hang off it has moved to
+  // the run's own page, where the class's teacher can reach it whoever wrote
+  // the activity.
+  const highlighted = runs.find((a) => a.id === run)?.id ?? null;
 
   return (
     <>
@@ -151,12 +151,12 @@ export default async function TemplateDetail({
           <div className="space-y-2">
             {runs.map((a) => {
               const s = pastRuns.find((p) => p.id === a.id)!;
-              const isSelected = selected?.id === a.id;
+              const isSelected = highlighted === a.id;
               const pct = s.assigned ? Math.round((s.turnedIn / s.assigned) * 100) : 0;
               return (
                 <Link
                   key={a.id}
-                  href={`/teacher/activities/${template.id}?run=${a.id}`}
+                  href={runHref(a.id)}
                   className={`card flex flex-wrap items-center gap-3 p-3 ${isSelected ? "ring-2 ring-brand" : ""} ${a.status === "CLOSED" ? "opacity-70" : ""}`}
                 >
                   <span
@@ -180,11 +180,7 @@ export default async function TemplateDetail({
                         {s.waiting > 0 && <span className="ml-1 font-semibold text-amber-600">· {s.waiting} waiting</span>}
                       </p>
                     </div>
-                    {s.waiting > 0 ? (
-                      <span className="btn-brand px-3 py-1.5 text-sm">Review ▸</span>
-                    ) : (
-                      <span className="btn-ghost px-3 py-1.5 text-sm">View</span>
-                    )}
+                    <span className={`${s.waiting > 0 ? "btn-brand" : "btn-ghost"} px-3 py-1.5 text-sm`}>Who has done it ▸</span>
                   </div>
                 </Link>
               );
@@ -192,41 +188,6 @@ export default async function TemplateDetail({
           </div>
         )}
 
-        {/* Response grid for the selected run */}
-        {selected && (
-          <>
-            <h2 className="mt-8 mb-2 text-sm font-bold uppercase tracking-wide text-muted">
-              Responses — {selected.class.name}
-              {selectedWaiting > 0 && (
-                <Link href="/teacher/queue" className="ml-2 font-semibold text-brand normal-case">
-                  Review waiting ▸
-                </Link>
-              )}
-            </h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {roster.map((child) => {
-                const st = responseByStudent.get(child.id);
-                const done = st === "APPROVED";
-                const waiting = st === "PENDING" || st === "RETURNED";
-                const href = waiting ? "/teacher/queue" : `/teacher/students/${child.id}`;
-                return (
-                  <Link
-                    key={child.id}
-                    href={href}
-                    className={`card flex flex-col items-center gap-1 p-3 text-center ${!st ? "opacity-60" : ""} ${waiting ? "border-amber-300 bg-amber-50" : ""}`}
-                  >
-                    <Avatar name={child.name} color={child.avatarColor} size={36} />
-                    <span className="truncate text-sm font-semibold">{child.name}</span>
-                    <span className={`text-xs font-semibold ${done ? "text-emerald-700" : waiting ? "text-amber-700" : "text-muted"}`}>
-                      {done ? "✓ done" : waiting ? "● waiting" : "not yet"}
-                    </span>
-                  </Link>
-                );
-              })}
-              {roster.length === 0 && <p className="text-sm text-muted">No pupils on this run.</p>}
-            </div>
-          </>
-        )}
       </div>
     </>
   );

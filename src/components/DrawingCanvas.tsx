@@ -74,6 +74,7 @@ import {
 import { studentCopyNeutral } from "@/lib/copy/student";
 import { CameraDialog } from "./camera/CameraDialog";
 import { isStorableImageType } from "@/lib/imageTypes";
+import { quizPreviewLayout } from "@/lib/quizPreviewLayout";
 import { readAloud, readAloudOnDevice } from "@/lib/readAloud";
 import { useOnDeviceVoiceReady } from "@/lib/useSpeechReady";
 import {
@@ -229,8 +230,9 @@ const MAX_HISTORY = 12;
 const IMAGE_LOAD_BUDGET_MS = 30_000;
 
 // A quiz box is born at this size, and its contents are designed at it: the
-// type sizes below are "at QUIZ_W × QUIZ_H". A resized box scales its contents
-// from these, so they're the maximum rather than a fixed size.
+// type sizes below are "at QUIZ_W". A narrowed box scales its contents down
+// from these, so they're the maximum rather than a fixed size. The height is
+// only where a new box starts: the card then follows its content.
 const QUIZ_W = 380;
 const QUIZ_H = 300;
 // How much a question box grows for each answer added, and shrinks for each
@@ -1578,43 +1580,42 @@ export function DrawingCanvas({
       const k = Math.min(1, q.w / QUIZ_W);
       const px = (n: number) => n * k;
       const txt = (n: number) => Math.max(15, px(n));
-      const pad = px(14);
+      // Where everything goes — and the box as tall as what is in it, not the
+      // stored `q.h`. See quizPreviewLayout.ts for how that left an answer
+      // outside its own box. The question is wrapped by the same helper the
+      // shape labels use, to the width alone: the card grows for a long
+      // question rather than shrinking it, so neither does the picture.
+      const promptPx = txt((q.prompt || "").length > 40 ? 16 : 20);
+      const { box, prompt, options } = quizPreviewLayout(q, k, H, (maxW) =>
+        fitTextToBox(q.prompt || "", maxW, H, promptPx),
+      );
       ec.save();
       // The box.
       ec.beginPath();
-      ec.roundRect(q.x, q.y, q.w, q.h, px(18));
+      ec.roundRect(box.x, box.y, box.w, box.h, box.r);
       ec.fillStyle = "#FFFDF7";
       ec.fill();
       ec.lineWidth = Math.max(1, px(3));
       ec.strokeStyle = "#22304A";
       ec.stroke();
 
-      // The question, wrapped by the same helper the shape labels use.
-      const promptPx = txt((q.prompt || "").length > 40 ? 16 : 20);
-      const fitted = fitTextToBox(q.prompt || "", q.w - pad * 2, q.h * 0.5, promptPx);
+      // The question.
       ec.fillStyle = "#22304A";
       ec.textAlign = "center";
       ec.textBaseline = "top";
-      ec.font = `600 ${fitted.fontPx}px ${FONT_STACK}`;
-      fitted.lines.forEach((line, i) =>
-        ec.fillText(line, q.x + q.w / 2, q.y + px(12) + i * fitted.lineHeight),
+      ec.font = `600 ${prompt.fontPx}px ${FONT_STACK}`;
+      prompt.lines.forEach((line, i) =>
+        ec.fillText(line, box.x + box.w / 2, prompt.top + i * prompt.lineHeight),
       );
 
-      // The answers, in the same one- or two-column grid the box uses.
-      // One answer a row, as pills — the design's card, and the same shape a
-      // child tapped.
-      const top = q.y + px(12) + Math.max(fitted.lines.length, 1) * fitted.lineHeight + px(10);
-      const gap = px(6);
-      const rows = q.options.length;
-      const cw = q.w - pad * 2;
-      const chB = Math.max(px(64), 44);
+      // The answers. One answer a row, as pills — the design's card, and the
+      // same shape a child tapped.
       const dot = px(24);
       ec.font = `700 ${Math.min(promptPx - 2, txt(18))}px ${FONT_STACK}`;
       ec.textBaseline = "middle";
       ec.textAlign = "left";
       q.options.forEach((o, i) => {
-        const cx = q.x + pad;
-        const cy = top + i * (chB + gap);
+        const { x: cx, y: cy, w: cw, h: chB } = options[i];
         const picked = answersRef.current.get(q.id) === o.id;
         ec.beginPath();
         ec.roundRect(cx, cy, cw, chB, chB / 2);
@@ -4535,8 +4536,15 @@ export function DrawingCanvas({
     }
 
     // Nothing on this page yet, so the paper says what it is for. Gone the
-    // moment there is a stroke, a piece or a template underneath.
-    const pageIsBare = !canUndo && objects.length === 0 && !currentTemplate;
+    // moment there is a stroke, a piece or a template underneath — or a
+    // question, which is kept apart from the pieces and so has to be asked
+    // about separately. Left out, the hint was printed across a question box's
+    // answers.
+    const pageIsBare =
+      !canUndo &&
+      objects.length === 0 &&
+      !currentTemplate &&
+      !quizQuestions.some((q) => q.pageIndex === current);
 
     return (
       <div className="fixed inset-0 z-40 flex flex-col" style={{ background: "var(--paper)" }}>
@@ -8171,12 +8179,21 @@ function QuizBoxView({
   // chrome is still the drag handle.
   const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
 
-  // Everything inside is designed at QUIZ_W × QUIZ_H and scales down with the
-  // box, so a teacher can shrink a question to an aside and still have it read
-  // — smaller text is the point, not a compromise. Capped at 1 so a big box
-  // gets more room rather than giant type. Driven by whichever axis is tighter,
-  // so a short-and-wide box doesn't overflow vertically.
-  const k = Math.min(1, q.w / QUIZ_W, q.h / QUIZ_H);
+  // Everything inside is designed at QUIZ_W wide and scales down with the box,
+  // so a teacher can narrow a question to an aside and still have it read —
+  // smaller text is the point, not a compromise. Capped at 1 so a big box gets
+  // more room rather than giant type.
+  //
+  // By WIDTH alone. The height used to be in here too, back when a teacher
+  // dragged it. Now the card follows its content and writes that height back
+  // to `q.h`, so the height is the card's output and cannot also be its input:
+  // shrinking by it made the card shorter, which shrank it again, and a default
+  // two-answer question settled at a third of its size — 104 tall, with 8px
+  // answer dots — on the teacher's worksheet and on the child's screen. The
+  // resize handle only changes the width, so the width is the control a
+  // teacher actually has. The picture of the page (`drawQuizForPreview`) uses
+  // the same rule, so the two agree.
+  const k = Math.min(1, q.w / QUIZ_W);
   const px = (n: number) => Math.round(n * k * 10) / 10;
   // A finger is a physical size, and `px()` is not: it scales model units by the
   // canvas's display scale, so a "64px" answer button rendered at k≈0.9 reaches

@@ -277,18 +277,36 @@ test.describe("A1 · Student-journal IDOR across tenants", () => {
 
 test.describe("A1 · Activity edit / preview are scoped across tenants", () => {
   // Grab a real School A template id the honest way: its own teacher's library
-  // links each card to /teacher/activities/<id>.
+  // links each card's title to /teacher/activities/<id>.
+  //
+  // THESE TWO TESTS PROVED NOTHING UNTIL 10 SEPTEMBER 2026 (FINDINGS F78). The
+  // selector was the first `a[href^="/teacher/activities/"]` on the page, and
+  // the first such link is the "＋ New activity" button, so the "id" was the
+  // word `new`. `/teacher/activities/new/edit` is a 404 to everybody, School B
+  // included, so both tests passed against a request that named no template at
+  // all. The card is now found by the title the seed gives it, the id is checked
+  // to be something other than a route segment, and — the part that actually
+  // closes it — its OWNER is shown the page first. A 404 for School B means
+  // something only once the same URL is a 200 for School A.
+  const ROUTE_SEGMENTS = new Set(["new", "shared", "library", "runs"]);
+
   async function schoolATemplateId(page: import("@playwright/test").Page): Promise<string> {
     await loginTeacher(page, SCHOOL_A.admin);
     await page.goto("/teacher/activities");
     const href = await page
-      .locator('a[href^="/teacher/activities/"]')
-      .first()
+      .getByRole("link", { name: "Count the apples", exact: true })
       .getAttribute("href");
-    const id = href?.split("/").pop();
-    expect(id).toBeTruthy();
+    expect(href, "the seeded card's title links to its template").toMatch(/^\/teacher\/activities\/[^/?#]+$/);
+    const id = href!.split("/").pop()!;
+    expect(ROUTE_SEGMENTS.has(id), `"${id}" is a route, not a template id`).toBe(false);
+
+    // Positive control, same session, same URLs: the owner is let in.
+    for (const suffix of ["edit", "preview"]) {
+      const own = await page.goto(`/teacher/activities/${id}/${suffix}`);
+      expect(own?.status(), `the owner must reach /${suffix}, or the 404 below proves nothing`).toBe(200);
+    }
     await clearSession(page);
-    return id!;
+    return id;
   }
 
   test("School B teacher gets 404 editing a School A template", async ({ page }) => {
@@ -302,6 +320,53 @@ test.describe("A1 · Activity edit / preview are scoped across tenants", () => {
     const id = await schoolATemplateId(page);
     await loginTeacher(page, SCHOOL_B.teacher);
     const res = await page.goto(`/teacher/activities/${id}/preview`);
+    expect(res?.status()).toBe(404);
+  });
+});
+
+test.describe("A1 · A run's page (who has and hasn't done it) is scoped across tenants", () => {
+  // A real School A run id, read the honest way: the Live now list links each
+  // run to /teacher/activities/runs/<id>. The owner's own view of it is the
+  // positive control — the pupil names are on the page for them.
+  async function schoolARunId(page: import("@playwright/test").Page): Promise<string> {
+    await loginTeacher(page, SCHOOL_A.admin);
+    await page.goto("/teacher/activities");
+    const href = await page
+      .locator("#live-now")
+      .getByRole("link", { name: /Count the apples/ })
+      .first()
+      .getAttribute("href");
+    expect(href).toMatch(/^\/teacher\/activities\/runs\/[^/?#]+$/);
+    const id = href!.split("/").pop()!;
+    const own = await page.goto(`/teacher/activities/runs/${id}`);
+    expect(own?.status(), "the class's own teacher must reach the run page").toBe(200);
+    await expect(page.locator(`li[data-pupil="${SCHOOL_A.student}"]`)).toBeVisible();
+    await clearSession(page);
+    return id;
+  }
+
+  test("School B teacher gets 404 for a School A run, and no pupil's name", async ({ page }) => {
+    const id = await schoolARunId(page);
+    await loginTeacher(page, SCHOOL_B.teacher);
+    const res = await page.goto(`/teacher/activities/runs/${id}`);
+    expect(res?.status()).toBe(404);
+    await expect(page.locator("body")).not.toContainText(SCHOOL_A.student);
+    await expect(page.locator("body")).not.toContainText("Count the apples");
+  });
+
+  test("School B's admin gets the same 404 (admins are not all-seeing, rule 5)", async ({ page }) => {
+    const id = await schoolARunId(page);
+    await loginTeacher(page, SCHOOL_B.admin);
+    const res = await page.goto(`/teacher/activities/runs/${id}`);
+    expect(res?.status()).toBe(404);
+  });
+
+  test("a colleague in the SAME school who does not hold the class gets a 404 too", async ({ page }) => {
+    // Miss Malik teaches Butterflies at St Bede's, not Sunflower. Same school,
+    // same admin above her, and still nothing: the scope is the class.
+    const id = await schoolARunId(page);
+    await loginTeacher(page, SCHOOL_A.otherTeacher);
+    const res = await page.goto(`/teacher/activities/runs/${id}`);
     expect(res?.status()).toBe(404);
   });
 });
