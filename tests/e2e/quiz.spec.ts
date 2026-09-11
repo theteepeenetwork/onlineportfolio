@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { teacherLogin, studentLogin, logout } from "./helpers";
+import { quizPreviewLayout } from "@/lib/quizPreviewLayout";
 
 // The full quiz flow: a teacher builds a multiple-choice quiz that spans two
 // NON-CONSECUTIVE pages (1 and 3), marks the correct answers, and assigns it.
@@ -648,4 +649,168 @@ test("a question can be dragged to the foot of the page, and still can after res
     );
   }
   expect(await gapAtFoot(), "resizing walled the question out of the foot of its page").toBeLessThan(40);
+});
+
+// The picture of a question box holds every one of its answers.
+//
+// The flattened preview — what a teacher sees in the queue and on the board —
+// drew its outline at the height the question was STORED at, which is the
+// teacher's card, while it drew the child's answers at a finger's size. "How
+// many legs has a spider?" came out with its outline ending under "Four" and
+// "Eight" drawn outside it. The layout is plain arithmetic, so it is checked
+// here across the sizes a box can be: narrowed, stored short, stored at the old
+// nominal 300, and placed low enough that growing would run off the page.
+test("the picture of a question box encloses every answer, at any size", () => {
+  const pageH = 700;
+  const stroke = 1.5; // half the outline's width, which lands inside the box
+  for (const n of [2, 3, 4]) {
+    for (const w of [380, 250, 150]) {
+      for (const storedH of [30, 104, 120, 300]) {
+        for (const y of [0, 200, 650]) {
+          for (const lines of [0, 1, 3]) {
+            const k = Math.min(1, w / 380);
+            const q = { x: 100, y, w, h: storedH, options: Array.from({ length: n }) };
+            const { box, prompt, options } = quizPreviewLayout(q, k, pageH, () => ({
+              lines: Array.from({ length: lines }),
+              lineHeight: 24,
+            }));
+            const at = `${n} answers, ${w}×${storedH} at y=${y}, ${lines} prompt lines`;
+            expect(options, at).toHaveLength(n);
+            expect(box.h, `${at}: never shorter than the box as laid out`).toBeGreaterThanOrEqual(storedH);
+            expect(box.y, `${at}: on the page`).toBeGreaterThanOrEqual(0);
+            expect(box.y + box.h, `${at}: on the page`).toBeLessThanOrEqual(pageH);
+            expect(prompt.top, `${at}: the question is in the box`).toBeGreaterThan(box.y + stroke);
+            for (const [i, o] of options.entries()) {
+              expect(o.x, `${at}: answer ${i + 1}`).toBeGreaterThan(box.x + stroke);
+              expect(o.x + o.w, `${at}: answer ${i + 1}`).toBeLessThan(box.x + box.w - stroke);
+              expect(o.y, `${at}: answer ${i + 1}`).toBeGreaterThan(box.y + stroke);
+              expect(o.y + o.h, `${at}: answer ${i + 1} inside the outline`).toBeLessThan(
+                box.y + box.h - stroke,
+              );
+              // A finger's size, which is why the box has to grow for them.
+              expect(o.h, `${at}: answer ${i + 1}`).toBeGreaterThanOrEqual(44);
+            }
+          }
+        }
+      }
+    }
+  }
+});
+
+// The same, on the picture a child's hand-in actually posts.
+//
+// The layout test above says where things SHOULD go; this reads the pixels, so
+// it also catches the drawing wandering off the layout. The outline is the one
+// thing in ink that runs down the left of the card and along its foot, so
+// "every answer is inside it" is: the ink edge runs the full height of
+// everything painted, and the lowest thing painted is the outline itself.
+test("a hand-in's picture of a two- and a four-answer question keeps every answer inside the box", async ({
+  page,
+}) => {
+  const db = new PrismaClient();
+  try {
+    await teacherLogin(page);
+    await page.goto("/teacher/activities/new");
+    await page.fill("#title", "Boxed answers");
+    await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+    await page.locator('button[title="Add"]').click();
+    await page.getByRole("button", { name: "Quiz", exact: true }).click();
+
+    const panel = page.getByRole("region", { name: "Quiz builder" });
+    await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+    await panel.getByPlaceholder("What do you want to ask?").last().fill("How many legs has a spider?");
+    await panel.getByPlaceholder("Type an answer").nth(0).fill("Four");
+    await panel.getByPlaceholder("Type an answer").nth(1).fill("Eight");
+
+    // Page 2, not page 1: two boxes on one page overlap.
+    await page.locator('button[title="Add page"]').click();
+    await panel.getByRole("button", { name: /Add question to page 2/ }).click();
+    const card2 = panel.locator("[data-question-card]").last();
+    await card2.getByPlaceholder("What do you want to ask?").fill("Which is a mammal?");
+    await card2.getByRole("button", { name: /^＋ Add answer$/ }).click();
+    await card2.getByRole("button", { name: /^＋ Add answer$/ }).click();
+    const four = card2.getByPlaceholder("Type an answer");
+    await expect(four).toHaveCount(4);
+    await four.nth(0).fill("Frog");
+    await four.nth(1).fill("Shark");
+    await four.nth(2).fill("Robin");
+    await four.nth(3).fill("Whale");
+
+    await page.locator('button[title="Done"]').click();
+    await page.getByRole("button", { name: /Save to library/ }).click();
+    await expect(page.getByRole("heading", { name: "Boxed answers" })).toBeVisible();
+    await page.getByRole("button", { name: /Assign/ }).first().click();
+    await page.getByRole("button", { name: "Sunflower Class" }).click();
+    await page.getByRole("button", { name: /Assign to whole class/ }).click();
+    await page.waitForURL((url) => url.searchParams.has("run"));
+
+    // The child picks the FIRST answer each time, so the last is unpicked and
+    // drawn in the pale border — the one that ended up outside the box.
+    await logout(page);
+    await studentLogin(page, "Amara");
+    await page.goto("/student/activities");
+    await page.getByRole("link", { name: /Boxed answers/ }).click();
+    await expect(page.locator("canvas")).toBeVisible();
+    await page.getByRole("button", { name: "Four" }).click();
+    await page.getByRole("button", { name: "Page 2", exact: true }).click();
+    await page.getByRole("button", { name: "Frog" }).click();
+
+    const field = page.locator('input[name="drawingPreviews"]');
+    await expect.poll(async () => (JSON.parse((await field.inputValue()) || "[]") as string[]).length).toBe(2);
+    const pictures = JSON.parse(await field.inputValue()) as string[];
+
+    for (const [i, n] of [2, 4].entries()) {
+      const shape = await page.evaluate(async (url) => {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const x = c.getContext("2d")!;
+        x.drawImage(img, 0, 0);
+        const { data, width, height } = x.getImageData(0, 0, c.width, c.height);
+        const rgb = (px: number, py: number) => {
+          const j = (py * width + px) * 4;
+          return [data[j], data[j + 1], data[j + 2]];
+        };
+        // Anything but the white page — the card's cream fill included.
+        const painted = (px: number, py: number) => rgb(px, py).some((v) => v < 250);
+        // The outline's ink (#22304A), allowing for antialiased edges.
+        const ink = (px: number, py: number) => rgb(px, py).reduce((a, b) => a + b) < 300;
+        let left = width, right = -1, top = height, bottom = -1;
+        for (let py = 0; py < height; py++)
+          for (let px = 0; px < width; px++)
+            if (painted(px, py)) {
+              left = Math.min(left, px);
+              right = Math.max(right, px);
+              top = Math.min(top, py);
+              bottom = Math.max(bottom, py);
+            }
+        // Clear of the rounded corners, the edge within a few pixels is ink.
+        const inset = 24;
+        let leftRows = 0, leftInk = 0;
+        for (let py = top + inset; py <= bottom - inset; py++) {
+          leftRows++;
+          if ([0, 1, 2, 3].some((d) => ink(left + d, py))) leftInk++;
+        }
+        let footCols = 0, footInk = 0;
+        for (let px = left + inset; px <= right - inset; px++) {
+          footCols++;
+          if ([0, 1, 2, 3].some((d) => ink(px, bottom - d))) footInk++;
+        }
+        return { height: bottom - top, left: leftInk / leftRows, foot: footInk / footCols };
+      }, pictures[i]);
+
+      const at = `the ${n}-answer question's picture`;
+      // Something the size of n answers was drawn at all.
+      expect(shape.height, `${at} carries its answers`).toBeGreaterThan(n * 44);
+      expect(shape.left, `${at}: the outline runs down past every answer`).toBe(1);
+      expect(shape.foot, `${at}: the lowest thing drawn is the outline`).toBe(1);
+    }
+  } finally {
+    // Deleting the template takes its run, and the child's draft of it, too.
+    await db.activityTemplate.deleteMany({ where: { title: "Boxed answers" } });
+    await db.$disconnect();
+  }
 });
