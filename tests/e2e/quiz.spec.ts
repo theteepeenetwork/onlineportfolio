@@ -69,6 +69,12 @@ test("teacher builds a multi-page quiz, a child answers it, teacher sees the sco
   // (≥64px) touch target, then answer correctly ("Moo").
   const moo = page.getByRole("button", { name: "Moo" });
   expect((await moo.boundingBox())!.height).toBeGreaterThanOrEqual(64);
+  // At its full size, not a third of it: the dot that shows which one they
+  // picked is the design's 24, in the card's own units. It was 8 while the
+  // card scaled by a height it had written for itself.
+  expect(
+    await moo.locator('span[aria-hidden="true"]').first().evaluate((el) => (el as HTMLElement).offsetWidth),
+  ).toBe(24);
   await moo.focus();
   await expect(moo).toBeFocused();
   await moo.click();
@@ -336,6 +342,63 @@ test("shrinking a question box scales its contents instead of clipping them", as
     overflows: el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1,
   }));
   expect(state).toEqual({ clipped: false, overflows: false });
+});
+
+// A new question box is drawn at its full size, and stays there.
+//
+// The card scaled its contents by min(width, height) against its design size,
+// and then wrote the height it came out at back to the question. So a smaller
+// card made itself smaller again, and a default two-answer box settled at a
+// third of its size: 104 tall, 15px type, 8px answer dots — on the teacher's
+// worksheet and the child's screen alike. The teacher's resize handle only
+// changes the width, so the width is what scales it.
+test("a new question box is drawn at its full size, and stays there", async ({ page }) => {
+  await teacherLogin(page);
+  await page.goto("/teacher/activities/new");
+  await page.fill("#title", "Full size");
+  await page.getByRole("button", { name: /Build a template or quiz/ }).click();
+
+  // An empty page says what it is for…
+  const hint = page.locator("p", { hasText: "Draw here" });
+  await expect(hint).toBeVisible();
+
+  await page.locator('button[title="Add"]').click();
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+  const panel = page.getByRole("region", { name: "Quiz builder" });
+  await panel.getByRole("button", { name: /Add question to page 1/ }).click();
+  await panel.getByPlaceholder("What do you want to ask?").last().fill("How many legs has a spider?");
+  await panel.getByPlaceholder("Type an answer").nth(0).fill("Four");
+  await panel.getByPlaceholder("Type an answer").nth(1).fill("Eight");
+
+  // …and a page with a question on it is not empty. The hint was printed
+  // across the answers of a box drawn at full size.
+  await expect(hint).toHaveCount(0);
+
+  const box = page.getByRole("group", { name: "Question box" });
+  const size = () =>
+    box.evaluate((el) => ({
+      h: (el as HTMLElement).offsetHeight,
+      prompt: parseFloat(getComputedStyle(el.querySelector("textarea[aria-label='Question']")!).fontSize),
+      dot: (el.querySelector('span[aria-hidden="true"].rounded-full') as HTMLElement).offsetWidth,
+    }));
+  // Settled — two reads half a second apart agree — so this is where it ends
+  // up, not a frame on the way down.
+  let last = "";
+  await expect
+    .poll(
+      async () => {
+        const now = JSON.stringify(await size());
+        const same = now === last;
+        last = now;
+        return same;
+      },
+      { intervals: [500], timeout: 5_000 },
+    )
+    .toBe(true);
+  const settled = await size();
+  expect(settled.prompt, "the question at the design's 20px").toBe(20);
+  expect(settled.dot, "the answer dot at the design's 24").toBe(24);
+  expect(settled.h, "tall enough for two full-size answers").toBeGreaterThan(150);
 });
 
 // Answer rows stretch to share out the box's height, so their size says little

@@ -210,8 +210,9 @@ const MAX_HISTORY = 12;
 const IMAGE_LOAD_BUDGET_MS = 30_000;
 
 // A quiz box is born at this size, and its contents are designed at it: the
-// type sizes below are "at QUIZ_W × QUIZ_H". A resized box scales its contents
-// from these, so they're the maximum rather than a fixed size.
+// type sizes below are "at QUIZ_W". A narrowed box scales its contents down
+// from these, so they're the maximum rather than a fixed size. The height is
+// only where a new box starts: the card then follows its content.
 const QUIZ_W = 380;
 const QUIZ_H = 300;
 // How much a question box grows for each answer added, and shrinks for each
@@ -3904,8 +3905,15 @@ export function DrawingCanvas({
     }
 
     // Nothing on this page yet, so the paper says what it is for. Gone the
-    // moment there is a stroke, a piece or a template underneath.
-    const pageIsBare = !canUndo && objects.length === 0 && !currentTemplate;
+    // moment there is a stroke, a piece or a template underneath — or a
+    // question, which is kept apart from the pieces and so has to be asked
+    // about separately. Left out, the hint was printed across a question box's
+    // answers.
+    const pageIsBare =
+      !canUndo &&
+      objects.length === 0 &&
+      !currentTemplate &&
+      !quizQuestions.some((q) => q.pageIndex === current);
 
     return (
       <div className="fixed inset-0 z-40 flex flex-col" style={{ background: "var(--paper)" }}>
@@ -7077,12 +7085,21 @@ function QuizBoxView({
   // chrome is still the drag handle.
   const stopDrag = (e: React.PointerEvent) => e.stopPropagation();
 
-  // Everything inside is designed at QUIZ_W × QUIZ_H and scales down with the
-  // box, so a teacher can shrink a question to an aside and still have it read
-  // — smaller text is the point, not a compromise. Capped at 1 so a big box
-  // gets more room rather than giant type. Driven by whichever axis is tighter,
-  // so a short-and-wide box doesn't overflow vertically.
-  const k = Math.min(1, q.w / QUIZ_W, q.h / QUIZ_H);
+  // Everything inside is designed at QUIZ_W wide and scales down with the box,
+  // so a teacher can narrow a question to an aside and still have it read —
+  // smaller text is the point, not a compromise. Capped at 1 so a big box gets
+  // more room rather than giant type.
+  //
+  // By WIDTH alone. The height used to be in here too, back when a teacher
+  // dragged it. Now the card follows its content and writes that height back
+  // to `q.h`, so the height is the card's output and cannot also be its input:
+  // shrinking by it made the card shorter, which shrank it again, and a default
+  // two-answer question settled at a third of its size — 104 tall, with 8px
+  // answer dots — on the teacher's worksheet and on the child's screen. The
+  // resize handle only changes the width, so the width is the control a
+  // teacher actually has. The picture of the page (`drawQuizForPreview`) uses
+  // the same rule, so the two agree.
+  const k = Math.min(1, q.w / QUIZ_W);
   const px = (n: number) => Math.round(n * k * 10) / 10;
   // A finger is a physical size, and `px()` is not: it scales model units by the
   // canvas's display scale, so a "64px" answer button rendered at k≈0.9 reaches
