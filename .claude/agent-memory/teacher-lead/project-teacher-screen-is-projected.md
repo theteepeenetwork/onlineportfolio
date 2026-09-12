@@ -19,6 +19,11 @@ already mirrored to the projector.**
    hand-in). Score/total stay unselected; the run page's viewer gets nulls.
 2. A thumbnail of unseen (PENDING) work in the picking list is already on the
    projector before the board opens. Placeholder until opened.
+   **Superseded 2026-09-12 by owner decision:** the placeholder and the
+   look-first gate made the picker unusable, so waiting work is now drawn and
+   tickable straight away; the mitigation is a line telling the teacher to
+   freeze or switch off the projector while choosing. Don't reintroduce the
+   gate as a "fix" — it was a decided trade (rule 25 Amendments row).
 3. Opaque is not inert: Tab / a screen reader walked past the overlay onto the
    pupil list. `ClassCodeReveal` on main has the same gap (no inert, no focus
    return) — reported, not fixed, as of 2026-09-10.

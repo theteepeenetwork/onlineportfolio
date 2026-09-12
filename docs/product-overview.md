@@ -56,7 +56,7 @@ timeline and a needs-attention strip. For each run, a page saying who has
 handed in, who is waiting, who was sent back and who has not handed in yet
 (never "not started": drafts are private), reached from a "Live now" list at
 the top of the library; from it a teacher can mark the activity "not needed"
-for one pupil and put it back, and can pick pictures they have looked at to
+for one pupil and put it back, and can pick pictures from their thumbnails to
 show the class on the board — nothing stored, nothing changes status
 (SAFEGUARDING rule 25).
 
