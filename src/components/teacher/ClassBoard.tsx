@@ -155,6 +155,9 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
 
       {open && viewing && (
         <WorkViewer
+          // A fresh viewer per piece and page opened, so `startPage` is read
+          // even when the teacher opens another piece without closing this one.
+          key={`${viewing.version}:${viewing.page}`}
           child={open.firstName}
           activity={activity}
           when={STATUS_WORD[open.status]}

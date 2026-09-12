@@ -188,6 +188,52 @@ test("a11y (AA): the classroom board, open", async ({ page }) => {
   assertNoSeriousViolations(await scan(page), "classroom board (open)");
 });
 
+// The picker itself, with the board closed so nothing is inert: thumbnails of
+// work in a jar and waiting, a piece of several pages with its arrows inside
+// the thumbnail, turned once so the page counter's live region has spoken, and
+// one piece ticked. Built for itself, in a class of its own, because the
+// seeded runs have no piece with more than one page.
+test("a11y (AA): the classroom board's picker, with page arrows", async ({ page }) => {
+  const { PrismaClient } = await import("@prisma/client");
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  const path = await import("node:path");
+  const db = new PrismaClient();
+  const mediaDir = process.env.MEDIA_DIR || path.join(process.cwd(), ".media");
+  mkdirSync(mediaDir, { recursive: true });
+  const stamp = Date.now();
+  const drawn = (who: string, fill: string) => {
+    const name = `axe-board-${who}-${stamp}.svg`;
+    writeFileSync(path.join(mediaDir, name), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="#fff"/><circle cx="200" cy="150" r="80" fill="${fill}"/></svg>`);
+    return `/uploads/${name}`;
+  };
+  const teacher = await db.teacher.findUniqueOrThrow({ where: { email: SCHOOL_A.admin.email } });
+  const klass = await db.class.create({
+    data: { name: "Axe Board Class", ageMode: "KS1", classCode: `AXB${String(stamp).slice(-3)}`, teacherId: teacher.id, schoolId: teacher.schoolId },
+  });
+  const template = await db.activityTemplate.create({ data: { title: `Axe board ${stamp}`, teacherId: teacher.id } });
+  try {
+    const run = await db.assignment.create({ data: { templateId: template.id, classId: klass.id, wholeClass: true, status: "LIVE", title: `Axe board ${stamp}` } });
+    const [jo, kit] = await Promise.all(["Jo", "Kit"].map((name) => db.student.create({ data: { name, classId: klass.id } })));
+    const base = { authorRole: "STUDENT", classId: klass.id, assignmentId: run.id, type: "DRAWING" };
+    await db.journalItem.create({ data: { ...base, status: "APPROVED", approvedAt: new Date(), studentId: jo.id, mediaPath: drawn("jo", "#f59e0b") } });
+    const pages = [drawn("kit1", "#3b82f6"), drawn("kit2", "#10b981")];
+    await db.journalItem.create({ data: { ...base, status: "PENDING", studentId: kit.id, mediaPath: pages[0], mediaPathsJson: JSON.stringify(pages) } });
+
+    await loginTeacher(page, SCHOOL_A.admin);
+    await page.goto(`/teacher/activities/runs/${run.id}`);
+    const kitCard = page.locator('li[data-board-piece="Kit"]');
+    await kitCard.getByRole("button", { name: "Next page of Kit's work" }).click();
+    await expect(kitCard.locator("[data-board-page]")).toContainText("2 / 2");
+    await page.locator('li[data-board-piece="Jo"]').getByRole("checkbox", { name: "Add to the board" }).check();
+    assertNoSeriousViolations(await scan(page), "classroom board picker");
+  } finally {
+    await db.assignment.deleteMany({ where: { templateId: template.id } });
+    await db.class.deleteMany({ where: { id: klass.id } });
+    await db.activityTemplate.deleteMany({ where: { id: template.id } });
+    await db.$disconnect();
+  }
+});
+
 test("a11y (AA): account settings, including the Claude connector panel", async ({ page }) => {
   await loginTeacher(page, SCHOOL_A.admin);
   await page.goto("/teacher/account");
