@@ -7,13 +7,19 @@ import { WorkViewer } from "@/app/teacher/queue/WorkViewer";
 // Show the class some of their work on the board (SAFEGUARDING rule 25).
 //
 // THE TEACHER PICKS, THEN SHOWS. Nothing goes up that the teacher has not
-// chosen, and nothing waiting in the queue can be chosen until the teacher has
-// opened it full size and looked at it — the approval queue's own promise
-// (rule 3) that no child's work reaches another child before an adult has seen
-// it, kept for a room of classmates as it is for a parent. Work already in a
-// jar has been looked at and approved, so it can be ticked straight away. Work
-// that was sent back is not offered at all: it came back because it was not
-// ready.
+// ticked. Every piece handed in for this activity is drawn here as a thumbnail
+// and can be ticked straight away, whether it is in a jar or still waiting in
+// the queue (owner decision, 12 September 2026, replacing the look-first gate
+// of the 10th): the teacher sees what they are picking in the thumbnail, can
+// turn its pages with the arrows inside it, and can open it full size if they
+// want a closer look. Work that was sent back is not offered at all: it came
+// back because it was not ready.
+//
+// This page is very often the one already mirrored to the projector, and its
+// thumbnails now include work no adult has approved. That was weighed and
+// accepted: the teacher controls the projector — they can freeze it or switch
+// it off while they choose — and the page says so whenever waiting work is on
+// it. DPIA R23 holds the residual.
 //
 // THE PICKS ARE NEVER STORED. React state, and nowhere else: no row, no URL, no
 // localStorage. A reload forgets them, which is the point — a "board" that
@@ -43,51 +49,47 @@ export type BoardPiece = {
 
 type Slide = { pieceId: string; firstName: string; page: number; of: number; src: string };
 
+// What the full-size viewer's heading says the piece is. Deliberately not the
+// queue's "Waiting for you": this page may be on the projector.
 const STATUS_WORD: Record<BoardPiece["status"], string> = {
-  PENDING: "Waiting for you",
+  PENDING: "Handed in",
   APPROVED: "In their jar",
 };
 
-// THE LOOK IS OF A VERSION, NOT OF AN ID. A hand-in keeps its id when it is
-// sent back and handed in again: `createJournalItem` rewrites the RETURNED row
-// in place, back to PENDING, with new pictures at new paths. And this component
+// A PICK IS OF A VERSION, NOT OF AN ID. A hand-in keeps its id when it is sent
+// back and handed in again: `createJournalItem` rewrites the RETURNED row in
+// place, back to PENDING, with new pictures at new paths. And this component
 // keeps its state when the run page is refreshed under it — which any action
-// on the page does ("Not needed", "Put back"). Keyed by id, a look at the first
-// attempt would have drawn the second attempt's thumbnail and left it ticked
-// and on the board, unseen by anyone. So every look, pick and open is of the
-// piece as it was: its id, its status and its exact pictures. Change any of
-// them and it is a piece the teacher has not looked at.
+// on the page does ("Not needed", "Put back"). Keyed by id, a tick on the
+// first attempt would have put the second attempt on the board, pictures the
+// teacher never chose. So every pick and open is of the piece as it was: its
+// id, its status and its exact pictures. Change any of them and it is a piece
+// the teacher has not picked.
 const versionOf = (p: BoardPiece) => JSON.stringify([p.id, p.status, p.pages]);
 
 export function ClassBoard({ activity, pieces }: { activity: string; pieces: BoardPiece[] }) {
   // Versions (see `versionOf`), never bare ids.
-  const [looked, setLooked] = useState<Set<string>>(() => new Set());
   const [picked, setPicked] = useState<string[]>([]);
-  const [viewing, setViewing] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<{ version: string; page: number } | null>(null);
   const [showing, setShowing] = useState(false);
   const [namesHidden, setNamesHidden] = useState(false);
   const showButton = useRef<HTMLButtonElement>(null);
 
   const byVersion = useMemo(() => new Map(pieces.map((p) => [versionOf(p), p])), [pieces]);
-  // A piece can be ticked when it is in a jar, or when it is waiting and the
-  // teacher has opened THIS version of it. Anything else cannot, whatever the
-  // checkbox says.
-  const mayPick = (p: BoardPiece) => p.status === "APPROVED" || looked.has(versionOf(p));
 
   const toggle = (p: BoardPiece, on: boolean) => {
     const v = versionOf(p);
-    if (on && !mayPick(p)) return;
     setPicked((prev) => (on ? (prev.includes(v) ? prev : [...prev, v]) : prev.filter((x) => x !== v)));
   };
 
   // What goes up is worked out afresh from what the page holds NOW, every
   // render: a pick counts only while the piece it was made on is still here,
-  // unchanged, and still pickable. One handed in again, sent back (the server
-  // stops offering it) or moved in or out of a jar simply drops off the list,
-  // the count and the board, and the teacher picks it again if they want it.
+  // unchanged. One handed in again, sent back (the server stops offering it)
+  // or moved in or out of a jar simply drops off the list, the count and the
+  // board, and the teacher picks it again if they want it.
   const chosen = picked.flatMap((v) => {
     const p = byVersion.get(v);
-    return p && mayPick(p) ? [p] : [];
+    return p ? [p] : [];
   });
   const slides: Slide[] = chosen.flatMap((p) =>
     p.pages.map((src, i) => ({ pieceId: p.id, firstName: p.firstName, page: i + 1, of: p.pages.length, src })),
@@ -99,13 +101,13 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
   if (showing && slides.length === 0) setShowing(false);
 
   // An open viewer is of a version too: if the piece changes while it is open,
-  // the viewer closes rather than show the new pictures nobody chose to open.
-  const open = viewing ? byVersion.get(viewing) ?? null : null;
+  // the viewer closes rather than show new pictures nobody chose to open.
+  const open = viewing ? byVersion.get(viewing.version) ?? null : null;
 
   if (pieces.length === 0) {
     return (
       <p style={{ margin: 0, font: "400 15px/1.5 var(--font-atkinson)", color: "var(--sj-muted)" }}>
-        Nothing to show yet. Pictures and drawings that are waiting for you or in a jar will appear here.
+        Nothing to show yet. Pictures and drawings your class hands in will appear here.
       </p>
     );
   }
@@ -113,81 +115,31 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
   return (
     <div>
       <p style={{ margin: "0 0 12px", font: "400 15px/1.5 var(--font-atkinson)", color: "var(--ink-soft)", maxWidth: "46em" }}>
-        Only you choose what goes up. Showing work doesn&apos;t put it in a jar. Work that is waiting for you can be
-        added once you have opened it.
+        Only you choose what goes up. Showing work doesn&apos;t put it in a jar. We recommend viewing work before you
+        show it on the board.
       </p>
-      {/* Opening a waiting piece shows it full size, and this page is very
-          often already mirrored to the projector: the look-first rule holds
-          on this screen, not in the room, so the teacher is told to do the
-          looking first. DPIA R23 names the risk. */}
+      {/* The thumbnails below include work nobody has approved, and this page
+          is very often already mirrored to the projector. The teacher is the
+          one who controls that screen, so they are told, in one line, to take
+          it off while they choose. DPIA R23 names the risk. */}
       {pieces.some((p) => p.status === "PENDING") && (
-        <p data-board-look-first style={{ margin: "0 0 12px", font: "700 15px/1.5 var(--font-atkinson)", color: "var(--ink-soft)", maxWidth: "46em" }}>
-          Open waiting work before this page is on the projector.
+        <p data-board-projector style={{ margin: "0 0 12px", font: "700 15px/1.5 var(--font-atkinson)", color: "var(--ink-soft)", maxWidth: "46em" }}>
+          If this screen is on the projector, freeze it or switch it off while you choose.
         </p>
       )}
 
       <ul aria-label="Work you could show" style={{ listStyle: "none", margin: "0 0 14px", padding: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
-        {pieces.map((p) => {
-          const can = mayPick(p);
-          const on = isPicked(p);
-          const hintId = `board-hint-${p.id}`;
-          // A waiting piece's picture is not drawn here until the teacher has
-          // opened it. This page is very often the one already mirrored to
-          // the projector, so a thumbnail in the list would put work in front
-          // of the class that no adult had looked at — the one thing rule 25
-          // exists to prevent — before the board was even opened.
-          const unseen = p.status === "PENDING" && !looked.has(versionOf(p));
-          return (
-            <li key={p.id} data-board-piece={p.firstName} data-status={p.status} style={{ background: "var(--paper)", border: `2px solid ${on ? "var(--ink)" : "var(--calm-border)"}`, borderRadius: 14, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  // Opening it full size IS the look. From here a waiting
-                  // piece can be ticked, in the viewer or back in the list.
-                  setLooked((prev) => new Set(prev).add(versionOf(p)));
-                  setViewing(versionOf(p));
-                }}
-                // With the placeholder showing, its words are in the name too
-                // (WCAG 2.5.3, label in name), so "open it to look" said aloud
-                // by voice control reaches this button.
-                aria-label={unseen ? `Open ${p.firstName}'s work. Waiting for you — open it to look` : `Open ${p.firstName}'s work`}
-                style={{ display: "block", height: 110, padding: 0, border: "none", borderRadius: 10, overflow: "hidden", background: "var(--cream)", cursor: "pointer" }}
-              >
-                {unseen ? (
-                  <span data-board-unseen style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: "0 12px", boxSizing: "border-box", border: "2px dashed var(--calm-border)", borderRadius: 10, font: "700 14px/1.4 var(--font-atkinson)", color: "var(--ink-soft)", textAlign: "center" }}>
-                    Waiting for you — open it to look
-                  </span>
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.pages[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
-                )}
-              </button>
-              <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-                <strong style={{ font: "700 15px var(--font-atkinson)" }}>{p.firstName}</strong>
-                <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-                  {STATUS_WORD[p.status]}
-                  {p.pages.length > 1 ? ` · ${p.pages.length} pages` : ""}
-                </span>
-              </span>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: can ? "pointer" : "not-allowed", font: "700 14px var(--font-atkinson)", color: can ? "var(--ink)" : "var(--sj-muted)" }}>
-                <input
-                  type="checkbox"
-                  checked={on}
-                  disabled={!can}
-                  onChange={(e) => toggle(p, e.target.checked)}
-                  aria-describedby={can ? undefined : hintId}
-                  style={{ width: 24, height: 24, accentColor: "var(--ink)" }}
-                />
-                Add to the board
-              </label>
-              {!can && (
-                <span id={hintId} style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>
-                  Open it first to look at it.
-                </span>
-              )}
-            </li>
-          );
-        })}
+        {pieces.map((p) => (
+          // Keyed by version, so a piece whose pictures change under the page
+          // starts again at its first page rather than at a page it may not have.
+          <PieceCard
+            key={versionOf(p)}
+            piece={p}
+            on={isPicked(p)}
+            onToggle={(on) => toggle(p, on)}
+            onOpen={(page) => setViewing({ version: versionOf(p), page })}
+          />
+        ))}
       </ul>
 
       <button
@@ -201,7 +153,7 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
         <Icon name="class" size={18} decorative /> Show on the board ({chosen.length})
       </button>
 
-      {open && (
+      {open && viewing && (
         <WorkViewer
           child={open.firstName}
           activity={activity}
@@ -214,6 +166,7 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
           quizReview={null}
           quizScore={null}
           quizTotal={null}
+          startPage={viewing.page}
           onClose={() => setViewing(null)}
           footer={
             <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, font: "700 15px var(--font-atkinson)", color: "var(--ink)", cursor: "pointer" }}>
@@ -244,6 +197,97 @@ export function ClassBoard({ activity, pieces }: { activity: string; pieces: Boa
       )}
     </div>
   );
+}
+
+// One piece in the list: its thumbnail, with arrows inside the picture's edges
+// to turn its pages; the picture itself, which opens it full size at the page
+// it is on; the pupil's name; and the tick.
+function PieceCard({
+  piece: p,
+  on,
+  onToggle,
+  onOpen,
+}: {
+  piece: BoardPiece;
+  on: boolean;
+  onToggle: (on: boolean) => void;
+  onOpen: (page: number) => void;
+}) {
+  const [page, setPage] = useState(0);
+  const n = p.pages.length;
+  const at = Math.min(page, n - 1);
+  const many = n > 1;
+  // Round and round rather than stopping at the ends, so neither arrow is ever
+  // disabled under a keyboard user's focus.
+  const turn = (by: number) => setPage((x) => (x + by + n) % n);
+  const pageWords = many ? `page ${at + 1} of ${n}` : "";
+
+  return (
+    <li data-board-piece={p.firstName} data-status={p.status} style={{ background: "var(--paper)", border: `2px solid ${on ? "var(--ink)" : "var(--calm-border)"}`, boxShadow: on ? "0 0 0 2px var(--ink)" : "none", borderRadius: 14, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ position: "relative", height: 130, borderRadius: 10, overflow: "hidden", background: "var(--cream)" }}>
+        <button
+          type="button"
+          onClick={() => onOpen(at)}
+          aria-label={`Open ${p.firstName}'s work${many ? `, ${pageWords}` : ""}`}
+          style={{ display: "block", width: "100%", height: "100%", padding: 0, border: "none", background: "transparent", cursor: "zoom-in" }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={p.pages[at]} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+        </button>
+        {many && (
+          <>
+            <button type="button" onClick={() => turn(-1)} aria-label={`Previous page of ${p.firstName}'s work`} style={thumbArrow("left")}>
+              ‹
+            </button>
+            <button type="button" onClick={() => turn(1)} aria-label={`Next page of ${p.firstName}'s work`} style={thumbArrow("right")}>
+              ›
+            </button>
+            <span aria-live="polite" data-board-page style={{ position: "absolute", bottom: 6, left: "50%", transform: "translateX(-50%)", padding: "2px 8px", borderRadius: 999, background: "var(--ink)", color: "var(--paper)", font: "700 12px var(--font-atkinson)", pointerEvents: "none", whiteSpace: "nowrap" }}>
+              <span aria-hidden="true">
+                {at + 1} / {n}
+              </span>
+              <span className="sj-sr-only">
+                {p.firstName}&apos;s work, {pageWords}
+              </span>
+            </span>
+          </>
+        )}
+      </div>
+      <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+        <strong style={{ font: "700 15px var(--font-atkinson)" }}>{p.firstName}</strong>
+        {p.status === "APPROVED" && <span style={{ font: "400 13px var(--font-atkinson)", color: "var(--sj-muted)" }}>In their jar</span>}
+      </span>
+      <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", font: "700 14px var(--font-atkinson)", color: "var(--ink)" }}>
+        <input type="checkbox" checked={on} onChange={(e) => onToggle(e.target.checked)} style={{ width: 24, height: 24, accentColor: "var(--ink)" }} />
+        Add to the board
+      </label>
+    </li>
+  );
+}
+
+// The arrows sit inside the thumbnail, against its left and right edges, over
+// the picture. A solid paper disc with an ink ring, so they read on any
+// drawing, dark or light.
+function thumbArrow(side: "left" | "right"): React.CSSProperties {
+  return {
+    position: "absolute",
+    top: "50%",
+    [side]: 6,
+    transform: "translateY(-50%)",
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    border: "2px solid var(--ink)",
+    background: "var(--paper)",
+    color: "var(--ink)",
+    font: "700 22px/1 var(--font-atkinson)",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+    boxShadow: "0 2px 6px rgba(0,0,0,.2)",
+  };
 }
 
 // The board itself. Opaque and full screen, like the class code reveal

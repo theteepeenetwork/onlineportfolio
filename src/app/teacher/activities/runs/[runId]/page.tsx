@@ -108,8 +108,8 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
   // is the question boxes with the prompt, every option, and the one the child
   // picked filled in. That renderer never reads the answer key: nothing on the
   // picture says which option was right, and there is no score on it. It is
-  // picked on exactly the same terms as a drawing — in a jar straight away,
-  // waiting only once opened, sent back never — and `workPages` below turns it
+  // picked on exactly the same terms as a drawing — in a jar or waiting, sent
+  // back never — and `workPages` below turns it
   // into the page pictures like any other piece.
   //
   // THE SHAPE IS THE CONTROL. The board is a client component, so whatever

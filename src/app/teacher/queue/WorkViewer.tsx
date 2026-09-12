@@ -37,6 +37,7 @@ export function WorkViewer({
   quizReview,
   quizScore,
   quizTotal,
+  startPage,
   onClose,
   footer,
 }: {
@@ -53,11 +54,13 @@ export function WorkViewer({
   quizReview: QuizLine[] | null;
   quizScore: number | null;
   quizTotal: number | null;
+  // The page to open at. The board on a run's page opens a piece at the page
+  // its thumbnail had been turned to; the queue passes nothing and opens at 1.
+  startPage?: number;
   onClose: () => void;
-  // Something to do with the piece once it has been looked at, drawn under it.
-  // Used by the board on a run's page (SAFEGUARDING rule 25) for "Add to the
-  // board", which is offered for a waiting piece only once it has been opened
-  // here. The queue passes nothing, and looks exactly as it did.
+  // Something to do with the piece, drawn under it. Used by the board on a
+  // run's page (SAFEGUARDING rule 25) for "Add to the board". The queue passes
+  // nothing, and looks exactly as it did.
   footer?: React.ReactNode;
 }) {
   // A drawing can run to several pages. `mediaPath` is only ever the cover, so
@@ -68,7 +71,7 @@ export function WorkViewer({
   // quiz response saw an empty white sheet and no sign that anything had been
   // done. `workPages` falls back to the work whenever no picture was stored.
   const pages = workPages({ mediaPath, mediaPathsJson, previewPathsJson });
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(startPage ?? 0);
   const at = Math.min(page, Math.max(0, pages.length - 1));
   const many = pages.length > 1;
   useEffect(() => {

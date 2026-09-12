@@ -58,8 +58,8 @@ test("the board's data carries pictures and names, never a caption, a score or a
     });
     // Two quiz hand-ins, stored the way createJournalItem stores one: the work
     // of record, the picture of it with the question boxes drawn on, the
-    // server's score and total, and the child's answers as ids. One in a jar,
-    // pickable at once, and one waiting, pickable only once opened. The score
+    // server's score and total, and the child's answers as ids. One in a jar
+    // and one waiting, so both statuses are searched. The score
     // and total are six-digit numbers so that "absent from the page" is a real
     // search and not a coincidence with a "1 of 2" somewhere else.
     const SCORE = { uma: 739024, vic: 612587 };
@@ -118,15 +118,17 @@ test("the board's data carries pictures and names, never a caption, a score or a
     const offered = await page.locator("li[data-board-piece]").evaluateAll((els) => els.map((e) => e.getAttribute("data-board-piece")));
     expect(offered.sort()).toEqual(["Ro", "Sam", "Uma", "Vic"]);
 
-    // On the same rules as a drawing. In a jar: drawn in the list and
-    // pickable. Waiting: no picture in the list and no tick until opened.
+    // On the same rules as a drawing: in a jar or waiting, drawn in the list
+    // as its picture and pickable straight away (owner decision, 12 September
+    // 2026). The thumbnail is the picture with the chosen answers, never the
+    // work of record, and the card says nothing about the mark.
     const piece = (name: string) => page.locator(`li[data-board-piece="${name}"]`);
     const tick = (name: string) => piece(name).getByRole("checkbox", { name: "Add to the board" });
-    await expect(piece("Uma").locator(`img[src="/uploads/${MARK}-uma-preview.png"]`)).toHaveCount(1);
-    await expect(tick("Uma")).toBeEnabled();
-    await expect(piece("Vic").locator("img"), "a waiting quiz's picture is not drawn before it is opened").toHaveCount(0);
-    await expect(tick("Vic")).toBeDisabled();
-    expect(await page.locator(`img[src*="${MARK}-vic-preview"]`).count(), "nowhere on the page").toBe(0);
+    for (const who of ["Uma", "Vic"]) {
+      await expect(piece(who).locator(`img[src="/uploads/${MARK}-${who.toLowerCase()}-preview.png"]`)).toHaveCount(1);
+      await expect(tick(who)).toBeEnabled();
+      await expect(piece(who)).not.toContainText(/quiz|score|right|wrong/i);
+    }
 
     // Opening it full size shows the picture and nothing about the mark: the
     // viewer on this page is given no score, because this page may be the one
@@ -137,7 +139,6 @@ test("the board's data carries pictures and names, never a caption, a score or a
     await expect(viewer).not.toContainText(String(SCORE.vic));
     await expect(viewer).not.toContainText(/quiz/i);
     await viewer.getByRole("button", { name: "Close" }).click();
-    await expect(tick("Vic"), "once opened, a waiting quiz can be picked").toBeEnabled();
     // And opening it fetched nothing new about it: the page source after the
     // look carries the score no more than it did before.
     expect(await page.content()).not.toContain(String(SCORE.vic));
