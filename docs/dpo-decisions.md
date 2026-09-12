@@ -976,8 +976,8 @@ is now the whole list of thumbnails rather than one opened piece, and the
 answer to it is the teacher's control of the projector. **What was not:**
 sent-back work is never offered, a pick belongs to the version ticked, nothing
 is stored, and no score, total or answer key reaches the browser. Rule 25 and
-its Amendments row are updated; the residual is at DPIA R23, whose rating is
-the owner's to confirm. The four published promises that no work is seen
+its Amendments row are updated; the residual is at DPIA R23, which the owner
+kept at Low the same day, knowing the exposure had widened. The four published promises that no work is seen
 before approval now overstate the product, and are FINDINGS F84.
 
 **Worth an outside check:** no new data category, storage or third party, so
