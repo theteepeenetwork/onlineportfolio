@@ -111,11 +111,19 @@ Each rule is testable. A change that breaks one does not ship.
    as teachers always have with a pinboard, and it is governed by **rule 25**.
    Rule 25 is the one place where work that is still `PENDING` may be seen by
    other children, and it keeps this rule's promise by a narrower means than
-   approval: the teacher must have opened that piece full size and chosen it,
-   on their own screen, and showing it changes nothing about its status. That
-   is **a carve-out, not a clarification** — looking at a piece is less than
-   approving it — and it is recorded as one in the Amendments table so that a
-   reader can see the difference was noticed and accepted.
+   approval: the teacher must have chosen that piece, on their own screen,
+   from a thumbnail of it, and showing it changes nothing about its status.
+   That is **a carve-out, not a clarification** — choosing a piece from its
+   thumbnail is less than approving it, and since 2026-09-12 less than opening
+   it full size — and it is recorded as one in the Amendments table so that a
+   reader can see the difference was noticed and accepted. It is also wider
+   than a choice: the run's page draws a thumbnail of every waiting piece, and
+   if that page is already on the projector the class sees them before any
+   are chosen. Rule 25 answers that with a line telling the teacher to freeze
+   or switch off the projector while they choose, and cannot do more, because
+   StoryJar cannot tell whether a screen is projected. The published promises
+   that no child's work is seen before approval are now inaccurate in this
+   respect, and are logged as FINDINGS F84 for the owner to reword.
 
 ### C. A child's work is private and tightly scoped
 4. **Access is need-to-know and enforced on the server.** A child's moment is
@@ -478,9 +486,9 @@ Each rule is testable. A change that breaks one does not ship.
    reaction or "seen" mark from a family; a notice to one named child; scheduling
    a notice for later; attachments or images; any email or push about a notice.
 
-25. **Showing work on the classroom board is the teacher's choice, of work they
-   have looked at, and it changes nothing.** *(Added 2026-09-10; see
-   "Amendments" below, and the scope note on rule 3.)* A class teacher may put
+25. **Showing work on the classroom board is the teacher's choice, and it
+   changes nothing.** *(Added 2026-09-10; amended 2026-09-12; see "Amendments"
+   below, and the scope note on rule 3.)* A class teacher may put
    pupils' pictures and drawings from one activity up on the classroom screen,
    from that activity's own page. The constraints, every one a blocking test:
 
@@ -488,16 +496,21 @@ Each rule is testable. A change that breaks one does not ship.
      page, which is scoped to a class the teacher holds today (rule 4; FINDINGS
      F66). There is no board URL, no pupil or parent view of it, and nothing
      that can be sent to another device.
-   - **Only what the teacher has looked at.** Work in a jar (`APPROVED`) has
-     been looked at and approved, and may be chosen straight away. Work waiting
-     in the queue (`PENDING`) may be chosen only after the teacher has opened
-     that version of it full size, and until then its picture is not drawn on
-     the run's page either, because that page may already be on the projector.
-     A piece sent back and handed in again is unseen work again: the look, the
-     tick and the place on the board belong to the version seen, never to the
-     piece's id. Work sent back
-     (`RETURNED`) is never offered. A quiz hand-in is offered on exactly these
-     terms, like any other piece.
+   - **Only what the teacher has chosen, from a picture of it.** Work in a jar
+     (`APPROVED`) and work waiting in the queue (`PENDING`) are both drawn on
+     the run's page as thumbnails, with arrows inside the thumbnail to turn a
+     piece's pages, and either may be ticked straight away; the teacher can
+     open any piece full size first, and the page recommends it. *(Until
+     2026-09-12 waiting work could be ticked only after it had been opened full
+     size, and its thumbnail was not drawn until then; the owner removed that
+     gate — see the Amendments row.)* Because the run's page may already be
+     on the projector, whenever waiting work is listed the page tells the
+     teacher, in one line above the picks, to freeze or switch off the
+     projector while they choose. A piece sent back and handed in again is a
+     piece nobody has chosen: the tick and the place on the board belong to
+     the version ticked, never to the piece's id. Work sent back (`RETURNED`)
+     is never offered. A quiz hand-in is offered on exactly these terms, like
+     any other piece.
    - **The choices are never stored.** They live in the open page and nowhere
      else: no database row, no URL, no browser storage. A reload forgets them.
      A list of what was shown would be a publication record, and StoryJar keeps
@@ -783,6 +796,7 @@ to.
 
 | Date | Rule | Change | Decided by | Why |
 |---|---|---|---|---|
+| 2026-09-12 | 3 (scope note), 25 | The look-first gate is removed. Waiting (`PENDING`) work is drawn as a thumbnail on the run's page and may be ticked for the board straight away, as work in a jar always could; opening it full size is recommended on the page, not required. Whenever waiting work is listed, one line tells the teacher to freeze or switch off the projector while they choose. Sent-back work is still never offered, and a pick still belongs to the version ticked. | Product owner (the founder, also data protection lead) | The picker was not usable: every waiting piece was a dashed placeholder with a disabled tick until it had been opened, one at a time. The owner's reasoning: the teacher controls the projector and can freeze or disconnect it before choosing, so hiding thumbnails from the teacher's own screen protects against a situation the teacher can prevent themselves. **What was traded away:** the guarantee that an adult has seen a waiting piece full size before it can go up — a teacher can now tick one from a 130-pixel thumbnail — and the guarantee that unapproved work is not drawn on a page that may already be projected. **What was not:** sent-back work is never offered; nothing is stored, sent or published; the board is opaque, full screen and inert behind; "Hide names"; showing changes no status; and no score, total or answer key reaches the browser. Risk at DPIA R23, kept at **Low** by the owner on 2026-09-12, knowing that every waiting thumbnail, not one opened piece, is now what a projected run page shows. The published promises this contradicts are FINDINGS F84. |
 | 2026-09-10 | 25 | A quiz hand-in may go on the board, on the same terms as any other piece (in a jar straight away, waiting once opened full size, sent back never). Its picture shows the question, the options and the one the child chose. The score, the total and any right/wrong marking never go on the board, and are never sent to the browser. The "not covered" entry for quiz hand-ins is removed, and a quiz's score, total or marking takes its place there. | Product owner (the founder, also data protection lead) | The safeguarding review of the same day found that a quiz hand-in's picture carries the child's chosen answers and, until the owner decided, the run page offered no quiz hand-in at all. The owner decided that a child's chosen answers may be shown to the class, and that what may not is the judgement on them: a score, a total, or which answer was right. Checked before the change: `drawQuizForPreview` draws the question box, the prompt, every option and a filled circle on the one picked, and never reads `correctOptionId`, so the picture carries no marking by construction. **What was traded away:** the exclusion the review put in place, so a classmate can now see which option a child chose, right or wrong, and could work out the right one from a teacher's reaction or a set of pictures side by side. **What was not:** the look-first gate, which a quiz hand-in meets exactly as a drawing does; "Hide names"; and the rule that no score, total or answer key reaches the browser, which `security/class-board.spec.ts` proves by searching the page source for the stored numbers. Risk at DPIA R23. |
 | 2026-09-10 | 3 (scope note), 25 (new) | A class teacher may show pupils' pictures and drawings from one activity on the classroom screen: from the run's own page, of work they have looked at (in a jar, or waiting and opened full size; never sent back), with the choices held only in the open page, full screen and opaque, a first name or none, and no change to any status. | Product owner | A teacher asked for a way to show the class finished work before it is in the jars — the pinboard moment at the end of a lesson. Rule 3 as written forbade it: a waiting piece reaching another child before approval is exactly what it names. The owner chose "the teacher picks, then shows" over the two alternatives — showing only approved work, which would make a teacher put a piece in a jar and in front of the family just to show it to the room, and showing everything handed in, which would put work on a projector that no adult had seen. So the safeguard is the adult's **look** rather than the approval state. **What was traded away:** rule 3's absolute that no child's work reaches another child before approval. Waiting work can now be seen by classmates once the teacher has opened it, which is less than approval: a teacher could look, show, and still send it back. **What was not:** nothing is published, stored or sent; no parent, other class or school sees anything; the operator is untouched (rule 20); and the approval queue — what reaches a jar, a parent or an export — is unchanged. Risk at DPIA R23. Rule number 25; 26 is reserved for the teacher web-links rule on another branch. |
 | 2026-09-10 | 15 (carve-out), 26 (new) | A teacher may put a web link on an activity's canvas, and a child may press it — only through a full-screen "leaving StoryJar" card with Stay here focused, only to an https address on a named public host, always showing the real host, opening a new tab that is `noopener noreferrer`, and with nothing recorded about who pressed it. The connector cannot place one; links are kept when StoryJar staff publish to the library. | Product owner (who is also the data protection lead), on a teacher's request | A teacher asked to put a website on a worksheet — the page a class is working from — rather than on the board beside it. Rule 15 said a link is never clickable, and that line was written about links from a *child's* input, where it stands unchanged. The risk that matters is a child being taken somewhere by surprise, or somewhere that is not what it says; the card, the real host and the https-to-a-public-name rule answer those structurally, and the new tab is the open web under the school's own filter, exactly as a link on the whiteboard would be. **What was traded away:** rule 15's absolute that nothing in a child's surface is a link. **What was not:** a child still cannot make a link, no link opens without the card, no message, notice, note or caption becomes pressable, and StoryJar does not watch what a class opens. Owner decisions, 2026-09-10: a child may press one, the card comes first, and the card's words are approved as written (`docs/AGE_MODE_COPY.md`). Links kept on library publish and no connector tool were the recommended defaults, taken; `docs/dpo-decisions.md` records them. |

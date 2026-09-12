@@ -9,10 +9,13 @@ import { teacherLogin } from "./helpers";
 //
 // The teacher picks, then shows. What these tests hold the product to, in the
 // rule's own order:
-//   - work waiting in the queue can be picked only once it has been opened,
-//     and its picture is not even drawn in the list until then, because the
-//     run page may already be on the projector; work in a jar can be picked
-//     straight away; work sent back is not offered;
+//   - every picture handed in is drawn in the list as a thumbnail and can be
+//     ticked straight away, in a jar or waiting (owner decision, 12 September
+//     2026, replacing the look-first gate); work sent back is not offered;
+//     with waiting work on the list, the page tells the teacher to freeze or
+//     switch off the projector while they choose;
+//   - a piece with several pages has arrows inside its thumbnail to turn them,
+//     and pressing the picture opens it full size at the page it is on;
 //   - a quiz hand-in is offered on those same terms and goes up as its
 //     picture, the child's chosen answers and nothing else: never a score, a
 //     total or which answer was right (owner decision, 10 September 2026);
@@ -22,10 +25,10 @@ import { teacherLogin } from "./helpers";
 //   - arrows step, Escape closes;
 //   - the picks live in the page and nowhere else — a reload forgets them;
 //   - showing changes no status;
-//   - a look is of the work as it was: a hand-in sent back and handed in again
+//   - a pick is of the work as it was: a hand-in sent back and handed in again
 //     keeps its id, so when the page refreshes under the picks the new attempt
-//     is unseen work again — no thumbnail, no tick, not on the board — and one
-//     sent back drops off altogether.
+//     is a piece nobody picked — tick off, not on the board — and one sent
+//     back drops off altogether.
 //
 // IT BUILDS ITS OWN CLASS and its own picture files, so every piece's status is
 // this file's and nothing else's.
@@ -136,21 +139,14 @@ const board = (page: Page) => page.getByRole("dialog", { name: "Work on the boar
 const piece = (page: Page, name: string) => page.locator(`li[data-board-piece="${name}"]`);
 const tick = (page: Page, name: string) => piece(page, name).getByRole("checkbox", { name: "Add to the board" });
 
-// `fetched`, when given, collects every URL the RUN PAGE asks for — attached
-// after sign-in, because the teacher's dashboard shows their own class's jar
-// and is entitled to fetch pictures this page is not.
-async function openRun(page: Page, fetched?: string[]) {
+async function openRun(page: Page) {
   await teacherLogin(page);
-  if (fetched) page.on("request", (r) => fetched.push(r.url()));
   await page.goto(`/teacher/activities/runs/${runId}`);
   await expect(page.getByRole("heading", { name: /on the board/i })).toBeVisible();
 }
 
-test("what can be picked follows the status: jar yes, waiting once opened, sent back never", async ({ page }) => {
-  // Every picture the page asks for, so that "not drawn" can be proved by the
-  // request never being made, not only by the element being absent.
-  const fetched: string[] = [];
-  await openRun(page, fetched);
+test("what can be picked follows the status: jar and waiting straight away, from the thumbnail; sent back never", async ({ page }) => {
+  await openRun(page);
 
   // Offered: the three pictures that are in a jar or waiting, a quiz hand-in
   // among them. Not offered: the sent-back one, or words.
@@ -158,61 +154,82 @@ test("what can be picked follows the status: jar yes, waiting once opened, sent 
   await expect(piece(page, "Cy")).toHaveCount(0);
   await expect(piece(page, "Di")).toHaveCount(0);
 
+  // Every piece is drawn and can be ticked without opening it first.
   await expect(tick(page, "Ada"), "in a jar: pickable straight away").toBeEnabled();
-  await expect(tick(page, "Bo"), "waiting: not until the teacher has looked").toBeDisabled();
-  await expect(piece(page, "Bo")).toContainText("Open it first");
-  // Opening a waiting piece shows it full size, so with waiting work on the
-  // list the teacher is told to do the looking before the page is projected.
-  await expect(page.locator("[data-board-look-first]")).toHaveText("Open waiting work before this page is on the projector.");
+  await expect(tick(page, "Bo"), "waiting: pickable straight away too").toBeEnabled();
+  await expect(piece(page, "Ada").locator("img")).toHaveAttribute("src", /board-ada-/);
+  await expect(piece(page, "Bo").locator("img")).toHaveAttribute("src", /board-bo1b-/);
+  const section = page.locator("section[aria-labelledby='board-heading']");
+  await expect(section, "no queue wording on a page that may be projected").not.toContainText("Waiting for you");
+  await expect(section).toContainText("We recommend viewing work before you show it on the board.");
+  // With waiting work in the list, the teacher is told to take the projector
+  // off while they choose: the thumbnails are of work nobody has approved.
+  await expect(page.locator("[data-board-projector]")).toHaveText("If this screen is on the projector, freeze it or switch it off while you choose.");
 
-  // The run page may already be on the projector, so a waiting piece's
-  // picture is not drawn in the list until the teacher has opened it: a
-  // placeholder stands in, and the browser has not even asked for the file.
-  // Ada's, in a jar, is drawn.
-  await expect(piece(page, "Ada").locator("img")).toHaveCount(1);
-  await expect(piece(page, "Bo").locator("img"), "no thumbnail of unseen work").toHaveCount(0);
-  await expect(piece(page, "Bo").locator("[data-board-unseen]")).toHaveText("Waiting for you — open it to look");
-  expect(fetched.some((u) => u.includes("board-bo")), "Bo's picture has not been fetched before it is opened").toBe(false);
+  // One page, no arrows. Several pages, arrows inside the thumbnail: they turn
+  // the pages round and round, and the picture's own button says which page
+  // it will open at.
+  await expect(piece(page, "Ada").getByRole("button", { name: /page of Ada's work/ })).toHaveCount(0);
+  const next = piece(page, "Bo").getByRole("button", { name: "Next page of Bo's work" });
+  const prev = piece(page, "Bo").getByRole("button", { name: "Previous page of Bo's work" });
+  await expect(piece(page, "Bo").locator("[data-board-page]")).toContainText("1 / 2");
+  await next.click();
+  await expect(piece(page, "Bo").locator("img")).toHaveAttribute("src", /board-bo2-/);
+  await expect(piece(page, "Bo").locator("[data-board-page]")).toContainText("2 / 2");
+  await next.click();
+  await expect(piece(page, "Bo").locator("img"), "past the last page is the first").toHaveAttribute("src", /board-bo1b-/);
+  await prev.click();
+  await expect(piece(page, "Bo").locator("img"), "before the first page is the last").toHaveAttribute("src", /board-bo2-/);
+  // The arrows turn pages; they do not open anything or tick anything.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(tick(page, "Bo")).not.toBeChecked();
+  // The arrows sit inside the thumbnail, one against each side.
+  const frame = (await piece(page, "Bo").getByRole("button", { name: /^Open Bo's work/ }).boundingBox())!;
+  const left = (await prev.boundingBox())!;
+  const right = (await next.boundingBox())!;
+  expect(left.x, "the left arrow is inside the thumbnail").toBeGreaterThanOrEqual(frame.x);
+  expect(right.x + right.width, "the right arrow is inside the thumbnail").toBeLessThanOrEqual(frame.x + frame.width);
+  expect(left.x + left.width, "the left arrow is on the left").toBeLessThan(frame.x + frame.width / 2);
+  expect(right.x, "the right arrow is on the right").toBeGreaterThan(frame.x + frame.width / 2);
 
-  // Open Bo's work full size; the viewer offers the tick.
-  await page.getByRole("button", { name: "Open Bo's work" }).click();
+  // Pressing the picture opens it full size, at the page it was turned to,
+  // and the viewer offers the tick as well.
+  await piece(page, "Bo").getByRole("button", { name: "Open Bo's work, page 2 of 2" }).click();
   const viewer = page.getByRole("dialog", { name: "Bo's work" });
   await expect(viewer).toBeVisible();
+  await expect(viewer.getByRole("img")).toHaveAttribute("alt", "Bo's work, page 2 of 2");
+  await expect(viewer).not.toContainText("Waiting for you");
   await viewer.getByRole("checkbox", { name: "Add to the board" }).check();
   await viewer.getByRole("button", { name: "Close" }).click();
-  await expect(tick(page, "Bo")).toBeEnabled();
   await expect(tick(page, "Bo")).toBeChecked();
-  // Looked at now, so its thumbnail is drawn.
-  await expect(piece(page, "Bo").locator("[data-board-unseen]")).toHaveCount(0);
-  await expect(piece(page, "Bo").locator("img")).toHaveCount(1);
 
+  // And straight from the list, without opening.
   await tick(page, "Ada").check();
   await expect(page.getByRole("button", { name: /Show on the board \(2\)/ })).toBeEnabled();
 });
 
-test("a waiting quiz hand-in can be picked once opened, and goes up as its picture with no score", async ({ page }) => {
-  const fetched: string[] = [];
-  await openRun(page, fetched);
+test("a waiting quiz hand-in can be picked from its thumbnail, and goes up as its picture with no score", async ({ page }) => {
+  await openRun(page);
 
-  // Waiting, so exactly as Bo: a placeholder, no tick, and its picture not
-  // fetched before the teacher has looked.
+  // Waiting, and drawn in the list as its picture — the page with the chosen
+  // answer on it — not the work of record.
   await expect(piece(page, "Eli")).toHaveAttribute("data-status", "PENDING");
-  await expect(tick(page, "Eli"), "waiting: not until the teacher has looked").toBeDisabled();
-  await expect(piece(page, "Eli").locator("img"), "no thumbnail of an unseen quiz").toHaveCount(0);
-  expect(fetched.some((u) => u.includes("board-eli")), "Eli's picture has not been fetched before it is opened").toBe(false);
+  await expect(piece(page, "Eli").locator("img")).toHaveAttribute("src", /board-eli-preview-/);
+  await expect(piece(page, "Eli")).not.toContainText(String(ELI_SCORE));
+  await expect(piece(page, "Eli")).not.toContainText(String(ELI_TOTAL));
 
-  // Opened full size: the picture of the page with the chosen answer on it,
-  // and nothing about the mark. This page may be the one on the projector.
-  await page.getByRole("button", { name: /^Open Eli's work/ }).click();
+  // Opened full size: the picture and nothing about the mark. This page may
+  // be the one on the projector.
+  await page.getByRole("button", { name: "Open Eli's work" }).click();
   const viewer = page.getByRole("dialog", { name: "Eli's work" });
   await expect(viewer).toBeVisible();
   await expect(viewer.getByRole("img").first()).toHaveAttribute("src", /board-eli-preview-/);
   await expect(viewer).not.toContainText(String(ELI_SCORE));
   await expect(viewer).not.toContainText(String(ELI_TOTAL));
-  await viewer.getByRole("checkbox", { name: "Add to the board" }).check();
   await viewer.getByRole("button", { name: "Close" }).click();
-  await expect(tick(page, "Eli")).toBeEnabled();
-  await expect(tick(page, "Eli")).toBeChecked();
+
+  // Ticked from the list.
+  await tick(page, "Eli").check();
 
   // On the board: the picture, not the work of record, with Eli's name and
   // no score, no total, and no word about right or wrong.
@@ -232,9 +249,7 @@ test("a waiting quiz hand-in can be picked once opened, and goes up as its pictu
 test("the board covers the screen, steps with the arrows, hides names from the alt text too, and closes on Escape", async ({ page }) => {
   await openRun(page);
   await tick(page, "Ada").check();
-  await page.getByRole("button", { name: "Open Bo's work" }).click();
-  await page.getByRole("dialog", { name: "Bo's work" }).getByRole("checkbox", { name: "Add to the board" }).check();
-  await page.getByRole("dialog", { name: "Bo's work" }).getByRole("button", { name: "Close" }).click();
+  await tick(page, "Bo").check();
 
   const show = page.getByRole("button", { name: /Show on the board/ });
   await show.click();
@@ -378,7 +393,7 @@ test("the picks are kept nowhere: a reload forgets them, and no status changed",
   expect(status[itemIds.Eli]).toBe("PENDING");
 });
 
-test("a hand-in that changes under the page is work nobody has looked at: placeholder back, tick off, off the board", async ({ page }) => {
+test("a hand-in that changes under the page is a piece nobody picked: tick off, off the board", async ({ page }) => {
   // Two pupils of this test's own, so the pieces the tests above rely on are
   // untouched: Gus, with a drawing waiting, and Fen, with nothing handed in,
   // so the run page offers "Not needed" for Fen — a real action, which
@@ -393,22 +408,18 @@ test("a hand-in that changes under the page is work nobody has looked at: placeh
     data: { authorRole: "STUDENT", classId, assignmentId: runId, type: "DRAWING", status: "PENDING", studentId: gus.id, mediaPath: drawn(`board-gus-first-${stamp}.svg`, "#0ea5e9") },
   });
   try {
-    const fetched: string[] = [];
-    await openRun(page, fetched);
+    await openRun(page);
 
-    // The teacher opens Gus's first attempt and picks it, and Ada's from her jar.
-    await page.getByRole("button", { name: /^Open Gus's work/ }).click();
-    const viewer = page.getByRole("dialog", { name: "Gus's work" });
-    await viewer.getByRole("checkbox", { name: "Add to the board" }).check();
-    await viewer.getByRole("button", { name: "Close" }).click();
-    await tick(page, "Ada").check();
-    await expect(tick(page, "Gus")).toBeChecked();
+    // The teacher picks Gus's first attempt from its thumbnail, and Ada's
+    // from her jar.
     await expect(piece(page, "Gus").locator("img")).toHaveAttribute("src", /board-gus-first-/);
+    await tick(page, "Gus").check();
+    await tick(page, "Ada").check();
     await expect(page.getByRole("button", { name: /Show on the board \(2\)/ })).toBeEnabled();
 
     // Meanwhile Gus's work is sent back and handed in again, as returnItem and
     // createJournalItem do it: the SAME row, back to waiting, with new pictures
-    // at a new path. Nobody has looked at this one.
+    // at a new path. Nobody has picked this one.
     await db.journalItem.update({ where: { id: gusItem.id }, data: { status: "RETURNED", teacherNote: "Add the sun" } });
     const second = drawn(`board-gus-second-${stamp}.svg`, "#dc2626");
     await db.journalItem.update({ where: { id: gusItem.id }, data: { status: "PENDING", mediaPath: second, teacherNote: null } });
@@ -417,17 +428,13 @@ test("a hand-in that changes under the page is work nobody has looked at: placeh
     await page.getByRole("button", { name: "Not needed for Fen" }).click();
     await expect(page.locator('li[data-pupil="Fen"]')).toHaveAttribute("data-status", "NOT_NEEDED");
 
-    // Gus's second attempt is unseen work: the placeholder is back, the tick is
-    // off and cannot go on, the count has dropped, and the new picture was
-    // never so much as asked for.
-    await expect(piece(page, "Gus").locator("[data-board-unseen]")).toHaveText("Waiting for you — open it to look");
-    await expect(piece(page, "Gus").locator("img"), "no thumbnail of the unseen second attempt").toHaveCount(0);
-    await expect(tick(page, "Gus")).toBeDisabled();
+    // Gus's second attempt is a piece nobody picked: its own thumbnail, the
+    // tick off, and the count down by one.
+    await expect(piece(page, "Gus").locator("img")).toHaveAttribute("src", /board-gus-second-/);
     await expect(tick(page, "Gus")).not.toBeChecked();
-    await expect(piece(page, "Gus")).toContainText("Open it first");
+    await expect(tick(page, "Gus")).toBeEnabled();
     const show = page.getByRole("button", { name: /Show on the board \(1\)/ });
     await expect(show).toBeEnabled();
-    expect(fetched.some((u) => u.includes("board-gus-second-")), "the second attempt's picture was not fetched").toBe(false);
 
     // And the board has Ada on it, and only Ada.
     await show.click();
@@ -438,12 +445,10 @@ test("a hand-in that changes under the page is work nobody has looked at: placeh
     await page.keyboard.press("Escape");
     await expect(board(page)).toHaveCount(0);
 
-    // Now the teacher looks at the second attempt and picks it; then it is
-    // sent back. Sent-back work is never offered, so when the page refreshes
-    // ("Put back" for Fen) it leaves the list, and the count with it.
-    await page.getByRole("button", { name: /^Open Gus's work/ }).click();
-    await viewer.getByRole("checkbox", { name: "Add to the board" }).check();
-    await viewer.getByRole("button", { name: "Close" }).click();
+    // Now the teacher picks the second attempt; then it is sent back.
+    // Sent-back work is never offered, so when the page refreshes ("Put back"
+    // for Fen) it leaves the list, and the count with it.
+    await tick(page, "Gus").check();
     await expect(page.getByRole("button", { name: /Show on the board \(2\)/ })).toBeEnabled();
     await db.journalItem.update({ where: { id: gusItem.id }, data: { status: "RETURNED", teacherNote: "One more go" } });
     await page.getByRole("button", { name: "Put back on Fen's list" }).click();

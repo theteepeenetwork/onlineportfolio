@@ -890,7 +890,7 @@ question (answered 2026-09-10). **Recorded:** 2026-09-10.
 
 ---
 
-## 2026-09-10 — Work may go up on the classroom board once the teacher has looked at it
+## 2026-09-10 — Work may go up on the classroom board once the teacher has chosen it (amended 2026-09-12)
 
 **The ask.** A teacher wanted a way to show the class finished work before it
 is in the jars — the end-of-lesson pinboard. `SAFEGUARDING.md` rule 3 forbade
@@ -899,7 +899,8 @@ thing that rule names.
 
 **Decided.** The teacher picks, then shows (`SAFEGUARDING.md` rule 25, with a
 dated scope note on rule 3). Waiting work can be picked only after the teacher
-has opened it full size; work in a jar straight away; work sent back never.
+has opened it full size *(superseded 2026-09-12, below: waiting work may now be
+picked from its thumbnail)*; work in a jar straight away; work sent back never.
 First names by default, with a "Hide names" switch that also clears the
 picture's alternative text. The choices are held in the open page and nowhere
 else, the board is opaque and full screen, and showing changes no status.
@@ -955,4 +956,33 @@ of the look-first design: the look has to happen somewhere, and the alternative
 line on the run page whenever work is waiting, "Open waiting work before this
 page is on the projector.", and the residual stays at DPIA R23.
 
-**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10.
+**DECISION, 2026-09-12: the look-first gate is removed; the teacher picks from
+thumbnails, and controls the projector.** The picker was not usable: every
+waiting piece was a placeholder reading "Waiting for you — open it to look",
+with its tick disabled until the teacher had opened it full size, one piece at
+a time. The owner decided that waiting work is drawn as a thumbnail and may be
+ticked straight away, with arrows inside the thumbnail to turn a piece's pages
+and the picture itself opening it full size, as before. The reasoning: the
+teacher controls the projector and can freeze or disconnect it before
+choosing, so a gate on the teacher's own screen protects against a situation
+the teacher can prevent. The page now recommends viewing work before showing
+it, and whenever waiting work is listed it says, in one line above the picks,
+"If this screen is on the projector, freeze it or switch it off while you
+choose." **What was traded away:** that an adult has opened a waiting piece
+full size before it can go up, and that unapproved work is not drawn on a page
+that may already be on the projector. The 2026-09-11 decision above, accepting
+that the look could happen on a projected screen, is superseded: that exposure
+is now the whole list of thumbnails rather than one opened piece, and the
+answer to it is the teacher's control of the projector. **What was not:**
+sent-back work is never offered, a pick belongs to the version ticked, nothing
+is stored, and no score, total or answer key reaches the browser. Rule 25 and
+its Amendments row are updated; the residual is at DPIA R23, which the owner
+kept at Low the same day, knowing the exposure had widened. The four published promises that no work is seen
+before approval now overstate the product, and are FINDINGS F84.
+
+**Worth an outside check:** no new data category, storage or third party, so
+not for its own sake. But the wording that replaces the published promises
+(F84) is what schools and parents read, and is worth a second pair of eyes.
+
+**Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10;
+the 2026-09-12 decision on the day it was made.
