@@ -899,7 +899,8 @@ thing that rule names.
 
 **Decided.** The teacher picks, then shows (`SAFEGUARDING.md` rule 25, with a
 dated scope note on rule 3). Waiting work can be picked only after the teacher
-has opened it full size; work in a jar straight away; work sent back never.
+has opened it full size *(superseded 2026-09-12, below: waiting work may now be
+picked from its thumbnail)*; work in a jar straight away; work sent back never.
 First names by default, with a "Hide names" switch that also clears the
 picture's alternative text. The choices are held in the open page and nowhere
 else, the board is opaque and full screen, and showing changes no status.
@@ -975,7 +976,13 @@ is now the whole list of thumbnails rather than one opened piece, and the
 answer to it is the teacher's control of the projector. **What was not:**
 sent-back work is never offered, a pick belongs to the version ticked, nothing
 is stored, and no score, total or answer key reaches the browser. Rule 25 and
-its Amendments row are updated; the residual is at DPIA R23.
+its Amendments row are updated; the residual is at DPIA R23, whose rating is
+the owner's to confirm. The four published promises that no work is seen
+before approval now overstate the product, and are FINDINGS F84.
+
+**Worth an outside check:** no new data category, storage or third party, so
+not for its own sake. But the wording that replaces the published promises
+(F84) is what schools and parents read, and is worth a second pair of eyes.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10;
 the 2026-09-12 decision on the day it was made.
