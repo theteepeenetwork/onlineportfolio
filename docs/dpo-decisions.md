@@ -977,12 +977,15 @@ answer to it is the teacher's control of the projector. **What was not:**
 sent-back work is never offered, a pick belongs to the version ticked, nothing
 is stored, and no score, total or answer key reaches the browser. Rule 25 and
 its Amendments row are updated; the residual is at DPIA R23, which the owner
-kept at Low the same day, knowing the exposure had widened. The four published promises that no work is seen
-before approval now overstate the product, and are FINDINGS F84.
+kept at Low the same day, knowing the exposure had widened. The published promises that no work is seen before
+approval overstated the product (FINDINGS F84); the owner approved new wording
+on 13 September 2026, naming the board exception, and it is live on the
+privacy, families' privacy and safeguarding pages and the admin console.
 
 **Worth an outside check:** no new data category, storage or third party, so
-not for its own sake. But the wording that replaces the published promises
-(F84) is what schools and parents read, and is worth a second pair of eyes.
+not for its own sake. But the wording that replaced the published promises
+(F84) is what schools and parents read, and is worth a second pair of eyes
+when the policies go for professional review.
 
 **Decided by:** the founder, as data protection lead. **Recorded:** 2026-09-10;
 the 2026-09-12 decision on the day it was made.
