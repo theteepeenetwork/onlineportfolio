@@ -187,7 +187,7 @@ const NOT_POSSIBLE: string[] = [
   "Store a child's surname, birthday, address or contact details. First names and their work, and that is all.",
   "Take a parent's email or phone number from the school. A parent gives us an address themselves, or we hold none.",
   "Let children message each other. There is no child-to-child contact in StoryJar of any kind.",
-  "Show a child's work to anybody before a teacher has approved it.",
+  "Send a child's work to a family, or show it to other staff, before a teacher has approved it. The only way anyone else sees unapproved work is a class teacher choosing to show it on their classroom board.",
 ];
 
 export function Guide({ onGoTo }: { onGoTo: (tab: Tab) => void }) {

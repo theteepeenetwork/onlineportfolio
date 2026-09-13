@@ -102,7 +102,7 @@ export function HowItWorks() {
       <p className="mt-1" style={{ color: "var(--ink)" }}>
         Has no account: no login, no email address, no password. They type the class code their
         teacher shows them, tap their own first name, and make something — a photo, a drawing, their
-        own writing, or a short voice note. It goes nowhere until an adult has seen it. A class can
+        own writing, or a short voice note. It goes nowhere outside the classroom until a teacher has approved it. A class can
         optionally add a short PIN, which a teacher switches on for the class; it is not an account
         and it is never shown to us.
       </p>

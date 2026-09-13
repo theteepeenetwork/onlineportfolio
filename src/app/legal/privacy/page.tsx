@@ -4,7 +4,7 @@ export const metadata = { title: "Privacy Policy — StoryJar" };
 
 export default function Privacy() {
   return (
-    <LegalShell title="Privacy Policy" policyKey="privacy" intro="This policy explains what personal data StoryJar processes, why, on whose behalf, and the rights people have. A short plain-English version for families is also available.">
+    <LegalShell title="Privacy Policy" policyKey="privacy" updated="13 September 2026" intro="This policy explains what personal data StoryJar processes, why, on whose behalf, and the rights people have. A short plain-English version for families is also available.">
       <h2>1. Who is responsible for your data</h2>
       <p>
         StoryJar is a service provided by <strong>Storyjar Limited</strong>, a company registered in England and
@@ -55,8 +55,10 @@ export default function Privacy() {
 
       <h2>4. How moments are controlled</h2>
       <p>
-        Every moment a child creates is held privately in a teacher approval queue and is <strong>not visible to anyone
-        else until a teacher approves it</strong>. Approved moments are visible only to the child&apos;s teacher(s),
+        Every moment a child creates is held privately in a teacher approval queue and <strong>is not shown to
+        families, other pupils or other staff until a teacher approves it</strong>. The one exception is a class teacher
+        choosing to show pupils&apos; pictures to their own class on the classroom screen, which they may do before
+        approving them. StoryJar keeps no record of what was shown, and showing work changes nothing about it. Approved moments are visible only to the child&apos;s teacher(s),
         school admins who teach that class, and the child&apos;s linked parent/carer (read-only). Content is never public.
       </p>
 

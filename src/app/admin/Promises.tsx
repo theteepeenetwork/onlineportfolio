@@ -34,12 +34,12 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    heading: "Nothing is seen until an adult has seen it",
+    heading: "Nothing leaves the classroom until a teacher approves it",
     promises: [
       {
         rule: "Rule 3",
         title: "The approval queue is sacred",
-        body: "Everything a pupil makes waits in their teacher's queue. Until a teacher approves it, nobody else can see it — not the family, not another child, not another member of staff.",
+        body: "Everything a pupil makes waits in their teacher's queue. Until a teacher approves it, StoryJar shows it to no family, no other pupil and no other member of staff. The one exception is the class teacher's own choice: they can show pupils' pictures on the classroom board, including work they have not approved yet. Showing work stores nothing and approves nothing, and it reaches only the room the teacher is in.",
       },
     ],
   },

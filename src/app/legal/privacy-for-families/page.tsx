@@ -4,7 +4,7 @@ export const metadata = { title: "Privacy — plain English — StoryJar" };
 
 export default function PrivacyForFamilies() {
   return (
-    <LegalShell title="Privacy — the plain-English version" policyKey="privacy-for-families" intro="For parents, carers and children. The full Privacy Policy has all the detail; this is the short, clear version the ICO Children's Code asks us to provide.">
+    <LegalShell title="Privacy — the plain-English version" policyKey="privacy-for-families" updated="13 September 2026" intro="For parents, carers and children. The full Privacy Policy has all the detail; this is the short, clear version the ICO Children's Code asks us to provide.">
       <h2>What is StoryJar?</h2>
       <p>StoryJar is a place where your child&apos;s teacher keeps a journal of the lovely things your child makes at school — photos, drawings and their own words.</p>
 
@@ -17,7 +17,7 @@ export default function PrivacyForFamilies() {
         <li>Their <strong>teacher</strong> (and other staff who teach their class).</li>
         <li><strong>You</strong>, if the school links you — and only your own child, and only things the teacher has approved.</li>
       </ul>
-      <p>Nothing your child makes is shown to anyone until their <strong>teacher has checked and approved it</strong>. It is never public. Other families cannot see your child.</p>
+      <p>Nothing your child makes is shown to you, other families or other staff until their <strong>teacher has approved it</strong>. Their teacher can choose to show pictures from a lesson to the class on the classroom screen, sometimes before approving them, the way a teacher might pin work to a board. Nothing is kept about what was shown. It is never public, and other families cannot see your child.</p>
 
       <h2>Can I message the teacher?</h2>
       <p>If your school has switched it on, yes. Under your child&apos;s jar there is a box where you can write to their class teacher, and the teacher can write back. A few things to know:</p>

@@ -4,12 +4,12 @@ export const metadata = { title: "Safeguarding & Child Protection — StoryJar" 
 
 export default function Safeguarding() {
   return (
-    <LegalShell title="Safeguarding & Child Protection" policyKey="safeguarding" intro="StoryJar holds the work of children aged 3–11. Keeping them safe is our first principle — every design decision is made to protect the child.">
+    <LegalShell title="Safeguarding & Child Protection" policyKey="safeguarding" updated="13 September 2026" intro="StoryJar holds the work of children aged 3–11. Keeping them safe is our first principle — every design decision is made to protect the child.">
       <h2>Our safeguarding principles</h2>
       <ul>
         <li><strong>Children are never account-holders.</strong> No child logins, emails or passwords. Children sign in only with a class code and by tapping their own name.</li>
         <li><strong>We hold as little as possible.</strong> First names and their work — no surnames, birthdays, addresses or contact details.</li>
-        <li><strong>An adult always checks first.</strong> Every moment a child makes waits in the teacher&apos;s approval queue and is never shown to anyone until the teacher approves it.</li>
+        <li><strong>A teacher decides what is seen.</strong> Every moment a child makes waits in the teacher&apos;s approval queue, and StoryJar shows it to no family, other pupil or other member of staff until the teacher approves it. A class teacher may choose to show pupils&apos; pictures to their own class on the classroom screen before approving them. Doing so records nothing, changes nothing and reaches no one outside the room.</li>
         <li><strong>Access is need-to-know.</strong> A child&apos;s work is visible only to staff who teach that child and to a linked parent/carer (read-only). School admins do not see children&apos;s work unless they teach the class. Media (photos and drawings) is access-controlled, never at a public link.</li>
         <li><strong>No tracking, no profiling, no advertising.</strong> Ever.</li>
         <li><strong>Data stays in Europe</strong> — stored in Amsterdam, in the Netherlands, and backed up in the same region.</li>
